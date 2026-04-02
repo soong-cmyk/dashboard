@@ -1,0 +1,6300 @@
+
+
+// ══════════════════════════════════════════
+// 본부/팀 통합 필터 헬퍼
+// ══════════════════════════════════════════
+/** ORG_STRUCTURE 기반 optgroup HTML 생성 */
+function _buildOrgSelectHTML() {
+  return ORG_STRUCTURE.map(o => {
+    const teamOpts = (o.teams || []).map(t =>
+      `<option value="${o.bonbu}/${t}">\u00a0\u00a0 ${t}</option>`
+    ).join('');
+    return `<optgroup label="${o.bonbu}">` +
+      `<option value="${o.bonbu}">${o.bonbu} 전체</option>` +
+      teamOpts +
+      `</optgroup>`;
+  }).join('');
+}
+/** "1본부" 또는 "1본부/1팀" 값을 { bonbu, team }으로 파싱 */
+function _parseOrgFilter(val) {
+  if (!val) return { bonbu: '', team: '' };
+  const idx = val.indexOf('/');
+  if (idx === -1) return { bonbu: val, team: '' };
+  return { bonbu: val.slice(0, idx), team: val.slice(idx + 1) };
+}
+
+// ══════════════════════════════════════════
+// 상품 목록 (중앙 관리)
+// ══════════════════════════════════════════
+const PRODUCT_LIST = ['MMS', 'LMS', '실시간 발송', 'DA', 'CPA', 'PUSH', '카톡MSG', '퍼미션콜'];
+
+function _populateProductSelects() {
+  const opts = PRODUCT_LIST.map(p => `<option value="${p}">${p}</option>`).join('');
+  // 필터: 빈값 옵션 유지
+  ['fProd', 'stl-fProd'].forEach(id => {
+    const fEl = document.getElementById(id);
+    if (fEl) fEl.innerHTML = '<option value="">상품</option>' + opts;
+  });
+  // 등록/수정/파이프라인: 선택 옵션 유지
+  ['r_product', 'e_product', 'pm-product'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="">선택</option>' + opts;
+    if (cur) el.value = cur;
+  });
+}
+
+// ══════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════
+const DATA = [];
+let _nextCampaignNum = 1;
+
+// ══════════════════════════════════════════
+// PIPELINE DATA
+// ══════════════════════════════════════════
+let PIPELINE_DATA = [];
+let _pendingPipelineConvertId = null;
+let _pipelineShowArchived = false;
+let _pipelineNextNum = 4;
+
+// 파이프라인 예산/목표 통계 데이터 (단위: 원)
+// months[0]=1월 ~ months[11]=12월, 각 {t:목표, a:현황}
+// 현재 월 이전/해당 월: 목표+현황+달성률 표시 / 미래 월: 목표만 표시
+const PIPELINE_BUDGET_DATA = {
+  depts: [
+    {
+      name: '1본부',
+      rows: [
+        { stage:'Actual', months:[
+          {t:1394217531,a:1394217531},{t:1284000000,a:474410000},{t:1280000000,a:null},
+          {t:1582000000,a:null},{t:2152000000,a:null},{t:2065000000,a:null},
+          {t:2327000000,a:null},{t:2540000000,a:null},{t:2313000000,a:null},
+          {t:2571000000,a:null},{t:2570000000,a:null},{t:2957000000,a:null}
+        ], total:25035217531 },
+        { stage:'Commitment', months:[
+          {t:null,a:null},{t:null,a:511320000},{t:null,a:null},
+          {t:null,a:null},{t:null,a:null},{t:null,a:null},
+          {t:null,a:null},{t:null,a:null},{t:null,a:null},
+          {t:null,a:null},{t:null,a:null},{t:null,a:null}
+        ], total:null },
+        { stage:'Potential', months:Array.from({length:12},function(){return{t:null,a:null};}), total:null },
+        { stage:'Make-up',   months:Array.from({length:12},function(){return{t:null,a:null};}), total:null },
+      ],
+      sub: { months:[
+        {t:null,a:1394217531},{t:null,a:985730000},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null}
+      ], total:null }
+    },
+    {
+      name: '2본부',
+      rows: [
+        { stage:'Actual', months:[
+          {t:31500000,a:31500000},{t:300000000,a:47200000},{t:500000000,a:null},
+          {t:600000000,a:null},{t:700000000,a:null},{t:800000000,a:null},
+          {t:900000000,a:null},{t:1000000000,a:null},{t:1100000000,a:null},
+          {t:1200000000,a:null},{t:1300000000,a:null},{t:1400000000,a:null}
+        ], total:9831500000 },
+        { stage:'Commitment', months:Array.from({length:12},function(){return{t:null,a:null};}), total:null },
+        { stage:'Potential',  months:Array.from({length:12},function(){return{t:null,a:null};}), total:null },
+        { stage:'Make-up', months:[
+          {t:null,a:null},{t:null,a:5000000},{t:null,a:null},
+          {t:null,a:null},{t:null,a:null},{t:null,a:null},
+          {t:null,a:null},{t:null,a:null},{t:null,a:null},
+          {t:null,a:null},{t:null,a:null},{t:null,a:null}
+        ], total:null },
+      ],
+      sub: { months:[
+        {t:null,a:31500000},{t:null,a:52200000},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null}
+      ], total:9831500000 }
+    },
+    {
+      name: '3본부',
+      rows: [
+        { stage:'Actual', months:[
+          {t:14924843,a:14924843},{t:25000000,a:0},{t:25000000,a:null},
+          {t:30000000,a:null},{t:30000000,a:null},{t:30000000,a:null},
+          {t:35000000,a:null},{t:35000000,a:null},{t:35000000,a:null},
+          {t:40000000,a:null},{t:40000000,a:null},{t:40000000,a:null}
+        ], total:379924843 },
+        { stage:'Commitment', months:[
+          {t:null,a:null},{t:null,a:17231089},{t:null,a:null},
+          {t:null,a:null},{t:null,a:null},{t:null,a:null},
+          {t:null,a:null},{t:null,a:null},{t:null,a:null},
+          {t:null,a:null},{t:null,a:null},{t:null,a:null}
+        ], total:null },
+        { stage:'Potential', months:Array.from({length:12},function(){return{t:null,a:null};}), total:null },
+        { stage:'Make-up',   months:Array.from({length:12},function(){return{t:null,a:null};}), total:null },
+      ],
+      sub: { months:[
+        {t:null,a:14924843},{t:null,a:17231089},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null}
+      ], total:379924843 }
+    },
+  ],
+  grand: {
+    name: '광고본부',
+    rows: [
+      { stage:'Actual', months:[
+        {t:1440642374,a:1440642374},{t:1609000000,a:521610000},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null}
+      ], total:null },
+      { stage:'Committed', months:[
+        {t:null,a:null},{t:null,a:528551089},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null}
+      ], total:null },
+      { stage:'Potential', months:Array.from({length:12},function(){return{t:null,a:null};}), total:null },
+      { stage:'Make-up', months:[
+        {t:null,a:null},{t:null,a:5000000},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null},
+        {t:null,a:null},{t:null,a:null},{t:null,a:null}
+      ], total:null },
+    ],
+    total: { months:[
+      {t:null,a:1440642374},{t:null,a:1055161089},{t:325000000,a:null},
+      {t:525000000,a:null},{t:630000000,a:null},{t:730000000,a:null},
+      {t:830000000,a:null},{t:935000000,a:null},{t:1035000000,a:null},
+      {t:1135000000,a:null},{t:1240000000,a:null},{t:1340000000,a:null}
+    ], total:10211424843 }
+  }
+};
+
+// ══════════════════════════════════════════
+// USERS & AUTH
+// ══════════════════════════════════════════
+const USERS = [];
+// 본부-팀 구조 (드롭다운용)
+const ORG_STRUCTURE = [
+  { bonbu:'1본부', teams:['1팀','2팀','3팀'] },
+  { bonbu:'2본부', teams:['1팀'] },
+  { bonbu:'3본부', teams:['1팀'] },
+];
+let currentUser = null;
+
+function hasPerm(perm) {
+  if (!currentUser) return false;
+  if (currentUser.isAdmin) return true;
+  return !!(currentUser.perms && currentUser.perms[perm] === true);
+}
+function canEdit(c) {
+  if (!currentUser) return false;
+  if (currentUser.isAdmin) return true;
+  if (c.regUser && c.regUser === currentUser.id) return true;
+  // 등록자와 같은 팀 소속이면 수정 가능
+  if (c.regUser && currentUser.bonbu && currentUser.dept) {
+    const regUser = USERS.find(u => u.id === c.regUser);
+    if (regUser && regUser.bonbu === currentUser.bonbu && regUser.dept === currentUser.dept) return true;
+  }
+  return false;
+}
+function checkAuth() {
+  const saved = sessionStorage.getItem('cu');
+  if (!saved) return false;
+  try {
+    const u = JSON.parse(saved);
+    // 구버전 세션({id만 있는 형식}) 감지 → 재로그인 유도
+    if (!u || !u.id || !u.name) { sessionStorage.removeItem('cu'); return false; }
+    currentUser = u;
+    return true;
+  } catch(e) { return false; }
+}
+async function login() {
+  const id = document.getElementById('login-id').value.trim();
+  const pw = document.getElementById('login-pw').value;
+  const errEl = document.getElementById('login-err');
+  // USERS 배열이 아직 로드 안 됐을 수 있으므로 Firebase에서 직접 조회
+  let user = USERS.find(u => u.id === id && u.pw === pw);
+  if (!user && window._db) {
+    try {
+      const doc = await window._db.collection('users').doc(id).get();
+      if (doc.exists) { const u = doc.data(); if (u.pw === pw) user = u; }
+    } catch(e) {}
+  }
+  if (!user) { if (errEl) errEl.style.display = ''; return; }
+  if (errEl) errEl.style.display = 'none';
+  currentUser = user;
+  sessionStorage.setItem('cu', JSON.stringify(user));
+  _updateUserUI();
+  // 로그인 전에 detail URL로 접근했던 경우 복원
+  const afterHash = sessionStorage.getItem('_afterLoginHash');
+  if (afterHash) {
+    sessionStorage.removeItem('_afterLoginHash');
+    const id = afterHash.split('/')[1];
+    if (id) {
+      const idx = DATA.findIndex(c => c.id === id);
+      if (idx !== -1) { openDetail(idx); return; }
+      window._pendingDetailId = id; // Firebase 로드 후 처리
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-detail').classList.add('active');
+      document.querySelector('.topbar').style.display = 'none';
+      return;
+    }
+  }
+  goScreen('dashboard');
+}
+function logout() {
+  currentUser = null;
+  sessionStorage.removeItem('cu');
+  goScreen('login');
+}
+function _updateUserUI() {
+  if (!currentUser) return;
+  const av = document.getElementById('sidebar-avatar');
+  const nm = document.getElementById('sidebar-name');
+  const tm = document.getElementById('sidebar-team');
+  if (av) av.textContent = currentUser.name[0];
+  if (nm) nm.textContent = currentUser.name;
+  if (tm) tm.textContent = [currentUser.bonbu, currentUser.dept].filter(Boolean).join(' ') || '—';
+  const regBtn = document.getElementById('btn-reg');
+  if (regBtn) regBtn.style.display = hasPerm('ops') ? '' : 'none';
+  const canManageUsers = currentUser.isAdmin || ['대표이사','이사','본부장'].includes(currentUser.rank);
+  const navUsers = document.getElementById('nav-users');
+  if (navUsers) navUsers.style.display = canManageUsers ? '' : 'none';
+}
+// ══════════════════════════════════════════
+// AVATAR POPOVER & PASSWORD CHANGE
+// ══════════════════════════════════════════
+
+function toggleAvatarPopover(e) {
+  e.stopPropagation();
+  const pop = document.getElementById('avatar-popover');
+  if (!pop) return;
+  const isOpen = pop.style.display !== 'none';
+  pop.style.display = isOpen ? 'none' : '';
+  if (!isOpen && currentUser) {
+    const lbl = document.getElementById('popover-id-label');
+    if (lbl) lbl.textContent = `ID: ${currentUser.id}`;
+  }
+}
+
+// 팝오버 외부 클릭 시 닫기
+document.addEventListener('click', () => {
+  const pop = document.getElementById('avatar-popover');
+  if (pop) pop.style.display = 'none';
+});
+
+function openChangePwModal() {
+  document.getElementById('avatar-popover').style.display = 'none';
+  ['cpw-current','cpw-new','cpw-confirm'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const errEl = document.getElementById('cpw-error');
+  if (errEl) errEl.style.display = 'none';
+  openModal('modalChangePw');
+}
+
+function submitChangePw() {
+  const current = document.getElementById('cpw-current').value;
+  const next    = document.getElementById('cpw-new').value;
+  const confirm = document.getElementById('cpw-confirm').value;
+  const errEl   = document.getElementById('cpw-error');
+
+  const showErr = (msg) => { errEl.textContent = msg; errEl.style.display = ''; };
+
+  if (!current || !next || !confirm) return showErr('모든 항목을 입력해주세요.');
+  if (currentUser.pw !== current)    return showErr('현재 비밀번호가 올바르지 않습니다.');
+  if (next.length < 4)               return showErr('새 비밀번호는 4자 이상이어야 합니다.');
+  if (next !== confirm)              return showErr('새 비밀번호가 일치하지 않습니다.');
+
+  // ── DB 연동 시 아래 로컬 저장 대신 API 호출로 교체 ──
+  // await _apiChangePassword(currentUser.id, current, next);
+  _localChangePassword(currentUser.id, next);
+}
+
+function _localChangePassword(userId, newPw) {
+  const u = USERS.find(x => x.id === userId);
+  if (!u) return;
+  u.pw = newPw;
+  if (currentUser && currentUser.id === userId) currentUser.pw = newPw;
+  _fbSaveUser(u);
+  closeModal('modalChangePw');
+  toast('✓ 비밀번호가 변경되었습니다', 'ok');
+}
+
+function openUserMgmt() {
+  goScreen('users');
+}
+function _renderUserMgmtList() {
+  const tb = document.getElementById('users-tbody');
+  if (!tb) return;
+  const list = USERS.filter(u => !u.isAdmin).sort((a, b) => {
+    if (a.id === 'wonjoon') return -1;
+    if (b.id === 'wonjoon') return 1;
+    const bonbuIdx = u => { const i = ORG_STRUCTURE.findIndex(o => o.bonbu === u.bonbu); return i < 0 ? 99 : i; };
+    const deptIdx  = u => { const o = ORG_STRUCTURE.find(o => o.bonbu === u.bonbu); if (!o) return 99; const i = o.teams.indexOf(u.dept); return i < 0 ? 99 : i; };
+    const RANK_ORDER = ['이사','본부장','팀장','일반'];
+    const rankIdx = u => { const i = RANK_ORDER.indexOf(u.rank || '일반'); return i < 0 ? 99 : i; };
+    return rankIdx(a) - rankIdx(b) || bonbuIdx(a) - bonbuIdx(b) || deptIdx(a) - deptIdx(b) || a.name.localeCompare(b.name, 'ko');
+  });
+  tb.innerHTML = list.map((u, i) => `
+    <tr id="urow-${u.id}">
+      <td class="td-dim">${i + 1}</td>
+      <td><span style="font-size:11px;color:var(--text3);display:block;">${u.id}</span><span style="font-weight:500;">${u.name}</span></td>
+      <td id="urank-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.rank || '일반'}</span></td>
+      <td id="ubonbu-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.bonbu || '—'}</span></td>
+      <td id="udept-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.dept || '—'}</span></td>
+      <td style="white-space:nowrap;" id="uact-${u.id}">
+        <button class="btn btn-outline btn-sm" onclick="enterUserEdit('${u.id}')">수정</button>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--text3);">등록된 사용자가 없습니다.</td></tr>';
+}
+function enterUserEdit(uid) {
+  const u = USERS.find(x => x.id === uid);
+  if (!u) return;
+  // 본부 셀 → select
+  const bonbuOpts = ['', ...ORG_STRUCTURE.map(o => o.bonbu)].map(b =>
+    `<option value="${b}" ${u.bonbu === b ? 'selected' : ''}>${b || '—'}</option>`).join('');
+  document.getElementById(`ubonbu-cell-${uid}`).innerHTML =
+    `<select class="form-input" id="uedit-bonbu-${uid}" style="width:90px;" onchange="_syncDeptOpts('${uid}')">${bonbuOpts}</select>`;
+  // 팀 셀 → select
+  document.getElementById(`udept-cell-${uid}`).innerHTML =
+    `<select class="form-input" id="uedit-dept-${uid}" style="width:70px;">${_deptOptsHtml(u.bonbu, u.dept)}</select>`;
+  // 직급 셀 → select
+  const rankOpts = ['이사','본부장','팀장','일반'].map(r =>
+    `<option value="${r}" ${(u.rank||'일반') === r ? 'selected' : ''}>${r}</option>`).join('');
+  document.getElementById(`urank-cell-${uid}`).innerHTML =
+    `<select class="form-input" id="uedit-rank-${uid}" style="width:70px;">${rankOpts}</select>`;
+  // 버튼 셀 교체
+  document.getElementById(`uact-${uid}`).innerHTML =
+    `<button class="btn btn-outline btn-sm" onclick="openResetPwModal('${uid}')">비밀번호 초기화</button>
+     <button class="btn btn-primary btn-sm" style="margin-left:6px;" onclick="saveUserEdit('${uid}')">저장</button>`;
+}
+function _deptOptsHtml(bonbu, selectedDept) {
+  const org = ORG_STRUCTURE.find(o => o.bonbu === bonbu);
+  const teams = org ? org.teams : [];
+  return ['', ...teams].map(t =>
+    `<option value="${t}" ${selectedDept === t ? 'selected' : ''}>${t || '—'}</option>`).join('');
+}
+function _syncDeptOpts(uid) {
+  const bonbu = document.getElementById(`uedit-bonbu-${uid}`)?.value || '';
+  const deptSel = document.getElementById(`uedit-dept-${uid}`);
+  if (deptSel) deptSel.innerHTML = _deptOptsHtml(bonbu, '');
+}
+function saveUserEdit(uid) {
+  const u = USERS.find(x => x.id === uid);
+  if (!u) return;
+  u.bonbu = document.getElementById(`uedit-bonbu-${uid}`)?.value.trim() ?? u.bonbu;
+  u.dept  = document.getElementById(`uedit-dept-${uid}`)?.value.trim() ?? u.dept;
+  u.rank  = document.getElementById(`uedit-rank-${uid}`)?.value ?? u.rank;
+  if (currentUser && currentUser.id === uid) { currentUser.bonbu = u.bonbu; currentUser.dept = u.dept; currentUser.rank = u.rank; _updateUserUI(); }
+  _fbSaveUser(u);
+  _renderUserMgmtList();
+  toast('✓ 저장되었습니다', 'ok');
+}
+let _pendingResetUid = null;
+function openResetPwModal(uid) {
+  const u = USERS.find(x => x.id === uid);
+  if (!u) return;
+  _pendingResetUid = uid;
+  document.getElementById('reset-pw-name').textContent = u.name;
+  openModal('modalResetPw');
+}
+function confirmResetPw() {
+  const u = USERS.find(x => x.id === _pendingResetUid);
+  if (u) { u.pw = '1234'; _fbSaveUser(u); toast(`✓ ${u.name} 비밀번호가 1234로 초기화되었습니다`, 'ok'); }
+  _pendingResetUid = null;
+  closeModal('modalResetPw');
+}
+function togglePerm(uid, perm, val) {
+  const u = USERS.find(x => x.id === uid);
+  if (!u) return;
+  u.perms[perm] = val;
+  if (currentUser && currentUser.id === uid) { currentUser = u; _updateUserUI(); }
+  _fbSaveUser(u);
+}
+function openUserRegModal() {
+  ['ureg-name','ureg-id','ureg-pw'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  // 본부/직급 select 초기화
+  const bonbuSel = document.getElementById('ureg-bonbu');
+  if (bonbuSel) { bonbuSel.value = ''; _syncRegDeptOpts(); }
+  const rankSel = document.getElementById('ureg-rank');
+  if (rankSel) rankSel.value = '일반';
+  openModal('modalUserReg');
+}
+function _syncRegDeptOpts() {
+  const bonbu = document.getElementById('ureg-bonbu')?.value || '';
+  const deptSel = document.getElementById('ureg-dept');
+  if (deptSel) deptSel.innerHTML = _deptOptsHtml(bonbu, '');
+}
+function submitUserReg() {
+  const name  = document.getElementById('ureg-name').value.trim();
+  const id    = document.getElementById('ureg-id').value.trim();
+  const pw    = document.getElementById('ureg-pw').value;
+  const bonbu = document.getElementById('ureg-bonbu')?.value.trim() || '';
+  const dept  = document.getElementById('ureg-dept')?.value.trim() || '';
+  const rank  = document.getElementById('ureg-rank')?.value || '일반';
+  if (!name || !id || !pw) { toast('⚠ 이름, 아이디, 비밀번호는 필수입니다', 'warn'); return; }
+  if (USERS.find(u => u.id === id)) { toast('⚠ 이미 사용 중인 아이디입니다', 'warn'); return; }
+  const newUser = { id, pw, name, bonbu, dept, rank, isAdmin: false, perms: { ops: true } };
+  USERS.push(newUser);
+  _fbSaveUser(newUser);
+  _renderUserMgmtList();
+  closeModal('modalUserReg');
+  toast(`✓ ${name} 사용자가 등록되었습니다`, 'ok');
+}
+
+let filtered = [...DATA];
+let activeStatus = 'all';
+let currentPage = 1;
+let PAGE_SIZE = 10;
+let pendingTestEl = null, pendingTestIdx = null;
+let pendingSendEl = null, pendingSendIdx = null;
+let currentDetailIdx = null;
+
+// ══════════════════════════════════════════
+// HISTORY (수정 이력)
+//   - openHistory() 의 entries 조회 → GET /api/history?campaignId=xxx 로 교체
+// ══════════════════════════════════════════
+
+// 이력 저장소: { campaignId(string): Entry[] }
+const HISTORY = {};
+
+// 필드 한글 레이블 매핑 (DB 연동 시에도 그대로 사용)
+const FIELD_LABELS = {
+  name:'광고내용',
+  cat:'카테고리', date:'발송일시', media:'매체사',
+  product:'상품', contract:'계약주체', adv:'광고주', agency:'대행사',
+  ops:'담당자', dept:'부서', status:'단계',
+  qty:'발송예약수량', svc:'서비스물량', unit:'단가', disc:'할인금액',
+  comm:'수수료율', agrate:'대행료율', target:'타겟조건', dtarget:'디타겟조건', msg:'발송문구',
+  note:'특기사항', testOk:'테스트수신', sent:'성과입력대기',
+  actual:'실발송수량', clicks:'클릭수', ctr:'클릭률', db:'DB등록수', dbr:'DB등록률',
+  invoiceOut:'매출계산서발행', payIn:'입금', invoiceIn:'매입계산서발행', payOut:'지급',
+};
+
+function _nowStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+/**
+ * 수정 이력 기록
+ * DB 연동 시: 함수 본문을 아래처럼 교체
+ *   await fetch('/api/history', { method:'POST', body: JSON.stringify({campaignId,who,when,type,field,before,after}) })
+ *
+ * @param {string}      campaignId  캠페인 ID (DB: foreign key)
+ * @param {string}      type        이벤트 유형 register|field|check|perf
+ * @param {string|null} field       변경 필드 키 (FIELD_LABELS 키)
+ * @param {string|null} before      변경 전 값
+ * @param {string|null} after       변경 후 값
+ */
+function _log(campaignId, type, field, before, after) {
+  const entry = {
+    id:         `${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+    campaignId,
+    who:        currentUser ? currentUser.name : '—',
+    when:       _nowStr(),
+    type,
+    field:      field  ?? null,
+    before:     before != null ? String(before) : null,
+    after:      after  != null ? String(after)  : null,
+  };
+  if (!HISTORY[campaignId]) HISTORY[campaignId] = [];
+  HISTORY[campaignId].unshift(entry);
+  _fbSaveHistory(entry);
+}
+
+async function _fbSaveHistory(entry) {
+  if (!window._db) return;
+  try {
+    await window._db.collection('history').doc(entry.id).set(entry);
+  } catch(e) { console.error('[FB] 이력 저장 실패:', e); }
+}
+
+async function _fbLoadHistory(campaignId) {
+  if (!window._db) return [];
+  try {
+    const snap = await window._db.collection('history')
+      .where('campaignId', '==', campaignId)
+      .get();
+    return snap.docs.map(d => d.data()).sort((a, b) => b.id.localeCompare(a.id));
+  } catch(e) {
+    console.error('[FB] 이력 로드 실패:', e);
+    return [];
+  }
+}
+
+/**
+ * 이력 모달 열기
+ * DB 연동 시: entries = await fetch(`/api/history?campaignId=${c.id}`).then(r=>r.json())
+ */
+async function openHistory() {
+  const c = DATA[currentDetailIdx];
+  if (!c) return;
+
+  document.getElementById('histTitle').textContent = _cName(c);
+  const regDateEl = document.getElementById('histRegDate');
+  const regDateVal = document.getElementById('histRegDateVal');
+  const regUserVal = document.getElementById('histRegUserVal');
+  if (regDateEl && regDateVal && c.regDate) {
+    regDateVal.textContent = c.regDate;
+    if (regUserVal) {
+      const u = USERS.find(u => u.id === c.regUser);
+      regUserVal.textContent = u ? u.name : (c.regUser || '—');
+    }
+    regDateEl.style.display = '';
+  } else if (regDateEl) {
+    regDateEl.style.display = 'none';
+  }
+  const container = document.getElementById('histList');
+  container.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:32px 0;">불러오는 중...</div>';
+  openModal('modalHistory');
+
+  const fbEntries = await _fbLoadHistory(c.id);
+  if (fbEntries.length > 0) {
+    HISTORY[c.id] = fbEntries;
+  }
+  const entries = HISTORY[c.id] || [];
+
+  if (entries.length === 0) {
+    container.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:32px 0;">수정 이력이 없습니다.</div>';
+    return;
+  }
+
+  // 날짜별 그룹핑
+  const groups = {};
+  const dateOrder = [];
+  entries.forEach(e => {
+    const datePart = e.when.split(' ')[0];
+    if (!groups[datePart]) { groups[datePart] = []; dateOrder.push(datePart); }
+    groups[datePart].push(e);
+  });
+
+  container.innerHTML = dateOrder.map(date => {
+    const d   = new Date(date);
+    const dow = ['일','월','화','수','목','금','토'][d.getDay()];
+
+    // 시간+사용자 기준으로 재그룹핑
+    const subGroups = [];
+    const subKeyOrder = [];
+    const subGroupMap = {};
+    groups[date].forEach(e => {
+      const timePart = (e.when.split(' ')[1] || '').slice(0, 5); // HH:MM
+      const key = timePart + '||' + e.who;
+      if (!subGroupMap[key]) { subGroupMap[key] = { time: timePart, who: e.who, entries: [] }; subKeyOrder.push(key); }
+      subGroupMap[key].entries.push(e);
+    });
+
+    const rowsHtml = subKeyOrder.map(key => {
+      const sg = subGroupMap[key];
+      const changesHtml = sg.entries.map(e => {
+        if (e.type === 'register') {
+          return `<div class="hist-change"><span class="hist-tag-register">캠페인 등록</span></div>`;
+        }
+        const label = FIELD_LABELS[e.field] || e.field || '';
+        const bStr  = (e.before != null && e.before !== '') ? e.before : '미입력';
+        const aStr  = (e.after  != null && e.after  !== '') ? e.after  : '미입력';
+        return `<div class="hist-change">`
+          + `<span class="hist-field">${_escHtml(label)}</span>`
+          + `<span class="hist-before">${_escHtml(bStr)}</span>`
+          + `<span class="hist-arrow">›</span>`
+          + `<span class="hist-after">${_escHtml(aStr)}</span>`
+          + `</div>`;
+      }).join('');
+
+      return `<div class="hist-entry">
+        <div class="hist-dot"></div>
+        <div class="hist-body">
+          <div class="hist-meta"><span class="hist-time">${sg.time}</span><span class="hist-who">${_escHtml(sg.who)}</span></div>
+          ${changesHtml}
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="hist-group">
+      <div class="hist-date-chip">${date} (${dow})</div>
+      <div class="hist-group-body">${rowsHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function _escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ══════════════════════════════════════════
+// SCREEN ROUTING
+// ══════════════════════════════════════════
+function toggleCalFilter() {
+  const hdr = document.querySelector('.cal-header');
+  if (!hdr) return;
+  const open = hdr.classList.toggle('filter-open');
+  const btn  = document.getElementById('cal-filter-toggle');
+  if (btn) btn.textContent = open ? '🔍 필터 ▲' : '🔍 필터';
+}
+
+function toggleCampaignFilter() {
+  const bar = document.getElementById('campaigns-filter-bar');
+  if (!bar) return;
+  const open = bar.classList.toggle('filter-open');
+  const btn  = document.getElementById('mob-filter-toggle');
+  if (btn) btn.textContent = open ? '필터 ▲' : '필터 ▼';
+}
+
+function toggleSidebar() {
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('show');
+}
+function closeSidebar() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('show');
+}
+
+function goScreen(name, skipPush) {
+  closeSidebar();
+  document.querySelector('.topbar').style.display = '';
+  // update URL hash so refresh keeps same screen
+  if (!skipPush) {
+    try { window.location.hash = name; } catch (e) {}
+  }
+
+  // 로그인 오버레이 처리
+  const loginEl = document.getElementById('screen-login');
+  if (name === 'login') { if (loginEl) loginEl.style.display = 'flex'; return; }
+  if (loginEl) loginEl.style.display = 'none';
+
+
+  // hide all screens
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  if (name !== 'settlement') {
+    const fs = document.getElementById('stl-fake-scroll');
+    if (fs) fs.style.display = 'none';
+  }
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  const contentEl = document.querySelector('.content');
+  if (contentEl) contentEl.scrollTop = 0;
+
+  // nav highlight
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',settlement:'nav-settlement',monthly:'nav-monthly',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',payment:'nav-payment','payment-detail':'nav-payment'};
+  if (navIds[name]) document.getElementById(navIds[name]).classList.add('active');
+
+  // breadcrumb
+  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',settlement:'정산',monthly:'월별 발송량',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
+  if (labels[name]) {
+    document.getElementById('breadcrumb').innerHTML = `<span class="cur">${labels[name]}</span>`;
+  }
+
+  // screen-specific init
+  if (name === 'calendar') {
+    calView = 'month';
+    calProductTab = localStorage.getItem('calProductTab') || 'sms';
+    document.querySelectorAll('#screen-calendar .view-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('vt-month').classList.add('active');
+    document.getElementById('cpt-sms').classList.toggle('active', calProductTab === 'sms');
+    document.getElementById('cpt-da').classList.toggle('active',  calProductTab === 'da');
+    renderCalendar();
+  }
+  if (name === 'campaigns') {
+    resetFilter();
+    _populateAdvFilter();
+  }
+  // 캠페인 등록 버튼: 대시보드·캘린더·캠페인 목록에서만 표시
+  const btnReg = document.getElementById('btn-reg');
+  if (btnReg) btnReg.style.display = ['dashboard','calendar','campaigns'].includes(name) ? '' : 'none';
+
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'pipeline') initPipelineScreen();
+  if (name === 'adreport' && typeof initAdReport === 'function') initAdReport();
+  if (name === 'monthly') renderMonthly();
+  if (name === 'media')  renderMediaList();
+  if (name === 'seller') switchSellerTab(_sellerTab || 'adv');
+  if (name === 'users')  { _renderUserMgmtList(); }
+  if (name === 'payment') {
+    // 처음 진입 시 현재 연/월을 기본값으로 설정
+    const yEl = document.getElementById('pay-year');
+    const mEl = document.getElementById('pay-month');
+    if (yEl && !yEl.dataset.init) {
+      const now = new Date();
+      yEl.value = String(now.getFullYear());
+      mEl.value = String(now.getMonth()+1).padStart(2,'0');
+      yEl.dataset.init = '1';
+    }
+    renderPaymentList();
+  }
+  if (name === 'settlement') {
+    resetStlFilter();
+  }
+
+  if (!skipPush) {
+    history.pushState({ screen: name }, '', '#' + name);
+  }
+}
+
+function openDetail(idx, skipPush) {
+  document.querySelector('.topbar').style.display = 'none';
+  currentDetailIdx = idx;
+  const c = DATA[idx];
+
+  // 권한별 버튼 표시
+  const btnEdit = document.getElementById('btn-detail-edit');
+  const btnDel  = document.getElementById('btn-detail-del');
+  const btnTgt  = document.getElementById('btn-edit-target');
+  const btnNote = document.getElementById('btn-edit-note');
+  const btn2nd  = document.getElementById('btn-2nd');
+  if (btnEdit) btnEdit.style.display = canEdit(c) ? '' : 'none';
+  const _superDel = currentUser && ['wonjoon','sukjoo'].includes(currentUser.id);
+  const showDel = (_superDel || canEdit(c)) ? '' : 'none';
+  if (btnDel)  btnDel.style.display  = showDel;
+  if (btnTgt)  btnTgt.style.display  = canEdit(c) ? '' : 'none';
+  if (btnNote) btnNote.style.display = canEdit(c) ? '' : 'none';
+  const can2nd = c.product !== '퍼미션콜' && hasPerm('ops') && (c.status === '성과입력대기' || c.status === '성과입력완료');
+  if (btn2nd) {
+    btn2nd.style.display = hasPerm('ops') ? '' : 'none';
+    btn2nd.disabled = !can2nd;
+  }
+  const wrap2nd = document.getElementById('btn-2nd-wrap');
+  if (wrap2nd) {
+    if (can2nd) wrap2nd.removeAttribute('data-tooltip');
+    else wrap2nd.setAttribute('data-tooltip', '성과입력대기 단계에서 성과 입력이 가능합니다.');
+  }
+  // 진행체크 클릭 가능 여부
+  ['detailChkTest','detailChkSend'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.pointerEvents = hasPerm('ops') ? '' : 'none';
+  });
+  document.getElementById('dId').textContent = c.id;
+  document.getElementById('dName').textContent = _cName(c);
+  document.getElementById('dCat').textContent = _getCat(c);
+  const dDateLbl = document.getElementById('dDateLbl');
+  if (dDateLbl) dDateLbl.textContent = c.product === 'DA' ? '노출기간' : '발송일시';
+  document.getElementById('dDate').textContent = _formatDateRange(c);
+  document.getElementById('dCampaign').textContent = _cName(c);
+  document.getElementById('dPromo').textContent = c.promo || '—';
+  document.getElementById('dMedia').textContent = c.media;
+  document.getElementById('dProduct').textContent = c.product;
+  const dSellerEl = document.getElementById('dSeller');
+  if (dSellerEl) {
+    const contractLabel = c.contract ? `<span style="font-size:11px;color:var(--text3);background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;margin-left:6px;">${c.contract}</span>` : '';
+    dSellerEl.innerHTML = _escHtml(c.seller || c.adv || '—') + contractLabel;
+  }
+  document.getElementById('dContent').textContent = c.content || '—';
+  document.getElementById('dOps').textContent = c.ops || '—';
+  document.getElementById('delName').textContent = _cName(c);
+
+  // 수량/금액 동적 계산
+  const qty = c.qty||0, svc = c.svc||0, unit = c.sellUnit||0, buyUnit = c.buyUnit||0, disc = c.disc||0, comm = c.comm||0, agrate = c.agrate||0;
+  const actual = c.actual||0;
+  const bill    = actual ? actual - svc : null;
+  const billBase = c.billBase || 'actual';
+  const adcBill = billBase === 'sched'
+    ? (qty - svc)
+    : (actual ? (actual - svc) : (qty - svc)); // 실발송 없으면 예약 기준으로 미리보기
+  const eu      = disc > 0 ? disc : unit;           // 실적용단가 (할인단가 입력 시 우선)
+  const adcCalc  = adcBill * unit;
+  const adc      = c.adcostFixed  || adcCalc;       // 광고비 (수동 고정값 우선)
+  const real     = c.amtFixed     || (adcBill * eu);// 실청구
+  const revCalc  = (eu - buyUnit) * adcBill;
+  const rev      = c.revFixed     || revCalc;       // 매출수익
+  const agf      = adc * (agrate / 100);
+  const prf      = c.profitFixed  || (rev - agf);   // 이익
+  document.getElementById('dQty').textContent       = qty    ? qty.toLocaleString()    + ' 건' : '—';
+  document.getElementById('dSvc').textContent       = svc    ? svc.toLocaleString()    + ' 건' : '—';
+  const billEl = document.getElementById('dBill');
+  if (billEl) {
+    if (bill != null) { billEl.className = 'f-val'; billEl.style.color = 'var(--green)'; billEl.style.fontWeight = '700'; billEl.textContent = bill.toLocaleString() + ' 건'; }
+    else { billEl.className = 'f-val f-pending'; billEl.style.color = ''; billEl.style.fontWeight = ''; billEl.textContent = '— 실발송 입력 후 계산'; }
+  }
+  const billBaseEl = document.getElementById('dBillBase');
+  if (billBaseEl) billBaseEl.textContent = billBase === 'sched' ? '발송예약수량 기준' : (billBase === 'da' ? 'DA' : '실발송수량 기준');
+  document.getElementById('dSellUnit').textContent  = unit    ? unit.toLocaleString()    + '원'  : '—';
+  document.getElementById('dBuyUnit').textContent   = buyUnit ? buyUnit.toLocaleString() + '원'  : '—';
+  document.getElementById('dAdcost').textContent = adc  ? adc.toLocaleString()  + '원' : '—';
+  document.getElementById('dDisc').textContent   = disc ? disc.toLocaleString() + '원' : '—';
+  document.getElementById('dAmt').textContent    = adc  ? real.toLocaleString() + '원' : '—';
+  document.getElementById('dComm').textContent   = comm ? comm + '%'            : '—';
+  document.getElementById('dRev').textContent    = rev  ? rev.toLocaleString()  + '원'  : '—';
+  document.getElementById('dAgrateLbl').textContent = `– 대행료 (${agrate}%)`;
+  document.getElementById('dAgfee').textContent  = agf  ? agf.toLocaleString()  + '원'  : '—';
+  document.getElementById('dProfit').textContent = prf  ? prf.toLocaleString()  + '원'  : '—';
+
+  // 타겟 & 문구
+  const targetEl = document.getElementById('dTarget');
+  const tags = (c.target||'').split('\n').map(t=>t.trim()).filter(Boolean);
+  targetEl.innerHTML = tags.length ? tags.map(t=>`<span class="tag">${t}</span>`).join('') : '<span style="color:var(--text3);font-size:12px;">—</span>';
+  const dtargetEl = document.getElementById('dDtarget');
+  if (dtargetEl) { const dtags = (c.dtarget||'').split('\n').map(t=>t.trim()).filter(Boolean); dtargetEl.innerHTML = dtags.length ? dtags.map(t=>`<span class="tag">${t}</span>`).join('') : '<span style="color:var(--text3);font-size:12px;">—</span>'; }
+  document.getElementById('dMsg').innerHTML      = _linkify(c.msg || '');
+  document.getElementById('dMsgFinal').innerHTML = c.msgFinal ? _linkify(c.msgFinal) : '<span style="color:var(--text3);font-size:12px;">아직 검수완료된 문구가 없습니다.</span>';
+  // 탭 초기화 — 항상 검수전 탭으로 시작
+  msgTabSwitch('draft');
+
+  // 특기사항
+  document.getElementById('dNote').innerHTML = (c.note||'').replace(/\n/g,'<br>') || '<span style="color:var(--text3);">—</span>';
+
+  // step track
+  const steps = ['부킹확정','테스트완료','성과입력대기','성과입력완료'];
+  const ci = steps.indexOf(c.status);
+  document.querySelectorAll('#stepTrack .step').forEach((el,i) => {
+    el.className = 'step';
+    if (i < ci) el.classList.add('done');
+    else if (i === ci) el.classList.add('current');
+  });
+
+  // 진행체크 동기화
+  _syncDetailChks();
+
+  // 실발송수량 (2차입력 여부)
+  const actualEl = document.getElementById('dActual');
+  if (actualEl) {
+    if (c.actual) {
+      actualEl.className = 'f-val'; actualEl.style.color='var(--green)';
+      actualEl.textContent = c.actual.toLocaleString() + ' 건';
+    } else {
+      actualEl.className = 'f-val f-pending'; actualEl.style.color='';
+      actualEl.textContent = '— 2차 입력 대기';
+    }
+  }
+
+  // DA 캠페인이 '부킹확정' 상태면 자동으로 '성과입력대기'로 전환
+  const isDAcamp  = c.product === 'DA';
+  const isPCcamp  = c.product === '퍼미션콜';
+  const isCPAcamp = c.product === 'CPA';
+  if (isDAcamp && c.status === '부킹확정') {
+    c.status = '성과입력대기';
+    _fbSaveCampaign(c);
+  }
+
+  // 성과 카드: PC는 숨김
+  const dCardPerf = document.getElementById('dCardPerf');
+  if (dCardPerf) dCardPerf.style.display = isPCcamp ? 'none' : '';
+  // perfStatus 2차 입력 현황 반영
+  document.getElementById('perfStatus').style.display   = (isDAcamp || isPCcamp) ? 'none' : '';
+  document.getElementById('perfStatusDA').style.display = isDAcamp ? '' : 'none';
+
+  // DA / PC / CPA / 일반 카드 토글
+  document.getElementById('dCardQty').style.display    = (isDAcamp || isPCcamp) ? 'none' : '';
+  document.getElementById('dGridBottom').style.display = (isDAcamp || isPCcamp) ? 'none' : '';
+  document.getElementById('dSectionDA').style.display  = isDAcamp ? 'flex' : 'none';
+  const dCardPC = document.getElementById('dCardPC');
+  if (dCardPC) dCardPC.style.display = isPCcamp ? 'flex' : 'none';
+
+  // CPA: 수량 카드 레이블 동적 변경
+  if (isCPAcamp) {
+    const qtyLbl = document.querySelector('#dCardQty .card-title');
+    if (qtyLbl) qtyLbl.textContent = '정산 / 금액';
+    const qtyFieldLbl = document.querySelector('#dCardQty .f-label');
+    if (qtyFieldLbl) qtyFieldLbl.textContent = '정산수량';
+    // 정산기준 표시 (신청수/로그인수/결제건수)
+    const billBaseEl = document.getElementById('dBillBase');
+    if (billBaseEl) billBaseEl.textContent = c.billBase || '—';
+    // CPA 대행수수료여부 추가 표시
+    const cpaFeeEl = document.getElementById('dCpaFeeYn');
+    if (cpaFeeEl) cpaFeeEl.textContent = c.cpaFeeYn || '—';
+    const cpaFeeField = document.getElementById('dCpaFeeYnField');
+    if (cpaFeeField) cpaFeeField.style.display = '';
+  } else {
+    const qtyLbl = document.querySelector('#dCardQty .card-title');
+    if (qtyLbl) qtyLbl.textContent = '수량 / 금액';
+    const qtyFieldLbl = document.querySelector('#dCardQty .f-label');
+    if (qtyFieldLbl) qtyFieldLbl.textContent = '발송예약수량';
+    const cpaFeeField = document.getElementById('dCpaFeeYnField');
+    if (cpaFeeField) cpaFeeField.style.display = 'none';
+  }
+
+  if (isDAcamp) {
+    const daAdc    = c.daAdcost || 0;
+    const daComm   = c.comm     || 0;
+    const daAgrate = c.agrate   || 0;
+    const daBuyU   = c.buyUnit  || Math.round(daAdc * (1 - daComm / 100));
+    const daRev    = Math.round(daAdc * daComm / 100);
+    const daAgf    = Math.round(daAdc * daAgrate / 100);
+    const daPrf    = daRev - daAgf;
+    const setText  = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setText('dDaAdcostShow', daAdc   ? daAdc.toLocaleString()  + '원' : '—');
+    setText('dDaBillBase',   c.daBillBase || '—');
+    setText('dDaFeeYn',      c.daFeeYn    || '—');
+    setText('dDaComm',       daComm  ? daComm + '%'            : '—');
+    setText('dDaBuyUnit',    daBuyU  ? daBuyU.toLocaleString() + '원' : '—');
+    setText('dDaRev',        daRev   ? daRev.toLocaleString()  + '원' : '—');
+    setText('dDaProfit',     daAdc   ? daPrf.toLocaleString()  + '원' : '—');
+    const agLbl = document.getElementById('dDaAgratelbl');
+    if (agLbl) agLbl.textContent = `– 대행료 (${daAgrate}%)`;
+    setText('dDaAgfee',      daAgf   ? daAgf.toLocaleString()  + '원' : '—');
+    // 타겟 조건
+    const daTargetEl = document.getElementById('dDaTarget');
+    const daTags = (c.target||'').split('\n').map(t=>t.trim()).filter(Boolean);
+    daTargetEl.innerHTML = daTags.length ? daTags.map(t=>`<span class="tag">${t}</span>`).join('') : '<span style="color:var(--text3);font-size:12px;">—</span>';
+    const daDtargetEl = document.getElementById('dDaDtarget');
+    if (daDtargetEl) { const daDtags = (c.dtarget||'').split('\n').map(t=>t.trim()).filter(Boolean); daDtargetEl.innerHTML = daDtags.length ? daDtags.map(t=>`<span class="tag">${t}</span>`).join('') : '<span style="color:var(--text3);font-size:12px;">—</span>'; }
+    // 소재 이미지 (구버전 string · 신버전 array 호환)
+    const daImgWrap = document.getElementById('dDaImgWrap');
+    const daImgNone = document.getElementById('dDaImgNone');
+    const daImgs = Array.isArray(c.daImage) ? c.daImage : (c.daImage ? [c.daImage] : []);
+    if (daImgWrap) {
+      daImgWrap.innerHTML = '';
+      daImgs.forEach(b64 => {
+        const img = document.createElement('img');
+        img.src = b64;
+        img.style.cssText = 'max-width:300px;width:100%;height:auto;border-radius:6px;border:1px solid var(--border);cursor:zoom-in;';
+        img.title = '클릭하면 원본 크기로 열립니다';
+        img.onclick = () => openImgNewTab(b64);
+        daImgWrap.appendChild(img);
+      });
+    }
+    if (daImgNone) daImgNone.style.display = daImgs.length ? 'none' : '';
+    // 특기사항
+    document.getElementById('dDaNote').innerHTML = (c.note||'').replace(/\n/g,'<br>') || '<span style="color:var(--text3);">—</span>';
+  }
+
+  if (isDAcamp) {
+    const adcost = c.daAdcost || 0;
+    const imp    = c.daImp   ?? null;
+    const click  = c.daClick ?? null;
+    const conv   = c.daConv  ?? null;
+    const rev    = c.daRev   ?? null;
+    const ctr    = (imp && click)   ? (click / imp * 100).toFixed(2) + '%'                   : null;
+    const cpa    = (conv && adcost) ? Math.round(adcost / conv).toLocaleString() + '원'       : null;
+    const roas   = (adcost && rev)  ? Math.round(rev / adcost * 100).toLocaleString() + '%'  : null;
+    const daFields = [
+      { id:'dDaImp',   val: imp,   fmt: v => Number(v).toLocaleString()+'건', auto: false },
+      { id:'dDaClick', val: click, fmt: v => Number(v).toLocaleString()+'건', auto: false },
+      { id:'dDaConv',  val: conv,  fmt: v => Number(v).toLocaleString()+'건', auto: false },
+      { id:'dDaRev',   val: rev,   fmt: v => Number(v).toLocaleString()+'원', auto: false },
+      { id:'dDaCtr',   val: ctr,   fmt: v => v,                               auto: true  },
+      { id:'dDaCpa',   val: cpa,   fmt: v => v,                               auto: true  },
+      { id:'dDaRoas',  val: roas,  fmt: v => v,                               auto: true  },
+    ];
+    daFields.forEach(f => {
+      const el  = document.getElementById(f.id);
+      const dot = el?.closest('.ist-item')?.querySelector('.s-dot');
+      if (!el) return;
+      if (f.val != null) {
+        if (dot) dot.className = 's-dot dot-ok';
+        el.classList.remove('f-pending'); el.style.color = 'var(--green)';
+        el.textContent = f.fmt(f.val);
+      } else {
+        if (dot) dot.className = 's-dot dot-pend';
+        el.classList.add('f-pending'); el.style.color = '';
+        el.textContent = f.auto ? '자동계산' : '미입력';
+      }
+    });
+  } else {
+    const perfItems = document.querySelectorAll('#perfStatus .ist-item');
+    const perfData = [
+      { val: c.actual, fmt: v => Number(v).toLocaleString() + '건', auto: false },
+      { val: c.clicks, fmt: v => Number(v).toLocaleString() + '건', auto: false },
+      { val: c.ctr,    fmt: v => parseFloat(v).toFixed(2) + '%',    auto: true  },
+      { val: c.db,     fmt: v => Number(v).toLocaleString() + '건', auto: false },
+      { val: c.dbr,    fmt: v => parseFloat(v).toFixed(2) + '%',    auto: true  },
+    ];
+    perfItems.forEach((el, i) => {
+      const dot = el.querySelector('.s-dot');
+      const valEl = el.querySelector('.s-val');
+      if (!dot || !valEl) return;
+      const pd = perfData[i];
+      if (pd.val != null && pd.val !== '') {
+        dot.className = 's-dot dot-ok';
+        valEl.classList.remove('f-pending'); valEl.style.color = 'var(--green)';
+        valEl.textContent = pd.fmt(pd.val);
+      } else {
+        dot.className = 's-dot dot-pend';
+        valEl.classList.add('f-pending'); valEl.style.color = '';
+        valEl.textContent = pd.auto ? '자동계산' : '미입력';
+      }
+    });
+  }
+
+  // 퍼미션콜 성과 데이터 렌더링
+  if (isPCcamp) {
+    const inflow  = c.pcInflow  || 0;
+    const agree   = c.pcAgree   || 0;
+    const advU    = c.pcAdvUnit || 0;
+    const adc     = agree * advU;
+    const ohcCost = c.pcOhcCost || 0;
+    const dnuCost = agree * 5500;
+    const profit  = adc - ohcCost - dnuCost;
+    const prfRate = adc > 0 ? (profit / adc * 100).toFixed(1) + '%' : '—';
+    const cvr     = inflow > 0 ? (agree / inflow * 100).toFixed(1) + '%' : '—';
+    const nd = '—';
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setText('dPcInflow',  inflow  ? inflow.toLocaleString()  + '건' : nd);
+    setText('dPcAgree',   agree   ? agree.toLocaleString()   + '건' : nd);
+    setText('dPcCvr',     cvr);
+    setText('dPcAdvUnit', advU    ? advU.toLocaleString()    + '원' : nd);
+    setText('dPcAdc',     adc     ? adc.toLocaleString()     + '원' : nd);
+    setText('dPcOhcCost', ohcCost ? ohcCost.toLocaleString() + '원' : nd);
+    setText('dPcDnuCost', dnuCost ? dnuCost.toLocaleString() + '원' : nd);
+    setText('dPcProfit',  profit  ? profit.toLocaleString()  + '원' : nd);
+    setText('dPcPrfRate', prfRate);
+  }
+
+  // breadcrumb
+  document.getElementById('breadcrumb').innerHTML =
+    `<span onclick="goScreen('campaigns')" style="cursor:pointer;color:var(--text2);">캠페인 목록</span>
+     <span class="sep">›</span><span class="cur">${_cName(c)}</span>`;
+
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const detailScreen = document.getElementById('screen-detail');
+  detailScreen.classList.add('active');
+  detailScreen.scrollTop = 0;
+  document.getElementById('nav-campaigns').classList.add('active');
+
+  if (!skipPush) {
+    history.pushState({ screen: 'detail', id: c.id }, '', '#detail/' + c.id);
+  }
+}
+
+// ══════════════════════════════════════════
+// CAMPAIGN LIST
+// ══════════════════════════════════════════
+function updateBoardCounts() {
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const y  = String(now.getFullYear());
+  document.getElementById('cnt-thismonth').textContent = DATA.filter(c => c.date?.startsWith(ym)).length + '건';
+  document.getElementById('cnt-thisyear').textContent  = DATA.filter(c => c.date?.startsWith(y)).length + '건';
+  // 단계별 카운트: 조회기간 필터 적용
+  const from = document.getElementById('fFrom')?.value || '';
+  const to   = document.getElementById('fTo')?.value   || '';
+  const dateFiltered = DATA.filter(c => {
+    const d = (c.date || '').slice(0, 10);
+    if (from && d < from) return false;
+    if (to   && d > to)   return false;
+    return true;
+  });
+  document.getElementById('cnt-booking').textContent = dateFiltered.filter(c => c.status === '부킹확정').length;
+  document.getElementById('cnt-test').textContent    = dateFiltered.filter(c => c.status === '테스트완료').length;
+  document.getElementById('cnt-sent').textContent    = dateFiltered.filter(c => c.status === '성과입력대기').length;
+  document.getElementById('cnt-settle').textContent  = dateFiltered.filter(c => c.status === '성과입력완료').length;
+}
+
+function renderTable(data) {
+  updateBoardCounts();
+  const total      = data.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = 1;
+  const start    = (currentPage - 1) * PAGE_SIZE;
+  const pageData = data.slice(start, start + PAGE_SIZE);
+
+  // 카운트
+  document.getElementById('shownCnt').textContent = total;
+  const totalAdc = data.reduce((s, c) => {
+    if (c.product === 'DA') return s + (c.daAdcost || 0);
+    const base = c.billBase === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
+    return s + base * (c.sellUnit||0);
+  }, 0);
+  const adcEl = document.getElementById('shownAdc');
+  if (adcEl) adcEl.textContent = totalAdc
+    ? (totalAdc >= 100000000 ? (totalAdc/100000000).toFixed(1).replace(/\.0$/,'')+'억원' : (totalAdc/10000).toFixed(0)+'만원')
+    : '—';
+
+  // pg-info
+  const pgInfo = document.getElementById('pg-info');
+  if (pgInfo) {
+    const from = total === 0 ? 0 : start + 1;
+    const to   = Math.min(start + PAGE_SIZE, total);
+    pgInfo.textContent = `${from} – ${to} / ${total}건`;
+  }
+
+  // pg-btns
+  const pgBtns = document.getElementById('pg-btns');
+  if (pgBtns) {
+    let html = `<button class="pg-btn" onclick="prevPage()" ${currentPage===1?'disabled':''}>‹</button>`;
+    for (let p = 1; p <= totalPages; p++) {
+      html += `<button class="pg-btn${p===currentPage?' active':''}" onclick="goPage(${p})">${p}</button>`;
+    }
+    html += `<button class="pg-btn" onclick="nextPage()" ${currentPage===totalPages?'disabled':''}>›</button>`;
+    pgBtns.innerHTML = html;
+  }
+
+  document.getElementById('tbody').innerHTML = pageData.map(c => {
+    const i = DATA.indexOf(c);
+    return `<tr onclick="openDetail(${i})">
+      <td onclick="event.stopPropagation()"><input type="checkbox"></td>
+      <td class="td-dim">${_getCat(c)}</td>
+      <td class="td-num">${_formatDateRange(c)}</td>
+      <td class="td-bold">${c.content||_cCompany(c)}<span style="color:var(--text2);font-weight:400;">_${c.media}</span></td>
+      <td class="td-dim">${c.product}</td>
+      <td class="td-dim">${c.ops || '—'}</td>
+      <td class="td-num td-r">${c.qty.toLocaleString()}</td>
+      <td class="td-num td-r">${(()=>{ const adc = c.product==='DA' ? (c.daAdcost||0) : (c.adcostFixed || (()=>{ const base=c.billBase==='sched'?(c.qty||0)-(c.svc||0):(c.actual?(c.actual-(c.svc||0)):(c.qty||0)-(c.svc||0)); return base*(c.sellUnit||0); })()); return adc?(adc>=10000?(adc/10000).toFixed(0)+'만':adc.toLocaleString())+'원':'<span style="color:var(--text3)">—</span>'; })()}</td>
+      <td class="td-num td-r">${c.clicks!==null?c.clicks.toLocaleString():'<span style="color:var(--text3)">—</span>'}</td>
+      <td class="td-num td-r">${c.ctr!==null?c.ctr.toFixed(2)+'%':'<span style="color:var(--text3)">—</span>'}</td>
+      <td><span class="badge b-${c.status}">${c.status}</span></td>
+      <td onclick="event.stopPropagation()" style="text-align:center;">
+        <div class="chk ${c.testOk?'on':''}" onclick="clickTest(${i},this)">${c.testOk?'✓':''}</div>
+      </td>
+      <td onclick="event.stopPropagation()" style="text-align:center;">
+        <div class="chk ${c.sent?'on':''}" onclick="clickSend(${i},this)">${c.sent?'✓':''}</div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function goPage(n)  { currentPage = n; renderTable(filtered); }
+function prevPage() { if (currentPage > 1) { currentPage--; renderTable(filtered); } }
+function nextPage() { if (currentPage < Math.ceil(filtered.length / PAGE_SIZE)) { currentPage++; renderTable(filtered); } }
+function changePageSize(val) { PAGE_SIZE = +val; currentPage = 1; renderTable(filtered); }
+
+function _populateAdvFilter() {
+  const sel = document.getElementById('fAdv');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">광고주/대행사</option>' +
+    SELLER_DATA.map(s => `<option value="${s.company}">${s.company}</option>`).join('');
+  sel.value = current; // 기존 선택값 유지
+}
+
+function applyFilter() {
+  const cat    = document.getElementById('fCat').value;
+  const prod   = document.getElementById('fProd').value;
+  const media  = document.getElementById('fMedia').value;
+  const mgr    = document.getElementById('fMgr').value;
+  const adv    = document.getElementById('fAdv').value;
+  const q      = document.getElementById('fQ').value.toLowerCase();
+  const from   = document.getElementById('fFrom')?.value || '';
+  const to     = document.getElementById('fTo')?.value   || '';
+  filtered = DATA.filter(c => {
+    if (activeStatus !== 'all' && c.status !== activeStatus) return false;
+    if (cat    && _getCat(c) !== cat)   return false;
+    if (prod   && c.product !== prod)   return false;
+    if (media  && c.media   !== media)  return false;
+    if (mgr    && c.ops     !== mgr)    return false;
+    if (adv && (c.seller || c.adv) !== adv) return false;
+    if (q && !_cName(c).toLowerCase().includes(q) && !(c.id||'').toString().toLowerCase().includes(q)) return false;
+    const dateStr = (c.date || '').slice(0, 10);
+    if (from && dateStr < from) return false;
+    if (to   && dateStr > to)   return false;
+    return true;
+  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  currentPage = 1;
+  renderTable(filtered);
+}
+
+function filterStatus(s) {
+  activeStatus = s;
+  const boardIds = {all:'board-all', 부킹확정:'board-booking', 테스트완료:'board-test', 성과입력대기:'board-sent', 성과입력완료:'board-settle'};
+  document.querySelectorAll('#screen-campaigns .board').forEach(b => b.classList.remove('active-board'));
+  const activeEl = document.getElementById(boardIds[s]);
+  if (activeEl) activeEl.classList.add('active-board');
+  applyFilter();
+}
+
+function resetFilter() {
+  ['fCat','fProd','fMedia','fMgr','fAdv'].forEach(id => { const el = document.getElementById(id); if (el) el.value=''; });
+  document.getElementById('fQ').value='';
+  const now = new Date();
+  document.getElementById('fFrom').value = _dateKey(new Date(now.getFullYear(), now.getMonth(), 1));
+  document.getElementById('fTo').value   = _dateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  activeStatus='all';
+  document.querySelectorAll('#screen-campaigns .board').forEach(b => b.classList.remove('active-board'));
+  document.getElementById('board-all').classList.add('active-board');
+  currentPage = 1;
+  applyFilter();
+}
+
+function toggleAll(el) {
+  document.querySelectorAll('#tbody input[type=checkbox]').forEach(c => c.checked = el.checked);
+}
+
+// ══════════════════════════════════════════
+// CHECKBOXES
+// ══════════════════════════════════════════
+function clickTest(idx, el) {
+  if (DATA[idx].testOk) return;
+  pendingTestIdx = idx; pendingTestEl = el;
+  document.querySelectorAll('#clItems .cl-item').forEach(i => i.classList.remove('ticked'));
+  document.getElementById('btnTestOk').disabled = true;
+  document.getElementById('btnTestOk').style.opacity = '.4';
+  openModal('modalTest');
+}
+function tickCl(el) {
+  el.classList.toggle('ticked');
+  const all = [...document.querySelectorAll('#clItems .cl-item')].every(i => i.classList.contains('ticked'));
+  document.getElementById('btnTestOk').disabled = !all;
+  document.getElementById('btnTestOk').style.opacity = all?'1':'.4';
+}
+function confirmTest() {
+  const c = DATA[pendingTestIdx];
+  c.testOk = true;
+  _log(c.id, 'check', 'testOk', '대기 중', '완료');
+  const prevStatus = c.status;
+  if (c.status === '부킹확정') c.status = '테스트완료';
+  if (c.status !== prevStatus) _log(c.id, 'field', 'status', prevStatus, c.status);
+  if (pendingTestEl) { pendingTestEl.classList.add('on'); pendingTestEl.innerHTML='✓'; }
+  _fbSaveCampaign(c);
+  closeModal('modalTest');
+  _syncDetailChks();
+  if (pendingTestIdx === currentDetailIdx) _updateStepTrack(c.status);
+  renderTable(filtered);
+  toast('✓ 테스트 수신이 확인되었습니다','ok');
+}
+function cancelTest() { closeModal('modalTest'); }
+
+function clickSend(idx, el) {
+  if (DATA[idx].sent) return;
+  pendingSendIdx=idx; pendingSendEl=el;
+  document.getElementById('sendName').textContent = _cName(DATA[idx]);
+  openModal('modalSend');
+}
+function confirmSend() {
+  const c = DATA[pendingSendIdx];
+  c.sent = true;
+  _log(c.id, 'check', 'sent', '대기 중', '완료');
+  const prevStatus = c.status;
+  if (c.status === '부킹확정' || c.status === '테스트완료') c.status = '성과입력대기';
+  if (c.status !== prevStatus) _log(c.id, 'field', 'status', prevStatus, c.status);
+  if (pendingSendEl) { pendingSendEl.classList.add('on'); pendingSendEl.innerHTML='✓'; }
+  _fbSaveCampaign(c);
+  closeModal('modalSend');
+  _syncDetailChks();
+  if (pendingSendIdx === currentDetailIdx) _updateStepTrack(c.status);
+  renderTable(filtered);
+  toast('🚀 발송이 확인되었습니다','ok');
+}
+function cancelSend() { closeModal('modalSend'); }
+
+function _updateStepTrack(status) {
+  const steps = ['부킹확정','테스트완료','성과입력대기','성과입력완료'];
+  const ci = steps.indexOf(status);
+  document.querySelectorAll('#stepTrack .step').forEach((el,i) => {
+    el.className = 'step';
+    if (i < ci) el.classList.add('done');
+    else if (i === ci) el.classList.add('current');
+  });
+}
+
+// 상세페이지 진행체크 동기화
+function _syncDetailChks() {
+  const c = DATA[currentDetailIdx];
+  if (!c) return;
+  _setDetailChk(document.getElementById('detailChkTest'), c.testOk);
+  _setDetailChk(document.getElementById('detailChkSend'), c.sent);
+}
+function _setDetailChk(el, done) {
+  if (!el) return;
+  const dot = el.querySelector('.s-dot');
+  const val = el.querySelector('span:last-child');
+  if (done) { dot.className='s-dot dot-ok'; val.style.color='var(--green)'; val.textContent='✓ 완료'; }
+  else      { dot.className='s-dot dot-pend'; val.style.color='var(--text3)'; val.textContent='대기 중'; }
+}
+// 상세페이지에서 진행체크 클릭
+function detailClickTest() {
+  const c = DATA[currentDetailIdx];
+  if (!c || c.testOk) return;
+  pendingTestIdx = currentDetailIdx;
+  pendingTestEl  = null; // 캠페인목록 .chk 없음
+  document.querySelectorAll('#clItems .cl-item').forEach(i => i.classList.remove('ticked'));
+  document.getElementById('btnTestOk').disabled = true;
+  document.getElementById('btnTestOk').style.opacity = '.4';
+  openModal('modalTest');
+}
+function detailClickSend() {
+  const c = DATA[currentDetailIdx];
+  if (!c || c.sent) return;
+  if (!c.testOk) { toast('⚠ 테스트 수신 확인 후 발송 처리할 수 있습니다', 'warn'); return; }
+  pendingSendIdx = currentDetailIdx;
+  pendingSendEl  = null;
+  document.getElementById('sendName').textContent = _cName(c);
+  openModal('modalSend');
+}
+
+function toggleChk(el) { el.classList.toggle('on'); el.innerHTML = el.classList.contains('on')?'✓':''; }
+
+function toggleStatus(el) {
+  const dot = el.querySelector('.s-dot');
+  const val = el.querySelector('span:last-child');
+  if (dot.classList.contains('dot-ok')) {
+    dot.className='s-dot dot-pend'; val.style.color='var(--text3)'; val.textContent='대기 중';
+  } else {
+    dot.className='s-dot dot-ok'; val.style.color='var(--green)'; val.textContent='✓ 완료';
+  }
+}
+
+// 캠페인 표시명: 매출처_매체사
+function _cCompany(c) {
+  return c.seller || c.adv || '—';
+}
+// 캠페인의 카테고리를 SELLER_DATA 브랜드에서 동적으로 조회, 없으면 c.cat 폴백
+function _getCat(c) {
+  const sellerName = c.seller || c.adv;
+  const s = sellerName ? SELLER_DATA.find(x => x.company === sellerName) : null;
+  if (s && s.brands && c.content) {
+    const brand = s.brands.find(b => (b.name || b) === c.content);
+    if (brand && brand.cat) return brand.cat;
+  }
+  return c.cat || '';
+}
+function _linkify(text) {
+  if (!text) return '<span style="color:var(--text3);">—</span>';
+  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return escaped
+    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:var(--accent);word-break:break-all;">$1</a>')
+    .replace(/\n/g, '<br>');
+}
+function _cName(c) {
+  if (c.product === '퍼미션콜') {
+    const brand = c.content || _cCompany(c);
+    return brand && brand !== '—' ? `${brand}_퍼미션콜` : '퍼미션콜';
+  }
+  const label = c.content || _cCompany(c);
+  if (label && label !== '—' && c.media) return `${label}_${c.media}`;
+  return c.promo || '—';
+}
+function _buildCampaignName(seller, media) {
+  if (!seller || !media) return '';
+  return `${seller}_${media}`;
+}
+function autoNameReg() {
+  const content = document.getElementById('r_content').value || document.getElementById('r_content_text').value;
+  const seller  = document.getElementById('r_seller').value;
+  document.getElementById('r_promo').value = _buildCampaignName(content || seller, document.getElementById('r_media').value);
+}
+function autoNameEdit() {
+  const content = document.getElementById('e_content').value || document.getElementById('e_content_text').value;
+  const seller  = document.getElementById('e_seller').value;
+  document.getElementById('e_promo').value = _buildCampaignName(content || seller, document.getElementById('e_media').value);
+}
+
+// ══════════════════════════════════════════
+// FORMS
+// ══════════════════════════════════════════
+// ══════════════════════════════════════════
+// 매체사 데이터 (매체사만, 대행사는 SELLER_DATA로 이동)
+const MEDIA_DATA = [];
+const SELLER_DATA = [];
+
+// 매체사 등록 모달을 콤보박스 연동으로 열었을 때 저장할 콤보 이름
+let mediaPendingCombo = null;
+// 광고주 등록 모달을 콤보박스 연동으로 열었을 때 저장할 콤보 이름
+let pendingAdvCombo = null;
+
+// ── 매출처 콤보 헬퍼 ──
+// 모든 매출처 항목을 "브랜드명_회사명" 형식으로 반환 (브랜드 없으면 회사명만)
+function _getSellerItems() {
+  return SELLER_DATA.map(s => s.company);
+}
+// "브랜드명_회사명" 레이블 → {company, brand} 파싱
+function _parseSellerItem(label) {
+  for (const s of SELLER_DATA) {
+    if (s.brands && s.brands.length > 0) {
+      for (const b of s.brands) {
+        const bName = b.name || b;
+        if (`${bName}_${s.company}` === label) return { company: s.company, brand: bName };
+      }
+    }
+  }
+  return { company: label, brand: null };
+}
+
+// ── 콤보박스 설정 ──
+function _comboConfig(name) {
+  return {
+    seller: {
+      textId:'r_seller_text', hiddenId:'r_seller', listId:'combo-seller-list',
+      getItems: () => _getSellerItems(),
+      onSelect: () => {
+        const company = document.getElementById('r_seller_text').value;
+        document.getElementById('r_seller').value = company;
+        document.getElementById('r_content_text').value = '';
+        document.getElementById('r_content').value = '';
+        document.getElementById('r_cat').value = '';
+        autoSellerReg();
+        autoNameReg();
+      },
+      getLabelFromHidden: (company) => company,
+      addLabel:'+ 신규 매출처 추가',
+      onAddNew: () => { comboCloseAll(); openSellerModalForCombo(null,'seller'); },
+    },
+    content: {
+      textId:'r_content_text', hiddenId:'r_content', listId:'combo-content-list',
+      getItems: () => {
+        const sellerName = document.getElementById('r_seller')?.value;
+        const s = SELLER_DATA.find(x => x.company === sellerName);
+        return s ? (s.brands || []).map(b => b.name || b) : [];
+      },
+      onSelect: () => {
+        const sellerName = document.getElementById('r_seller')?.value;
+        const s = SELLER_DATA.find(x => x.company === sellerName);
+        const contentVal = document.getElementById('r_content').value;
+        if (s && s.brands) {
+          const brand = s.brands.find(b => (b.name || b) === contentVal);
+          if (brand && brand.cat) document.getElementById('r_cat').value = brand.cat;
+        }
+        autoNameReg();
+      },
+      addLabel:'+ 브랜드 추가',
+      onAddNew: () => {
+        if (!document.getElementById('r_seller')?.value) { toast('⚠ 광고주/대행사를 먼저 선택해주세요','warn'); return; }
+        comboCloseAll(); openBrandAddModal('r');
+      },
+    },
+    media: {
+      textId:'r_media_text', hiddenId:'r_media', listId:'combo-media-list',
+      getItems: () => MEDIA_DATA.filter(m => m.type === '매체사' && m.active !== false).map(m => m.company),
+      onSelect: () => { autoNameReg(); autoCommReg(); },
+      addLabel:'+ 신규 매체사 추가',
+      onAddNew: () => { comboCloseAll(); openMediaModalForCombo('매체사','media'); },
+    },
+    pm_linked: {
+      textId:'pm_linked_text', hiddenId:'pm_linked', listId:'combo-pm_linked-list',
+      getItems: () => DATA.map(c => {
+        const dateStr = c.date ? c.date.split(' ')[0] : '';
+        return _cName(c) + '_' + dateStr + ' (' + c.id + ')';
+      }),
+      onSelect: () => {
+        const text = document.getElementById('pm_linked_text').value;
+        const match = text.match(/\(([^)]+)\)$/);
+        if (match) document.getElementById('pm_linked').value = match[1];
+      },
+      getLabelFromHidden: (id) => {
+        const c = DATA.find(x => x.id === id);
+        if (!c) return id;
+        const dateStr = c.date ? c.date.split(' ')[0] : '';
+        return _cName(c) + '_' + dateStr + ' (' + c.id + ')';
+      },
+      addLabel: null,
+      onAddNew: () => {},
+    },
+    pm_seller: {
+      textId:'pm_seller_text', hiddenId:'pm_seller', listId:'combo-pm_seller-list',
+      getItems: () => _getSellerItems(),
+      onSelect: () => {
+        const company = document.getElementById('pm_seller_text').value;
+        document.getElementById('pm_seller').value = company;
+        document.getElementById('pm_content_text').value = '';
+        document.getElementById('pm_content').value = '';
+        document.getElementById('pm-cat').value = '';
+      },
+      getLabelFromHidden: (company) => company,
+      addLabel:'+ 신규 매출처 추가',
+      onAddNew: () => { comboCloseAll(); openSellerModalForCombo(null,'pm_seller'); },
+    },
+    pm_content: {
+      textId:'pm_content_text', hiddenId:'pm_content', listId:'combo-pm_content-list',
+      getItems: () => {
+        const sellerName = document.getElementById('pm_seller')?.value;
+        const s = SELLER_DATA.find(x => x.company === sellerName);
+        return s ? (s.brands || []).map(b => b.name || b) : [];
+      },
+      onSelect: () => {
+        const sellerName = document.getElementById('pm_seller')?.value;
+        const s = SELLER_DATA.find(x => x.company === sellerName);
+        const contentVal = document.getElementById('pm_content').value;
+        if (s && s.brands) {
+          const brand = s.brands.find(b => (b.name || b) === contentVal);
+          if (brand && brand.cat) document.getElementById('pm-cat').value = brand.cat;
+        }
+      },
+      addLabel:'+ 브랜드 추가',
+      onAddNew: () => {
+        if (!document.getElementById('pm_seller')?.value) { toast('⚠ 광고주/대행사를 먼저 선택해주세요','warn'); return; }
+        comboCloseAll(); openBrandAddModal('pm');
+      },
+    },
+    pm_media: {
+      textId:'pm_media_text', hiddenId:'pm_media', listId:'combo-pm_media-list',
+      getItems: () => MEDIA_DATA.filter(m => m.type === '매체사' && m.active !== false).map(m => m.company),
+      onSelect: () => { _calcPipeAmt(); },
+      addLabel:'+ 신규 매체사 추가',
+      onAddNew: () => { comboCloseAll(); openMediaModalForCombo('매체사','pm_media'); },
+    },
+    e_seller: {
+      textId:'e_seller_text', hiddenId:'e_seller', listId:'combo-e_seller-list',
+      getItems: () => _getSellerItems(),
+      onSelect: () => {
+        const company = document.getElementById('e_seller_text').value;
+        document.getElementById('e_seller').value = company;
+        document.getElementById('e_content_text').value = '';
+        document.getElementById('e_content').value = '';
+        document.getElementById('e_cat').value = '';
+        autoSellerEdit();
+        autoNameEdit();
+      },
+      getLabelFromHidden: (company) => company,
+      addLabel:'+ 신규 매출처 추가',
+      onAddNew: () => { comboCloseAll(); openSellerModalForCombo(null,'e_seller'); },
+    },
+    e_content: {
+      textId:'e_content_text', hiddenId:'e_content', listId:'combo-e_content-list',
+      getItems: () => {
+        const sellerName = document.getElementById('e_seller')?.value;
+        const s = SELLER_DATA.find(x => x.company === sellerName);
+        return s ? (s.brands || []).map(b => b.name || b) : [];
+      },
+      onSelect: () => {
+        const sellerName = document.getElementById('e_seller')?.value;
+        const s = SELLER_DATA.find(x => x.company === sellerName);
+        const contentVal = document.getElementById('e_content').value;
+        if (s && s.brands) {
+          const brand = s.brands.find(b => (b.name || b) === contentVal);
+          if (brand && brand.cat) document.getElementById('e_cat').value = brand.cat;
+        }
+        autoNameEdit();
+      },
+      addLabel:'+ 브랜드 추가',
+      onAddNew: () => {
+        if (!document.getElementById('e_seller')?.value) { toast('⚠ 광고주/대행사를 먼저 선택해주세요','warn'); return; }
+        comboCloseAll(); openBrandAddModal('e');
+      },
+    },
+    e_media: {
+      textId:'e_media_text', hiddenId:'e_media', listId:'combo-e_media-list',
+      getItems: () => MEDIA_DATA.filter(m => m.type === '매체사' && m.active !== false).map(m => m.company),
+      onSelect: () => { autoNameEdit(); autoCommEdit(); },
+      addLabel:'+ 신규 매체사 추가',
+      onAddNew: () => { comboCloseAll(); openMediaModalForCombo('매체사','e_media'); },
+    },
+  }[name];
+}
+
+function comboCloseAll() {
+  ['seller','content','media','pm_linked','pm_seller','pm_content','pm_media','e_seller','e_content','e_media'].forEach(name => {
+    const cfg = _comboConfig(name);
+    const el = document.getElementById(cfg.listId);
+    if (el) el.style.display = 'none';
+  });
+}
+
+function comboRender(name) {
+  comboCloseAll();
+  const cfg = _comboConfig(name);
+  const q = (document.getElementById(cfg.textId).value || '').trim().toLowerCase();
+  const items = cfg.getItems();
+  const filtered = q ? items.filter(it => it.toLowerCase().includes(q)) : items;
+  const listEl = document.getElementById(cfg.listId);
+
+  // innerHTML 대신 DOM 직접 생성 → 인라인 이벤트 핸들러의 따옴표 충돌 방지
+  listEl.innerHTML = '';
+  if (filtered.length) {
+    filtered.forEach(val => {
+      const div = document.createElement('div');
+      div.className = 'combo-item';
+      div.textContent = val;
+      div.addEventListener('mousedown', e => { e.preventDefault(); comboSelect(name, val); });
+      listEl.appendChild(div);
+    });
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'combo-empty';
+    empty.textContent = '검색 결과 없음';
+    listEl.appendChild(empty);
+  }
+  if (cfg.addLabel) {
+    const addDiv = document.createElement('div');
+    addDiv.className = 'combo-add';
+    addDiv.textContent = cfg.addLabel;
+    addDiv.addEventListener('mousedown', e => { e.preventDefault(); comboAddNew(name); });
+    listEl.insertBefore(addDiv, listEl.firstChild);
+  }
+
+  listEl.style.display = 'block';
+}
+
+function comboSelect(name, val) {
+  const cfg = _comboConfig(name);
+  document.getElementById(cfg.textId).value = val;
+  document.getElementById(cfg.hiddenId).value = val;
+  document.getElementById(cfg.listId).style.display = 'none';
+  cfg.onSelect();
+}
+
+function comboClose(name) {
+  setTimeout(() => {
+    const cfg = _comboConfig(name);
+    const listEl = document.getElementById(cfg.listId);
+    if (listEl) listEl.style.display = 'none';
+    const textEl = document.getElementById(cfg.textId);
+    const hiddenEl = document.getElementById(cfg.hiddenId);
+    if (textEl && hiddenEl) textEl.value = cfg.getLabelFromHidden ? cfg.getLabelFromHidden(hiddenEl.value) : hiddenEl.value;
+  }, 150);
+}
+
+function comboAddNew(name) {
+  _comboConfig(name).onAddNew();
+}
+
+function openAdvRegModal(comboName) {
+  pendingAdvCombo = comboName || 'adv';
+  document.getElementById('adv-reg-input').value = '';
+  openModal('modalAdvReg');
+}
+
+function saveAdvReg() {
+  const name = document.getElementById('adv-reg-input').value.trim();
+  if (!name) { toast('⚠ 광고주명을 입력해주세요','warn'); return; }
+  if (!SELLER_DATA.find(s => s.company === name && s.type === '광고주')) {
+    SELLER_DATA.push({type:'광고주', company:name, agrate:0, brands:[]});
+  }
+  closeModal('modalAdvReg');
+  comboSelect(pendingAdvCombo || 'adv', name);
+  pendingAdvCombo = null;
+  toast('✓ 광고주가 추가되었습니다','ok');
+}
+
+function openMediaModalForCombo(type, comboName) {
+  openMediaModal(null);
+  mediaPendingCombo = comboName;
+  document.getElementById('med-type').value = type;
+}
+
+function closeMediaModal() {
+  mediaPendingCombo = null;
+  closeModal('modalMedia');
+}
+
+function medTypeChange() { /* 매체사만 사용 */ }
+
+// 매체별 기본 수수료율 (MEDIA_DATA에서 동적으로 조회)
+function _mediaComm(mediaName) {
+  const m = MEDIA_DATA.find(m => m.company === mediaName);
+  return m ? m.c1Adj : 0;
+}
+
+function autoCommReg() {
+  const media = document.getElementById('r_media').value;
+  const m = MEDIA_DATA.find(x => x.company === media);
+  if (media && m) {
+    const comm = m.c1Adj !== '' && m.c1Adj != null ? m.c1Adj : (m.c1Base !== '' && m.c1Base != null ? m.c1Base : null);
+    if (m.unit != null && m.unit !== '') document.getElementById('r_sellUnit').value = m.unit;
+    if (comm != null) document.getElementById('r_comm').value = comm;
+  }
+  calcReg();
+}
+
+function autoCommEdit() {
+  const media = document.getElementById('e_media').value;
+  const m = MEDIA_DATA.find(x => x.company === media);
+  if (media && m) {
+    const comm = m.c1Adj !== '' && m.c1Adj != null ? m.c1Adj : (m.c1Base !== '' && m.c1Base != null ? m.c1Base : null);
+    if (m.unit != null && m.unit !== '') document.getElementById('e_sellUnit').value = m.unit;
+    if (comm != null) document.getElementById('e_comm').value = comm;
+  }
+  calcEdit();
+}
+
+function autoSellerReg() {
+  const sellerName = document.getElementById('r_seller').value;
+  const s = SELLER_DATA.find(x => x.company === sellerName && x.type === '대행사');
+  if (s && s.agrate) document.getElementById('r_agrate').value = s.agrate;
+  else document.getElementById('r_agrate').value = '';
+  calcReg();
+}
+
+function autoSellerEdit() {
+  const sellerName = document.getElementById('e_seller').value;
+  const s = SELLER_DATA.find(x => x.company === sellerName && x.type === '대행사');
+  if (s && s.agrate) document.getElementById('e_agrate').value = s.agrate;
+  else document.getElementById('e_agrate').value = '';
+  calcEdit();
+}
+
+let _daImagesBase64     = [];  // 등록폼
+let _daEditImagesBase64 = [];  // 수정폼
+
+// ── 공통: 이미지 리사이즈 후 콜백 ──
+function _daResizeAndAdd(file, arr, renderFn) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 900;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      arr.push(canvas.toDataURL('image/jpeg', 0.82));
+      renderFn();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── 공통: 프리뷰 그리드 렌더 ──
+function _daRenderGrid(gridId, arr) {
+  const grid = document.getElementById(gridId);
+  if (!grid) return;
+  grid.innerHTML = '';
+  arr.forEach((b64, i) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;display:inline-block;';
+    const img = document.createElement('img');
+    img.src = b64;
+    img.style.cssText = 'width:200px;height:auto;border-radius:6px;border:1px solid var(--border);display:block;';
+    const btn = document.createElement('button');
+    btn.textContent = '✕';
+    btn.style.cssText = 'position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;line-height:1;';
+    btn.onclick = () => { arr.splice(i, 1); _daRenderGrid(gridId, arr); };
+    wrap.appendChild(img); wrap.appendChild(btn);
+    grid.appendChild(wrap);
+  });
+}
+
+// ── 등록폼 ──
+function daOnDrop(e) {
+  e.preventDefault();
+  const dz = document.getElementById('r_da_dropzone');
+  if (dz) { dz.style.borderColor = 'var(--border)'; dz.style.background = 'var(--surface2)'; }
+  Array.from(e.dataTransfer.files).forEach(f => _daResizeAndAdd(f, _daImagesBase64, () => _daRenderGrid('r_da_preview_grid', _daImagesBase64)));
+}
+function daFilesSelected(files) {
+  Array.from(files).forEach(f => _daResizeAndAdd(f, _daImagesBase64, () => _daRenderGrid('r_da_preview_grid', _daImagesBase64)));
+  document.getElementById('r_da_file').value = '';
+}
+
+// ── 수정폼 ──
+function daEditOnDrop(e) {
+  e.preventDefault();
+  const dz = document.getElementById('e_da_dropzone');
+  if (dz) { dz.style.borderColor = 'var(--border)'; dz.style.background = 'var(--surface2)'; }
+  Array.from(e.dataTransfer.files).forEach(f => _daResizeAndAdd(f, _daEditImagesBase64, () => _daRenderGrid('e_da_preview_grid', _daEditImagesBase64)));
+}
+function daEditFilesSelected(files) {
+  Array.from(files).forEach(f => _daResizeAndAdd(f, _daEditImagesBase64, () => _daRenderGrid('e_da_preview_grid', _daEditImagesBase64)));
+  document.getElementById('e_da_file').value = '';
+}
+
+function onEditProductChange() {
+  const prod  = document.getElementById('e_product').value;
+  const isDA  = prod === 'DA';
+  const isPC  = prod === '퍼미션콜';
+  const isCPA = prod === 'CPA';
+  const useMonthPicker = isDA || isPC || isCPA;
+
+  document.getElementById('e_date_normal').style.display    = useMonthPicker ? 'none' : '';
+  document.getElementById('e_date_da').style.display        = useMonthPicker ? '' : 'none';
+  document.getElementById('e_card_qty').style.display       = (isDA || isPC || isCPA) ? 'none' : '';
+  document.getElementById('e_card_da_adcost').style.display = isDA  ? '' : 'none';
+
+  const eMsgSec   = document.getElementById('e_msg_section');
+  const eDaImgSec = document.getElementById('e_da_img_section');
+  const eCardPC   = document.getElementById('e_card_pc');
+  const eCardCPA  = document.getElementById('e_card_cpa');
+  if (eMsgSec)   eMsgSec.style.display   = (isDA || isPC || isCPA) ? 'none' : '';
+  if (eDaImgSec) eDaImgSec.style.display = isDA  ? '' : 'none';
+  if (eCardPC)   eCardPC.style.display   = isPC  ? '' : 'none';
+  if (eCardCPA)  eCardCPA.style.display  = isCPA ? '' : 'none';
+
+  // 월 피커 기본값 세팅
+  if (useMonthPicker) {
+    const now = new Date();
+    const yr  = String(now.getFullYear());
+    const mo  = String(now.getMonth() + 1).padStart(2, '0');
+    document.getElementById('e_da_year').value  = yr;
+    document.getElementById('e_da_month').value = mo;
+    if (isDA) {
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      document.getElementById('e_da_day').value    = '01';
+      document.getElementById('e_da_eyear').value  = yr;
+      document.getElementById('e_da_emonth').value = mo;
+      document.getElementById('e_da_eday').value   = String(lastDay).padStart(2, '0');
+    }
+  }
+}
+
+function onRegProductChange() {
+  const prod  = document.getElementById('r_product').value;
+  const isDA  = prod === 'DA';
+  const isPC  = prod === '퍼미션콜';
+  const isCPA = prod === 'CPA';
+  const useMonthPicker = isDA || isPC || isCPA;
+  document.getElementById('r_date_normal').style.display = useMonthPicker ? 'none' : 'flex';
+  document.getElementById('r_date_da').style.display     = useMonthPicker ? 'flex' : 'none';
+  if (useMonthPicker) {
+    const now = new Date();
+    const yr  = String(now.getFullYear());
+    const mo  = String(now.getMonth() + 1).padStart(2, '0');
+    document.getElementById('r_da_year').value  = yr;
+    document.getElementById('r_da_month').value = mo;
+    if (isDA) {
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      document.getElementById('r_da_day').value    = '01';
+      document.getElementById('r_da_eyear').value  = yr;
+      document.getElementById('r_da_emonth').value = mo;
+      document.getElementById('r_da_eday').value   = String(lastDay).padStart(2, '0');
+    }
+  }
+  document.getElementById('r_qty_normal').style.display  = (isDA || isPC || isCPA) ? 'none' : '';
+  document.getElementById('r_qty_da').style.display      = isDA  ? '' : 'none';
+  document.getElementById('r_qty_cpa').style.display     = isCPA ? '' : 'none';
+  document.getElementById('r_pc_section').style.display  = isPC  ? '' : 'none';
+  const secQtyLbl = document.getElementById('r_sec_qty_lbl');
+  if (secQtyLbl) secQtyLbl.style.display = isPC ? 'none' : '';
+  const adpromoWrap = document.getElementById('r_adpromo_wrap');
+  if (adpromoWrap) adpromoWrap.style.display = isPC ? 'none' : '';
+  const targetSec = document.getElementById('r_target_section');
+  if (targetSec) targetSec.style.display = isPC ? 'none' : '';
+  const msgSec = document.getElementById('r_msg_section');
+  const imgSec = document.getElementById('r_da_img_section');
+  if (msgSec) msgSec.style.display = (isDA || isPC || isCPA) ? 'none' : '';
+  if (imgSec) imgSec.style.display = isDA ? '' : 'none';
+}
+
+
+function calcPC(prefix) {
+  const p = prefix || 'r';
+  const g = id => +document.getElementById(p + '_pc_' + id)?.value || 0;
+  const set = (id, v) => { const el = document.getElementById(p + '_pc_' + id); if (el) el.value = v; };
+  const inflow   = g('inflow');
+  const agree    = g('agree');
+  const advUnit  = g('adv_unit');
+  const ohcCost  = g('ohc_cost');          // 직접 입력
+  const dnuCost  = agree * 5500;           // DNU 단가 5,500원 고정
+  const adc      = agree * advUnit;
+  const profit   = adc - ohcCost - dnuCost;
+  const prfRate  = adc > 0 ? (profit / adc * 100) : 0;
+  const cvr      = inflow > 0 ? (agree / inflow * 100) : 0;
+  set('adc',      adc      ? adc.toLocaleString() + '원' : '');
+  set('dnu_cost', dnuCost  ? dnuCost.toLocaleString() + '원' : '');
+  set('profit',   profit   ? profit.toLocaleString() + '원' : '');
+  set('prf_rate', adc > 0  ? prfRate.toFixed(1) + '%' : '');
+  set('cvr',      inflow > 0 ? cvr.toFixed(1) + '%' : '');
+}
+
+function calcReg() {
+  const s=+document.getElementById('r_sched').value||0, sv=+document.getElementById('r_svc').value||0,
+        u=+document.getElementById('r_sellUnit').value||0, d=+document.getElementById('r_disc').value||0,
+        c=+document.getElementById('r_comm').value||0, ag=+document.getElementById('r_agrate').value||0;
+  const billBase = document.getElementById('r_billBase')?.value || 'actual';
+  const eu   = d > 0 ? d : u;
+  const buyU = u ? Math.round(u * (1 - c / 100)) : 0;
+  const rBuyEl = document.getElementById('r_buyUnit');
+  if (rBuyEl && !rBuyEl.dataset.manual) rBuyEl.value = u ? buyU : '';
+  const curBuyU = rBuyEl?.dataset.manual ? (+rBuyEl.value || buyU) : buyU;
+  const bill = s - sv;
+  const adc  = bill * u;
+  const real = bill * eu;
+  const rAdcEl = document.getElementById('r_adcost');
+  if (rAdcEl && !rAdcEl.dataset.manual) rAdcEl.value = adc || '';
+  const rAmtEl = document.getElementById('r_amt');
+  if (rAmtEl && !rAmtEl.dataset.manual) rAmtEl.value = real || '';
+  const curAdc = rAdcEl?.dataset.manual ? (+rAdcEl.value || adc) : adc;
+  const buyAmt = curBuyU * bill;
+  const rBuyAmtEl = document.getElementById('r_buyAmt');
+  if (rBuyAmtEl && !rBuyAmtEl.dataset.manual) rBuyAmtEl.value = bill ? buyAmt : '';
+  const rev  = (eu - curBuyU) * bill;
+  const agf  = curAdc * (ag / 100);
+  const prf  = rev - agf;
+  const rRevEl = document.getElementById('r_rev');
+  if (rRevEl && !rRevEl.dataset.manual) rRevEl.value = rev || '';
+  const rPrfEl = document.getElementById('r_profit');
+  if (rPrfEl && !rPrfEl.dataset.manual) rPrfEl.value = prf || '';
+  const billHint = document.querySelector('#r_bill + .form-hint');
+  if (billHint) billHint.textContent = billBase === 'sched' ? '발송예약수량 − 서비스수량' : '실발송수량 − 서비스수량 (실발송 입력 후 확정)';
+  document.getElementById('r_bill').value = s ? bill.toLocaleString()+'건' : '';
+}
+function _calcDAByPrefix(p) {
+  const g      = id => +document.getElementById(p + id)?.value || 0;
+  const getRaw = id => { const el = document.getElementById(p + id); return el ? el.value.trim() : ''; };
+  const set    = (id, v) => { const el = document.getElementById(p + id); if (el) el.value = v; };
+  const adc  = g('adcost');
+  const comm = g('comm');
+  const ag   = g('agrate');
+  // 매입단가: 사용자 입력값 있으면 유지, 비어있으면 자동계산
+  let buyUnit;
+  if (getRaw('buyUnit') === '') {
+    buyUnit = adc ? Math.round(adc * (1 - comm / 100)) : 0;
+    set('buyUnit', buyUnit || '');
+  } else {
+    buyUnit = g('buyUnit');
+  }
+  const rev = adc ? (adc - buyUnit) : 0;
+  const agf = adc ? Math.round(adc * ag / 100) : 0;
+  const prf = rev - agf;
+  set('rev',    adc ? rev.toLocaleString() + '원' : '');
+  set('profit', adc ? prf.toLocaleString() + '원' : '');
+}
+function calcDA()     { _calcDAByPrefix('r_da_'); }
+function calcDAEdit() { _calcDAByPrefix('e_da_'); }
+function _calcCPAByPrefix(p) {
+  const g   = id => +document.getElementById(p + id)?.value || 0;
+  const set = (id, v) => { const el = document.getElementById(p + id); if (el) el.value = v; };
+  const qty  = g('qty');
+  const unit = g('unit');
+  const comm = g('comm');
+  const ag   = g('agrate');
+  const adc     = qty * unit;
+  const buyUnit = unit ? Math.round(unit * (1 - comm / 100)) : 0;
+  const rev     = adc  ? Math.round(adc  * comm / 100)       : 0;
+  const agf     = adc  ? Math.round(adc  * ag   / 100)       : 0;
+  const prf     = rev  - agf;
+  set('adcost',  adc     ? adc.toLocaleString()     + '원' : '');
+  set('bill',    adc     ? adc.toLocaleString()     + '원' : '');
+  set('buyUnit', buyUnit ? buyUnit.toLocaleString() + '원' : '');
+  set('rev',     rev     ? rev.toLocaleString()     + '원' : '');
+  set('profit',  adc     ? prf.toLocaleString()     + '원' : '');
+}
+function calcCPA()     { _calcCPAByPrefix('r_cpa_'); }
+function calcCPAEdit() { _calcCPAByPrefix('e_cpa_'); }
+function calcDaPerf() {
+  const imp    = +document.getElementById('p_imp')?.value    || 0;
+  const click  = +document.getElementById('p_da_click')?.value || 0;
+  const conv   = +document.getElementById('p_conv')?.value   || 0;
+  const rev    = +document.getElementById('p_da_rev')?.value  || 0;
+  const c = DATA[currentDetailIdx];
+  const adcost = c ? (c.daAdcost || 0) : 0;
+
+  const ctr  = imp   ? (click / imp * 100).toFixed(2) + '%'          : '—';
+  const cpa  = conv  ? Math.round(adcost / conv).toLocaleString() + '원' : '—';
+  const roas = adcost ? Math.round(rev / adcost * 100).toLocaleString() + '%' : '—';
+
+  document.getElementById('p_da_ctr').value  = ctr;
+  document.getElementById('p_da_cpa').value  = cpa;
+  document.getElementById('p_da_roas').value = roas;
+}
+
+function calcCTR() {
+  const a=+document.getElementById('p_actual').value||0, cl=+document.getElementById('p_click').value||0;
+  document.getElementById('p_ctr').value = (a&&cl)?(cl/a*100).toFixed(2)+'%':'';
+}
+function calcDBR() {
+  const a=+document.getElementById('p_actual').value||0, db=+document.getElementById('p_db').value||0;
+  document.getElementById('p_dbr').value = (a&&db)?(db/a*100).toFixed(2)+'%':'';
+}
+function submitReg() {
+  // 필수 항목 검증
+  const prod  = document.getElementById('r_product').value;
+  const isDA  = prod === 'DA';
+  const isPC  = prod === '퍼미션콜';
+  const isCPA = prod === 'CPA';
+  const REQ_FIELDS = isDA ? [
+    { id:'r_product',    label:'상품' },
+    { id:'r_media',      label:'매체사',  focusId:'r_media_text' },
+    { id:'r_seller',     label:'매출처',  focusId:'r_seller_text' },
+    { id:'r_da_adcost',  label:'광고비' },
+  ] : isPC ? [
+    { id:'r_product',     label:'상품' },
+    { id:'r_seller',      label:'매출처',  focusId:'r_seller_text' },
+    { id:'r_pc_adv_unit', label:'광고주단가' },
+  ] : isCPA ? [
+    { id:'r_product',  label:'상품' },
+    { id:'r_media',    label:'매체사',  focusId:'r_media_text' },
+    { id:'r_seller',   label:'매출처',  focusId:'r_seller_text' },
+    { id:'r_cpa_qty',  label:'정산수량' },
+    { id:'r_cpa_unit', label:'정산단가' },
+  ] : [
+    { id:'r_product', label:'상품' },
+    { id:'r_date',    label:'발송일시' },
+    { id:'r_media',   label:'매체사',  focusId:'r_media_text' },
+    { id:'r_seller',  label:'매출처',  focusId:'r_seller_text' },
+    { id:'r_sched',   label:'발송예약수량' },
+    { id:'r_target',  label:'타겟조건' },
+    { id:'r_msg',     label:'발송문구' },
+  ];
+  for (const f of REQ_FIELDS) {
+    const el = document.getElementById(f.id);
+    if (!el || !el.value || el.value === '0') {
+      toast(`⚠ '${f.label}'을(를) 입력해주세요`, 'warn');
+      (document.getElementById(f.focusId || f.id) || el)?.focus();
+      return;
+    }
+  }
+
+  // 광고주/대행사 등록 여부 검증
+  const _rSellerVal = document.getElementById('r_seller').value;
+  if (_rSellerVal && !SELLER_DATA.some(s => s.company === _rSellerVal)) {
+    toast('⚠ 신규 광고주/대행사를 추가해주세요', 'warn');
+    document.getElementById('r_seller_text').focus();
+    return;
+  }
+  // 브랜드 등록 여부 검증
+  const _rContentVal = document.getElementById('r_content').value.trim();
+  if (_rContentVal) {
+    const _rSellerObj = SELLER_DATA.find(s => s.company === _rSellerVal);
+    const _rBrands = _rSellerObj ? (_rSellerObj.brands || []) : [];
+    if (!_rBrands.some(b => (b.name || b) === _rContentVal)) {
+      toast('⚠ 신규 브랜드를 추가해주세요', 'warn');
+      document.getElementById('r_content_text').focus();
+      return;
+    }
+  }
+
+  const newId = 'C-2026-' + String(_nextCampaignNum++).padStart(4, '0');
+  const _rYear  = document.getElementById('r_da_year').value;
+  const _rMonth = document.getElementById('r_da_month').value;
+  const _rDay   = isDA ? (document.getElementById('r_da_day').value  || '01') : '01';
+  const dateVal = (isDA || isPC || isCPA)
+    ? `${_rYear}-${_rMonth}-${_rDay} 00:00`
+    : _getDateTime('r');
+  const now = new Date();
+  const regDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  DATA.unshift({
+    id:       newId,
+    regDate:  regDate,
+    promo:    document.getElementById('r_adpromo').value,
+    cat:      document.getElementById('r_cat').value,
+    date:     dateVal ? dateVal.replace('T', ' ') : '',
+    media:    document.getElementById('r_media').value,
+    product:  document.getElementById('r_product').value,
+    clicks:   null, ctr: null,
+    status:   isDA ? '성과입력대기' : (isPC ? '성과입력완료' : (isCPA ? '성과입력대기' : '부킹확정')),
+    testOk:   false, sent: false,
+    regUser:  currentUser ? currentUser.id : '',
+    seller:   document.getElementById('r_seller').value,
+    content:  document.getElementById('r_content').value || document.getElementById('r_content_text').value,
+    adv:      document.getElementById('r_seller').value,
+    dept:     currentUser ? currentUser.dept : '영업 1팀',
+    ops:      document.getElementById('r_ops').value,
+    sellUnit:  isCPA ? (+document.getElementById('r_cpa_unit').value || 0) : (+document.getElementById('r_sellUnit').value || 0),
+    qty:       isCPA ? (+document.getElementById('r_cpa_qty').value  || 0) : (+document.getElementById('r_sched').value    || 0),
+    svc:       isCPA ? 0 : (+document.getElementById('r_svc').value  || 0),
+    disc:      isCPA ? 0 : (+document.getElementById('r_disc').value || 0),
+    billBase:  isDA  ? 'da' : (isCPA ? (document.getElementById('r_cpa_billbase')?.value || '') : (document.getElementById('r_billBase')?.value || 'actual')),
+    comm:      isDA  ? (+document.getElementById('r_da_comm')?.value   || 0) : (isCPA ? (+document.getElementById('r_cpa_comm')?.value  || 0) : (+document.getElementById('r_comm').value  || 0)),
+    buyUnit:   isDA  ? (+document.getElementById('r_da_buyUnit')?.value || 0)
+                     : (isCPA ? Math.round((+document.getElementById('r_cpa_unit').value || 0) * (1 - (+document.getElementById('r_cpa_comm')?.value || 0) / 100))
+                              : (+document.getElementById('r_buyUnit').value || 0)),
+    adcostFixed:  (!isDA && !isPC && !isCPA && document.getElementById('r_adcost')?.dataset.manual)  ? (+document.getElementById('r_adcost').value  || 0) : 0,
+    amtFixed:     (!isDA && !isPC && !isCPA && document.getElementById('r_amt')?.dataset.manual)     ? (+document.getElementById('r_amt').value     || 0) : 0,
+    buyAmtFixed:  (!isDA && !isPC && !isCPA && document.getElementById('r_buyAmt')?.dataset.manual)  ? (+document.getElementById('r_buyAmt').value  || 0) : 0,
+    revFixed:     (!isDA && !isPC && !isCPA && document.getElementById('r_rev')?.dataset.manual)     ? (+document.getElementById('r_rev').value     || 0) : 0,
+    profitFixed:  (!isDA && !isPC && !isCPA && document.getElementById('r_profit')?.dataset.manual)  ? (+document.getElementById('r_profit').value  || 0) : 0,
+    agrate:    isDA  ? (+document.getElementById('r_da_agrate')?.value || 0) : (isCPA ? (+document.getElementById('r_cpa_agrate')?.value || 0) : (+document.getElementById('r_agrate').value || 0)),
+    dateEnd:   isDA  ? `${document.getElementById('r_da_eyear').value}-${document.getElementById('r_da_emonth').value}-${document.getElementById('r_da_eday').value}` : '',
+    daAdcost:  isDA  ? (+document.getElementById('r_da_adcost').value  || 0) : 0,
+    daBillBase: isDA ? (document.getElementById('r_da_billbase')?.value || '') : '',
+    daFeeYn:   isDA  ? (document.getElementById('r_da_fee_yn')?.value   || '') : '',
+    cpaFeeYn:  isCPA ? (document.getElementById('r_cpa_fee_yn')?.value  || '') : '',
+    daImage:  isDA ? [..._daImagesBase64] : [],
+    pcAdvUnit: isPC ? (+document.getElementById('r_pc_adv_unit').value  || 0) : 0,
+    pcOhcCost: isPC ? (+document.getElementById('r_pc_ohc_cost').value  || 0) : 0,
+    pcDnuUnit: isPC ? 5500 : 0,
+    pcInflow:  isPC ? (+document.getElementById('r_pc_inflow').value   || 0) : 0,
+    pcAgree:   isPC ? (+document.getElementById('r_pc_agree').value    || 0) : 0,
+    target:   document.getElementById('r_target').value,
+    dtarget:  document.getElementById('r_dtarget').value,
+    msg:      document.getElementById('r_msg').value,
+    note:     document.getElementById('r_note').value,
+  });
+  _log(newId, 'register', null, null, null); // 이력: 캠페인 등록
+  _fbSaveCampaign(DATA[0]);
+
+  // 파이프라인 전환 후처리
+  if (_pendingPipelineConvertId) {
+    const pc = PIPELINE_DATA.find(x => x.id === _pendingPipelineConvertId);
+    if (pc) { pc.archived = true; pc.convertedCampaignId = newId; _fbSavePipeline(pc); }
+    _pendingPipelineConvertId = null;
+    const _newCamDate = DATA[0].date ? DATA[0].date.slice(0,10) : '';
+    closeModal('modalReg');
+    resetRegForm();
+    resetFilter();
+    if (_newCamDate) {
+      const _ff = document.getElementById('fFrom');
+      const _ft = document.getElementById('fTo');
+      if (_ff && _newCamDate < _ff.value) _ff.value = _newCamDate;
+      if (_ft && _newCamDate > _ft.value) _ft.value = _newCamDate;
+    }
+    openDetail(0);
+    toast('✓ 캠페인으로 전환되었습니다', 'ok');
+    return;
+  }
+
+  const _newCamDate = DATA[0].date ? DATA[0].date.slice(0,10) : '';
+  closeModal('modalReg');
+  resetRegForm();
+  // 필터 초기화 → 새 캠페인이 목록/캘린더에 바로 표시되도록
+  resetFilter();
+  if (_newCamDate) {
+    const _ff = document.getElementById('fFrom');
+    const _ft = document.getElementById('fTo');
+    if (_ff && _newCamDate < _ff.value) _ff.value = _newCamDate;
+    if (_ft && _newCamDate > _ft.value) _ft.value = _newCamDate;
+  }
+  openDetail(0);
+  toast('✓ 캠페인이 등록되었습니다', 'ok');
+}
+
+function openRegModal(dateStr) {
+  resetRegForm();
+  openModal('modalReg');
+  if (currentUser) { setSelectVal('r_ops', currentUser.name); }
+  const rDateEl = document.getElementById('r_date');
+  if (rDateEl) {
+    rDateEl.min = '';
+    if (dateStr) rDateEl.value = dateStr;
+  }
+}
+
+function resetRegForm() {
+  const rCat = document.getElementById('r_cat'); if (rCat) rCat.value = '';
+  ['r_product'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.selectedIndex = 0;
+  });
+  const rOps = document.getElementById('r_ops'); if (rOps) rOps.selectedIndex = 0;
+  // 콤보박스 초기화
+  ['seller','content','media'].forEach(name => {
+    const cfg = _comboConfig(name);
+    const textEl = document.getElementById(cfg.textId);
+    const hiddenEl = document.getElementById(cfg.hiddenId);
+    const listEl = document.getElementById(cfg.listId);
+    if (textEl) textEl.value = '';
+    if (hiddenEl) hiddenEl.value = '';
+    if (listEl) listEl.style.display = 'none';
+  });
+  const rHour = document.getElementById('r_hour'); if (rHour) rHour.selectedIndex = 0;
+  const rMin  = document.getElementById('r_min');  if (rMin)  rMin.selectedIndex  = 0;
+  const rDaAdcost = document.getElementById('r_da_adcost'); if (rDaAdcost) rDaAdcost.value = '';
+  ['r_pc_adv_unit','r_pc_ohc_unit','r_pc_dnu_unit','r_pc_inflow','r_pc_agree',
+   'r_pc_adc','r_pc_ohc_cost','r_pc_dnu_cost','r_pc_profit','r_pc_prf_rate','r_pc_cvr']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  _daImagesBase64 = [];
+  _daRenderGrid('r_da_preview_grid', _daImagesBase64);
+  onRegProductChange();
+  ['r_promo','r_adpromo','r_date','r_sched','r_svc','r_sellUnit','r_buyUnit','r_disc','r_comm','r_agrate'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const rBillBase = document.getElementById('r_billBase');
+  if (rBillBase) rBillBase.value = 'actual';
+  ['r_bill','r_amt','r_adcost','r_buyAmt','r_rev','r_profit'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; delete el.dataset.manual; }
+  });
+  ['r_target','r_dtarget','r_msg','r_note'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+// 날짜+시간 셀렉트 → "YYYY-MM-DD HH:MM" 문자열 조합
+function _getDateTime(prefix) {
+  const date = document.getElementById(prefix + '_date').value;
+  if (!date) return '';
+  const h = parseInt(document.getElementById(prefix + '_hour').value) || 0;
+  const m = document.getElementById(prefix + '_min').value;
+  return `${date} ${String(h).padStart(2,'0')}:${m}`;
+}
+
+// "YYYY-MM-DD HH:MM" 문자열 → 날짜+시간 셀렉트 세팅
+function _setDateTime(prefix, dtStr) {
+  if (!dtStr) return;
+  const [datePart, timePart] = dtStr.replace('T',' ').split(' ');
+  document.getElementById(prefix + '_date').value = datePart || '';
+  if (!timePart) return;
+  const [hStr, mStr] = timePart.split(':');
+  const h = parseInt(hStr) || 0;
+  const mRaw = parseInt(mStr) || 0;
+  const m = String(Math.min(50, Math.round(mRaw / 10) * 10)).padStart(2, '0');
+  document.getElementById(prefix + '_hour').value = String(h);
+  document.getElementById(prefix + '_min').value = m;
+}
+
+function confirmRegDate() {
+  const el = document.getElementById('r_date');
+  if (!el.value) { toast('⚠ 발송일시를 선택해주세요', 'warn'); return; }
+  el.blur();
+  document.getElementById('r_media_text').focus();
+  toast('✓ 발송일시가 설정되었습니다', 'ok');
+}
+
+function openEdit() {
+  document.querySelector('.topbar').style.display = 'none';
+  const c = DATA[currentDetailIdx];
+  document.getElementById('eId').textContent = c.id;
+  document.getElementById('eId2').textContent = c.id;
+  const authorEl = document.getElementById('e-author');
+  if (authorEl) authorEl.textContent = c.ops || '—';
+  document.getElementById('e_cat').value = c.cat || '';
+  setSelectVal('e_product', c.product);
+  setSelectVal('e_ops', c.ops);
+  _setDateTime('e', c.date);
+  // 콤보박스: hidden + text 동시 세팅
+  const _setCombo = (name, val) => {
+    const cfg = _comboConfig(name);
+    document.getElementById(cfg.hiddenId).value = val;
+    document.getElementById(cfg.textId).value   = val;
+  };
+  _setCombo('e_media',  c.media);
+  document.getElementById('e_adpromo').value = c.promo || '';
+  // 매출처 콤보: 브랜드명_회사명 형식으로 표시, hidden에는 회사명만 저장
+  const _sellerCompany = c.seller || c.adv || '';
+  const _sellerBrand   = c.content || '';
+  const _eSCfg = _comboConfig('e_seller');
+  document.getElementById(_eSCfg.hiddenId).value = _sellerCompany;
+  document.getElementById(_eSCfg.textId).value   = _sellerCompany;
+  document.getElementById('e_content').value      = _sellerBrand;
+  document.getElementById('e_content_text').value = _sellerBrand;
+  autoNameEdit();
+  document.getElementById('e_qty').value    = c.qty    || '';
+  document.getElementById('e_svc').value    = c.svc    || '';
+  const eBillBase = document.getElementById('e_billBase');
+  if (eBillBase) eBillBase.value = c.billBase || 'actual';
+  document.getElementById('e_sellUnit').value = c.sellUnit || '';
+  // adcostFixed / amtFixed: 수동 입력값 복원
+  const _restoreManual = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (val) { el.value = val; el.dataset.manual = '1'; }
+    else { el.value = ''; delete el.dataset.manual; }
+  };
+  // e_buyUnit은 calcEdit()에서 항상 재계산 (수동 입력 초기화)
+  const eBuyUnitEl = document.getElementById('e_buyUnit');
+  if (eBuyUnitEl) { eBuyUnitEl.value = ''; delete eBuyUnitEl.dataset.manual; }
+  _restoreManual('e_adcost',  c.adcostFixed  || 0);
+  _restoreManual('e_billamt', c.amtFixed     || 0);
+  _restoreManual('e_buyAmt',  c.buyAmtFixed  || 0);
+  _restoreManual('e_rev',     c.revFixed     || 0);
+  _restoreManual('e_profit',  c.profitFixed  || 0);
+  document.getElementById('e_disc').value   = c.disc   || '';
+  document.getElementById('e_comm').value   = c.comm   || '';
+  document.getElementById('e_agrate').value = c.agrate || '';
+  document.getElementById('e_target').value  = c.target  || '';
+  document.getElementById('e_dtarget').value = c.dtarget || '';
+  document.getElementById('e_msg').value     = c.msg     || '';
+  document.getElementById('e_note').value   = c.note   || '';
+
+  // DA / 퍼미션콜 vs 일반 수정 화면 토글
+  const isEditDA  = c.product === 'DA';
+  const isEditPC  = c.product === '퍼미션콜';
+  const isEditCPA = c.product === 'CPA';
+  const useMonthPicker = isEditDA || isEditPC || isEditCPA;
+  document.getElementById('e_date_normal').style.display      = useMonthPicker ? 'none' : '';
+  document.getElementById('e_date_da').style.display          = useMonthPicker ? '' : 'none';
+  document.getElementById('e_card_qty').style.display         = (isEditDA || isEditPC || isEditCPA) ? 'none' : '';
+  document.getElementById('e_card_da_adcost').style.display   = isEditDA  ? '' : 'none';
+  const eMsgSec   = document.getElementById('e_msg_section');
+  const eDaImgSec = document.getElementById('e_da_img_section');
+  const eCardPC   = document.getElementById('e_card_pc');
+  const eCardCPA  = document.getElementById('e_card_cpa');
+  if (eMsgSec)   eMsgSec.style.display   = (isEditDA || isEditPC || isEditCPA) ? 'none' : '';
+  if (eDaImgSec) eDaImgSec.style.display = isEditDA  ? '' : 'none';
+  if (eCardPC)   eCardPC.style.display   = isEditPC  ? '' : 'none';
+  if (eCardCPA)  eCardCPA.style.display  = isEditCPA ? '' : 'none';
+  if (isEditDA) {
+    const dateParts = (c.date || '').split('-');
+    const eDAYear  = document.getElementById('e_da_year');
+    const eDAMonth = document.getElementById('e_da_month');
+    const eDADay   = document.getElementById('e_da_day');
+    if (eDAYear  && dateParts[0]) eDAYear.value  = dateParts[0];
+    if (eDAMonth && dateParts[1]) eDAMonth.value = dateParts[1];
+    if (eDADay   && dateParts[2]) eDADay.value   = dateParts[2].split(' ')[0].padStart(2,'0');
+    const endParts = (c.dateEnd || '').split('-');
+    const eDAEYear  = document.getElementById('e_da_eyear');
+    const eDAEMonth = document.getElementById('e_da_emonth');
+    const eDAEDay   = document.getElementById('e_da_eday');
+    if (eDAEYear  && endParts[0]) eDAEYear.value  = endParts[0];
+    if (eDAEMonth && endParts[1]) eDAEMonth.value = endParts[1];
+    if (eDAEDay   && endParts[2]) eDAEDay.value   = endParts[2].padStart(2,'0');
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+    setEl('e_da_adcost',  c.daAdcost  || '');
+    setEl('e_da_billbase', c.daBillBase || 'CPP');
+    setEl('e_da_fee_yn',  c.daFeeYn   || '포함');
+    setEl('e_da_comm',    c.comm      || '');
+    setEl('e_da_agrate',  c.agrate    || '');
+    setEl('e_da_buyUnit', c.buyUnit   || '');
+    calcDAEdit();
+    // 구버전(string) · 신버전(array) 모두 호환
+    _daEditImagesBase64 = Array.isArray(c.daImage) ? [...c.daImage] : (c.daImage ? [c.daImage] : []);
+    _daRenderGrid('e_da_preview_grid', _daEditImagesBase64);
+  }
+  if (isEditPC) {
+    const dateParts = (c.date || '').split('-');
+    const eDAYear  = document.getElementById('e_da_year');
+    const eDAMonth = document.getElementById('e_da_month');
+    if (eDAYear  && dateParts[0]) eDAYear.value  = dateParts[0];
+    if (eDAMonth && dateParts[1]) eDAMonth.value = dateParts[1];
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+    setEl('e_pc_adv_unit', c.pcAdvUnit || '');
+    setEl('e_pc_ohc_cost', c.pcOhcCost || '');
+    setEl('e_pc_inflow',   c.pcInflow  || '');
+    setEl('e_pc_agree',    c.pcAgree   || '');
+    calcPC('e');
+  }
+  if (isEditCPA) {
+    const dateParts = (c.date || '').split('-');
+    const eDAYear  = document.getElementById('e_da_year');
+    const eDAMonth = document.getElementById('e_da_month');
+    if (eDAYear  && dateParts[0]) eDAYear.value  = dateParts[0];
+    if (eDAMonth && dateParts[1]) eDAMonth.value = dateParts[1];
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+    setEl('e_cpa_qty',      c.qty       || '');
+    setEl('e_cpa_unit',     c.sellUnit  || '');
+    setEl('e_cpa_billbase', c.billBase  || '신청수');
+    setEl('e_cpa_fee_yn',   c.cpaFeeYn  || '포함');
+    setEl('e_cpa_comm',     c.comm      || '');
+    setEl('e_cpa_agrate',   c.agrate    || '');
+    calcCPAEdit();
+  }
+
+  calcEdit();
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-edit').classList.add('active');
+  history.pushState({ screen: 'edit', id: c.id }, '', '#edit/' + c.id);
+  document.getElementById('breadcrumb').innerHTML =
+    `<span onclick="goScreen('campaigns')" style="cursor:pointer;color:var(--text2);">캠페인 목록</span>
+     <span class="sep">›</span>
+     <span onclick="cancelEdit()" style="cursor:pointer;color:var(--text2);">${_cName(c)}</span>
+     <span class="sep">›</span><span class="cur">수정</span>`;
+}
+
+function _getDeptByName(name) {
+  const u = USERS.find(x => x.name === name);
+  if (!u || (!u.bonbu && !u.dept)) return '';
+  return [u.bonbu, u.dept].filter(Boolean).join(' ');
+}
+
+function setSelectVal(id, val) {
+  const sel = document.getElementById(id);
+  for (let i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === val || sel.options[i].textContent === val) { sel.selectedIndex = i; return; }
+  }
+}
+
+function calcEdit() {
+  const s  = +document.getElementById('e_qty').value     || 0;
+  const sv = +document.getElementById('e_svc').value     || 0;
+  const u  = +document.getElementById('e_sellUnit').value || 0;
+  const d  = +document.getElementById('e_disc').value    || 0;
+  const c  = +document.getElementById('e_comm').value    || 0;
+  const ag = +document.getElementById('e_agrate').value  || 0;
+  const eu   = d > 0 ? d : u;
+  const buyU = u ? Math.round(u * (1 - c / 100)) : 0;
+  const eBuyEl = document.getElementById('e_buyUnit');
+  if (eBuyEl && !eBuyEl.dataset.manual) eBuyEl.value = u ? buyU : '';
+  const curBuyU = eBuyEl?.dataset.manual ? (+eBuyEl.value || buyU) : buyU;
+  const bill = s - sv;
+  const adc  = bill * u;
+  const real = bill * eu;
+  const eAdcEl = document.getElementById('e_adcost');
+  if (eAdcEl && !eAdcEl.dataset.manual) eAdcEl.value = adc || '';
+  const eBillAmt = document.getElementById('e_billamt');
+  if (eBillAmt && !eBillAmt.dataset.manual) eBillAmt.value = real || '';
+  const curAdc = eAdcEl?.dataset.manual ? (+eAdcEl.value || adc) : adc;
+  const buyAmtCalc = curBuyU * bill;
+  const eBuyAmtEl = document.getElementById('e_buyAmt');
+  if (eBuyAmtEl && !eBuyAmtEl.dataset.manual) eBuyAmtEl.value = bill ? buyAmtCalc : '';
+  const rev  = (eu - curBuyU) * bill;
+  const agf  = curAdc * (ag / 100);
+  const prf  = rev - agf;
+  document.getElementById('e_bill').value = s ? bill.toLocaleString() + '건' : '';
+  const eRevEl = document.getElementById('e_rev');
+  if (eRevEl && !eRevEl.dataset.manual) eRevEl.value = rev || '';
+  const ePrfEl = document.getElementById('e_profit');
+  if (ePrfEl && !ePrfEl.dataset.manual) ePrfEl.value = prf || '';
+}
+
+function submitEdit() {
+  document.querySelector('.topbar').style.display = '';
+  const c = DATA[currentDetailIdx];
+  // 변경 전 스냅샷 (이력용)
+  const TRACK = ['promo','cat','date','media','product','seller','content','dept','ops','status','qty','svc','sellUnit','buyUnit','disc','comm','agrate','target','dtarget','msg','msgFinal','note','pcAdvUnit','pcOhcCost','pcInflow','pcAgree'];
+  const snap = {};
+  TRACK.forEach(k => { snap[k] = String(c[k] ?? ''); });
+
+  c.promo    = document.getElementById('e_adpromo').value;
+  c.cat      = document.getElementById('e_cat').value;
+  c.product  = document.getElementById('e_product').value;
+  c.ops      = document.getElementById('e_ops').value;
+  c.media    = document.getElementById('e_media').value;
+  c.seller   = document.getElementById('e_seller').value;
+  c.content  = document.getElementById('e_content').value || document.getElementById('e_content_text').value;
+  c.adv      = c.seller;
+  c.dept     = _getDeptByName(c.ops);
+  c.target   = document.getElementById('e_target').value;
+  c.dtarget  = document.getElementById('e_dtarget').value;
+  c.note     = document.getElementById('e_note').value;
+
+  const isEditDA  = c.product === 'DA';
+  const isEditPC  = c.product === '퍼미션콜';
+  const isEditCPA = c.product === 'CPA';
+  if (isEditDA) {
+    const yr  = document.getElementById('e_da_year').value;
+    const mo  = document.getElementById('e_da_month').value;
+    const day = document.getElementById('e_da_day')?.value || '01';
+    c.date       = `${yr}-${mo}-${day} 00:00`;
+    const eyr = document.getElementById('e_da_eyear')?.value || yr;
+    c.dateEnd    = `${eyr}-${document.getElementById('e_da_emonth')?.value || mo}-${document.getElementById('e_da_eday')?.value || '01'}`;
+    c.daAdcost   = +document.getElementById('e_da_adcost').value  || 0;
+    c.daBillBase = document.getElementById('e_da_billbase')?.value || '';
+    c.daFeeYn    = document.getElementById('e_da_fee_yn')?.value   || '';
+    c.comm       = +document.getElementById('e_da_comm')?.value    || 0;
+    c.agrate     = +document.getElementById('e_da_agrate')?.value  || 0;
+    c.buyUnit    = +document.getElementById('e_da_buyUnit')?.value || Math.round(c.daAdcost * (1 - c.comm / 100));
+    c.billBase   = 'da';
+    c.daImage = [..._daEditImagesBase64];
+    if (c.status !== '성과입력완료') c.status = '성과입력대기';
+  } else if (isEditPC) {
+    const yr = document.getElementById('e_da_year').value;
+    const mo = document.getElementById('e_da_month').value;
+    c.date      = `${yr}-${mo}-01 00:00`;
+    c.pcAdvUnit = +document.getElementById('e_pc_adv_unit').value  || 0;
+    c.pcOhcCost = +document.getElementById('e_pc_ohc_cost').value  || 0;
+    c.pcDnuUnit = 5500;
+    c.pcInflow  = +document.getElementById('e_pc_inflow').value    || 0;
+    c.pcAgree   = +document.getElementById('e_pc_agree').value     || 0;
+    c.status    = '성과입력완료';
+  } else if (isEditCPA) {
+    const yr = document.getElementById('e_da_year').value;
+    const mo = document.getElementById('e_da_month').value;
+    c.date      = `${yr}-${mo}-01 00:00`;
+    c.qty       = +document.getElementById('e_cpa_qty').value      || 0;
+    c.sellUnit  = +document.getElementById('e_cpa_unit').value     || 0;
+    c.billBase  = document.getElementById('e_cpa_billbase')?.value || '';
+    c.cpaFeeYn  = document.getElementById('e_cpa_fee_yn')?.value   || '';
+    c.comm      = +document.getElementById('e_cpa_comm')?.value    || 0;
+    c.agrate    = +document.getElementById('e_cpa_agrate')?.value  || 0;
+    c.buyUnit   = Math.round(c.sellUnit * (1 - c.comm / 100));
+    c.svc       = 0;
+    c.disc      = 0;
+  } else {
+    c.date     = _getDateTime('e');
+    c.qty      = +document.getElementById('e_qty').value    || c.qty;
+    c.svc      = +document.getElementById('e_svc').value;
+    c.sellUnit = +document.getElementById('e_sellUnit').value;
+    c.buyUnit  = +document.getElementById('e_buyUnit').value;
+    c.disc     = +document.getElementById('e_disc').value;
+    c.comm     = +document.getElementById('e_comm').value;
+    c.agrate   = +document.getElementById('e_agrate').value;
+    c.billBase = document.getElementById('e_billBase')?.value || 'actual';
+    c.msg      = document.getElementById('e_msg').value;
+    const eAdcEl2    = document.getElementById('e_adcost');
+    const eAmtEl2    = document.getElementById('e_billamt');
+    const eBuyAmtEl2 = document.getElementById('e_buyAmt');
+    const eRevEl2    = document.getElementById('e_rev');
+    const ePrfEl2    = document.getElementById('e_profit');
+    c.adcostFixed  = eAdcEl2?.dataset.manual    ? (+eAdcEl2.value    || 0) : 0;
+    c.amtFixed     = eAmtEl2?.dataset.manual    ? (+eAmtEl2.value    || 0) : 0;
+    c.buyAmtFixed  = eBuyAmtEl2?.dataset.manual ? (+eBuyAmtEl2.value || 0) : 0;
+    c.revFixed     = eRevEl2?.dataset.manual    ? (+eRevEl2.value    || 0) : 0;
+    c.profitFixed  = ePrfEl2?.dataset.manual    ? (+ePrfEl2.value    || 0) : 0;
+  }
+
+  // 변경된 필드만 이력 기록
+  TRACK.forEach(k => {
+    const bv = snap[k];
+    const av = String(c[k] ?? '');
+    if (bv !== av) _log(c.id, 'field', k, bv, av);
+  });
+
+  _fbSaveCampaign(DATA[currentDetailIdx]);
+  openDetail(currentDetailIdx);
+  toast('✓ 수정사항이 저장되었습니다','ok');
+}
+
+function cancelEdit() { document.querySelector('.topbar').style.display = ''; openDetail(currentDetailIdx); }
+
+function open2ndModal() {
+  const c = DATA[currentDetailIdx];
+  if (!c) return;
+  if (c.status !== '성과입력대기' && c.status !== '성과입력완료') return;
+  const isDA = c.product === 'DA';
+  document.getElementById('perf-normal').style.display = isDA ? 'none' : '';
+  document.getElementById('perf-da').style.display     = isDA ? '' : 'none';
+  if (isDA) {
+    document.getElementById('p_imp').value      = c.daImp   != null ? c.daImp   : '';
+    document.getElementById('p_da_click').value = c.daClick != null ? c.daClick : '';
+    document.getElementById('p_conv').value     = c.daConv  != null ? c.daConv  : '';
+    document.getElementById('p_da_rev').value   = c.daRev   != null ? c.daRev   : '';
+    calcDaPerf();
+  } else {
+    document.getElementById('p_actual').value = c.actual != null ? c.actual : '';
+    document.getElementById('p_click').value  = c.clicks != null ? c.clicks : '';
+    document.getElementById('p_ctr').value    = c.ctr    != null ? c.ctr    : '';
+    document.getElementById('p_db').value     = c.db     != null ? c.db     : '';
+    document.getElementById('p_dbr').value    = c.dbr    != null ? c.dbr    : '';
+    calcCTR();
+    calcDBR();
+  }
+  openModal('modal2nd');
+}
+
+function submit2nd()  {
+  const c = DATA[currentDetailIdx];
+  if (!c) return;
+  const isDA = c.product === 'DA';
+
+  if (isDA) {
+    const imp   = document.getElementById('p_imp').value;
+    const click = document.getElementById('p_da_click').value;
+    const conv  = document.getElementById('p_conv').value;
+    const rev   = document.getElementById('p_da_rev').value;
+    const newImp   = imp   !== '' ? Number(imp)   : null;
+    const newClick = click !== '' ? Number(click) : null;
+    const newConv  = conv  !== '' ? Number(conv)  : null;
+    const newRev   = rev   !== '' ? Number(rev)   : null;
+    if (newImp   !== c.daImp)   { _log(c.id,'perf','daImp',   String(c.daImp  ??'미입력'), newImp  !=null?newImp  +'건':'미입력'); c.daImp   = newImp; }
+    if (newClick !== c.daClick) { _log(c.id,'perf','daClick', String(c.daClick??'미입력'), newClick!=null?newClick+'건':'미입력'); c.daClick = newClick; }
+    if (newConv  !== c.daConv)  { _log(c.id,'perf','daConv',  String(c.daConv ??'미입력'), newConv !=null?newConv +'건':'미입력'); c.daConv  = newConv; }
+    if (newRev   !== c.daRev)   { _log(c.id,'perf','daRev',   String(c.daRev  ??'미입력'), newRev  !=null?newRev  +'원':'미입력'); c.daRev   = newRev; }
+    const prevStatus = c.status;
+    c.status = '성과입력완료';
+    if (c.status !== prevStatus) _log(c.id,'field','status', prevStatus, c.status);
+    _fbSaveCampaign(c);
+    closeModal('modal2nd');
+    openDetail(currentDetailIdx);
+    toast('✓ DA 성과가 저장되었습니다', 'ok');
+    return;
+  }
+
+  const actual = document.getElementById('p_actual').value;
+  const click  = document.getElementById('p_click').value;
+  const ctr    = document.getElementById('p_ctr').value;
+  const db     = document.getElementById('p_db').value;
+  const dbr    = document.getElementById('p_dbr').value;
+  const vals = [
+    actual ? Number(actual).toLocaleString()+'건' : '미입력',
+    click  ? Number(click).toLocaleString()+'건'  : '미입력',
+    ctr    ? ctr                                  : '자동계산',
+    db     ? Number(db).toLocaleString()+'건'     : '미입력',
+    dbr    ? dbr                                  : '자동계산',
+  ];
+
+  // DATA 업데이트 (변경된 필드만 이력 기록)
+  if (c) {
+    const newActual = actual !== '' ? Number(actual) : null;
+    const newClicks = click  !== '' ? Number(click)  : null;
+    const newCtr    = ctr    !== '' ? parseFloat(ctr): null;
+    const newDb     = db     !== '' ? Number(db)     : null;
+    const newDbr    = dbr    !== '' ? parseFloat(dbr): null;
+
+    if (newActual !== c.actual) { _log(c.id,'perf','actual', String(c.actual??'미입력'), newActual!=null?newActual+'건':'미입력'); c.actual = newActual; }
+    if (newClicks !== c.clicks) { _log(c.id,'perf','clicks', String(c.clicks??'미입력'), newClicks!=null?newClicks+'건':'미입력'); c.clicks = newClicks; }
+    if (newCtr    !== c.ctr)    { _log(c.id,'perf','ctr',    String(c.ctr??'미입력'),    newCtr!=null?newCtr+'%':'미입력');        c.ctr    = newCtr; }
+    if (newDb     !== c.db)     { _log(c.id,'perf','db',     String(c.db??'미입력'),     newDb!=null?newDb+'건':'미입력');         c.db     = newDb; }
+    if (newDbr    !== c.dbr)    { _log(c.id,'perf','dbr', String(c.dbr??'미입력'), newDbr!=null?newDbr+'%':'미입력'); c.dbr = newDbr; }
+    const prevStatus = c.status;
+    c.status = '성과입력완료';
+    if (c.status !== prevStatus) _log(c.id,'field','status', prevStatus, c.status);
+  }
+
+  closeModal('modal2nd');
+
+  // perfStatus 업데이트
+  const autoVals = ['자동계산'];
+  document.querySelectorAll('#perfStatus .ist-item').forEach((el,i) => {
+    const dot = el.querySelector('.s-dot');
+    const v = el.querySelector('.s-val');
+    if (!dot || !v) return;
+    const txt = vals[i];
+    const isEmpty = txt === '미입력' || txt === '자동계산';
+    dot.className = isEmpty ? 's-dot dot-pend' : 's-dot dot-ok';
+    v.textContent = txt;
+    if (isEmpty) { v.classList.add('f-pending'); v.style.color = ''; }
+    else         { v.classList.remove('f-pending'); v.style.color = 'var(--green)'; }
+  });
+
+  // 수량/금액 실발송수량 + 정산수량 업데이트
+  const actualEl = document.getElementById('dActual');
+  if (actualEl && actual) {
+    actualEl.classList.remove('f-pending');
+    actualEl.removeAttribute('style');
+    actualEl.style.color='var(--green)';
+    actualEl.textContent = Number(actual).toLocaleString() + ' 건';
+  }
+  const billEl = document.getElementById('dBill');
+  if (billEl && actual) {
+    const c2 = DATA[currentDetailIdx];
+    const svc2 = c2 ? (c2.svc||0) : 0;
+    const bill2 = Number(actual) - svc2;
+    billEl.className = 'f-val'; billEl.style.color = 'var(--green)'; billEl.style.fontWeight = '700';
+    billEl.textContent = bill2.toLocaleString() + ' 건';
+  }
+
+  // stepTrack 업데이트 → 성과입력완료
+  const steps = ['부킹확정','테스트완료','성과입력대기','성과입력완료'];
+  const ci = steps.indexOf('성과입력완료');
+  document.querySelectorAll('#stepTrack .step').forEach((el,i) => {
+    el.className = 'step';
+    if (i < ci) el.classList.add('done');
+    else if (i === ci) el.classList.add('current');
+  });
+
+  _fbSaveCampaign(DATA[currentDetailIdx]);
+  toast('✓ 성과 데이터가 저장되었습니다','ok');
+}
+function openDelModal() {
+  const c = DATA[currentDetailIdx];
+  if (!c) return;
+  document.getElementById('delName').textContent = _cName(c);
+  openModal('modalDel');
+}
+
+function confirmDel() {
+  const c = DATA[currentDetailIdx];
+  if (c) {
+    _fbDeleteCampaign(c.id);
+    DATA.splice(currentDetailIdx, 1);
+  }
+  closeModal('modalDel');
+  goScreen('campaigns');
+  toast('🗑 캠페인이 삭제되었습니다', 'err');
+}
+
+function openEditTarget() {
+  const c = DATA[currentDetailIdx] || {};
+  const isDA = c.product === 'DA';
+  const hasReviewed = !!c.msgFinal;
+  document.getElementById('et_target').value  = c.target  || '';
+  document.getElementById('et_dtarget').value = c.dtarget || '';
+  document.getElementById('et_msg').value = hasReviewed ? c.msgFinal : (c.msg || '');
+  document.getElementById('et_reviewed').checked = hasReviewed;
+  const etMsgSec = document.getElementById('et_msg_section');
+  if (etMsgSec) etMsgSec.style.display = isDA ? 'none' : '';
+  openModal('modalEditTarget');
+}
+function etReviewedToggle(checked) {
+  const c = DATA[currentDetailIdx] || {};
+  document.getElementById('et_msg').value = checked ? (c.msgFinal || '') : (c.msg || '');
+}
+function saveEditTarget() {
+  const c = DATA[currentDetailIdx];
+  if (!c) return;
+  const tagsRaw    = document.getElementById('et_target').value;
+  const dtargetRaw = document.getElementById('et_dtarget').value;
+  const msg        = document.getElementById('et_msg').value;
+  const reviewed   = document.getElementById('et_reviewed').checked;
+  const newTarget  = tagsRaw;
+  if (newTarget !== (c.target || '')) _log(c.id, 'field', 'target', c.target || '', newTarget);
+  c.target = newTarget;
+  if (dtargetRaw !== (c.dtarget || '')) _log(c.id, 'field', 'dtarget', c.dtarget || '', dtargetRaw);
+  c.dtarget = dtargetRaw;
+  if (reviewed) {
+    if (msg !== (c.msgFinal || '')) _log(c.id, 'field', 'msgFinal', c.msgFinal || '', msg);
+    c.msgFinal = msg;
+  } else {
+    if (msg !== (c.msg || '')) _log(c.id, 'field', 'msg', c.msg || '', msg);
+    c.msg = msg;
+  }
+  const tags = c.target.split('\n').map(t => t.trim()).filter(Boolean);
+  document.getElementById('dTarget').innerHTML = tags.length
+    ? tags.map(t => `<span class="tag">${t}</span>`).join('')
+    : '<span style="color:var(--text3);">—</span>';
+  const dtargetEl2 = document.getElementById('dDtarget');
+  if (dtargetEl2) { const dtags2 = (c.dtarget||'').split('\n').map(t=>t.trim()).filter(Boolean); dtargetEl2.innerHTML = dtags2.length ? dtags2.map(t=>`<span class="tag">${t}</span>`).join('') : '<span style="color:var(--text3);">—</span>'; }
+  document.getElementById('dMsg').innerHTML     = _linkify(c.msg || '');
+  document.getElementById('dMsgFinal').innerHTML = c.msgFinal ? _linkify(c.msgFinal) : '<span style="color:var(--text3);font-size:12px;">아직 검수완료된 문구가 없습니다.</span>';
+  _fbSaveCampaign(c);
+  closeModal('modalEditTarget');
+  toast(reviewed ? '✓ 검수완료 문구가 저장되었습니다' : '✓ 타겟 & 문구가 저장되었습니다', 'ok');
+}
+
+function msgTabSwitch(tab) {
+  document.getElementById('msg-tab-draft').classList.toggle('active', tab === 'draft');
+  document.getElementById('msg-tab-final').classList.toggle('active', tab === 'final');
+  document.getElementById('dMsg').style.display      = tab === 'draft' ? '' : 'none';
+  document.getElementById('dMsgFinal').style.display = tab === 'final' ? '' : 'none';
+}
+
+function openEditNote() {
+  const c = DATA[currentDetailIdx] || {};
+  document.getElementById('en_note').value = (c.note || '').replace(/<br\s*\/?>/gi, '\n');
+  openModal('modalEditNote');
+}
+function saveEditNote() {
+  const c = DATA[currentDetailIdx];
+  if (!c) return;
+  const note = document.getElementById('en_note').value;
+  if (note !== (c.note||'')) _log(c.id, 'field', 'note', c.note||'', note);
+  c.note = note;
+  document.getElementById('dNote').innerHTML = note.replace(/\n/g, '<br>') || '<span style="color:var(--text3);">—</span>';
+  closeModal('modalEditNote');
+  toast('✓ 특기사항이 저장되었습니다', 'ok');
+}
+
+// ══════════════════════════════════════════
+// CALENDAR
+// ══════════════════════════════════════════
+let calView = 'month';
+let calDate = new Date(); // 기준 날짜
+let calY = calDate.getFullYear(), calM = calDate.getMonth() + 1;
+let calProductTab = 'sms'; // 'sms' | 'da'
+
+const CAT_COLOR = {
+  '분양': '#8fd3a0',
+  '교육': '#91c7f5',
+  '수송': '#ffc078',
+  '금융': '#a9e4ef',
+  '뷰티': '#fcc2d7',
+  '기타': '#d4c5f9',
+  '병의원': '#ff8787',
+};
+function _evColor(ev) {
+  if (ev.idx !== null && DATA[ev.idx]) return CAT_COLOR[_getCat(DATA[ev.idx])] || '#868e96';
+  return ev.c || '#868e96';
+}
+
+// CAL_EVENTS는 DATA에서 동적으로 생성 — 별도 등록 불필요
+const DAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+const DAY_KO = ['일','월','화','수','목','금','토'];
+
+function _dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function _getFilteredEvents(key) {
+  const catF     = document.getElementById('calFilterCat')?.value    || '';
+  const mediaF   = document.getElementById('calFilterMedia')?.value  || '';
+  const companyF = document.getElementById('calFilterCompany')?.value || '';
+  const brandF   = document.getElementById('calFilterBrand')?.value  || '';
+  const { bonbu: bonbuF, team: teamF } = _parseOrgFilter(document.getElementById('calFilterOrg')?.value || '');
+
+  // 탭별 상품 필터 + 날짜 매칭
+  const isDA = calProductTab === 'da';
+  const evts = DATA
+    .map((c, idx) => ({ t: '', idx }))
+    .filter(ev => {
+      const c = DATA[ev.idx];
+      if (!c) return false;
+      const prod = c.product || '';
+      if (isDA) {
+        // DA 탭: DA 상품만, 날짜 범위 내 포함 여부
+        if (prod !== 'DA') return false;
+        const startKey = (c.date || '').slice(0, 10);
+        const endKey   = (c.dateEnd || startKey).slice(0, 10);
+        return key >= startKey && key <= endKey;
+      } else {
+        // 문자광고 탭: 퍼미션콜·CPA·DA 제외, 시작일 기준
+        if (prod === '퍼미션콜' || prod === 'CPA' || prod === 'DA') return false;
+        return (c.date || '').startsWith(key);
+      }
+    });
+
+  if (!catF && !mediaF && !companyF && !brandF && !bonbuF && !teamF) return evts;
+  return evts.filter(ev => {
+    const c = DATA[ev.idx];
+    if (!c) return false;
+    if (catF     && _getCat(c)      !== catF)     return false;
+    if (mediaF   && c.media         !== mediaF)   return false;
+    if (companyF && _cCompany(c)    !== companyF) return false;
+    if (brandF   && (c.content||'') !== brandF)   return false;
+    if (teamF || bonbuF) {
+      const opsUser = USERS.find(u => u.name === c.ops);
+      const opsTeam  = opsUser ? opsUser.dept  : c.dept;
+      const opsBonbu = opsUser ? opsUser.bonbu : null;
+      if (teamF  && opsTeam  !== teamF)  return false;
+      if (bonbuF) {
+        if (opsBonbu) {
+          if (opsBonbu !== bonbuF) return false;
+        } else {
+          // ops 사용자 못찾으면 c.dept로 본부 소속 확인
+          const org = ORG_STRUCTURE.find(o => o.bonbu === bonbuF);
+          if (!org || !org.teams.includes(opsTeam)) return false;
+        }
+      }
+    }
+    return true;
+  });
+}
+
+function setCalProductTab(tab) {
+  calProductTab = tab;
+  localStorage.setItem('calProductTab', tab);
+  document.getElementById('cpt-sms').classList.toggle('active', tab === 'sms');
+  document.getElementById('cpt-da').classList.toggle('active',  tab === 'da');
+  renderCalendar();
+}
+
+function setCalView(v) {
+  calView = v;
+  if (v === 'day' || v === 'week') {
+    calDate = new Date();
+    calY = calDate.getFullYear();
+    calM = calDate.getMonth() + 1;
+  }
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('vt-' + v).classList.add('active');
+  renderCalendar();
+}
+
+function goToday() {
+  const t = new Date();
+  calDate = new Date(t);
+  calY = t.getFullYear();
+  calM = t.getMonth() + 1;
+  renderCalendar();
+}
+
+function changeNav(d) {
+  if (calView === 'month') {
+    calDate = new Date(calY, calM - 1 + d, 1);
+  } else if (calView === 'week') {
+    calDate = new Date(calDate.getTime() + d * 7 * 86400000);
+  } else {
+    calDate = new Date(calDate.getTime() + d * 86400000);
+  }
+  calY = calDate.getFullYear();
+  calM = calDate.getMonth() + 1;
+  renderCalendar();
+}
+
+function _makeEvtEl(ev) {
+  const el = document.createElement('div');
+  el.className = 'cal-evt';
+  el.style.background = _evColor(ev) + '80';
+  el.style.color = '#333';
+  const c = ev.idx !== null ? DATA[ev.idx] : null;
+  const label = c ? _cName(c) : ev.t;
+  const time  = (c?.product === 'DA') ? '' : (c?.date ? c.date.split(' ')[1] || '' : '');
+  el.textContent = time ? `[${time}] ${label}` : label;
+  el.title = label;
+  el.onclick = e => { e.stopPropagation(); ev.idx !== null ? openCalPreview(ev.idx) : toast(label + ' 클릭됨', 'ok'); };
+  return el;
+}
+
+function _formatDate(dateStr) {
+  if (!dateStr) return '—';
+  const [datePart, timePart] = dateStr.split(' ');
+  const d = new Date(datePart);
+  const day = ['일','월','화','수','목','금','토'][d.getDay()];
+  return `${datePart} (${day})${timePart ? ' ' + timePart : ''}`;
+}
+function openImgNewTab(b64) {
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html><html><head><title>소재 이미지</title><style>body{margin:0;background:#111;display:flex;justify-content:center;align-items:flex-start;}img{max-width:100%;height:auto;display:block;}</style></head><body><img src="${b64}"></body></html>`);
+  win.document.close();
+}
+
+function _formatDateRange(c) {
+  if (c.product === 'DA' && c.dateEnd) {
+    const sp = (c.date    || '').split('-');
+    const ep = (c.dateEnd || '').split('-');
+    if (sp.length >= 3 && ep.length >= 3)
+      return `${sp[0]}년 ${+sp[1]}월 ${+sp[2].split(' ')[0]}일 ~ ${ep[0]}년 ${+ep[1]}월 ${+ep[2]}일`;
+  }
+  return _formatDate(c.date);
+}
+
+function openCalPreview(idx) {
+  const c = DATA[idx];
+  if (!c) return;
+  document.getElementById('cp-name').textContent     = _cName(c);
+  document.getElementById('cp-promo').textContent    = c.promo || '—';
+  document.getElementById('cp-cat').textContent      = _getCat(c) || '—';
+  const cpDateLbl = document.getElementById('cp-date-lbl');
+  if (cpDateLbl) cpDateLbl.textContent = c.product === 'DA' ? '노출기간' : '발송일시';
+  document.getElementById('cp-date').textContent = _formatDateRange(c);
+  document.getElementById('cp-product').textContent  = c.product || '—';
+  const cpSellerEl = document.getElementById('cp-seller');
+  if (cpSellerEl) {
+    const contractLabel = c.contract ? `<span style="font-size:11px;color:var(--text3);background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;margin-left:6px;">${c.contract}</span>` : '';
+    cpSellerEl.innerHTML = _escHtml(c.seller || c.adv || '—') + contractLabel;
+  }
+  document.getElementById('cp-ops').textContent      = c.ops || '—';
+  document.getElementById('cp-status').innerHTML     = `<span class="badge b-${c.status}">${c.status}</span>`;
+  document.getElementById('cp-detail-btn').onclick   = () => { closeModal('modalCalPreview'); openDetail(idx); };
+  openModal('modalCalPreview');
+}
+
+function _populateCalFilters() {
+  const companies = [...new Set(DATA.map(c => _cCompany(c)).filter(Boolean))].sort();
+  const brands    = [...new Set(DATA.map(c => c.content).filter(Boolean))].sort();
+  const compSel  = document.getElementById('calFilterCompany');
+  const brandSel = document.getElementById('calFilterBrand');
+  if (compSel) {
+    const cur = compSel.value;
+    compSel.innerHTML = '<option value="">광고주/대행사</option>' +
+      companies.map(s => `<option${s===cur?' selected':''}>${s}</option>`).join('');
+  }
+  if (brandSel) {
+    const cur = brandSel.value;
+    brandSel.innerHTML = '<option value="">브랜드</option>' +
+      brands.map(s => `<option${s===cur?' selected':''}>${s}</option>`).join('');
+  }
+  // 본부/팀 통합 드롭다운 초기화 (최초 1회)
+  const orgSel = document.getElementById('calFilterOrg');
+  if (orgSel && !orgSel.dataset.init) {
+    orgSel.innerHTML = '<option value="">본부/팀 전체</option>' + _buildOrgSelectHTML();
+    orgSel.dataset.init = '1';
+  }
+  // 초기화 버튼 표시 여부
+  const anyActive = ['calFilterCat','calFilterMedia','calFilterCompany','calFilterBrand','calFilterOrg']
+    .some(id => document.getElementById(id)?.value);
+  const resetBtn = document.getElementById('calResetBtn');
+  if (resetBtn) resetBtn.style.display = anyActive ? '' : 'none';
+}
+
+function resetCalFilters() {
+  ['calFilterCat','calFilterMedia','calFilterCompany','calFilterBrand','calFilterOrg']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  renderCalendar();
+}
+
+function openCalDayModal(key) {
+  const evts = _getFilteredEvents(key);
+  const d = new Date(key + 'T00:00:00');
+  const dayNames = ['일','월','화','수','목','금','토'];
+  document.getElementById('cdm-title').textContent = `${key} (${dayNames[d.getDay()]}) 전체 일정`;
+  const list = document.getElementById('cdm-list');
+  list.innerHTML = '';
+  if (evts.length === 0) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px 0;font-size:13px;">일정이 없습니다.</div>';
+  } else {
+    evts.forEach(ev => {
+      const c = ev.idx !== null ? DATA[ev.idx] : null;
+      const label = c ? _cName(c) : ev.t;
+      const time  = c?.date ? c.date.split(' ')[1] || '' : '';
+      const row = document.createElement('div');
+      row.className = 'cdm-row';
+      row.innerHTML =
+        `<span class="cdm-dot" style="background:${_evColor(ev)};"></span>` +
+        `<span class="cdm-time">${time||'—'}</span>` +
+        `<span class="cdm-label">${label}</span>` +
+        (c ? `<span class="badge b-${c.status}">${c.status}</span>` : '');
+      if (ev.idx !== null) row.onclick = () => { closeModal('modalCalDayEvts'); openCalPreview(ev.idx); };
+      list.appendChild(row);
+    });
+  }
+  openModal('modalCalDayEvts');
+}
+
+function renderCalendar() {
+  _populateCalFilters();
+  if (calView === 'month')     renderMonthView();
+  else if (calView === 'week') renderWeekView();
+  else                         renderDayView();
+  _updateCalMeta();
+}
+
+function _updateCalMeta() {
+  const catF     = document.getElementById('calFilterCat')?.value     || '';
+  const mediaF   = document.getElementById('calFilterMedia')?.value   || '';
+  const companyF = document.getElementById('calFilterCompany')?.value || '';
+  const brandF   = document.getElementById('calFilterBrand')?.value   || '';
+  const { bonbu: bonbuF, team: teamF } = _parseOrgFilter(document.getElementById('calFilterOrg')?.value || '');
+  const yearStr  = String(calY);
+  const monthStr = String(calM).padStart(2, '0');
+  const prefix   = `${yearStr}-${monthStr}`;
+
+  const isDATab = calProductTab === 'da';
+  const monthStart = prefix + '-01';
+  const monthEnd   = prefix + '-' + String(new Date(calY, calM, 0).getDate()).padStart(2, '0');
+  const visible = DATA.filter(c => {
+    const prod = c.product || '';
+    if (isDATab) {
+      if (prod !== 'DA') return false;
+      const startKey = (c.date    || '').slice(0, 10);
+      const endKey   = (c.dateEnd || startKey).slice(0, 10);
+      if (endKey < monthStart || startKey > monthEnd) return false;
+    } else {
+      if (prod === '퍼미션콜' || prod === 'CPA' || prod === 'DA') return false;
+      if (!(c.date || '').startsWith(prefix)) return false;
+    }
+    if (catF     && _getCat(c)      !== catF)     return false;
+    if (mediaF   && c.media         !== mediaF)   return false;
+    if (companyF && _cCompany(c)    !== companyF) return false;
+    if (brandF   && (c.content||'') !== brandF)   return false;
+    if (teamF || bonbuF) {
+      const opsUser = USERS.find(u => u.name === c.ops);
+      const opsTeam  = opsUser ? opsUser.dept  : c.dept;
+      const opsBonbu = opsUser ? opsUser.bonbu : null;
+      if (teamF  && opsTeam  !== teamF)  return false;
+      if (bonbuF) {
+        if (opsBonbu) {
+          if (opsBonbu !== bonbuF) return false;
+        } else {
+          const org = ORG_STRUCTURE.find(o => o.bonbu === bonbuF);
+          if (!org || !org.teams.includes(opsTeam)) return false;
+        }
+      }
+    }
+    return true;
+  });
+
+  const totalQty = visible.reduce((s, c) => s + (c.qty || 0), 0);
+  const totalAdc = visible.reduce((s, c) => {
+    const base = c.billBase === 'sched' ? (c.qty||0) - (c.svc||0) : (c.actual ? c.actual - (c.svc||0) : (c.qty||0) - (c.svc||0));
+    return s + base * (c.sellUnit || 0);
+  }, 0);
+  const qtyEl = document.getElementById('calMetaQty');
+  const cntEl = document.getElementById('calMetaCnt');
+  const adcEl = document.getElementById('calMetaAdc');
+  if (qtyEl) qtyEl.textContent = totalQty >= 10000
+    ? (totalQty / 10000).toFixed(1).replace(/\.0$/, '') + '만건'
+    : totalQty.toLocaleString() + '건';
+  if (cntEl) cntEl.textContent = visible.length + '건';
+  if (adcEl) adcEl.textContent = totalAdc >= 100000000
+    ? (totalAdc / 100000000).toFixed(1).replace(/\.0$/, '') + '억원'
+    : totalAdc >= 10000
+    ? (totalAdc / 10000).toFixed(0) + '만원'
+    : totalAdc.toLocaleString() + '원';
+}
+
+// ── 월 뷰 아래 오늘 캠페인 목록 ──
+function _renderCalTodayList(today) {
+  const wrap = document.getElementById('cal-today-list');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (!today) return;
+
+  const key  = _dateKey(today);
+  const evts = _getFilteredEvents(key);
+  if (evts.length === 0) return;
+
+  const head = document.createElement('div');
+  head.className = 'cal-today-head';
+  head.textContent = `오늘 (${today.getMonth()+1}월 ${today.getDate()}일) 캠페인 ${evts.length}건`;
+  wrap.appendChild(head);
+
+  evts.forEach(ev => {
+    const c = ev.idx !== null ? DATA[ev.idx] : null;
+    const label = c ? _cName(c) : ev.t;
+    const time  = c?.date ? c.date.split(' ')[1] || '' : '';
+    const item  = document.createElement('div');
+    item.className = 'cal-day-item';
+    item.innerHTML = `<div class="cal-day-dot" style="background:${_evColor(ev)};"></div>${time ? `<span class="cal-day-time">${time}</span>` : ''}<span>${label}</span>`;
+    item.onclick = () => ev.idx !== null ? openCalPreview(ev.idx) : null;
+    wrap.appendChild(item);
+  });
+}
+
+// ── 월 뷰 ──
+function renderMonthView() {
+  document.getElementById('calTitle').textContent = `${calY}년 ${calM}월`;
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+  grid.className = 'cal-grid';
+
+  DAYS.forEach(d => {
+    const el = document.createElement('div'); el.className = 'cal-dh'; el.textContent = d; grid.appendChild(el);
+  });
+
+  const first = new Date(calY, calM-1, 1).getDay();
+  const dim   = new Date(calY, calM, 0).getDate();
+  const prev  = new Date(calY, calM-1, 0).getDate();
+  const today = new Date();
+  const isCur = today.getFullYear() === calY && today.getMonth()+1 === calM;
+
+  let cells = [];
+  for (let i = first-1; i >= 0; i--) cells.push({d: prev-i, t:'other'});
+  for (let d = 1; d <= dim; d++) cells.push({d, t:'cur'});
+  while (cells.length < 42) cells.push({d: cells.length - first - dim + 1, t:'other'});
+
+  const isDA = calProductTab === 'da';
+  const todayIdx = (isCur && calProductTab === 'da')
+    ? cells.findIndex(c => c.t === 'cur' && c.d === today.getDate())
+    : -1;
+  const cellBars = isDA ? _computeDABars(cells, dim, todayIdx) : {};
+
+  cells.forEach((c, cellIdx) => {
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (c.t !== 'cur' ? ' other' : '') + (c.t === 'cur' && isCur && c.d === today.getDate() ? ' today' : '');
+    const dt = document.createElement('div'); dt.className = 'cal-date'; dt.textContent = c.d; cell.appendChild(dt);
+    if (c.t === 'cur') {
+      const key = `${calY}-${String(calM).padStart(2,'0')}-${String(c.d).padStart(2,'0')}`;
+      if (isDA) {
+        const bars = (cellBars[cellIdx] || []).sort((a, b) => a.track - b.track);
+        bars.forEach(bar => cell.appendChild(_makeDABarEl(bar)));
+      } else {
+        const evts = _getFilteredEvents(key);
+        evts.forEach(ev => cell.appendChild(_makeEvtEl(ev)));
+      }
+      if (hasPerm('ops')) {
+        cell.style.cursor = 'pointer';
+        cell.onclick = () => { resetRegForm(); openRegModal(key); };
+      }
+    }
+    grid.appendChild(cell);
+  });
+
+  // 오늘 날짜 캠페인 목록 (현재 달 보고 있을 때만)
+  _renderCalTodayList(isCur ? today : null);
+}
+
+// DA 탭 월 뷰: 셀별 bar 레이아웃 계산
+function _computeDABars(cells, dim, todayIdx = -1) {
+  const catF     = document.getElementById('calFilterCat')?.value    || '';
+  const mediaF   = document.getElementById('calFilterMedia')?.value  || '';
+  const companyF = document.getElementById('calFilterCompany')?.value || '';
+  const brandF   = document.getElementById('calFilterBrand')?.value  || '';
+  const { bonbu: bonbuF, team: teamF } = _parseOrgFilter(document.getElementById('calFilterOrg')?.value || '');
+
+  // 날짜 키 → 셀 인덱스 매핑 (cur 셀만)
+  const dateToIdx = {};
+  cells.forEach((c, i) => {
+    if (c.t === 'cur') {
+      const key = `${calY}-${String(calM).padStart(2,'0')}-${String(c.d).padStart(2,'0')}`;
+      dateToIdx[key] = i;
+    }
+  });
+
+  const monthStart = `${calY}-${String(calM).padStart(2,'0')}-01`;
+  const monthEnd   = `${calY}-${String(calM).padStart(2,'0')}-${String(dim).padStart(2,'0')}`;
+
+  // 필터 적용 + 이번 달 겹치는 DA 캠페인 수집
+  const daCamps = DATA.filter(c => {
+    if ((c.product || '') !== 'DA') return false;
+    const s = (c.date    || '').slice(0, 10);
+    const e = (c.dateEnd || s  ).slice(0, 10);
+    if (e < monthStart || s > monthEnd) return false;
+    if (catF     && _getCat(c)      !== catF)     return false;
+    if (mediaF   && c.media         !== mediaF)   return false;
+    if (companyF && _cCompany(c)    !== companyF) return false;
+    if (brandF   && (c.content||'') !== brandF)   return false;
+    if (teamF || bonbuF) {
+      const opsUser = USERS.find(u => u.name === c.ops);
+      const opsTeam  = opsUser ? opsUser.dept  : c.dept;
+      const opsBonbu = opsUser ? opsUser.bonbu : null;
+      if (teamF  && opsTeam  !== teamF)  return false;
+      if (bonbuF) {
+        if (opsBonbu) { if (opsBonbu !== bonbuF) return false; }
+        else {
+          const org = ORG_STRUCTURE.find(o => o.bonbu === bonbuF);
+          if (!org || !org.teams.includes(opsTeam)) return false;
+        }
+      }
+    }
+    return true;
+  });
+
+  // 시작일 오름차순, 기간 내림차순 정렬
+  daCamps.sort((a, b) => {
+    const as = (a.date || '').slice(0, 10), bs = (b.date || '').slice(0, 10);
+    if (as !== bs) return as < bs ? -1 : 1;
+    const ae = (a.dateEnd || as).slice(0, 10), be = (b.dateEnd || bs).slice(0, 10);
+    return ae < be ? 1 : -1;
+  });
+
+  // 셀별 트랙 점유 + bar 정보 계산
+  const trackUsage = Array.from({length: 42}, () => new Set());
+  const cellBars = {};
+
+  daCamps.forEach(camp => {
+    const s = (camp.date    || '').slice(0, 10);
+    const e = (camp.dateEnd || s  ).slice(0, 10);
+    const clampS = s < monthStart ? monthStart : s;
+    const clampE = e > monthEnd   ? monthEnd   : e;
+    const startIdx = dateToIdx[clampS];
+    const endIdx   = dateToIdx[clampE];
+    if (startIdx === undefined || endIdx === undefined) return;
+
+    // 전체 범위에서 비어 있는 가장 낮은 트랙 번호 탐색
+    let track = 0;
+    outer: while (true) {
+      for (let i = startIdx; i <= endIdx; i++) {
+        if (trackUsage[i].has(track)) { track++; continue outer; }
+      }
+      break;
+    }
+    for (let i = startIdx; i <= endIdx; i++) trackUsage[i].add(track);
+
+    const campIdx = DATA.indexOf(camp);
+    for (let i = startIdx; i <= endIdx; i++) {
+      const col = i % 7;
+      // 주 경계(col=0) 또는 캠페인 시작이면 왼쪽 둥글게
+      const leftRound  = (i === startIdx) || (col === 0);
+      // 주 경계(col=6) 또는 캠페인 끝이면 오른쪽 둥글게
+      const rightRound = (i === endIdx)   || (col === 6);
+      // 레이블은 캠페인 시작 셀, 주 새로 시작하는 셀, 또는 오늘 날짜 셀에 표시
+      const showLabel  = (i === startIdx) || (col === 0) || (i === todayIdx);
+      if (!cellBars[i]) cellBars[i] = [];
+      cellBars[i].push({ camp, idx: campIdx, track, leftRound, rightRound, showLabel, placeholder: false });
+    }
+  });
+
+  // 같은 주 행 내에서 트랙 높이 정렬을 위한 플레이스홀더 삽입
+  for (let row = 0; row < 6; row++) {
+    const rowStart = row * 7, rowEnd = rowStart + 6;
+    let maxTrack = -1;
+    for (let i = rowStart; i <= rowEnd; i++) {
+      (cellBars[i] || []).forEach(b => { if (b.track > maxTrack) maxTrack = b.track; });
+    }
+    if (maxTrack < 0) continue;
+    for (let i = rowStart; i <= rowEnd; i++) {
+      if (cells[i].t !== 'cur') continue;
+      if (!cellBars[i]) cellBars[i] = [];
+      const used = new Set(cellBars[i].map(b => b.track));
+      for (let t = 0; t <= maxTrack; t++) {
+        if (!used.has(t)) {
+          cellBars[i].push({ camp: null, idx: -1, track: t, leftRound: false, rightRound: false, showLabel: false, placeholder: true });
+        }
+      }
+    }
+  }
+
+  return cellBars;
+}
+
+// DA bar 요소 생성
+function _makeDABarEl(bar) {
+  const el = document.createElement('div');
+  el.className = 'cal-evt';
+  if (bar.placeholder) {
+    el.style.cssText = 'visibility:hidden;margin-bottom:3px;';
+    el.textContent = '\u00a0';
+    return el;
+  }
+  const color = CAT_COLOR[_getCat(bar.camp)] || '#868e96';
+  const lr = bar.leftRound  ? '4px' : '0';
+  const rr = bar.rightRound ? '4px' : '0';
+  const ml = bar.leftRound  ? '0'   : '-9px';
+  const mr = bar.rightRound ? '0'   : '-9px';
+  const pl = bar.leftRound  ? '6px' : '1px';
+  const pr = bar.rightRound ? '6px' : '1px';
+  el.style.cssText = `background:${color}cc;color:#fff;border-radius:${lr} ${rr} ${rr} ${lr};margin-left:${ml};margin-right:${mr};padding-left:${pl};padding-right:${pr};margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+  el.textContent = bar.showLabel ? _cName(bar.camp) : '\u00a0';
+  el.title = _cName(bar.camp);
+  el.onclick = e => { e.stopPropagation(); if (bar.idx !== -1) openCalPreview(bar.idx); };
+  return el;
+}
+
+// ── 주 뷰 ──
+function renderWeekView() {
+  const sunday = new Date(calDate);
+  sunday.setDate(calDate.getDate() - calDate.getDay());
+  const saturday = new Date(sunday); saturday.setDate(sunday.getDate() + 6);
+
+  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+  document.getElementById('calTitle').textContent =
+    `${sunday.getFullYear()}년  ${fmt(sunday)} – ${fmt(saturday)}`;
+
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+  grid.className = 'cal-grid cal-week-grid';
+
+  const today = new Date();
+
+  // 헤더
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(sunday); d.setDate(sunday.getDate() + i);
+    const isToday = d.toDateString() === today.toDateString();
+    const el = document.createElement('div');
+    el.className = 'cal-dh' + (isToday ? ' cal-dh-today' : '');
+    el.textContent = DAYS[i] + ' ' + d.getDate();
+    grid.appendChild(el);
+  }
+
+  // 이벤트 셀
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(sunday); d.setDate(sunday.getDate() + i);
+    const isToday = d.toDateString() === today.toDateString();
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (isToday ? ' today' : '');
+    const key = _dateKey(d);
+    const evts = _getFilteredEvents(key);
+    if (evts.length === 0) {
+      const emp = document.createElement('div'); emp.className = 'cal-empty'; emp.textContent = '—'; cell.appendChild(emp);
+    } else {
+      evts.forEach(ev => cell.appendChild(_makeEvtEl(ev)));
+    }
+    if (hasPerm('sales')) {
+      cell.style.cursor = 'pointer';
+      cell.onclick = () => { resetRegForm(); openRegModal(key); };
+    }
+    grid.appendChild(cell);
+  }
+}
+
+// ── 일 뷰 ──
+function renderDayView() {
+  const tl = document.getElementById('cal-today-list'); if (tl) tl.innerHTML = '';
+  const d = calDate;
+  document.getElementById('calTitle').textContent =
+    `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${DAY_KO[d.getDay()]})`;
+
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+  grid.className = 'cal-day-view';
+
+  // 필터에 따른 이벤트 목록 생성
+  const evts = _getFilteredEvents(_dateKey(d));
+  if (evts.length === 0) {
+    const emp = document.createElement('div'); emp.className = 'cal-day-empty'; emp.textContent = '이 날의 캠페인이 없습니다.'; grid.appendChild(emp);
+    return;
+  }
+  evts.forEach(ev => {
+    const c = ev.idx !== null ? DATA[ev.idx] : null;
+    const label = c ? _cName(c) : ev.t;
+    const time  = c?.date ? c.date.split(' ')[1] || '' : '';
+    const item = document.createElement('div');
+    item.className = 'cal-day-item';
+    item.innerHTML = `<div class="cal-day-dot" style="background:${_evColor(ev)};"></div>${time ? `<span class="cal-day-time">${time}</span>` : ''}<span>${label}</span>`;
+    item.onclick = () => ev.idx !== null ? openCalPreview(ev.idx) : toast(label + ' 클릭됨', 'ok');
+    grid.appendChild(item);
+  });
+}
+
+// ══════════════════════════════════════════
+// MODAL HELPERS
+// ══════════════════════════════════════════
+function openModal(id) {
+  const overlay = document.getElementById(id);
+  overlay.classList.add('open');
+  const modal = overlay.querySelector('.modal');
+  if (modal) modal.scrollTop = 0;
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// 배경 클릭·ESC로 닫으면 안 되는 모달 목록
+const NO_EASY_CLOSE = new Set(['modalReg','modalUserReg','modalChangePw','modalResetPw','modalMedia','modalSeller','modalBrandAdd']);
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  // 캠페인 수정 화면이 활성 중이면 ESC 무시
+  if (document.getElementById('screen-edit')?.classList.contains('active')) return;
+  document.querySelectorAll('.modal-overlay.open').forEach(m => {
+    if (!NO_EASY_CLOSE.has(m.id)) m.classList.remove('open');
+  });
+});
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  if (!NO_EASY_CLOSE.has(o.id))
+    o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+});
+
+// ══════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════
+let _tt;
+function toast(msg, type='ok'){
+  clearTimeout(_tt);
+  const t=document.getElementById('toast');
+  t.className=`toast ${type}`;
+  document.getElementById('toastMsg').textContent=msg;
+  t.style.display='flex';
+  _tt=setTimeout(()=>t.style.display='none',3000);
+}
+
+// ══════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════
+const STATUS_COLORS = {'부킹확정':'#3b5bdb','테스트완료':'#e67700','성과입력대기':'#2f9e44','성과입력완료':'#7048e8'};
+
+function _renderMiniList(campaigns, listElId) {
+  const listEl = document.getElementById(listElId);
+  if (campaigns.length === 0) {
+    listEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px;">해당 조건의 캠페인이 없습니다.</div>';
+    return;
+  }
+  listEl.innerHTML = campaigns.map(c => {
+    const idx = DATA.indexOf(c);
+    const color = CAT_COLOR[_getCat(c)] || '#9da3bc';
+    const dateStr = _formatDate(c.date);
+    return `<div class="mini-item" onclick="openCalPreview(${idx})">
+    <div class="mini-dot" style="background:${color};"></div>
+    <span style="font-size:11px;font-weight:600;color:${color};flex-shrink:0;min-width:32px;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escHtml(_getCat(c))}</span>
+    <span class="mini-date" style="min-width:90px;flex-shrink:0;">${dateStr}</span>
+    <span class="mini-name">${_cName(c)}</span>
+    <span class="badge b-${c.status}">${c.status}</span>
+    ${c.ops ? `<span style="color:var(--text3);font-size:12px;flex-shrink:0;">${c.ops}</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── 브레인큐브: 전체 캠페인 단계별 리스트 ──
+let activeAllFilter = '부킹확정';
+
+function filterAllList(type) {
+  activeAllFilter = type;
+  document.querySelectorAll('.stage-row').forEach(r => r.classList.remove('active-stage'));
+  const activeRow = document.getElementById('stage-' + type);
+  if (activeRow) activeRow.classList.add('active-stage');
+
+  _renderMiniList(DATA.filter(c => c.status === type), 'allMiniList');
+}
+
+// ── 나의 캠페인: 내 캠페인만 단계별 필터 ──
+let activeMyCampaignFilter = '부킹확정';
+
+function filterMyList(type) {
+  activeMyCampaignFilter = type;
+  const boardMap = {'부킹확정': 'mb-booking', '테스트완료': 'mb-test', '성과입력대기': 'mb-sent', '성과입력완료': 'mb-settle'};
+  document.querySelectorAll('#my-boards .board').forEach(b => b.classList.remove('active-board'));
+  const activeBoard = document.getElementById(boardMap[type]);
+  if (activeBoard) activeBoard.classList.add('active-board');
+
+  const myCampaigns = currentUser?.isAdmin ? DATA : DATA.filter(c => c.ops === (currentUser?.name || ''));
+  _renderMiniList(myCampaigns.filter(c => c.status === type), 'myMiniList');
+}
+
+function renderDashboard() {
+  const myCampaigns = currentUser?.isAdmin ? DATA : DATA.filter(c => c.ops === (currentUser?.name || ''));
+
+  // ── 상단 통계 카드 ──
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const thisYear = String(now.getFullYear());
+  const yearCnt  = DATA.filter(c => c.date?.startsWith(thisYear)).length;
+  const monthCnt = DATA.filter(c => c.date?.startsWith(ym)).length;
+  const sentQty  = DATA.filter(c => c.sent).reduce((s, c) => s + (c.qty || 0), 0);
+  const totalQty = DATA.reduce((s, c) => s + (c.qty || 0), 0);
+  const monthAdc = DATA.filter(c => c.date?.startsWith(thisYear)).reduce((s, c) => {
+    const base = c.billBase === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
+    return s + base * (c.sellUnit||0);
+  }, 0);
+  const eYearCnt  = document.getElementById('dash-year-cnt');
+  const eMonthCnt = document.getElementById('dash-month-cnt');
+  const eSentQty  = document.getElementById('dash-sent-qty');
+  const eTotalQty = document.getElementById('dash-total-qty');
+  const eMonthAdc = document.getElementById('dash-month-adc');
+  if (eYearCnt)  eYearCnt.textContent  = yearCnt + '건';
+  if (eMonthCnt) eMonthCnt.textContent = monthCnt + '건';
+  if (eSentQty)  eSentQty.textContent  = sentQty.toLocaleString() + '건';
+  if (eTotalQty) eTotalQty.textContent = '예정 ' + totalQty.toLocaleString() + '건 중';
+  if (eMonthAdc) eMonthAdc.textContent = monthAdc
+    ? (monthAdc >= 100000000 ? (monthAdc/100000000).toFixed(1).replace(/\.0$/,'')+'억원' : (monthAdc/10000).toFixed(0)+'만원')
+    : '—';
+
+  // 단계별 현황 (전체 캠페인 기준) - 건수
+  ['부킹확정', '테스트완료', '성과입력대기', '성과입력완료'].forEach(s => {
+    const cnt = DATA.filter(c => c.status === s).length;
+    const cntEl = document.getElementById('stage-cnt-' + s);
+    if (cntEl) cntEl.textContent = cnt + '건';
+  });
+
+  // 나의 캠페인 보드 (내 캠페인 기준)
+  document.getElementById('mb-booking-cnt').textContent  = myCampaigns.filter(c => c.status === '부킹확정').length + '건';
+  document.getElementById('mb-test-cnt').textContent     = myCampaigns.filter(c => c.status === '테스트완료').length + '건';
+  document.getElementById('mb-sent-cnt').textContent     = myCampaigns.filter(c => c.status === '성과입력대기').length + '건';
+  document.getElementById('mb-settle-cnt').textContent   = myCampaigns.filter(c => c.status === '성과입력완료').length + '건';
+
+  filterAllList(activeAllFilter);
+  filterMyList(activeMyCampaignFilter);
+
+  // ── 파이프라인 통계 ──
+  const activePipe = PIPELINE_DATA.filter(x => !x.archived);
+  const pipeTotal  = activePipe.length;
+  const pipeAmt    = activePipe.reduce((s, x) => s + _pipelineEstAmt(x), 0);
+  const pipeComAct = activePipe.filter(x => x.stage === 'COMMITMENT' || x.stage === 'ACTUAL').length;
+  const ePipeTotal = document.getElementById('dash-pipe-total');
+  const ePipeAmt   = document.getElementById('dash-pipe-amt');
+  const ePipeCom   = document.getElementById('dash-pipe-com');
+  if (ePipeTotal) ePipeTotal.textContent = pipeTotal + '건';
+  if (ePipeAmt)   ePipeAmt.textContent   = Math.round(pipeAmt / 10000).toLocaleString() + '만원';
+  if (ePipeCom)   ePipeCom.textContent   = pipeComAct + '건';
+}
+
+// ══════════════════════════════════════════
+// EXCEL EXPORT
+// ══════════════════════════════════════════
+
+function _todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function _xlsxDownload(rows, filename) {
+  if (typeof XLSX === 'undefined') { toast('엑셀 라이브러리 로드 실패. 인터넷 연결을 확인해주세요.', 'err'); return; }
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  // 헤더 행 스타일 (굵게) - xlsx-lite에서 지원
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  XLSX.writeFile(wb, filename);
+}
+
+/** 캠페인 목록 엑셀 다운로드 (현재 필터 적용된 목록) */
+function downloadCampaignsExcel() {
+  const headers = [
+    'ID', '카테고리', '캠페인명', '매체사', '상품', '매출처', '광고내용',
+    '담당자', '부서', '발송일시',
+    '발송예약수량', '실발송수량', '클릭수', 'CTR(%)',
+    '단가(원)', '서비스물량', '할인금액(원)', '수수료율(%)', '대행료율(%)', '단계'
+  ];
+  const rows = [headers, ...filtered.map(c => [
+    c.id, c.cat, _cName(c), c.media, c.product,
+    c.seller || c.adv || '', c.content || '',
+    c.ops, c.dept, c.date,
+    c.qty || '', c.actual || '', c.clicks || '', c.ctr || '',
+    c.sellUnit, c.buyUnit, c.svc, c.disc, c.comm, c.agrate, c.status
+  ])];
+  _xlsxDownload(rows, `캠페인목록_${_todayStr()}.xlsx`);
+  toast('✓ 캠페인 목록 엑셀 다운로드 완료', 'ok');
+}
+
+/** 정산 엑셀 다운로드 (현재 필터 기준) */
+function downloadSettlementExcel() {
+  const cat   = document.getElementById('stl-fCat')?.value   || '';
+  const media = document.getElementById('stl-fMedia')?.value || '';
+  const settled = DATA.filter(c => {
+    if (c.status !== '성과입력완료') return false;
+    if (cat   && c.cat   !== cat)   return false;
+    if (media && c.media !== media) return false;
+    return true;
+  });
+  if (settled.length === 0) { toast('다운로드할 정산 데이터가 없습니다.', 'err'); return; }
+
+  const headers = [
+    '카테고리', '매출처', '캠페인',
+    '매출단가', '발송수량', '정산수량', '매출액', 'VAT포함(매출)', '정산율(%)',
+    '매체사', '매입처', '매입단가', '인정수량', '매입액', 'VAT포함(매입)', '정산율(%)',
+    '대행수수료%', '대행수수료', '매출이익', '매출이익율(%)',
+    '매출계산서발행', '입금', '매입계산서발행', '지급'
+  ];
+  const rows = [headers, ...settled.map(c => {
+    const a      = _stlAmt(c);
+    const has    = !!c.actual;
+    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
+    const r = v => has ? v : '';
+    const rb = v => hasBuy ? v : '';
+    return [
+      c.cat, _cCompany(c), _cName(c),
+      r(c.sellUnit), r(c.qty), r(a.actual),
+      r(a.adc), r(a.adc + a.adcVat), r(+a.stlRate.toFixed(1)),
+      c.media, MEDIA_DATA.find(x=>x.company===c.media)?.invoiceTo||'',
+      rb(c.buyUnit), r(a.actual), rb(a.buyAmt), rb(a.buyAmt + a.buyVat), r(+a.stlRate.toFixed(1)),
+      r(c.comm), r(a.agFee), r(a.prf), r(+a.prfRate.toFixed(1)),
+      c.invoiceOut ? '발행' : '미발행',
+      c.payIn  ? '완료' : '미완료',
+      c.invoiceIn  ? '발행' : '미발행',
+      c.payOut ? '완료' : '미완료'
+    ];
+  })];
+  _xlsxDownload(rows, `정산내역_${_todayStr()}.xlsx`);
+  toast('✓ 정산 내역 엑셀 다운로드 완료', 'ok');
+}
+
+// ══════════════════════════════════════════
+// 월별 발송량
+// ══════════════════════════════════════════
+function renderMonthly() {
+  // 연도 셀렉트 초기화 (최초 1회)
+  const yearSel = document.getElementById('mly-year');
+  const years = [...new Set(DATA.map(c => c.date.slice(0,4)))].sort();
+  if (yearSel.options.length === 0) {
+    years.forEach(y => { const o = document.createElement('option'); o.value=y; o.textContent=y+'년'; yearSel.appendChild(o); });
+    yearSel.value = years[years.length-1];
+  }
+  const year = yearSel.value;
+  const month = document.getElementById('mly-month').value; // '' or '01'~'12'
+  const src = DATA.filter(c => {
+    if (!c.date.startsWith(year)) return false;
+    if (month && c.date.slice(5,7) !== month) return false;
+    return true;
+  });
+  const fmt = n => n ? n.toLocaleString() : '—';
+
+  // ── 1열: 요약 블록 ──────────────────────────
+  const totalQty    = src.reduce((s,c) => s+(c.qty||0), 0);
+  const totalActual = src.reduce((s,c) => s+(c.actual||0), 0);
+  const totalAdc    = src.reduce((s,c) => {
+    const base = c.billBase==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
+    return s + base*(c.sellUnit||0);
+  }, 0);
+  const fmtAdc = v => v >= 100000000 ? (v/100000000).toFixed(1).replace(/\.0$/,'')+'억원' : (v/10000).toFixed(0)+'만원';
+  document.getElementById('mly-stats').innerHTML = [
+    ['집행건수',    src.length,           '건',  null],
+    ['총 부킹수량', totalQty,             '건',  null],
+    ['실 발송수량', totalActual||null,    '건',  null],
+    ['총 광고비',   totalAdc||null,       '',    fmtAdc],
+  ].map(([label,val,unit,customFmt]) => `
+    <div class="mly-stat-row">
+      <span class="mly-stat-label">${label}</span>
+      <span class="mly-stat-val">${val ? (customFmt ? customFmt(val) : fmt(val)+'<span class="mly-stat-unit">'+unit+'</span>') : '—'}</span>
+    </div>`).join('');
+
+  // ── 2열: 매체별 발송량 ───────────────────────
+  const mediaMap = {};
+  src.forEach(c => {
+    if (!mediaMap[c.media]) mediaMap[c.media] = {qty:0,actual:0,campaigns:[]};
+    mediaMap[c.media].qty    += c.qty||0;
+    mediaMap[c.media].actual += c.actual||0;
+    mediaMap[c.media].campaigns.push(c);
+  });
+  const mediaMaxQty = Math.max(...Object.values(mediaMap).map(m=>m.qty), 1);
+  document.getElementById('mly-media-list').innerHTML = Object.entries(mediaMap)
+    .sort((a,b) => b[1].qty - a[1].qty)
+    .map(([name,m]) => {
+      const pct = m.qty / mediaMaxQty * 100;
+      return `<div onclick="mlySelectMedia('${name}')" style="cursor:pointer;padding:10px 12px;border-radius:8px;margin-bottom:6px;border:1px solid var(--border);transition:background .15s;" class="mly-media-row" data-media="${name}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-weight:600;font-size:13px;">${name}</span>
+          <span style="font-size:12px;color:var(--text2);">${m.qty.toLocaleString()}건</span>
+        </div>
+        <div style="background:var(--border);border-radius:3px;height:6px;overflow:hidden;">
+          <div style="width:${pct.toFixed(1)}%;height:100%;background:var(--accent);border-radius:3px;"></div>
+        </div>
+      </div>`;
+    }).join('') || '<div style="color:var(--text3);font-size:13px;">데이터 없음</div>';
+
+  // ── 3열: 광고주별 발송량 (카테고리 토글) ──────
+  const catMap = {};
+  src.forEach(c => {
+    if (!catMap[c.cat]) catMap[c.cat] = {};
+    const adv = _cCompany(c) || c.adv || '—';
+    if (!catMap[c.cat][adv]) catMap[c.cat][adv] = 0;
+    catMap[c.cat][adv] += c.qty||0;
+  });
+  document.getElementById('mly-adv-list').innerHTML = Object.entries(catMap)
+    .sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([cat,advs]) => {
+      const catTotal = Object.values(advs).reduce((s,v)=>s+v,0);
+      const rows = Object.entries(advs).sort((a,b)=>b[1]-a[1])
+        .map(([adv,qty]) => `
+          <div style="display:flex;justify-content:space-between;padding:5px 12px 5px 24px;font-size:13px;border-bottom:1px solid var(--border);">
+            <span>${adv}</span><span style="color:var(--text2);">${qty.toLocaleString()}건</span>
+          </div>`).join('');
+      const borderColor = CAT_COLOR[cat] || 'var(--border)';
+      return `<div style="margin-bottom:4px;">
+        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none';this.querySelector('.mly-arrow').textContent=this.nextElementSibling.style.display===''?'▲':'▼';"
+          style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface2);border-radius:6px;font-weight:600;font-size:13px;border-left:4px solid ${borderColor};">
+          <span><span class="mly-arrow">▲</span> ${cat}</span>
+          <span style="color:var(--text2);font-weight:400;">${catTotal.toLocaleString()}건</span>
+        </div>
+        <div>${rows}</div>
+      </div>`;
+    }).join('') || '<div style="color:var(--text3);font-size:13px;">데이터 없음</div>';
+
+  // 카테고리 패널 초기화
+  document.getElementById('mly-cat-title').textContent = '카테고리별 성과';
+  document.getElementById('mly-cat-panel').innerHTML = '<div style="color:var(--text3);font-size:13px;">매체사를 클릭하면 카테고리별 성과가 표시됩니다.</div>';
+}
+
+function mlyToggleCat(subId, row) {
+  const sub   = document.getElementById(subId);
+  const arrow = document.getElementById(subId + '-arrow');
+  if (!sub) return;
+  const open = sub.style.display === 'none';
+  sub.style.display = open ? '' : 'none';
+  if (arrow) arrow.textContent = open ? '▼' : '▶';
+}
+
+function mlySelectMedia(mediaName) {
+  // 선택 하이라이트
+  document.querySelectorAll('.mly-media-row').forEach(el => {
+    el.style.background = el.dataset.media === mediaName ? 'var(--primary-light, #eff6ff)' : '';
+    el.style.borderColor = el.dataset.media === mediaName ? 'var(--primary)' : 'var(--border)';
+  });
+
+  const year  = document.getElementById('mly-year').value;
+  const month = document.getElementById('mly-month').value;
+  const src = DATA.filter(c => {
+    if (c.media !== mediaName) return false;
+    if (!c.date.startsWith(year)) return false;
+    if (month && c.date.slice(5,7) !== month) return false;
+    return true;
+  });
+
+  const catMap = {};
+  src.forEach(c => {
+    if (!catMap[c.cat]) catMap[c.cat] = {qty:0,clicks:0,adc:0,list:[]};
+    const base = c.billBase==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
+    catMap[c.cat].qty    += c.qty||0;
+    catMap[c.cat].clicks += c.clicks||0;
+    catMap[c.cat].adc    += base*(c.sellUnit||0);
+    catMap[c.cat].list.push(c);
+  });
+
+  const fmtAdc = v => v >= 100000000 ? (v/100000000).toFixed(1).replace(/\.0$/,'')+'억원' : v >= 10000 ? (v/10000).toFixed(0)+'만원' : v ? v.toLocaleString()+'원' : '—';
+
+  document.getElementById('mly-cat-title').textContent = `카테고리별 성과 — ${mediaName}`;
+  document.getElementById('mly-cat-panel').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:2px solid var(--border);">
+        <th style="text-align:left;padding:6px 8px;color:var(--text2);">카테고리</th>
+        <th style="text-align:right;padding:6px 8px;color:var(--text2);">발송수량</th>
+        <th style="text-align:right;padding:6px 8px;color:var(--text2);">광고비</th>
+        <th style="text-align:right;padding:6px 8px;color:var(--text2);">클릭수</th>
+        <th style="text-align:right;padding:6px 8px;color:var(--text2);">클릭률</th>
+      </tr></thead>
+      <tbody>
+        ${Object.entries(catMap).sort((a,b)=>b[1].qty-a[1].qty).map(([cat,d], i) => {
+          const ctr = d.qty ? (d.clicks/d.qty*100).toFixed(2)+'%' : '—';
+          const subId = `mly-sub-${i}`;
+          const subRows = d.list.sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(c => {
+            const cBase = c.billBase==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
+            const cAdc  = cBase * (c.sellUnit||0);
+            const cCtr  = (c.qty && c.clicks) ? (c.clicks/c.qty*100).toFixed(2)+'%' : '—';
+            return `<tr style="background:var(--surface2);cursor:pointer;" onclick="openCalPreview(DATA.indexOf(DATA.find(d=>d.id==='${c.id}')))">
+              <td style="padding:5px 8px 5px 22px;color:var(--text2);font-size:12px;">${(c.date||'').slice(0,10)}</td>
+              <td colspan="1" style="padding:5px 8px;font-size:12px;color:var(--text);">${_escHtml(_cName(c))}</td>
+              <td style="text-align:right;padding:5px 8px;font-size:12px;">${c.qty ? c.qty.toLocaleString() : '—'}</td>
+              <td style="text-align:right;padding:5px 8px;font-size:12px;color:var(--accent);">${fmtAdc(cAdc)}</td>
+              <td style="text-align:right;padding:5px 8px;font-size:12px;">${cCtr}</td>
+            </tr>`;
+          }).join('');
+          return `<tr style="border-top:1px solid var(--border);cursor:pointer;" onclick="mlyToggleCat('${subId}',this)">
+            <td style="padding:8px;font-weight:600;">
+              <span id="${subId}-arrow" style="font-size:10px;margin-right:4px;color:var(--text3);">▶</span>${cat}
+              <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:4px;">${d.list.length}건</span>
+            </td>
+            <td style="text-align:right;padding:8px;">${d.qty.toLocaleString()}</td>
+            <td style="text-align:right;padding:8px;color:var(--accent);font-weight:600;">${fmtAdc(d.adc)}</td>
+            <td style="text-align:right;padding:8px;">${d.clicks ? d.clicks.toLocaleString() : '—'}</td>
+            <td style="text-align:right;padding:8px;">${ctr}</td>
+          </tr>
+          <tr id="${subId}" style="display:none;"><td colspan="5" style="padding:0;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr style="border-bottom:1px solid var(--border);">
+                <th style="text-align:left;padding:4px 8px 4px 22px;font-size:11px;color:var(--text3);font-weight:600;">날짜</th>
+                <th style="text-align:left;padding:4px 8px;font-size:11px;color:var(--text3);font-weight:600;">캠페인</th>
+                <th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text3);font-weight:600;">발송수량</th>
+                <th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text3);font-weight:600;">광고비</th>
+                <th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text3);font-weight:600;">클릭률</th>
+              </tr></thead>
+              <tbody>${subRows}</tbody>
+            </table>
+          </td></tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+// 매체사 관리
+// ══════════════════════════════════════════
+let mediaEditIdx = null; // null=신규, n=수정
+
+let mediaSortDir = null; // null | 'asc' | 'desc'
+
+function toggleMediaSort() {
+  mediaSortDir = mediaSortDir === 'asc' ? 'desc' : mediaSortDir === 'desc' ? null : 'asc';
+  const arrow = document.getElementById('media-sort-arrow');
+  if (arrow) arrow.textContent = mediaSortDir === 'asc' ? ' ▲' : mediaSortDir === 'desc' ? ' ▼' : '';
+  renderMediaList();
+}
+
+function searchMedia() { renderMediaList(); }
+
+function resetMediaSearch() {
+  document.getElementById('mediaQ').value = '';
+  document.getElementById('mediaType').value = '';
+  mediaSortDir = null;
+  const arrow = document.getElementById('media-sort-arrow');
+  if (arrow) arrow.textContent = '';
+  renderMediaList();
+}
+
+function renderMediaList() {
+  const q    = (document.getElementById('mediaQ')?.value   || '').trim().toLowerCase();
+  const type = (document.getElementById('mediaType')?.value || '');
+  const isAdmin = currentUser && currentUser.isAdmin;
+  const nd = '<span style="color:var(--text3)">—</span>';
+  const v = x => x || nd;
+  const pct = x => x != null && x !== '' ? x+'%' : nd;
+
+  // admin 전용 컬럼 헤더 표시
+  const thActive = document.getElementById('media-th-active');
+  if (thActive) thActive.style.display = isAdmin ? '' : 'none';
+
+  let list = MEDIA_DATA.map((m, realIdx) => ({m, realIdx})).filter(({m}) => {
+    if (type && m.type !== type) return false;
+    if (q && ![(m.company||''),(m.contact||''),(m.tel||'')].some(s => s.toLowerCase().includes(q))) return false;
+    return true;
+  });
+  if (mediaSortDir) {
+    const order = {'매체사':0, '대행사':1};
+    list.sort((a, b) => {
+      const va = order[a.m.type] ?? 2, vb = order[b.m.type] ?? 2;
+      return mediaSortDir === 'asc' ? va - vb : vb - va;
+    });
+  }
+  const colspan = isAdmin ? 19 : 18;
+  document.getElementById('media-tbody').innerHTML = list.map(({m, realIdx}, i) => {
+    const isOn = m.active !== false;
+    const toggleCell = isAdmin
+      ? `<td style="text-align:center;" onclick="toggleMediaActive(${realIdx}, event)">
+           <span class="toggle-sw${isOn ? ' on' : ''}"></span>
+         </td>`
+      : '';
+    return `<tr onclick="openMediaDetail(${realIdx})" style="cursor:pointer;${isOn ? '' : 'opacity:.45;'}">
+      <td class="td-dim" style="border-right:1px solid var(--border);">${i+1}</td>
+      ${toggleCell}
+      <td style="font-weight:600;">${v(m.company)}</td>
+      <td>${v(m.invoiceTo)}</td>
+      <td class="td-r" style="border-right:1px solid var(--border);">${m.unit ? m.unit.toLocaleString()+'원' : nd}</td>
+      <td class="td-r">${pct(m.c1Base)}</td>
+      <td class="td-r">${pct(m.c1Req)}</td>
+      <td class="td-r" style="font-weight:600;">${pct(m.c1Adj)}</td>
+      <td>${v(m.c1Reason)}</td>
+      <td style="border-right:1px solid var(--border);">${v(m.note1)}</td>
+      <td class="td-r">${pct(m.c2Base)}</td>
+      <td class="td-r">${pct(m.c2Req)}</td>
+      <td class="td-r" style="font-weight:600;">${pct(m.c2Adj)}</td>
+      <td>${v(m.c2Reason)}</td>
+      <td>${v(m.note2)}</td>
+      <td>${v(m.excTarget)}</td>
+      <td>${v(m.excAdj)}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="${colspan}" style="padding:32px;text-align:center;color:var(--text3);font-size:13px;">검색 결과가 없습니다.</td></tr>`;
+}
+
+function toggleMediaActive(realIdx, e) {
+  e.stopPropagation();
+  const m = MEDIA_DATA[realIdx];
+  if (!m) return;
+  m.active = m.active === false ? true : false;
+  _fbSaveMedia(m);
+  renderMediaList();
+}
+
+// ── 매체사/대행사 상세보기 ──
+let currentMediaIdx = null;
+
+function openMediaDetail(idx) {
+  currentMediaIdx = idx;
+  renderMediaDetail();
+  goScreen('media-detail');
+}
+
+function renderMediaDetail() {
+  const m = MEDIA_DATA[currentMediaIdx];
+  if (!m) return;
+  const nd = '<span class="f-pending">—</span>';
+  const v   = x => (x != null && x !== '') ? _escHtml(String(x)) : nd;
+  const pct = x => (x != null && x !== '') ? `<span class="f-mono">${x}%</span>` : nd;
+  const isAgency = m.type === '대행사';
+
+  // 상단 배지 + 제목
+  const badge = document.getElementById('med-detail-badge');
+  badge.className = `badge ${isAgency ? 'b-테스트완료' : 'b-확정'}`;
+  badge.textContent = m.type || '매체사';
+  document.getElementById('med-detail-title').textContent = m.company || '';
+  const delBtn = document.getElementById('med-detail-del-btn');
+  if (delBtn) delBtn.style.display = (currentUser && currentUser.isAdmin) ? '' : 'none';
+
+  // 기본 정보
+  document.getElementById('med-detail-basic').innerHTML =
+    `<div class="field"><span class="f-label">매체명</span><span class="f-val" style="font-weight:600;">${v(m.company)}</span></div>
+    <div class="field"><span class="f-label">매입처 (청구)</span><span class="f-val">${v(m.invoiceTo)}</span></div>
+    <div class="field"><span class="f-label">단가 (원/건)</span><span class="f-val f-mono">${m.unit ? m.unit.toLocaleString()+'원' : nd}</span></div>
+    <div class="field"><span class="f-label">담당자</span><span class="f-val">${v(m.contact)}</span></div>
+    <div class="field"><span class="f-label">연락처</span><span class="f-val f-mono">${v(m.tel)}</span></div>
+    <div class="field"><span class="f-label">작성일</span><span class="f-val f-mono">${v(m.createdAt)}</span></div>`;
+
+  // 수수료1
+  document.getElementById('med-detail-c1').innerHTML =
+    `<div class="field"><span class="f-label">기준</span><span class="f-val">${pct(m.c1Base)}</span></div>
+    <div class="field"><span class="f-label">요청</span><span class="f-val">${pct(m.c1Req)}</span></div>
+    <div class="field"><span class="f-label">조정</span><span class="f-val" style="font-weight:700;color:var(--accent);">${pct(m.c1Adj)}</span></div>
+    <div class="field"><span class="f-label">조정사유</span><span class="f-val">${v(m.c1Reason)}</span></div>
+    <div class="field"><span class="f-label">비고</span><span class="f-val">${v(m.note1)}</span></div>`;
+
+  // 수수료2
+  document.getElementById('med-detail-c2').innerHTML =
+    `<div class="field"><span class="f-label">기준</span><span class="f-val">${pct(m.c2Base)}</span></div>
+    <div class="field"><span class="f-label">요청</span><span class="f-val">${pct(m.c2Req)}</span></div>
+    <div class="field"><span class="f-label">조정</span><span class="f-val" style="font-weight:700;color:var(--accent);">${pct(m.c2Adj)}</span></div>
+    <div class="field"><span class="f-label">조정사유</span><span class="f-val">${v(m.c2Reason)}</span></div>
+    <div class="field"><span class="f-label">비고</span><span class="f-val">${v(m.note2)}</span></div>`;
+
+  // 예외사항
+  document.getElementById('med-detail-exc').innerHTML =
+    `<div class="field"><span class="f-label">대상</span><span class="f-val">${v(m.excTarget)}</span></div>
+    <div class="field"><span class="f-label">조정</span><span class="f-val">${v(m.excAdj)}</span></div>`;
+}
+
+function openMediaModalFromDetail() {
+  openMediaModal(currentMediaIdx);
+}
+
+function deleteMediaFromDetail() {
+  if (currentMediaIdx == null) return;
+  const m = MEDIA_DATA[currentMediaIdx];
+  if (!m) return;
+  const linked = DATA.filter(c => c.media === m.company);
+  if (linked.length > 0) {
+    toast(`⚠ 해당 매체사를 사용 중인 캠페인이 ${linked.length}건 있어 삭제할 수 없습니다.`, 'warn');
+    return;
+  }
+  if (!confirm(`'${m.company}' 항목을 삭제하시겠습니까?`)) return;
+  const company = m.company;
+  MEDIA_DATA.splice(currentMediaIdx, 1);
+  currentMediaIdx = null;
+  _fbDeleteMedia(company);
+  renderMediaList();
+  goScreen('media');
+  toast('✓ 삭제되었습니다', 'ok');
+}
+
+function openMediaModal(idx) {
+  mediaPendingCombo = null;
+  mediaEditIdx = idx ?? null;
+  const d = {type:'매체사',company:'',invoiceTo:'',unit:'',contact:'',tel:'',c1Base:'',c1Req:'',c1Adj:'',c1Reason:'',note1:'',c2Base:'',c2Req:'',c2Adj:'',c2Reason:'',note2:'',excTarget:'',excAdj:'',createdAt:''};
+  const m = idx != null ? MEDIA_DATA[idx] : d;
+  document.getElementById('med-title').textContent = idx != null ? '매체사 수정' : '매체사 등록';
+  document.getElementById('med-del-btn').style.display = idx != null ? '' : 'none';
+  document.getElementById('med-type').value = m.type || '매체사';
+  medTypeChange();
+  const _medNumKeys = ['unit','c1Base','c1Req','c1Adj','c2Base','c2Req','c2Adj'];
+  ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','createdAt']
+    .forEach(k => { const el=document.getElementById('med-'+k); if(el) el.value = _medNumKeys.includes(k) ? (m[k] || '') : (m[k] ?? ''); });
+  openModal('modalMedia');
+}
+
+function saveMedia() {
+  const company = document.getElementById('med-company').value.trim();
+  if (!company) { toast('⚠ 매체명을 입력해주세요','warn'); return; }
+  const keys = ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj'];
+  const obj = { type: document.getElementById('med-type').value || '매체사' };
+  keys.forEach(k => {
+    const v = document.getElementById('med-'+k)?.value ?? '';
+    obj[k] = ['unit','c1Base','c1Req','c1Adj','c2Base','c2Req','c2Adj'].includes(k) ? (v===''?'':+v) : v;
+  });
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  obj.createdAt = (mediaEditIdx != null && MEDIA_DATA[mediaEditIdx]?.createdAt) ? MEDIA_DATA[mediaEditIdx].createdAt : todayStr;
+  const oldObj = mediaEditIdx != null ? Object.assign({}, MEDIA_DATA[mediaEditIdx]) : null;
+  if (mediaEditIdx != null) MEDIA_DATA[mediaEditIdx] = obj;
+  else { MEDIA_DATA.push(obj); currentMediaIdx = MEDIA_DATA.length - 1; }
+  // 이름이 바뀐 경우 기존 문서 삭제 + 캠페인 media 필드 일괄 업데이트
+  if (oldObj && oldObj.company !== obj.company) {
+    _fbDeleteMedia(oldObj.company);
+    DATA.forEach(c => {
+      if (c.media === oldObj.company) {
+        c.media = obj.company;
+        _fbSaveCampaign(c);
+      }
+    });
+  }
+  _fbSaveMedia(obj);
+  if (oldObj) _fbSaveMediaLog(oldObj, obj);
+  const pendingCombo = mediaPendingCombo;
+  mediaPendingCombo = null;
+  closeModal('modalMedia');
+  renderMediaList();
+  // 상세보기에서 수정한 경우 상세화면도 갱신
+  if (currentMediaIdx != null && document.getElementById('screen-media-detail').classList.contains('active')) {
+    renderMediaDetail();
+  }
+  toast('✓ 저장되었습니다','ok');
+  if (pendingCombo) {
+    comboSelect(pendingCombo, obj.company);
+  }
+}
+
+function deleteMedia() {
+  if (mediaEditIdx == null) return;
+  if (!confirm(`'${MEDIA_DATA[mediaEditIdx].company}' 항목을 삭제하시겠습니까?`)) return;
+  const delCompany = MEDIA_DATA[mediaEditIdx].company;
+  MEDIA_DATA.splice(mediaEditIdx, 1);
+  _fbDeleteMedia(delCompany);
+  currentMediaIdx = null;
+  closeModal('modalMedia');
+  renderMediaList();
+  goScreen('media');
+  toast('🗑 삭제되었습니다','err');
+}
+
+// ══════════════════════════════════════════
+// 매출처 관리 (SELLER_DATA)
+// ══════════════════════════════════════════
+let sellerEditIdx = null;
+let sellerPendingCombo = null;
+let sellerBrands = [];
+let _brandRenames = [];   // [{old, new}] — 모달 1회 편집 중 발생한 브랜드명 변경 추적
+let _editingBrandName = null; // 현재 수정 중인 브랜드 구 이름
+let _sellerTab = 'adv'; // 'adv' | 'agency'
+
+function switchSellerTab(tab) {
+  _sellerTab = tab;
+  document.querySelectorAll('#seller-tabs .view-tab').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('seller-vt-' + tab);
+  if (btn) btn.classList.add('active');
+  document.getElementById('seller-tab-adv').style.display    = tab === 'adv'    ? '' : 'none';
+  document.getElementById('seller-tab-agency').style.display = tab === 'agency' ? '' : 'none';
+  document.getElementById('seller-tab-lab').style.display    = tab === 'lab'    ? '' : 'none';
+
+  // 등록 버튼 클릭 시 현재 탭 유형으로 열리도록 기본값 세팅
+  const addBtn = document.getElementById('seller-add-btn');
+  if (addBtn) addBtn.onclick = () => openSellerModal(null, tab === 'adv' ? '광고주' : tab === 'lab' ? '랩사' : '대행사');
+  renderSellerList();
+}
+
+function renderSellerList() {
+  const nd = '<span style="color:var(--text3)">—</span>';
+  const q  = (document.getElementById('sellerQ')?.value || '').trim().toLowerCase();
+
+  const searchResult  = document.getElementById('seller-search-result');
+  const tabWrap       = document.getElementById('seller-tab-wrap');
+
+  if (q) {
+    // ── 통합 검색 결과 ──
+    if (searchResult) searchResult.style.display = '';
+    if (tabWrap)      tabWrap.style.display = 'none';
+
+    const matched = SELLER_DATA.map((s, i) => ({s, i})).filter(({s}) => {
+      const matchCompany = (s.company || '').toLowerCase().includes(q);
+      const matchBrand   = (s.brands || []).some(b => (b.name || b).toLowerCase().includes(q));
+      return matchCompany || matchBrand;
+    });
+
+    let rows = '';
+    matched.forEach(({s, i}, rowNum) => {
+      const typeBadge = s.type === '대행사'
+        ? `<span class="badge b-테스트완료">대행사</span>`
+        : s.type === '랩사'
+        ? `<span class="badge b-성과입력대기">랩사</span>`
+        : `<span class="badge b-확정">광고주</span>`;
+      rows += `<tr onclick="openSellerModal(${i})" style="cursor:pointer;">
+        <td class="td-dim">${rowNum + 1}</td>
+        <td>${typeBadge}</td>
+        <td style="font-weight:600;">${_escHtml(s.company)}</td>
+        <td class="td-r">${(s.type === '대행사' || s.type === '랩사') && s.agrate ? s.agrate + '%' : nd}</td>
+        <td class="td-dim td-r">${s.brands.length ? s.brands.length + '개' : nd}</td>
+      </tr>`;
+      (s.brands || []).forEach(b => {
+        rows += `<tr style="background:var(--surface2);">
+          <td></td><td></td>
+          <td style="padding-left:20px;font-size:12px;color:var(--text2);">└ ${_escHtml(b.name||b)}${b.cat?`<span style="color:var(--text3);margin-left:4px;">(${b.cat})</span>`:''}</td>
+          <td></td><td></td>
+        </tr>`;
+      });
+    });
+    const tbody = document.getElementById('seller-tbody-search');
+    if (tbody) tbody.innerHTML = rows || '<tr><td colspan="5" style="padding:32px;text-align:center;color:var(--text3);">검색 결과가 없습니다.</td></tr>';
+    const cnt = document.getElementById('seller-search-count');
+    if (cnt) cnt.textContent = matched.length + '개사';
+
+  } else {
+    // ── 탭 뷰 ──
+    if (searchResult) searchResult.style.display = 'none';
+    if (tabWrap)      tabWrap.style.display = '';
+
+    // 광고주
+    const advList = SELLER_DATA.map((s, i) => ({s, i})).filter(({s}) => s.type === '광고주');
+    let advRows = '';
+    advList.forEach(({s, i}, rowNum) => {
+      advRows += `<tr onclick="openSellerModal(${i})" style="cursor:pointer;">
+        <td class="td-dim">${rowNum + 1}</td>
+        <td style="font-weight:600;">${_escHtml(s.company)}</td>
+        <td class="td-dim td-r">${s.brands.length ? s.brands.length + '개' : nd}</td>
+      </tr>`;
+      (s.brands || []).forEach(b => {
+        advRows += `<tr style="background:var(--surface2);">
+          <td></td>
+          <td style="padding-left:20px;font-size:12px;color:var(--text2);">└ ${_escHtml(b.name||b)}${b.cat?`<span style="color:var(--text3);margin-left:4px;">(${b.cat})</span>`:''}</td>
+          <td></td>
+        </tr>`;
+      });
+    });
+    const advTbody = document.getElementById('seller-tbody-adv');
+    if (advTbody) advTbody.innerHTML = advRows || '<tr><td colspan="3" style="padding:32px;text-align:center;color:var(--text3);">등록된 광고주가 없습니다.</td></tr>';
+    const advCnt = document.getElementById('seller-adv-count');
+    if (advCnt) advCnt.textContent = advList.length + '개사';
+
+    // 랩사
+    const labList = SELLER_DATA.map((s, i) => ({s, i})).filter(({s}) => s.type === '랩사');
+    let labRows = '';
+    labList.forEach(({s, i}, rowNum) => {
+      labRows += `<tr onclick="openSellerModal(${i})" style="cursor:pointer;">
+        <td class="td-dim">${rowNum + 1}</td>
+        <td style="font-weight:600;">${_escHtml(s.company)}</td>
+        <td class="td-r">${s.agrate ? s.agrate + '%' : nd}</td>
+        <td class="td-dim td-r">${s.brands.length ? s.brands.length + '개' : nd}</td>
+      </tr>`;
+      (s.brands || []).forEach(b => {
+        labRows += `<tr style="background:var(--surface2);">
+          <td></td>
+          <td style="padding-left:20px;font-size:12px;color:var(--text2);">└ ${_escHtml(b.name||b)}${b.cat?`<span style="color:var(--text3);margin-left:4px;">(${b.cat})</span>`:''}</td>
+          <td></td><td></td>
+        </tr>`;
+      });
+    });
+    const labTbody = document.getElementById('seller-tbody-lab');
+    if (labTbody) labTbody.innerHTML = labRows || '<tr><td colspan="4" style="padding:32px;text-align:center;color:var(--text3);">등록된 랩사가 없습니다.</td></tr>';
+    const labCnt = document.getElementById('seller-lab-count');
+    if (labCnt) labCnt.textContent = labList.length + '개사';
+
+    // 대행사
+    const agencyList = SELLER_DATA.map((s, i) => ({s, i})).filter(({s}) => s.type === '대행사');
+    let agencyRows = '';
+    agencyList.forEach(({s, i}, rowNum) => {
+      agencyRows += `<tr onclick="openSellerModal(${i})" style="cursor:pointer;">
+        <td class="td-dim">${rowNum + 1}</td>
+        <td style="font-weight:600;">${_escHtml(s.company)}</td>
+        <td class="td-r">${s.agrate ? s.agrate + '%' : nd}</td>
+        <td class="td-dim td-r">${s.brands.length ? s.brands.length + '개' : nd}</td>
+      </tr>`;
+      (s.brands || []).forEach(b => {
+        agencyRows += `<tr style="background:var(--surface2);">
+          <td></td>
+          <td style="padding-left:20px;font-size:12px;color:var(--text2);">└ ${_escHtml(b.name||b)}${b.cat?`<span style="color:var(--text3);margin-left:4px;">(${b.cat})</span>`:''}</td>
+          <td></td><td></td>
+        </tr>`;
+      });
+    });
+    const agencyTbody = document.getElementById('seller-tbody-agency');
+    if (agencyTbody) agencyTbody.innerHTML = agencyRows || '<tr><td colspan="4" style="padding:32px;text-align:center;color:var(--text3);">등록된 대행사가 없습니다.</td></tr>';
+    const agencyCnt = document.getElementById('seller-agency-count');
+    if (agencyCnt) agencyCnt.textContent = agencyList.length + '개사';
+  }
+}
+
+function searchSeller() { renderSellerList(); }
+function resetSellerSearch() {
+  const q = document.getElementById('sellerQ'); if (q) q.value = '';
+  renderSellerList();
+}
+
+let brandAddPrefix = 'r';
+function openBrandAddModal(prefix) {
+  brandAddPrefix = prefix || 'r';
+  const sellerName = document.getElementById(prefix + '_seller')?.value || '';
+  document.getElementById('brand-add-company').textContent = sellerName;
+  document.getElementById('brand-add-name').value = '';
+  document.getElementById('brand-add-cat').selectedIndex = 0;
+  openModal('modalBrandAdd');
+}
+function saveBrandAdd() {
+  const name = document.getElementById('brand-add-name').value.trim();
+  const cat  = document.getElementById('brand-add-cat').value;
+  if (!name) { toast('⚠ 브랜드명을 입력해주세요', 'warn'); return; }
+  if (!cat)  { toast('⚠ 카테고리를 선택해주세요', 'warn'); return; }
+  const sellerName = document.getElementById('brand-add-company').textContent;
+  const s = SELLER_DATA.find(x => x.company === sellerName);
+  if (!s) { toast('⚠ 매출처를 찾을 수 없습니다', 'warn'); return; }
+  if (!s.brands.find(b => (b.name || b) === name)) s.brands.push({name, cat});
+  _fbSaveSeller(s);
+  closeModal('modalBrandAdd');
+  const contentCombo = brandAddPrefix === 'r' ? 'content' : brandAddPrefix === 'pm' ? 'pm_content' : 'e_content';
+  comboSelect(contentCombo, name);
+  const catId = brandAddPrefix === 'pm' ? 'pm-cat' : brandAddPrefix + '_cat';
+  document.getElementById(catId).value = cat;
+  if (brandAddPrefix === 'r') autoNameReg(); else if (brandAddPrefix !== 'pm') autoNameEdit();
+  toast('✓ 브랜드가 추가되었습니다', 'ok');
+}
+
+function openSellerModalForCombo(type, comboName) {
+  sellerPendingCombo = comboName;
+  openSellerModal(null, type);
+}
+
+function openSellerModal(idx, defaultType) {
+  sellerEditIdx = idx ?? null;
+  const d = {type: defaultType || '광고주', company:'', agrate:0, brands:[]};
+  const s = idx != null ? SELLER_DATA[idx] : d;
+  sellerBrands = [...(s.brands || [])];
+  _brandRenames = [];
+  _editingBrandName = null;
+  const _addBtn  = document.getElementById('sel-brand-add-btn');
+  const _saveBtn = document.getElementById('sel-save-btn');
+  if (_addBtn)  _addBtn.textContent = '추가';
+  if (_saveBtn) { _saveBtn.disabled = false; _saveBtn.style.opacity = ''; }
+  document.getElementById('sel-title').textContent = idx != null ? '매출처 수정' : '매출처 등록';
+  document.getElementById('sel-del-btn').style.display = idx != null ? '' : 'none';
+  document.getElementById('sel-type').value    = s.type || defaultType || '광고주';
+  document.getElementById('sel-company').value = s.company || '';
+  document.getElementById('sel-agrate').value  = s.agrate || '';
+  document.getElementById('sel-brand-input').value = '';
+  selTypeChange();
+  renderSellerBrands();
+  openModal('modalSeller');
+}
+
+function selTypeChange() {
+  const type = document.getElementById('sel-type').value;
+  const isAgency = type === '대행사' || type === '랩사';
+  document.getElementById('sel-agency-fields').style.display = isAgency ? '' : 'none';
+  document.getElementById('sel-adv-fields').style.display   = '';
+}
+
+function renderSellerBrands() {
+  const el = document.getElementById('sel-brand-list');
+  if (!el) return;
+  if (!sellerBrands.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:4px 0;">추가된 브랜드 없음</div>';
+    return;
+  }
+  el.innerHTML = sellerBrands.map((b, i) => {
+    const name = b.name || b, cat = b.cat || '';
+    return `<span class="tag" style="display:inline-flex;align-items:center;gap:4px;margin:2px 2px 2px 0;">
+      ${_escHtml(name)}${cat?`<span style="font-size:11px;color:var(--text3);">(${cat})</span>`:''}
+      <span style="cursor:pointer;color:var(--accent);font-size:12px;line-height:1;" title="수정" onclick="editSellerBrand(${i})">✏</span>
+      <span style="cursor:pointer;color:var(--text2);font-size:14px;line-height:1;" title="삭제" onclick="removeSellerBrand(${i})">×</span>
+    </span>`;
+  }).join('');
+}
+
+function addSellerBrand() {
+  const inp = document.getElementById('sel-brand-input');
+  const cat = document.getElementById('sel-brand-cat')?.value || '';
+  const val = (inp.value || '').trim();
+  if (!val) return;
+  if (!cat) { toast('⚠ 카테고리를 선택해주세요', 'warn'); return; }
+  if (sellerBrands.find(b => (b.name || b) === val)) { toast('이미 추가된 브랜드입니다', 'warn'); return; }
+  if (_editingBrandName && _editingBrandName !== val) {
+    _brandRenames.push({ old: _editingBrandName, new: val });
+  }
+  _editingBrandName = null;
+  sellerBrands.push({name: val, cat});
+  inp.value = '';
+  renderSellerBrands();
+  const addBtn  = document.getElementById('sel-brand-add-btn');
+  const saveBtn = document.getElementById('sel-save-btn');
+  if (addBtn)  addBtn.textContent = '추가';
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; }
+}
+
+function removeSellerBrand(i) {
+  sellerBrands.splice(i, 1);
+  renderSellerBrands();
+}
+
+function editSellerBrand(i) {
+  const b = sellerBrands[i];
+  if (!b) return;
+  _editingBrandName = b.name || b;
+  const inp = document.getElementById('sel-brand-input');
+  const catSel = document.getElementById('sel-brand-cat');
+  if (inp) inp.value = b.name || b;
+  if (catSel && b.cat) catSel.value = b.cat;
+  sellerBrands.splice(i, 1);
+  renderSellerBrands();
+  const addBtn  = document.getElementById('sel-brand-add-btn');
+  const saveBtn = document.getElementById('sel-save-btn');
+  if (addBtn)  addBtn.textContent = '수정';
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = '0.4'; }
+  if (inp) inp.focus();
+}
+
+function saveSeller() {
+  const type    = document.getElementById('sel-type').value;
+  const company = document.getElementById('sel-company').value.trim();
+  if (!company) { toast('⚠ 회사명을 입력해주세요', 'warn'); return; }
+  const agrate  = +document.getElementById('sel-agrate').value || 0;
+  const obj = { type, company, agrate, brands: [...sellerBrands] };
+  if (sellerEditIdx != null) SELLER_DATA[sellerEditIdx] = obj;
+  else SELLER_DATA.push(obj);
+  _fbSaveSeller(obj);
+
+  // 브랜드명 변경 → 관련 캠페인 일괄 업데이트
+  if (_brandRenames.length > 0) {
+    let updatedCount = 0;
+    _brandRenames.forEach(({old: oldName, new: newName}) => {
+      DATA.forEach(c => {
+        if ((c.seller === company || c.adv === company) && c.content === oldName) {
+          c.content = newName;
+          _fbSaveCampaign(c);
+          updatedCount++;
+        }
+      });
+    });
+    if (updatedCount > 0) toast(`✓ 저장되었습니다 (관련 캠페인 ${updatedCount}건 업데이트)`, 'ok');
+    else toast('✓ 저장되었습니다', 'ok');
+  } else {
+    toast('✓ 저장되었습니다', 'ok');
+  }
+  _brandRenames = [];
+  _editingBrandName = null;
+
+  const pendingCombo = sellerPendingCombo;
+  sellerPendingCombo = null;
+  closeModal('modalSeller');
+  renderSellerList();
+  _populateAdvFilter();
+  if (pendingCombo) comboSelect(pendingCombo, obj.company);
+}
+
+function deleteSellerItem() {
+  if (sellerEditIdx == null) return;
+  const name = SELLER_DATA[sellerEditIdx]?.company;
+  if (!confirm(`'${name}' 항목을 삭제하시겠습니까?`)) return;
+  const delName = SELLER_DATA[sellerEditIdx].company;
+  SELLER_DATA.splice(sellerEditIdx, 1);
+  _fbDeleteSeller(delName);
+  sellerEditIdx = null;
+  closeModal('modalSeller');
+  renderSellerList();
+  _populateAdvFilter();
+  toast('🗑 삭제되었습니다', 'err');
+}
+
+// ══════════════════════════════════════════
+// 월별 지급내역
+// ══════════════════════════════════════════
+const PAYMENT_DATA = [
+  // ── 2026년 1월 ──
+  {cat:'문자광고',media:'국민카드',  company:'국민카드',  amount:266200000, memo:'전체광고비 입금후 수수료 지급받음', account:'국민은행 009937-04-029374 (주)KB국민카드(데이터사업부)님',
+   detail:{title:'국민카드 1월 정산',period:'2026-01',vatExcl:242000000,vatIncl:266200000,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'롯데카드',  company:'롯데카드',  amount:59677156,  memo:'', account:'',
+   detail:{title:'롯데카드 1월 정산',period:'2026-01',vatExcl:54252000,vatIncl:59677156,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'BC카드',   company:'BC카드',   amount:64913195,  memo:'', account:'',
+   detail:{title:'BC카드 1월 정산',period:'2026-01',vatExcl:59012000,vatIncl:64913195,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'우리카드',  company:'우리카드',  amount:39600000,  memo:'10월 입금건부터 계좌번호 변경', account:'우리은행 1005-103-718971',
+   detail:{title:'우리카드 1월 정산',period:'2026-01',vatExcl:36000000,vatIncl:39600000,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'삼성카드',  company:'삼성카드',  amount:70117212,  memo:'', account:'',
+   detail:{title:'삼성카드 1월 정산',period:'2026-01',vatExcl:63743000,vatIncl:70117212,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'신한카드',  company:'신한카드',  amount:28575800,  memo:'', account:'',
+   detail:{title:'신한카드 1월 정산',period:'2026-01',vatExcl:25978000,vatIncl:28575800,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'하나카드',  company:'하나카드',  amount:59152401,  memo:'펫보험 CPS 6월비용포함', account:'하나은행 140-910039-19904 하나카드주식회사',
+   detail:{title:'하나카드 1월 정산',period:'2026-01',vatExcl:53775000,vatIncl:59152401,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'CNCAD',   company:'CNCAD',   amount:43422500,  memo:'현대해상광고비 차감반영', account:'',
+   detail:{title:'CNCAD 1월 정산',period:'2026-01',vatExcl:39475000,vatIncl:43422500,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'SKP',     company:'SKP',     amount:28985000,  memo:'25년 6월 지급건', account:'신한은행 56100351011831 에스케이플래닛㈜ 가상계좌로 25.07월 변경',
+   detail:{title:'SKP 1월 정산',period:'2026-01',vatExcl:26350000,vatIncl:28985000,rows:[],editorHtml:''}},
+  // ── 2026년 2월 ──
+  {cat:'문자광고',media:'SKT비즈챗', company:'SKT',     amount:55427801,  memo:'전체광고비 입금후 수수료 지급받음', account:'신한은행 561-001-40016641 에스케이텔레콤(주)',
+   detail:{title:'SKT비즈챗 2월 정산',period:'2026-02',vatExcl:50389000,vatIncl:55427801,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'KT',       company:'KT',      amount:0,          memo:'1억 선입금', account:'',
+   detail:{title:'KT 2월 정산',period:'2026-02',vatExcl:0,vatIncl:0,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'LG',       company:'LG',      amount:0,          memo:'', account:'260-997015-18-394 ㈜LG유플러스 가상계좌',
+   detail:{title:'LG 2월 정산',period:'2026-02',vatExcl:0,vatIncl:0,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'KB페이',    company:'디지털컴퍼니', amount:0,      memo:'메리츠보험 진행건은 별도 지급요청', account:'신한은행 140-013-336611 디지털컴퍼니㈜이영빈',
+   detail:{title:'KB페이 2월 정산',period:'2026-02',vatExcl:0,vatIncl:0,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'신한카드',  company:'신한카드',  amount:7700000,   memo:'쏠페이 광고집행건', account:'[앱테크] 249-901-85412384 (신한)',
+   detail:{title:'신한카드 2월 정산(쏠페이)',period:'2026-02',vatExcl:7000000,vatIncl:7700000,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'카카오페이', company:'카카오페이', amount:4400000, memo:'', account:'신한은행 140-011-985482 (주)카카오페이',
+   detail:{title:'카카오페이 2월 정산',period:'2026-02',vatExcl:4000000,vatIncl:4400000,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'엘포인트',  company:'대홍기획',  amount:7040000,   memo:'', account:'우리은행 105-01-038814 ㈜대홍기획',
+   detail:{title:'엘포인트 2월 정산',period:'2026-02',vatExcl:6400000,vatIncl:7040000,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'에듀패밀리', company:'아바드',   amount:12408000,  memo:'', account:'기업은행 330-025165-01-014 아바드㈜',
+   detail:{title:'에듀패밀리 2월 정산',period:'2026-02',vatExcl:11280000,vatIncl:12408000,rows:[],editorHtml:''}},
+  {cat:'문자광고',media:'앙쥬',    company:'무크하우스', amount:22770000, memo:'', account:'',
+   detail:{title:'앙쥬 2월 정산',period:'2026-02',vatExcl:20700000,vatIncl:22770000,rows:[],editorHtml:''}},
+];
+
+let payEditIdx = null;
+
+function renderPaymentList() {
+  const fmt = n => n ? n.toLocaleString() : '—';
+  const selYear  = document.getElementById('pay-year')?.value  || '';
+  const selMonth = document.getElementById('pay-month')?.value || '';
+
+  // 필터: 해당 연/월에 발송된 캠페인(DATA)이 있는 매체사만 표시
+  const list = PAYMENT_DATA.map((p, i) => ({p, i})).filter(({p}) => {
+    if (!selYear && !selMonth) return true;
+    return DATA.some(c => {
+      if (c.media !== p.media) return false;
+      if (selYear  && !c.date.startsWith(selYear))  return false;
+      if (selMonth && c.date.slice(5,7) !== selMonth) return false;
+      return true;
+    });
+  });
+
+  // 필터 레이블 업데이트
+  const label = document.getElementById('pay-filter-label');
+  if (label) {
+    if (selYear || selMonth) {
+      const y = selYear || '전체';
+      const m = selMonth ? parseInt(selMonth)+'월' : '전체';
+      label.textContent = `${y} ${m} — ${list.length}건`;
+    } else {
+      label.textContent = `전체 ${list.length}건`;
+    }
+  }
+
+  document.getElementById('pay-tbody').innerHTML = list.map(({p, i}) => `
+    <tr>
+      <td>${p.cat}</td>
+      <td style="font-weight:600;">${p.media}</td>
+      <td>${p.company}</td>
+      <td class="td-r" style="font-weight:600;">${p.amount ? p.amount.toLocaleString() : '—'}</td>
+      <td style="color:var(--text2);font-size:12px;">${p.memo||'—'}</td>
+      <td style="font-size:12px;color:var(--text2);">${p.account||'—'}</td>
+      <td style="text-align:center;">
+        <button class="btn btn-outline btn-sm" onclick="openPaymentDetail(${i})">더보기</button>
+      </td>
+    </tr>`).join('') || `<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text3);">해당 기간의 지급내역이 없습니다.</td></tr>`;
+}
+
+function openPaymentDetail(idx, skipPush) {
+  payEditIdx = idx;
+  const p = PAYMENT_DATA[idx];
+  const d = p.detail;
+  const fmt = n => n ? n.toLocaleString() : '—';
+
+  // 기간 파싱
+  let monthLabel = '', yearMonthLabel = '';
+  if (d.period) {
+    const m = d.period.match(/(\d{4})-(\d{2})/);
+    if (m) { monthLabel = `${parseInt(m[2])}월`; yearMonthLabel = `${m[1]}년 ${monthLabel}`; }
+  }
+
+  // 1열: 헤더
+  document.getElementById('pd-headline').innerHTML =
+    `<span style="font-size:18px;font-weight:700;">${p.media}</span>` +
+    `<span style="font-size:15px;font-weight:500;margin-left:8px;">${yearMonthLabel ? yearMonthLabel+' ' : ''}정산금액</span>` +
+    (d.period ? `<span style="font-size:13px;color:var(--text3);margin-left:12px;">정산기간 : ${d.period}</span>` : '');
+
+  // 1열: 요약 표
+  document.getElementById('pd-summary').innerHTML = `
+    <table style="border-collapse:collapse;font-size:13px;">
+      <thead><tr>
+        <th style="padding:8px 24px;border:1px solid var(--border);background:var(--surface2);"></th>
+        <th style="padding:8px 24px;border:1px solid var(--border);background:var(--surface2);">VAT별도</th>
+        <th style="padding:8px 24px;border:1px solid var(--border);background:var(--surface2);">VAT포함</th>
+      </tr></thead>
+      <tbody><tr>
+        <td style="padding:8px 24px;border:1px solid var(--border);font-weight:600;">${monthLabel || '정산'}금액</td>
+        <td style="padding:8px 24px;border:1px solid var(--border);text-align:right;">${fmt(d.vatExcl)}</td>
+        <td style="padding:8px 24px;border:1px solid var(--border);text-align:right;font-weight:700;">${fmt(d.vatIncl)}</td>
+      </tr></tbody>
+    </table>`;
+
+  // 2열: 상세 내역 테이블
+  const rowCols = ['date','campaign','sector','media','method','advertiser','reqQty','settlQty','mediaUnit','netUnit','adCostExcl','settlExcl','settlIncl','memo'];
+  const rowHdrs = ['발송일','캠페인명','업종','매체사','발송방식','광고주','요청건수','정산건수','매체단가','입금단가(수수료제외)','광고비','정산금액(VAT별도)','정산금액(VAT포함)','메모'];
+  const numCols = ['reqQty','settlQty','mediaUnit','netUnit','adCostExcl','settlExcl','settlIncl'];
+  let tableHtml = '';
+  if (d.rows && d.rows.length) {
+    const totals = {reqQty:0,settlQty:0,adCostExcl:0,settlExcl:0,settlIncl:0};
+    d.rows.forEach(r => { totals.reqQty+=r.reqQty||0; totals.settlQty+=r.settlQty||0; totals.adCostExcl+=r.adCostExcl||0; totals.settlExcl+=r.settlExcl||0; totals.settlIncl+=r.settlIncl||0; });
+    const rowsHtml = d.rows.map(r => `<tr>${rowCols.map(k => `<td style="padding:6px 10px;border:1px solid var(--border);white-space:nowrap;text-align:${numCols.includes(k)?'right':'left'};">${r[k]!=null?(typeof r[k]==='number'?r[k].toLocaleString():r[k]):'—'}</td>`).join('')}</tr>`).join('');
+    const totalHtml = `<tr style="font-weight:700;background:var(--surface2);">
+      <td colspan="6" style="padding:6px 10px;border:1px solid var(--border);">TOTAL</td>
+      <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;">${totals.reqQty.toLocaleString()}</td>
+      <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;">${totals.settlQty.toLocaleString()}</td>
+      <td colspan="2" style="border:1px solid var(--border);"></td>
+      <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;">${totals.adCostExcl.toLocaleString()}</td>
+      <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;">${totals.settlExcl.toLocaleString()}</td>
+      <td style="padding:6px 10px;border:1px solid var(--border);text-align:right;">${totals.settlIncl.toLocaleString()}</td>
+      <td style="border:1px solid var(--border);"></td>
+    </tr>`;
+    tableHtml = `${rowsHtml}${totalHtml}`;
+  } else {
+    tableHtml = `<tr><td colspan="${rowCols.length}" style="padding:32px;text-align:center;color:var(--text3);">등록된 상세 내역이 없습니다.</td></tr>`;
+  }
+  document.getElementById('pd-detail-table').innerHTML = tableHtml;
+
+  // 3열: 첨부 이미지/메모
+  document.getElementById('pd-editor').innerHTML = d.editorHtml || '<span style="color:var(--text3);font-size:13px;">첨부된 내용이 없습니다.</span>';
+
+  goScreen('payment-detail', true);
+  if (!skipPush) {
+    history.pushState({ screen: 'payment-detail', payIdx: idx }, '', '#payment-detail');
+  }
+}
+
+function openPaymentReg(idx) {
+  payEditIdx = idx ?? null;
+  const p = idx != null ? PAYMENT_DATA[idx] : {cat:'문자광고',media:'',company:'',amount:'',memo:'',account:'',detail:{title:'',period:'',vatExcl:'',vatIncl:'',rows:[],editorHtml:''}};
+  const d = p.detail;
+  document.getElementById('pay-reg-title').textContent = idx != null ? '월별 지급내역 수정' : '월별 지급내역 등록';
+  // 연/월 셀렉트: 기존 period(YYYY-MM)에서 추출, 없으면 현재 연-월
+  const now = new Date();
+  const periodMatch = (d.period || '').match(/^(\d{4})-(\d{2})/);
+  document.getElementById('pr-year').value  = periodMatch ? periodMatch[1] : String(now.getFullYear());
+  document.getElementById('pr-month').value = periodMatch ? periodMatch[2] : String(now.getMonth()+1).padStart(2,'0');
+  document.getElementById('pr-cat').value     = p.cat;
+  document.getElementById('pr-media').value   = p.media;
+  document.getElementById('pr-company').value = p.company;
+  document.getElementById('pr-amount').value  = p.amount || '';
+  document.getElementById('pr-memo').value    = p.memo;
+  document.getElementById('pr-account').value = p.account;
+  document.getElementById('pr-det-title').value  = d.title;
+  document.getElementById('pr-det-period').value = d.period;
+  document.getElementById('pr-vatExcl').value    = d.vatExcl || '';
+  document.getElementById('pr-vatIncl').value    = d.vatIncl || '';
+  document.getElementById('pr-editor').innerHTML = d.editorHtml || '';
+  _renderPayRows(d.rows || []);
+  openModal('modalPayReg');
+  _initPayEditor('pr-editor');
+}
+
+function _renderPayRows(rows) {
+  document.getElementById('pr-rows').innerHTML = rows.map((r,i) => `
+    <tr id="pr-row-${i}">
+      <td><input class="form-input" style="width:95px;" id="prr-date-${i}" value="${r.date||''}"></td>
+      <td><input class="form-input" style="width:130px;" id="prr-campaign-${i}" value="${r.campaign||''}"></td>
+      <td><input class="form-input" style="width:70px;" id="prr-sector-${i}" value="${r.sector||''}"></td>
+      <td><input class="form-input" style="width:80px;" id="prr-media-${i}" value="${r.media||''}"></td>
+      <td><input class="form-input" style="width:70px;" id="prr-method-${i}" value="${r.method||''}"></td>
+      <td><input class="form-input" style="width:100px;" id="prr-advertiser-${i}" value="${r.advertiser||''}"></td>
+      <td><input class="form-input" style="width:75px;" type="number" id="prr-reqQty-${i}" value="${r.reqQty||''}"></td>
+      <td><input class="form-input" style="width:75px;" type="number" id="prr-settlQty-${i}" value="${r.settlQty||''}"></td>
+      <td><input class="form-input" style="width:70px;" type="number" id="prr-mediaUnit-${i}" value="${r.mediaUnit||''}"></td>
+      <td><input class="form-input" style="width:70px;" type="number" id="prr-netUnit-${i}" value="${r.netUnit||''}"></td>
+      <td><input class="form-input" style="width:100px;" type="number" id="prr-adCostExcl-${i}" value="${r.adCostExcl||''}"></td>
+      <td><input class="form-input" style="width:100px;" type="number" id="prr-settlExcl-${i}" value="${r.settlExcl||''}"></td>
+      <td><input class="form-input" style="width:100px;" type="number" id="prr-settlIncl-${i}" value="${r.settlIncl||''}"></td>
+      <td><button class="btn btn-outline btn-sm" style="color:var(--err);" onclick="document.getElementById('pr-row-${i}').remove()">✕</button></td>
+    </tr>`).join('');
+}
+
+function _addPayRow() {
+  const tbody = document.getElementById('pr-rows');
+  const i = tbody.rows.length;
+  const tr = document.createElement('tr');
+  tr.id = `pr-row-${i}`;
+  tr.innerHTML = `
+    <td><input class="form-input" style="width:95px;" id="prr-date-${i}"></td>
+    <td><input class="form-input" style="width:130px;" id="prr-campaign-${i}"></td>
+    <td><input class="form-input" style="width:70px;" id="prr-sector-${i}"></td>
+    <td><input class="form-input" style="width:80px;" id="prr-media-${i}"></td>
+    <td><input class="form-input" style="width:70px;" id="prr-method-${i}"></td>
+    <td><input class="form-input" style="width:100px;" id="prr-advertiser-${i}"></td>
+    <td><input class="form-input" style="width:75px;" type="number" id="prr-reqQty-${i}"></td>
+    <td><input class="form-input" style="width:75px;" type="number" id="prr-settlQty-${i}"></td>
+    <td><input class="form-input" style="width:70px;" type="number" id="prr-mediaUnit-${i}"></td>
+    <td><input class="form-input" style="width:70px;" type="number" id="prr-netUnit-${i}"></td>
+    <td><input class="form-input" style="width:100px;" type="number" id="prr-adCostExcl-${i}"></td>
+    <td><input class="form-input" style="width:100px;" type="number" id="prr-settlExcl-${i}"></td>
+    <td><input class="form-input" style="width:100px;" type="number" id="prr-settlIncl-${i}"></td>
+    <td><button class="btn btn-outline btn-sm" style="color:var(--err);" onclick="this.closest('tr').remove()">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function _initPayEditor(id) {
+  const el = document.getElementById(id);
+  if (el._pasteInit) return;
+  el._pasteInit = true;
+  el.addEventListener('paste', e => {
+    const items = e.clipboardData?.items || [];
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const reader = new FileReader();
+        reader.onload = ev => {
+          const img = document.createElement('img');
+          img.src = ev.target.result;
+          img.style.cssText = 'max-width:100%;border-radius:4px;margin:4px 0;display:block;';
+          const sel = window.getSelection();
+          if (sel.rangeCount) {
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(img);
+            range.setStartAfter(img);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          } else {
+            el.appendChild(img);
+          }
+        };
+        reader.readAsDataURL(item.getAsFile());
+        return;
+      }
+    }
+  });
+}
+
+function savePayment() {
+  const media = document.getElementById('pr-media').value.trim();
+  if (!media) { toast('⚠ 매체명을 입력해주세요','warn'); return; }
+  const rows = [];
+  document.querySelectorAll('#pr-rows tr').forEach((tr,i) => {
+    const g = k => document.getElementById(`prr-${k}-${i}`)?.value ?? '';
+    const n = k => +g(k) || 0;
+    rows.push({date:g('date'),campaign:g('campaign'),sector:g('sector'),media:g('media'),method:g('method'),advertiser:g('advertiser'),reqQty:n('reqQty'),settlQty:n('settlQty'),mediaUnit:n('mediaUnit'),netUnit:n('netUnit'),adCostExcl:n('adCostExcl'),settlExcl:n('settlExcl'),settlIncl:n('settlIncl')});
+  });
+  const obj = {
+    cat:     document.getElementById('pr-cat').value,
+    media,
+    company: document.getElementById('pr-company').value,
+    amount:  +document.getElementById('pr-amount').value || 0,
+    memo:    document.getElementById('pr-memo').value,
+    account: document.getElementById('pr-account').value,
+    detail: {
+      title:     document.getElementById('pr-det-title').value,
+      period:    `${document.getElementById('pr-year').value}-${document.getElementById('pr-month').value}`,
+      vatExcl:   +document.getElementById('pr-vatExcl').value || 0,
+      vatIncl:   +document.getElementById('pr-vatIncl').value || 0,
+      rows,
+      editorHtml: document.getElementById('pr-editor').innerHTML,
+    }
+  };
+  if (payEditIdx != null) PAYMENT_DATA[payEditIdx] = obj;
+  else PAYMENT_DATA.push(obj);
+  closeModal('modalPayReg');
+  renderPaymentList();
+  toast('✓ 저장되었습니다','ok');
+}
+
+// ══════════════════════════════════════════
+// HISTORY-BASED ROUTING
+// ══════════════════════════════════════════
+window.addEventListener('popstate', (e) => {
+  const state = e.state;
+  if (!state) { goScreen('dashboard', true); return; }
+
+  if (state.screen === 'edit') {
+    // 수정화면 뒤로가기 → 캠페인 상세
+    const idx = DATA.findIndex(d => d.id === state.id);
+    if (idx !== -1) openDetail(idx, true);
+    else goScreen('campaigns', true);
+  } else if (state.screen === 'detail') {
+    const idx = DATA.findIndex(d => d.id === state.id);
+    if (idx !== -1) openDetail(idx, true);
+    else goScreen('campaigns', true);
+  } else if (state.screen === 'payment-detail') {
+    if (state.payIdx != null) openPaymentDetail(state.payIdx, true);
+    else goScreen('payment', true);
+  } else {
+    goScreen(state.screen, true);
+  }
+});
+
+let stlView = 'media'; // 'media' | 'adv' | 'agency' | 'campaign'
+
+(function initRoute() {
+  if (!checkAuth()) {
+    // 비로그인 상태에서 detail URL 접근 시 → 로그인 후 복원을 위해 저장
+    const h = location.hash.slice(1);
+    if (h.startsWith('detail/')) sessionStorage.setItem('_afterLoginHash', h);
+    goScreen('login', true);
+    return;
+  }
+  _updateUserUI();
+  // hash 기반으로 초기 스크린 결정 (새로고침 시 유지)
+  const h = location.hash.slice(1); // e.g. "detail/C-2026-0047" or "dashboard"
+  const parts = h.split('/');
+  const screenName = parts[0];
+
+  if (screenName === 'detail' && parts[1]) {
+    // 캠페인 상세 복원 — Firestore 로드 후 처리
+    window._pendingDetailId = parts[1];
+    // campaigns 플래시 방지: detail 화면을 바로 활성화 (데이터는 FB 로드 후 채워짐)
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-detail').classList.add('active');
+    document.querySelector('.topbar').style.display = 'none';
+  } else if (screenName && document.getElementById('screen-' + screenName)) {
+    goScreen(screenName, true);
+    history.replaceState({ screen: screenName }, '', '#' + screenName);
+  } else {
+    goScreen('dashboard', true);
+  }
+})();
+
+// hash 직접 변경(주소창 입력 등) 대응
+window.addEventListener('hashchange', () => {
+  if (!currentUser) return;
+  const h = location.hash.slice(1);
+  const parts = h.split('/');
+  const screenName = parts[0];
+  if (screenName === 'detail' && parts[1]) {
+    const idx = DATA.findIndex(c => c.id === parts[1]);
+    if (idx !== -1) openDetail(idx, true);
+    else { window._pendingDetailId = parts[1]; }
+  } else if (screenName && document.getElementById('screen-' + screenName)) {
+    goScreen(screenName, true);
+  }
+});
+
+
+// ══════════════════════════════════════════
+// SETTLEMENT (정산)
+// DB 연동 시: invoiceOut/invoiceIn/payIn/payOut → campaigns 테이블 컬럼
+//             또는 별도 settlement 테이블로 분리
+// ══════════════════════════════════════════
+
+/** 정산 데이터 표시 여부 (상품별 기준 필드 다름) */
+function _stlHas(c) {
+  if (c.product === 'DA')  return !!c.daAdcost;
+  if (c.product === 'CPA') return !!c.qty;
+  return !!c.actual;
+}
+
+/** 실발송수량(actual) 기준 정산 금액 계산 */
+function _stlAmt(c) {
+  // DA 캠페인: daAdcost 기준 (수량 개념 없음)
+  if (c.product === 'DA') {
+    const adc    = c.daAdcost || 0;
+    const buyAmt = c.buyUnit  || Math.round(adc * (1 - (c.comm || 0) / 100));
+    const adcVat = Math.round(adc * 0.1);
+    const buyVat = Math.round(buyAmt * 0.1);
+    const rev    = Math.round(adc * (c.comm   || 0) / 100);
+    const agFee  = Math.round(adc * (c.agrate || 0) / 100);
+    const prf    = rev - agFee;
+    const prfRate = adc > 0 ? (prf / adc * 100) : 0;
+    return { actual: 0, qty: 0, adc, adcVat, buyAmt, buyVat, stlRate: 0, agFee, prf, prfRate };
+  }
+  // CPA 캠페인: qty 기준 (actual 없이도 qty로 정산)
+  if (c.product === 'CPA') {
+    const qty    = c.qty      || 0;
+    const unit   = c.sellUnit || 0;
+    const buyU   = c.buyUnit  || Math.round(unit * (1 - (c.comm || 0) / 100));
+    const commR  = (c.comm    || 0) / 100;
+    const adc    = c.adcostFixed || qty * unit;
+    const adcVat = Math.round(adc * 0.1);
+    const buyAmt = qty * buyU;
+    const buyVat = Math.round(buyAmt * 0.1);
+    const agFee  = Math.round(adc * commR);
+    const prf    = adc - buyAmt - agFee;
+    const prfRate = adc > 0 ? (prf / adc * 100) : 0;
+    return { actual: qty, qty, adc, adcVat, buyAmt, buyVat, stlRate: 100, agFee, prf, prfRate };
+  }
+  const actual   = c.actual   || 0;
+  const qty      = c.qty      || 0;
+  const svc      = c.svc      || 0;
+  const unit     = c.sellUnit || 0;
+  const buyU     = c.buyUnit  || Math.round(unit * (1 - (c.comm || 0) / 100));
+  const commR    = (c.comm    || 0) / 100;
+  const billBase = c.billBase || 'actual';
+  const stlQty   = Math.max(0, (billBase === 'sched' ? qty : actual) - svc);
+  const adc     = c.adcostFixed  || stlQty * unit;
+  const adcVat  = Math.round(adc * 0.1);
+  const buyAmt  = c.buyAmtFixed  || stlQty * buyU;
+  const buyVat  = Math.round(buyAmt * 0.1);
+  const stlRate = qty > 0 ? (actual / qty * 100) : 0;
+  const agFee   = Math.round(adc * commR);
+  const prf     = c.profitFixed  || (adc - buyAmt - agFee);
+  const prfRate = adc > 0 ? (prf / adc * 100) : 0;
+  return { actual: stlQty, qty, adc, adcVat, buyAmt, buyVat, stlRate, agFee, prf, prfRate };
+}
+
+/** 정산 동적 필터 드롭다운 채우기 (매출처·담당자·본부·팀) */
+function _stlPopulateDynFilters() {
+  // 광고주/대행사 (seller)
+  const advEl = document.getElementById('stl-fAdv');
+  if (advEl) {
+    const cur = advEl.value;
+    const advList = [...new Set(DATA.map(c => c.seller || c.adv || '').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+    advEl.innerHTML = '<option value="">광고주/대행사</option>' + advList.map(v=>`<option value="${v}">${v}</option>`).join('');
+    if (cur) advEl.value = cur;
+  }
+  // 담당자 (ops)
+  const opsEl = document.getElementById('stl-fOps');
+  if (opsEl) {
+    const cur = opsEl.value;
+    const opsList = [...new Set(DATA.map(c => c.ops || '').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+    opsEl.innerHTML = '<option value="">담당자</option>' + opsList.map(v=>`<option value="${v}">${v}</option>`).join('');
+    if (cur) opsEl.value = cur;
+  }
+  // 본부/팀 통합 드롭다운 초기화 (최초 1회)
+  const stlOrgEl = document.getElementById('stl-fOrg');
+  if (stlOrgEl && !stlOrgEl.dataset.init) {
+    stlOrgEl.innerHTML = '<option value="">본부/팀 전체</option>' + _buildOrgSelectHTML();
+    stlOrgEl.dataset.init = '1';
+  }
+}
+
+
+/** 정산 탭 필터 초기화 */
+function resetStlFilter() {
+  const now = new Date();
+  const yEl = document.getElementById('stl-year');
+  const mEl = document.getElementById('stl-month');
+  if (yEl) yEl.value = String(now.getFullYear());
+  if (mEl) mEl.value = String(now.getMonth() + 1).padStart(2, '0');
+  const ids = ['stl-fScope', 'stl-fProd', 'stl-fCat', 'stl-fMedia', 'stl-fAdv', 'stl-fOps', 'stl-fOrg'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = id === 'stl-fScope' ? 'settled' : '';
+  });
+  stlView = 'media';
+  ['campaign', 'adv', 'agency', 'media', 'pc'].forEach(t => {
+    const el = document.getElementById('stl-vt-' + t);
+    if (el) el.classList.toggle('active', t === 'media');
+  });
+  _stlPopulateDynFilters();
+  renderSettlement();
+}
+
+/** 보기 전환 */
+function stlSetView(v) {
+  stlView = v;
+  ['campaign', 'adv', 'agency', 'media', 'pc'].forEach(t => {
+    const el = document.getElementById('stl-vt-' + t);
+    if (el) el.classList.toggle('active', t === v);
+  });
+  renderSettlement();
+}
+
+/* TODO: 세금계산서 번호 입력 기능 (추후 사용)
+function openInvoiceModal(campaignId, type) {
+  const c = DATA.find(d => d.id === campaignId);
+  if (!c) return;
+  const isOut = (type === 'out');
+  document.getElementById('inv-campaign-name').textContent = c.promo + '_' + c.media;
+  document.getElementById('inv-type-label').textContent = isOut ? '매출 세금계산서' : '매입 세금계산서';
+  document.getElementById('inv-number').value = (isOut ? c.invoiceOut : c.invoiceIn) || '';
+  document.getElementById('inv-save-btn').onclick = () => saveInvoice(campaignId, type);
+  openModal('modalInvoice');
+}
+
+function saveInvoice(campaignId, type) {
+  const c = DATA.find(d => d.id === campaignId);
+  if (!c) return;
+  const num = document.getElementById('inv-number').value.trim();
+  if (type === 'out') c.invoiceOut = num;
+  else                c.invoiceIn  = num;
+  closeModal('modalInvoice');
+  renderSettlement();
+  toast('✓ 세금계산서 번호가 저장되었습니다', 'ok');
+}
+*/
+
+// ── 정산 테이블 wheel 스크롤 순서 제어 ──
+// 화면 전체 스크롤 → 바닥 도달 후 표 스크롤
+function _stlSetupWheelScroll() {
+  const wrap    = document.querySelector('#screen-settlement .settle-table-wrap');
+  const content = document.getElementById('content');
+  if (!wrap || !content) return;
+  wrap.addEventListener('wheel', e => {
+    const down    = e.deltaY > 0;
+    const wrapBottom = wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 1;
+    const wrapTop    = wrap.scrollTop <= 0;
+    if (down && wrapBottom) {
+      e.preventDefault();
+      content.scrollTop += e.deltaY;
+    } else if (!down && wrapTop) {
+      e.preventDefault();
+      content.scrollTop += e.deltaY;
+    }
+  }, { passive: false });
+}
+
+// ── 정산 테이블 wrap 높이 동적 계산 (sticky thead 동작 조건) ──
+function _stlSetWrapHeight() {
+  const wrap = document.querySelector('#screen-settlement .settle-table-wrap');
+  if (!wrap) return;
+  const fake = document.getElementById('stl-fake-scroll');
+  const fakeH = (fake && fake.style.display !== 'none') ? fake.offsetHeight : 0;
+  const top = wrap.getBoundingClientRect().top;
+  wrap.style.height = Math.max(200, window.innerHeight - top - fakeH + 200) + 'px';
+}
+window.addEventListener('resize', () => {
+  if (document.getElementById('screen-settlement')?.classList.contains('active')) {
+    _stlSetWrapHeight();
+  }
+});
+
+// ── 정산 스크롤 잠금 (onSnapshot re-render 시 위치 보존) ──
+let _stlScrollLock = null;
+function _stlSaveScroll() {
+  const wrap = document.querySelector('#screen-settlement .settle-table-wrap');
+  _stlScrollLock = {
+    left:  wrap ? wrap.scrollLeft : 0,
+    top:   wrap ? wrap.scrollTop  : 0,
+    until: Date.now() + 3000,
+  };
+}
+function _stlRestoreScroll() {
+  const lock = _stlScrollLock;
+  if (!lock || Date.now() > lock.until) return;
+  const _apply = () => {
+    const nw = document.querySelector('#screen-settlement .settle-table-wrap');
+    if (nw) { nw.scrollLeft = lock.left; nw.scrollTop = lock.top; }
+    const fake = document.getElementById('stl-fake-scroll');
+    if (fake && nw) fake.scrollLeft = lock.left;
+  };
+  _apply();
+  requestAnimationFrame(_apply);
+}
+
+// ── 정산 체크 셀 in-place 업데이트 (renderSettlement 없이 해당 셀만 변경) ──
+function _stlCellUpdate(campaignId, field) {
+  const c = DATA.find(d => d.id === campaignId);
+  if (!c) return;
+
+  const td = document.querySelector(`[data-stlcell="${campaignId}_${field}"]`);
+  if (td) {
+    const sm = td.dataset.stlsmall === '1';
+    if (field === 'invoiceIn') {
+      const v = c.invoiceIn || '';
+      if (v === '발행완료')
+        td.innerHTML = `<span class="stl-inv-badge done" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${campaignId}')">✓ 발행완료</span>`;
+      else if (v === '발행필요없음')
+        td.innerHTML = `<span class="stl-inv-badge none" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${campaignId}')">불필요</span>`;
+      else
+        td.innerHTML = `<div class="chk" style="${sm?'width:18px;height:18px;':''}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${campaignId}')"></div>`;
+    } else {
+      const on = !!c[field];
+      const sz = sm ? 'width:18px;height:18px;font-size:10px;' : '';
+      td.innerHTML = `<div class="chk${on?' on':''}" style="${sz}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${campaignId}','${field}')">${on?'✓':''}</div>`;
+    }
+  }
+
+  // 그룹 집계 배지 업데이트 (그룹 뷰에만 해당)
+  const campRow = document.querySelector(`tr[data-stlcamp="${campaignId}"]`);
+  if (!campRow) return;
+  let groupRow = campRow.previousElementSibling;
+  while (groupRow && !groupRow.hasAttribute('data-stlgroup')) groupRow = groupRow.previousElementSibling;
+  if (!groupRow) return;
+  const badgeTd = groupRow.querySelector(`[data-stlbadge="${field}"]`);
+  if (!badgeTd) return;
+  // 이 그룹에 속한 캠페인 IDs 수집
+  const ids = [];
+  let sib = groupRow.nextElementSibling;
+  while (sib && !sib.hasAttribute('data-stlgroup')) {
+    if (sib.dataset.stlcamp) ids.push(sib.dataset.stlcamp);
+    sib = sib.nextElementSibling;
+  }
+  const total = ids.length;
+  const done  = ids.filter(id => {
+    const camp = DATA.find(d => d.id === id);
+    if (!camp) return false;
+    return field === 'invoiceIn'
+      ? (camp.invoiceIn === '발행완료' || camp.invoiceIn === '발행필요없음')
+      : !!camp[field];
+  }).length;
+  const col = done === total ? 'var(--green)' : done > 0 ? 'var(--yellow)' : 'var(--text3)';
+  badgeTd.innerHTML = `<span style="color:${col};font-weight:600;">${done}/${total}</span>`;
+}
+
+/** 매입계산서 모달 열기 */
+let _invoiceInCampaignId  = null;
+let _invoiceInPendingValue = '';
+function openInvoiceInModal(campaignId) {
+  _invoiceInCampaignId = campaignId;
+  const c = DATA.find(d => d.id === campaignId);
+  if (!c) return;
+  _invoiceInPendingValue = c.invoiceIn || '';
+  document.getElementById('invoiceInCampName').textContent = _cName(c);
+  _updateInvoiceInOptUI();
+  openModal('modalInvoiceIn');
+}
+
+/** 옵션 선택 (저장 전 UI만 업데이트) */
+function selectInvoiceInOpt(value) {
+  _invoiceInPendingValue = value;
+  _updateInvoiceInOptUI();
+}
+function _updateInvoiceInOptUI() {
+  const o1 = document.getElementById('invInOpt1');
+  const o2 = document.getElementById('invInOpt2');
+  if (!o1 || !o2) return;
+  o1.className = 'btn ' + (_invoiceInPendingValue === '발행필요없음' ? 'btn-primary' : 'btn-outline');
+  o2.className = 'btn ' + (_invoiceInPendingValue === '발행완료'    ? 'btn-primary' : 'btn-outline');
+  o1.style.width = '100%'; o1.style.padding = '13px'; o1.style.fontSize = '14px';
+  o2.style.width = '100%'; o2.style.padding = '13px'; o2.style.fontSize = '14px';
+}
+
+/** 매입계산서 선택 저장 (value='' 이면 초기화) */
+function saveInvoiceInChoice(value) {
+  _invoiceInPendingValue = value;
+  const c = DATA.find(d => d.id === _invoiceInCampaignId);
+  if (!c) return;
+  const before = c.invoiceIn || '';
+  c.invoiceIn = value;
+  if (before !== value) {
+    const beforeLabel = before === '발행완료' ? '발행완료' : before === '발행필요없음' ? '발행필요없음' : '미선택';
+    const afterLabel  = value  === '발행완료' ? '발행완료' : value  === '발행필요없음' ? '발행필요없음' : '미선택';
+    _log(_invoiceInCampaignId, 'check', 'invoiceIn', beforeLabel, afterLabel);
+  }
+  _fbSaveCampaign(c);
+  _stlSaveScroll();
+  closeModal('modalInvoiceIn');
+  _stlCellUpdate(_invoiceInCampaignId, 'invoiceIn');
+}
+
+/** 정산 체크박스 토글 (입금/지급/매출계산서) */
+function toggleSettlePay(campaignId, field) {
+  const c = DATA.find(d => d.id === campaignId);
+  if (!c) return;
+
+  const isInvoice = field === 'invoiceOut' || field === 'invoiceIn';
+  const before = c[field];
+  c[field] = !c[field];
+
+  // 이력 기록
+  const beforeLabel = isInvoice ? (before ? '발행' : '미발행') : (before ? '완료' : '미완료');
+  const afterLabel  = isInvoice ? (c[field] ? '발행' : '미발행') : (c[field] ? '완료' : '미완료');
+  _log(campaignId, 'check', field, beforeLabel, afterLabel);
+  _fbSaveCampaign(c);
+  _stlSaveScroll();
+  _stlCellUpdate(campaignId, field);
+}
+
+/** 정산 테이블 플로팅 가로스크롤바 동기화 */
+function _stlSyncFakeScroll() {
+  const fake  = document.getElementById('stl-fake-scroll');
+  const inner = document.getElementById('stl-fake-inner');
+  if (!fake || !inner) return;
+  const wrap = document.querySelector('#screen-settlement .settle-table-wrap');
+  if (!wrap) { fake.style.display = 'none'; return; }
+  // display:none 상태에선 clientWidth=0이므로 먼저 표시 후 너비 계산
+  fake.style.display = '';
+  // fake는 .main 전체 너비, wrap은 .content 패딩 안쪽 너비 → 차이만큼 inner 너비 보정
+  const widthDiff = fake.clientWidth - wrap.clientWidth;
+  inner.style.width = (wrap.scrollWidth + widthDiff) + 'px';
+  fake.onscroll = () => { wrap.scrollLeft = fake.scrollLeft; };
+  wrap.onscroll = () => { fake.scrollLeft = wrap.scrollLeft; };
+}
+
+/** 정산 화면 메인 렌더 */
+function renderSettlement() {
+  const scope    = document.getElementById('stl-fScope')?.value || 'settled';
+  const prod     = document.getElementById('stl-fProd')?.value  || '';
+  const cat      = document.getElementById('stl-fCat')?.value   || '';
+  const media    = document.getElementById('stl-fMedia')?.value || '';
+  const adv      = document.getElementById('stl-fAdv')?.value   || '';
+  const ops      = document.getElementById('stl-fOps')?.value   || '';
+  const { bonbu, team } = _parseOrgFilter(document.getElementById('stl-fOrg')?.value || '');
+  const selYear  = document.getElementById('stl-year')?.value   || '';
+  const selMonth = document.getElementById('stl-month')?.value  || '';
+  const settled = DATA.filter(c => {
+    if (scope === 'settled') {
+      if      (c.product === 'DA')  { if (!c.daAdcost) return false; }   // DA: daAdcost 기준
+      else if (c.product === 'CPA') { if (!c.qty)      return false; }   // CPA: qty 기준
+      else if (c.status !== '성과입력완료') return false;
+    }
+    if (prod  && c.product !== prod) return false;
+    if (cat   && c.cat   !== cat)   return false;
+    if (media && c.media !== media) return false;
+    if (adv   && (c.seller || c.adv || '') !== adv) return false;
+    if (ops   && c.ops   !== ops)   return false;
+    if (team  && c.dept  !== team)  return false;
+    if (bonbu) {
+      const u = USERS.find(u => u.name === c.ops);
+      if (!u || u.bonbu !== bonbu) return false;
+    }
+    if (selYear  && !c.date.startsWith(selYear))    return false;
+    if (selMonth && c.date.slice(5,7) !== selMonth) return false;
+    return true;
+  });
+
+  // 합산 — 표에 실제로 표시되는 값 기준
+  let totalAdc = 0, totalBuy = 0, totalPrf = 0;
+  settled.forEach(c => {
+    const a      = _stlAmt(c);
+    const has    = _stlHas(c);
+    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
+    if (has)    totalAdc += a.adc;
+    if (hasBuy) totalBuy += a.buyAmt;
+    if (has)    totalPrf += a.prf;
+  });
+
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const cntSubEl = document.querySelector('#stl-cnt')?.closest('.stat-card')?.querySelector('.stat-sub');
+  if (cntSubEl) cntSubEl.textContent = scope === 'settled' ? '성과입력완료 기준' : '전체 캠페인 기준';
+  set('stl-cnt',    settled.length + '건');
+  set('stl-adcost', totalAdc ? totalAdc.toLocaleString() + '원' : '—');
+  set('stl-rev',    totalBuy ? totalBuy.toLocaleString() + '원' : '—');
+  set('stl-profit', totalPrf ? totalPrf.toLocaleString() + '원' : '—');
+
+  const container = document.getElementById('stl-table-container');
+  if (!container) return;
+
+  if (settled.length === 0) {
+    container.innerHTML = `<div style="text-align:center;padding:48px;color:var(--text3);font-size:13px;">${scope === 'settled' ? '성과입력완료 상태의 캠페인이 없습니다.' : '캠페인 데이터가 없습니다.'}</div>`;
+    return;
+  }
+
+  if      (stlView === 'campaign') renderStlCampaignView(settled, container);
+  else if (stlView === 'adv')      renderStlGroupView(settled, container, c => c.seller || c.adv || '—', '매출처');
+  else if (stlView === 'media')    renderStlGroupView(settled, container, 'media',  '매체사');
+  else if (stlView === 'pc')       renderStlPermCall(container);
+  else                             renderStlGroupView(settled, container, c => c.seller || c.adv || '—', '매출처');
+  setTimeout(() => { _stlSetWrapHeight(); _stlSyncFakeScroll(); _stlSetupWheelScroll(); }, 0);
+}
+
+/** 퍼미션콜 뷰 */
+function renderStlPermCall(container) {
+  const cat      = document.getElementById('stl-fCat')?.value   || '';
+  const ops      = document.getElementById('stl-fOps')?.value   || '';
+  const { bonbu, team } = _parseOrgFilter(document.getElementById('stl-fOrg')?.value || '');
+  const selYear  = document.getElementById('stl-year')?.value   || '';
+  const selMonth = document.getElementById('stl-month')?.value  || '';
+
+  const data = DATA.filter(c => {
+    if (c.product !== '퍼미션콜') return false;
+    if (cat  && c.cat  !== cat)  return false;
+    if (ops  && c.ops  !== ops)  return false;
+    if (team && c.dept !== team) return false;
+    if (bonbu) {
+      const u = USERS.find(u => u.name === c.ops);
+      if (!u || u.bonbu !== bonbu) return false;
+    }
+    if (selYear  && !c.date.startsWith(selYear))    return false;
+    if (selMonth && c.date.slice(5,7) !== selMonth) return false;
+    return true;
+  });
+
+  if (data.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3);font-size:13px;">퍼미션콜 데이터가 없습니다.</div>';
+    return;
+  }
+
+  const nd = '<span style="color:var(--text3);">—</span>';
+  let rows = '';
+  let totAdc = 0, totOhc = 0, totDnu = 0, totPrf = 0;
+
+  const fmtMonth = d => { const p = (d || '').split('-'); return p.length >= 2 ? `${p[0]}년 ${+p[1]}월` : (d || '—'); };
+
+  data.forEach(c => {
+    const inflow  = c.pcInflow  || 0;
+    const agree   = c.pcAgree   || 0;
+    const advU    = c.pcAdvUnit || 0;
+    const adc     = agree * advU;
+    const ohcCost = c.pcOhcCost || 0;
+    const dnuCost = agree * 5500;
+    const profit  = adc - ohcCost - dnuCost;
+    const prfRate = adc > 0 ? (profit / adc * 100).toFixed(1) + '%' : null;
+    const cvr     = inflow > 0 ? (agree / inflow * 100).toFixed(1) + '%' : null;
+    totAdc += adc; totOhc += ohcCost; totDnu += dnuCost; totPrf += profit;
+    const idx = DATA.indexOf(c);
+    rows += `<tr onclick="openDetail(${idx})" style="cursor:pointer;">
+      <td>${_cName(c)}</td>
+      <td>${fmtMonth(c.date)}</td>
+      <td>${c.seller || c.adv || '—'}</td>
+      <td>${c.ops || '—'}</td>
+      <td style="text-align:right;">${inflow ? inflow.toLocaleString() : nd}</td>
+      <td style="text-align:right;">${agree  ? agree.toLocaleString()  : nd}</td>
+      <td style="text-align:right;">${cvr !== null ? cvr : nd}</td>
+      <td style="text-align:right;">${advU ? advU.toLocaleString() + '원' : nd}</td>
+      <td style="text-align:right;">${adc ? adc.toLocaleString() + '원' : nd}</td>
+      <td style="text-align:right;">${ohcCost ? ohcCost.toLocaleString() + '원' : nd}</td>
+      <td style="text-align:right;">${dnuCost ? dnuCost.toLocaleString() + '원' : nd}</td>
+      <td style="text-align:right;font-weight:700;color:${profit >= 0 ? 'var(--green)' : 'var(--red)'};">${profit ? profit.toLocaleString() + '원' : nd}</td>
+      <td style="text-align:right;">${prfRate !== null ? prfRate : nd}</td>
+    </tr>`;
+  });
+
+  const totPrfRate = totAdc > 0 ? (totPrf / totAdc * 100).toFixed(1) + '%' : '—';
+  container.innerHTML = `
+    <div class="settle-table-wrap">
+      <table class="stl-table">
+        <thead><tr>
+          <th>캠페인명</th><th>집행월</th><th>매출처</th><th>담당자</th>
+          <th style="text-align:right;">매체유입</th><th style="text-align:right;">동의건</th><th style="text-align:right;">CVR</th>
+          <th style="text-align:right;">광고주단가</th><th style="text-align:right;">광고비</th>
+          <th style="text-align:right;">OHC비용</th><th style="text-align:right;">DNU비용</th>
+          <th style="text-align:right;">이익</th><th style="text-align:right;">이익률</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr style="font-weight:700;background:var(--surface2);">
+          <td colspan="8" style="text-align:right;color:var(--text2);height:44px;padding:10px 12px;">합계</td>
+          <td style="text-align:right;">${totAdc ? totAdc.toLocaleString() + '원' : '—'}</td>
+          <td style="text-align:right;">${totOhc ? totOhc.toLocaleString() + '원' : '—'}</td>
+          <td style="text-align:right;">${totDnu ? totDnu.toLocaleString() + '원' : '—'}</td>
+          <td style="text-align:right;color:${totPrf >= 0 ? 'var(--green)' : 'var(--red)'};">${totPrf ? totPrf.toLocaleString() + '원' : '—'}</td>
+          <td style="text-align:right;">${totPrfRate}</td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+}
+
+/** 캠페인별 뷰 */
+function renderStlCampaignView(data, container) {
+  const nd  = '<span style="color:var(--text3);">—</span>';
+  const bg0 = 'var(--surface)';
+  const fmt = v => v.toLocaleString();
+  const pct = v => v.toFixed(1) + '%';
+  const invInCell = (c) => {
+    const v = c.invoiceIn || '';
+    if (v === '발행완료')    return `<span class="stl-inv-badge done"   onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')">✓ 발행완료</span>`;
+    if (v === '발행필요없음') return `<span class="stl-inv-badge none"   onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')">불필요</span>`;
+    return `<div class="chk" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')"></div>`;
+  };
+
+  const rows = data.map(c => {
+    const a      = _stlAmt(c);
+    const isDA   = c.product === 'DA';
+    const has    = _stlHas(c);
+    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
+    const chk = (field) => `<div class="chk ${c[field]?'on':''}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`;
+
+    return `<tr data-stlcamp="${c.id}" style="cursor:pointer;" onclick="openCalPreview(DATA.findIndex(d=>d.id==='${c.id}'))">
+      <td class="td-dim stl-s1" style="background:${bg0};">${_escHtml(c.cat)}</td>
+      <td class="stl-s2" style="background:${bg0};font-weight:600;">${_escHtml(_cCompany(c))}</td>
+      <td class="td-bold stl-s3" style="background:${bg0};">${_escHtml(_cName(c))}<div style="font-size:11px;font-weight:400;color:var(--text3);margin-top:2px;">${(c.date||'').slice(0,10)}</div></td>
+      <td class="td-num td-r grp-revenue">${has && !isDA ? fmt(c.sellUnit) : nd}</td>
+      <td class="td-num td-r">${has && !isDA ? fmt(c.qty) : nd}</td>
+      <td class="td-num td-r">${has && !isDA ? fmt(a.actual) : nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${has ? fmt(a.adc) : nd}</td>
+      <td class="td-num td-r" style="color:var(--text2);">${has ? fmt(a.adc + a.adcVat) : nd}</td>
+      <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
+      <td class="td-dim grp-purchase">${_escHtml(c.media)}</td>
+      <td class="td-dim">${_escHtml(MEDIA_DATA.find(x=>x.company===c.media)?.invoiceTo||'—')}</td>
+      <td class="td-num td-r">${hasBuy && !isDA ? fmt(c.buyUnit) : nd}</td>
+      <td class="td-num td-r">${has && !isDA ? fmt(a.actual) : nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${hasBuy ? fmt(a.buyAmt) : nd}</td>
+      <td class="td-num td-r" style="color:var(--text2);">${hasBuy ? fmt(a.buyAmt + a.buyVat) : nd}</td>
+      <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
+      <td class="td-num grp-pnl" style="text-align:center;">${has ? (c.comm + '%') : nd}</td>
+      <td class="td-num td-r">${has ? fmt(a.agFee) : nd}</td>
+      <td class="td-num td-r" style="color:var(--green);font-weight:700;">${has ? fmt(a.prf) : nd}</td>
+      <td class="td-num" style="text-align:center;">${has ? pct(a.prfRate) : nd}</td>
+      <td class="grp-status" style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_invoiceOut">${chk('invoiceOut')}</td>
+      <td style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_payIn">${chk('payIn')}</td>
+      <td class="grp-status2" style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_invoiceIn">${invInCell(c)}</td>
+      <td style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_payOut">${chk('payOut')}</td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `<div class="settle-table-wrap"><table class="stl-table">
+    <thead>
+      <tr>
+        <th rowspan="2" class="stl-s1" style="background:var(--surface2);vertical-align:middle;">카테고리</th>
+        <th rowspan="2" class="stl-s2" style="background:var(--surface2);vertical-align:middle;">매출처</th>
+        <th rowspan="2" class="stl-s3" style="background:var(--surface2);vertical-align:middle;">캠페인</th>
+        <th colspan="6" class="grp-head grp-revenue">매출</th>
+        <th colspan="7" class="grp-head grp-purchase">매입</th>
+        <th colspan="4" class="grp-head grp-pnl">손익</th>
+        <th colspan="4" class="grp-head grp-status">정산</th>
+      </tr>
+      <tr>
+        <th class="grp-revenue" style="text-align:right;">매출단가</th>
+        <th style="text-align:right;">발송수량</th>
+        <th style="text-align:right;">정산수량</th>
+        <th style="text-align:right;">매출액</th>
+        <th style="text-align:right;">VAT포함</th>
+        <th style="text-align:right;">정산율</th>
+        <th class="grp-purchase">매체사</th>
+        <th>매입처</th>
+        <th style="text-align:right;">매입단가</th>
+        <th style="text-align:right;">인정수량</th>
+        <th style="text-align:right;">매입액</th>
+        <th style="text-align:right;">VAT포함</th>
+        <th style="text-align:right;">정산율</th>
+        <th class="grp-pnl" style="text-align:center;">대행수수료%</th>
+        <th style="text-align:right;">대행수수료</th>
+        <th style="text-align:right;">매출이익</th>
+        <th style="text-align:center;">매출이익율</th>
+        <th class="grp-status" style="text-align:center;">매출계산서</th>
+        <th style="text-align:center;">입금</th>
+        <th class="grp-status2" style="text-align:center;">매입계산서</th>
+        <th style="text-align:center;">지급</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+/** 매출처별 / 매체사별 그룹 뷰 */
+function renderStlGroupView(data, container, groupKey, groupLabel) {
+  const groups = {}, groupOrder = [];
+  const _getKey = typeof groupKey === 'function' ? groupKey : (c => c[groupKey] || '—');
+  data.forEach(c => {
+    const key = _getKey(c) || '—';
+    if (!groups[key]) { groups[key] = []; groupOrder.push(key); }
+    groups[key].push(c);
+  });
+
+  const nd   = '<span style="color:var(--text3);">—</span>';
+  const bg0  = 'var(--surface)';
+  const bgSb = 'var(--surface2)';
+  const fmt  = v => v.toLocaleString();
+  const pct  = v => v.toFixed(1) + '%';
+  const cntBadge = (done, total) => {
+    const col = done === total ? 'var(--green)' : done > 0 ? 'var(--yellow)' : 'var(--text3)';
+    return `<span style="color:${col};font-weight:600;">${done}/${total}</span>`;
+  };
+
+  const rows = groupOrder.map(gname => {
+    const camps = groups[gname];
+    let tAdc = 0, tAdcVat = 0, tBuy = 0, tBuyVat = 0, tFee = 0, tPrf = 0, tQty = 0, tActual = 0;
+    camps.forEach(c => {
+      const a    = _stlAmt(c);
+      const isDA = c.product === 'DA';
+      const has  = _stlHas(c);
+      tAdc += a.adc; tAdcVat += a.adcVat; tBuy += a.buyAmt; tBuyVat += a.buyVat; tFee += a.agFee; tPrf += a.prf;
+      if (has && !isDA) { tQty += a.qty; tActual += a.actual; }
+    });
+    const tPrfRate = tAdc > 0 ? pct(tPrf / tAdc * 100) : '—';
+    const n           = camps.length;
+    const payInDone   = camps.filter(c => c.payIn).length;
+    const payOutDone  = camps.filter(c => c.payOut).length;
+    const invOutDone  = camps.filter(c => c.invoiceOut).length;
+    const invInDone   = camps.filter(c => c.invoiceIn === '발행완료' || c.invoiceIn === '발행필요없음').length;
+
+    const subRows = camps.map(c => {
+      const a      = _stlAmt(c);
+      const chk = (field) => `<div class="chk ${c[field]?'on':''}" style="width:18px;height:18px;font-size:10px;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`;
+      const invInCellSub = () => {
+        const v = c.invoiceIn || '';
+        if (v === '발행완료')    return `<span class="stl-inv-badge done"   onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')">✓ 발행완료</span>`;
+        if (v === '발행필요없음') return `<span class="stl-inv-badge none"   onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')">불필요</span>`;
+        return `<div class="chk" style="width:18px;height:18px;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')"></div>`;
+      };
+
+      const isDA   = c.product === 'DA';
+      const has    = _stlHas(c);
+      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
+      return `<tr data-stlcamp="${c.id}" style="font-size:12px;cursor:pointer;" onclick="openCalPreview(DATA.findIndex(d=>d.id==='${c.id}'))">
+        <td class="td-dim stl-s1" style="background:${bgSb};padding-left:20px;">${_escHtml(c.cat)}</td>
+        <td class="stl-s2" style="background:${bgSb};color:var(--text2);">${_escHtml(_cCompany(c))}</td>
+        <td class="stl-s3" style="background:${bgSb};">${_escHtml(_cName(c))}<div style="font-size:11px;font-weight:400;color:var(--text3);margin-top:2px;">${(c.date||'').slice(0,10)}</div></td>
+        <td class="td-num td-r grp-revenue">${has && !isDA ? fmt(c.sellUnit) : nd}</td>
+        <td class="td-num td-r">${has && !isDA ? fmt(c.qty) : nd}</td>
+        <td class="td-num td-r">${has && !isDA ? fmt(a.actual) : nd}</td>
+        <td class="td-num td-r" style="font-weight:600;">${has ? fmt(a.adc) : nd}</td>
+        <td class="td-num td-r" style="color:var(--text2);">${has ? fmt(a.adc + a.adcVat) : nd}</td>
+        <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
+        <td class="td-dim grp-purchase">${_escHtml(c.media)}</td>
+        <td class="td-dim">${_escHtml(MEDIA_DATA.find(x=>x.company===c.media)?.invoiceTo||'—')}</td>
+        <td class="td-num td-r">${hasBuy && !isDA ? fmt(c.buyUnit) : nd}</td>
+        <td class="td-num td-r">${has && !isDA ? fmt(a.actual) : nd}</td>
+        <td class="td-num td-r" style="font-weight:600;">${hasBuy ? fmt(a.buyAmt) : nd}</td>
+        <td class="td-num td-r" style="color:var(--text2);">${hasBuy ? fmt(a.buyAmt + a.buyVat) : nd}</td>
+        <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
+        <td class="td-num grp-pnl" style="text-align:center;">${has ? (c.comm + '%') : nd}</td>
+        <td class="td-num td-r">${has ? fmt(a.agFee) : nd}</td>
+        <td class="td-num td-r" style="color:var(--green);">${has ? fmt(a.prf) : nd}</td>
+        <td class="td-num" style="text-align:center;">${has ? pct(a.prfRate) : nd}</td>
+        <td class="grp-status" style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_invoiceOut" data-stlsmall="1">${chk('invoiceOut')}</td>
+        <td style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_payIn" data-stlsmall="1">${chk('payIn')}</td>
+        <td class="grp-status2" style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_invoiceIn" data-stlsmall="1">${invInCellSub()}</td>
+        <td style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_payOut" data-stlsmall="1">${chk('payOut')}</td>
+      </tr>`;
+    }).join('');
+
+    return `<tr data-stlgroup style="border-top:1px solid var(--border);">
+      <td colspan="3" class="td-bold stl-sc3" style="background:${bg0};">
+        ${_escHtml(groupLabel)}: ${_escHtml(gname)} <span style="font-size:11px;font-weight:400;color:var(--text3);">${n}건</span>
+      </td>
+      <td>${nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${tQty ? fmt(tQty) : nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${tActual ? fmt(tActual) : nd}</td>
+      <td class="td-num td-r grp-revenue" style="font-weight:700;">${tAdc ? fmt(tAdc) : nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${tAdc ? fmt(tAdc + tAdcVat) : nd}</td>
+      <td>${nd}</td>
+      <td class="grp-purchase">${nd}</td><td>${nd}</td><td>${nd}</td><td class="td-num td-r" style="font-weight:700;">${tActual ? fmt(tActual) : nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${tBuy ? fmt(tBuy) : nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${tBuy ? fmt(tBuy + tBuyVat) : nd}</td>
+      <td>${nd}</td>
+      <td class="grp-pnl">${nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${tFee ? fmt(tFee) : nd}</td>
+      <td class="td-num td-r" style="color:var(--green);font-weight:700;">${tPrf ? fmt(tPrf) : nd}</td>
+      <td class="td-num" style="text-align:center;font-weight:700;">${tPrfRate}</td>
+      <td class="grp-status" style="text-align:center;" data-stlbadge="invoiceOut">${cntBadge(invOutDone, n)}</td>
+      <td style="text-align:center;" data-stlbadge="payIn">${cntBadge(payInDone, n)}</td>
+      <td class="grp-status2" style="text-align:center;" data-stlbadge="invoiceIn">${cntBadge(invInDone, n)}</td>
+      <td style="text-align:center;" data-stlbadge="payOut">${cntBadge(payOutDone, n)}</td>
+    </tr>${subRows}`;
+  }).join('');
+
+  container.innerHTML = `<div class="settle-table-wrap"><table class="stl-table">
+    <thead>
+      <tr>
+        <th colspan="3" class="stl-sc3" style="background:var(--surface2);vertical-align:middle;">${_escHtml(groupLabel)}</th>
+        <th colspan="6" class="grp-head grp-revenue">매출</th>
+        <th colspan="7" class="grp-head grp-purchase">매입</th>
+        <th colspan="4" class="grp-head grp-pnl">손익</th>
+        <th colspan="4" class="grp-head grp-status">정산</th>
+      </tr>
+      <tr>
+        <th colspan="3" class="stl-sc3" style="background:var(--surface2);">캠페인 상세</th>
+        <th class="grp-revenue" style="text-align:right;">매출단가</th>
+        <th style="text-align:right;">발송수량</th>
+        <th style="text-align:right;">정산수량</th>
+        <th style="text-align:right;">매출액</th>
+        <th style="text-align:right;">VAT포함</th>
+        <th style="text-align:right;">정산율</th>
+        <th class="grp-purchase">매체사</th>
+        <th>매입처</th>
+        <th style="text-align:right;">매입단가</th>
+        <th style="text-align:right;">인정수량</th>
+        <th style="text-align:right;">매입액</th>
+        <th style="text-align:right;">VAT포함</th>
+        <th style="text-align:right;">정산율</th>
+        <th class="grp-pnl" style="text-align:center;">대행수수료%</th>
+        <th style="text-align:right;">대행수수료</th>
+        <th style="text-align:right;">매출이익</th>
+        <th style="text-align:center;">매출이익율</th>
+        <th class="grp-status" style="text-align:center;">매출계산서</th>
+        <th style="text-align:center;">입금</th>
+        <th class="grp-status2" style="text-align:center;">매입계산서</th>
+        <th style="text-align:center;">지급</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+// ══════════════════════════════════════════
+// 영업 파이프라인
+// ══════════════════════════════════════════
+
+const PIPELINE_STAGES = ['MAKEUP','POTENTIAL','COMMITMENT','ACTUAL'];
+const PIPELINE_STAGE_LABEL = {MAKEUP:'메이크업',POTENTIAL:'포텐셜',COMMITMENT:'커밋먼트',ACTUAL:'액추얼'};
+const PIPELINE_STAGE_COLOR = {MAKEUP:'#6366f1',POTENTIAL:'#f59e0b',COMMITMENT:'#10b981',ACTUAL:'#ef4444'};
+
+function _pipelineEstAmt(p) {
+  if (p.estAmt) return p.estAmt;
+  const m = MEDIA_DATA.find(x => x.company === p.media);
+  const unit = m ? (m.unit || 0) : 0;
+  return (p.estQty || 0) * unit;
+}
+
+function _nextPipelineId() {
+  const num = String(_pipelineNextNum++).padStart(4,'0');
+  return 'P-2026-' + num;
+}
+
+function renderPipeline() {
+  const board = document.getElementById('pipe-board');
+  if (!board) return;
+
+  const archBtn = document.getElementById('pipe-arch-btn');
+  if (archBtn) archBtn.textContent = _pipelineShowArchived ? '활성만 보기' : '아카이브 포함';
+
+  const list = _pipelineShowArchived ? PIPELINE_DATA : PIPELINE_DATA.filter(x => !x.archived);
+
+  board.innerHTML = PIPELINE_STAGES.map(function(stage) {
+    const cards = list.filter(function(p) { return p.stage === stage; });
+    const stageAmt = cards.reduce(function(s, p) { return s + _pipelineEstAmt(p); }, 0);
+    const color = PIPELINE_STAGE_COLOR[stage];
+    const cardHtml = cards.map(function(p) { return _renderPipeCard(p); }).join('');
+    return '<div class="kanban-col">' +
+      '<div class="kanban-col-head" style="border-top:3px solid ' + color + ';">' +
+        '<span style="font-weight:700;color:' + color + ';">' + PIPELINE_STAGE_LABEL[stage] + '</span>' +
+        '<span class="pipe-stage-cnt">' + cards.length + '건</span>' +
+      '</div>' +
+      '<div class="kanban-cards" id="pipe-col-' + stage + '">' + cardHtml + '</div>' +
+      '<div class="kanban-col-foot">예상 ' + Math.round(stageAmt/10000).toLocaleString() + '만원</div>' +
+    '</div>';
+  }).join('');
+
+  const active = PIPELINE_DATA.filter(function(x) { return !x.archived; });
+  const el = function(id) { return document.getElementById(id); };
+  if (el('pipe-stat-total')) el('pipe-stat-total').textContent = active.length + '건';
+  if (el('pipe-stat-amt'))   el('pipe-stat-amt').textContent   = Math.round(active.reduce(function(s,p){return s+_pipelineEstAmt(p);},0)/10000).toLocaleString() + '만원';
+  if (el('pipe-stat-com'))   el('pipe-stat-com').textContent   = active.filter(function(p){return p.stage==='COMMITMENT'||p.stage==='ACTUAL';}).length + '건';
+}
+
+function _renderPipeCard(p) {
+  const amt = _pipelineEstAmt(p);
+  const tags = (p.tags||[]).map(function(t){ return '<span class="pipe-tag">' + _escHtml(t) + '</span>'; }).join('');
+  const archStyle = p.archived ? 'opacity:.5;' : '';
+  const convertBtn = (p.stage === 'ACTUAL' && !p.archived && !p.convertedCampaignId)
+    ? '<button class="btn btn-primary btn-sm" style="width:100%;margin-top:6px;font-size:11px;" onclick="convertToCampaign(\'' + p.id + '\')">캠페인 전환 →</button>' : '';
+  const convertedLabel = p.convertedCampaignId
+    ? '<div style="font-size:10px;color:var(--green);margin-top:4px;">✓ ' + p.convertedCampaignId + '로 전환됨</div>' : '';
+  const archiveBtn = !p.archived
+    ? '<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;color:var(--text3);" onclick="archivePipelineCard(\'' + p.id + '\')">🗄</button>' : '';
+  return '<div class="pipe-card" style="' + archStyle + '" id="pcard-' + p.id + '">' +
+    '<div class="pipe-card-head">' +
+      '<span class="pipe-card-id">' + _escHtml(p.id) + '</span>' +
+      '<div style="display:flex;gap:4px;">' +
+        '<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;" onclick="openPipelineModal(\'' + p.id + '\')">✏</button>' +
+        archiveBtn +
+      '</div>' +
+    '</div>' +
+    '<div class="pipe-card-seller">' + _escHtml(p.seller||'—') + '</div>' +
+    '<div class="pipe-card-brand">' + _escHtml(p.brand||'—') + '</div>' +
+    '<div class="pipe-card-meta"><span>' + _escHtml(p.media||'—') + '</span>·<span>' + _escHtml(p.product||'—') + '</span>·<span>' + (p.estQty||0).toLocaleString() + '건</span></div>' +
+    '<div class="pipe-card-amt">' + Math.round(amt/10000).toLocaleString() + '만원</div>' +
+    '<div class="pipe-card-tags">' + tags + '</div>' +
+    (p.memo ? '<div class="pipe-card-memo">' + _escHtml(p.memo) + '</div>' : '') +
+    convertBtn +
+    convertedLabel +
+    '<div class="pipe-card-foot">' + _escHtml([p.bonbu, p.dept].filter(Boolean).join(' ') || '—') + ' · ' + _escHtml(p.month||'') + '</div>' +
+  '</div>';
+}
+
+function _calcPipeAmt() {
+  const media = document.getElementById('pm_media') && document.getElementById('pm_media').value;
+  const qty   = parseFloat(document.getElementById('pm-estQty').value) || 0;
+  const m     = MEDIA_DATA.find(function(x) { return x.company === media; });
+  const unit  = m ? (m.unit || 0) : 0;
+  if (qty && unit) {
+    document.getElementById('pm-estAmt').value = qty * unit;
+  }
+}
+
+function openPipelineModal(id) {
+  const isNew = !id;
+  const p = isNew ? {id:'',bonbu:'',dept:'',stage:'MAKEUP',month:'',cat:'',seller:'',brand:'',media:'',product:'SMS',estQty:0,memo:'',tags:[],linkedCampaignId:'',archived:false,convertedCampaignId:'',createdAt:''} : PIPELINE_DATA.find(function(x){return x.id===id;});
+  if (!p) return;
+
+  const el = function(k) { return document.getElementById(k); };
+
+  // 카테고리 동적 생성
+  const catSel = el('pm-cat');
+  catSel.innerHTML = '<option value="">선택</option>' +
+    Object.keys(CAT_COLOR).map(function(c) {
+      return '<option value="' + c + '">' + c + '</option>';
+    }).join('');
+
+  el('pm-id').value       = p.id;
+  el('pm-stage').value    = p.stage;
+  el('pm-bonbu-dept').value = (p.bonbu && p.dept) ? p.bonbu + '|' + p.dept : '';
+  el('pm-month').value    = p.month;
+  el('pm-cat').value      = p.cat;
+  el('pm_seller').value        = p.seller || '';
+  el('pm_seller_text').value   = p.seller || '';
+  el('pm_content').value       = p.brand  || '';
+  el('pm_content_text').value  = p.brand  || '';
+  el('pm_media').value         = p.media  || '';
+  el('pm_media_text').value    = p.media  || '';
+  el('pm-product').value  = p.product;
+  el('pm-estQty').value   = p.estQty || '';
+  el('pm-estAmt').value   = p.estAmt || '';
+  el('pm-memo').value     = p.memo;
+  el('pm-tags').value     = (p.tags||[]).join(', ');
+  el('pm-upsell').checked = (p.tags||[]).includes('업셀링');
+  el('pm_linked').value      = p.linkedCampaignId || '';
+  const _lc = DATA.find(x => x.id === p.linkedCampaignId);
+  el('pm_linked_text').value = _lc ? _cName(_lc) + ' (' + _lc.id + ')' : '';
+
+  _togglePipeUpsell();
+
+  const title = document.getElementById('pm-title');
+  if (title) title.textContent = isNew ? '새 기회 등록' : '기회 수정';
+
+  openModal('modalPipelineCard');
+}
+
+
+function _togglePipeUpsell() {
+  const upsellEl = document.getElementById('pm-upsell');
+  const checked = upsellEl && upsellEl.checked;
+  const wrap = document.getElementById('pm-linked-wrap');
+  if (wrap) wrap.style.display = checked ? 'flex' : 'none';
+}
+
+function savePipelineCard() {
+  const el = function(k) { return document.getElementById(k); };
+  const id = el('pm-id').value.trim();
+  const isNew = !id;
+
+  if (!el('pm-month').value) { toast('⚠ 해당 월을 입력해주세요', 'warn'); return; }
+  if (!el('pm-bonbu-dept').value) { toast('⚠ 본부/팀을 선택해주세요', 'warn'); return; }
+  if (!(el('pm_seller').value || el('pm_seller_text').value).trim()) { toast('⚠ 매출처를 입력해주세요', 'warn'); return; }
+
+  const tags = el('pm-tags').value.split(',').map(function(t){return t.trim();}).filter(Boolean);
+  if (el('pm-upsell').checked && !tags.includes('업셀링')) tags.unshift('업셀링');
+  if (!el('pm-upsell').checked) { const i = tags.indexOf('업셀링'); if (i>=0) tags.splice(i,1); }
+
+  const now = new Date();
+  const nowStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+
+  const existing = isNew ? null : PIPELINE_DATA.find(function(x){return x.id===id;});
+  const obj = {
+    id:                  isNew ? _nextPipelineId() : id,
+    bonbu:               (el('pm-bonbu-dept').value.split('|')[0] || '').trim(),
+    dept:                (el('pm-bonbu-dept').value.split('|')[1] || '').trim(),
+    stage:               el('pm-stage').value,
+    month:               el('pm-month').value,
+    cat:                 el('pm-cat').value,
+    seller:              (el('pm_seller').value || el('pm_seller_text').value).trim(),
+    brand:               (el('pm_content').value || el('pm_content_text').value).trim(),
+    media:               (el('pm_media').value || el('pm_media_text').value).trim(),
+    product:             el('pm-product').value,
+    estQty:              +el('pm-estQty').value || 0,
+    estAmt:              +el('pm-estAmt').value || 0,
+    memo:                el('pm-memo').value.trim(),
+    tags:                tags,
+    linkedCampaignId:    el('pm_linked').value.trim(),
+    archived:            isNew ? false : (existing ? existing.archived : false),
+    convertedCampaignId: isNew ? '' : (existing ? existing.convertedCampaignId : ''),
+    createdAt:           isNew ? nowStr : (existing ? existing.createdAt : nowStr),
+  };
+
+  if (isNew) {
+    PIPELINE_DATA.unshift(obj);
+  } else {
+    const idx = PIPELINE_DATA.findIndex(function(x){return x.id===id;});
+    if (idx>=0) PIPELINE_DATA[idx] = obj;
+  }
+
+  _fbSavePipeline(obj);
+  closeModal('modalPipelineCard');
+  renderPipeline();
+  if (isNew) switchPipelineTab('kanban');
+  toast('✓ 저장되었습니다', 'ok');
+}
+
+let _pendingArchiveId = null;
+
+function archivePipelineCard(id) {
+  const p = PIPELINE_DATA.find(function(x){return x.id===id;});
+  if (!p) return;
+  _pendingArchiveId = id;
+  const lbl = document.getElementById('arch-confirm-label');
+  if (lbl) lbl.textContent = (p.seller || p.id) + (p.brand ? ' · ' + p.brand : '');
+  openModal('modalArchiveConfirm');
+}
+
+function confirmArchivePipelineCard() {
+  const p = PIPELINE_DATA.find(function(x){return x.id===_pendingArchiveId;});
+  if (p) { p.archived = true; _fbSavePipeline(p); }
+  _pendingArchiveId = null;
+  closeModal('modalArchiveConfirm');
+  renderPipeline();
+  toast('✓ 아카이브 처리되었습니다', 'ok');
+}
+
+function togglePipelineArchive() {
+  _pipelineShowArchived = !_pipelineShowArchived;
+  renderPipeline();
+}
+
+function convertToCampaign(id) {
+  const p = PIPELINE_DATA.find(function(x){return x.id===id;});
+  if (!p) return;
+  _pendingPipelineConvertId = id;
+  openRegModal();
+
+  const sellerTextEl = document.getElementById('r_seller_text');
+  const sellerHidEl  = document.getElementById('r_seller');
+  if (sellerTextEl) sellerTextEl.value = p.seller;
+  if (sellerHidEl)  sellerHidEl.value  = p.seller;
+
+  const contentTextEl = document.getElementById('r_content_text');
+  const contentHidEl  = document.getElementById('r_content');
+  if (contentTextEl) contentTextEl.value = p.brand;
+  if (contentHidEl)  contentHidEl.value  = p.brand;
+
+  const mediaTextEl = document.getElementById('r_media_text');
+  const mediaHidEl  = document.getElementById('r_media');
+  if (mediaTextEl) mediaTextEl.value = p.media;
+  if (mediaHidEl)  mediaHidEl.value  = p.media;
+
+  const setVal = function(elId, val) { const e = document.getElementById(elId); if (e) e.value = val; };
+  setVal('r_cat',     p.cat);
+  setVal('r_product', p.product);
+  setVal('r_sched',   String(p.estQty || 0));
+  if (p.month) setVal('r_date', p.month + '-01');
+  if (p.tags && p.tags.length) setVal('r_adpromo', p.tags.filter(function(t){ return t !== '업셀링'; }).join(', '));
+
+  const opsUser = USERS.find(function(u) { return u.dept === p.dept && !u.isAdmin; });
+  if (opsUser) setVal('r_ops', opsUser.name);
+  else if (currentUser && !currentUser.isAdmin) setVal('r_ops', currentUser.name);
+
+  autoNameReg();
+}
+
+// ══════════════════════════════════════════
+// 파이프라인 탭 전환
+// ══════════════════════════════════════════
+
+function initPipelineScreen() {
+  var activeBtn = document.querySelector('#pipe-tabs .view-tab.active');
+  var tab = activeBtn ? activeBtn.id.replace('pipe-vt-','') : 'stats';
+  switchPipelineTab(tab);
+}
+
+function switchPipelineTab(tab) {
+  document.querySelectorAll('#pipe-tabs .view-tab').forEach(function(b) { b.classList.remove('active'); });
+  var btn = document.getElementById('pipe-vt-' + tab);
+  if (btn) btn.classList.add('active');
+
+  var statsPane  = document.getElementById('pipe-tab-stats');
+  var kanbanPane = document.getElementById('pipe-tab-kanban');
+  if (statsPane)  statsPane.style.display  = tab === 'stats'  ? '' : 'none';
+  if (kanbanPane) kanbanPane.style.display = tab === 'kanban' ? '' : 'none';
+
+  if (tab === 'stats')  renderPipelineStats();
+  if (tab === 'kanban') renderPipeline();
+}
+
+// ══════════════════════════════════════════
+// 파이프라인 통계 테이블 렌더링 (인라인 편집 지원)
+// ══════════════════════════════════════════
+
+function renderPipelineStats() {
+  var container = document.getElementById('pipe-stats-container');
+  if (!container) return;
+
+  const _canEditTarget = () => currentUser && (currentUser.isAdmin || ['이사','본부장'].includes(currentUser.rank));
+  const hint = document.getElementById('pst-hint');
+  if (hint) hint.style.display = _canEditTarget() ? '' : 'none';
+
+  var now = new Date();
+  var curYear = now.getFullYear();
+  var curMonthIdx = now.getMonth(); // 0=1월 ~ 11=12월
+  var MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+
+  // 스테이지 매핑 (통계 표기 → PIPELINE_DATA.stage)
+  var STAGE_MAP = { 'Actual':'ACTUAL', 'Commitment':'COMMITMENT', 'Committed':'ACTUAL',
+                    'Potential':'POTENTIAL', 'Make-up':'MAKEUP' };
+
+  // 등록 캠페인 DATA에서 월별/본부별 광고비 합산 (ACTUAL 현황용)
+  // bonbu가 null이면 전체 본부 합산
+  function _calcCampaignActual(bonbu, monthStr) {
+    var sum = 0;
+    DATA.forEach(function(c) {
+      if (!c.date || c.date.slice(0, 7) !== monthStr) return;
+      if (bonbu) {
+        var u = USERS.find(function(usr) { return usr.name === c.ops; });
+        if (!u || u.bonbu !== bonbu) return;
+      }
+      var amt = c.product === 'DA' ? (c.daAdcost || 0) : (c.qty || 0) * (c.sellUnit || 0);
+      sum += amt;
+    });
+    return sum;
+  }
+
+  // PIPELINE_DATA에서 현황(estAmt 합산) 계산; ACTUAL 단계는 등록 캠페인 DATA 사용
+  function calcActual(bonbu, stage, monthIdx) {
+    var pStage = STAGE_MAP[stage];
+    if (!pStage) return null;
+    var monthStr = curYear + '-' + String(monthIdx + 1).padStart(2, '0');
+    if (pStage === 'ACTUAL') {
+      var s = _calcCampaignActual(bonbu, monthStr);
+      return s || null;
+    }
+    var sum = 0;
+    PIPELINE_DATA.forEach(function(p) {
+      if (!p.archived && p.bonbu === bonbu && p.stage === pStage && p.month === monthStr)
+        sum += _pipelineEstAmt(p);
+    });
+    return sum || null;
+  }
+  // 소계: 해당 본부 전체 stage 합산 (ACTUAL은 등록 캠페인 DATA 사용)
+  function calcSubActual(bonbu, monthIdx) {
+    var monthStr = curYear + '-' + String(monthIdx + 1).padStart(2, '0');
+    var sum = 0;
+    PIPELINE_DATA.forEach(function(p) {
+      if (!p.archived && p.bonbu === bonbu && p.month === monthStr && p.stage !== 'ACTUAL')
+        sum += _pipelineEstAmt(p);
+    });
+    sum += _calcCampaignActual(bonbu, monthStr);
+    return sum || null;
+  }
+  // 광고본부 합계: stage별 또는 전체 합산 (ACTUAL은 등록 캠페인 DATA 사용)
+  function calcGrandActual(stage, monthIdx) {
+    var monthStr = curYear + '-' + String(monthIdx + 1).padStart(2, '0');
+    var pStage = STAGE_MAP[stage];
+    var sum = 0;
+    if (pStage === 'ACTUAL') {
+      sum = _calcCampaignActual(null, monthStr);
+    } else if (!pStage) {
+      // ALL: 비ACTUAL은 PIPELINE_DATA, ACTUAL은 등록 캠페인 DATA
+      PIPELINE_DATA.forEach(function(p) {
+        if (!p.archived && p.month === monthStr && p.stage !== 'ACTUAL')
+          sum += _pipelineEstAmt(p);
+      });
+      sum += _calcCampaignActual(null, monthStr);
+    } else {
+      PIPELINE_DATA.forEach(function(p) {
+        if (!p.archived && p.month === monthStr && p.stage === pStage)
+          sum += _pipelineEstAmt(p);
+      });
+    }
+    return sum || null;
+  }
+
+  function fmtN(n) {
+    if (n === null || n === undefined) return '<span class="pst-nil">—</span>';
+    if (n === 0) return '<span class="pst-nil">-</span>';
+    return n.toLocaleString();
+  }
+  function calcRate(t, a) {
+    if (a === null || a === undefined || t === null || t === undefined || t === 0) return null;
+    return (a / t) * 100;
+  }
+  function fmtR(r) {
+    if (r === null || r === undefined) return '<span class="pst-nil">—</span>';
+    var color = r >= 80 ? '#16a34a' : r >= 50 ? '#d97706' : r > 0 ? '#dc2626' : '#9ca3af';
+    var pct = Math.min(r, 100);
+    return '<div class="pst-rate-wrap">' +
+      '<div class="pst-rate-bar"><div style="width:' + pct + '%;background:' + color + ';height:100%;border-radius:2px;transition:width .3s;"></div></div>' +
+      '<span style="color:' + color + ';font-weight:700;font-size:11.5px;">' + r.toFixed(1) + '%</span>' +
+    '</div>';
+  }
+  function stageColor(stage) {
+    var map = { 'Actual':'#16a34a','Commitment':'#d97706','Committed':'#d97706','Potential':'#6366f1','Make-up':'#9ca3af' };
+    return map[stage] || 'var(--text2)';
+  }
+  function eCell(dtype, di, ri, mi, field, val) {
+    var raw = (val === null || val === undefined) ? '' : val;
+    var isAdmin = currentUser && (currentUser.isAdmin || ['이사','본부장'].includes(currentUser.rank));
+    var cls = 'pst-num' + (isAdmin ? ' pst-editable' : '');
+    var title = isAdmin ? 'title="클릭하여 수정"' : '';
+    return '<td class="' + cls + '" ' + title + ' ' +
+      'data-dtype="' + dtype + '" data-di="' + di + '" data-ri="' + ri + '" ' +
+      'data-mi="' + mi + '" data-field="' + field + '" data-raw="' + raw + '" ' +
+      'onclick="editPipelineCell(this)">' + fmtN(val) + '</td>';
+  }
+  function rCell(val) { return '<td class="pst-num">' + fmtN(val) + '</td>'; }
+
+  // 월별 셀 생성: 지난달/이번달 → 목표+현황+달성률, 미래 → 목표만
+  // bonbu/stage 전달 시 현황을 PIPELINE_DATA에서 동적 계산, 없으면 months[mi].a 사용
+  function monthCells(dtype, di, ri, months, total, bonbu, stage) {
+    var out = '';
+    for (var mi = 0; mi <= 11; mi++) {
+      var m = (months && months[mi]) ? months[mi] : {t:null, a:null};
+      var bgStyle = mi === curMonthIdx ? 'background:#f3f4fe;' : '';
+      if (mi <= curMonthIdx) {
+        // 현황: bonbu/stage가 있으면 동적 계산, 소계/합계면 별도 함수 사용
+        var aVal;
+        if (bonbu === '__sub__') aVal = calcSubActual(stage, mi);
+        else if (bonbu === '__grand__') aVal = calcGrandActual(stage, mi);
+        else if (bonbu && stage) aVal = calcActual(bonbu, stage, mi);
+        else aVal = m.a;
+        var rate = calcRate(m.t, aVal);
+        out += eCell(dtype, di, ri, mi, 't', m.t);
+        out += '<td class="pst-num">' + fmtN(aVal) + '</td>';
+        out += '<td class="pst-rate-cell" style="' + bgStyle + '">' + fmtR(rate) + '</td>';
+      } else {
+        out += eCell(dtype, di, ri, mi, 't', m.t);
+      }
+    }
+    out += eCell(dtype, di, ri, -1, 'total', total);
+    return out;
+  }
+
+  // ── 공통 헤더 생성 함수 ──
+  function buildHead() {
+    var h1 = '<tr>' +
+      '<th class="pst-th pst-sticky0 pst-th-dept" rowspan="2">부서</th>' +
+      '<th class="pst-th pst-sticky1 pst-th-stage" rowspan="2">Stage</th>';
+    var h2 = '<tr>';
+    for (var mi = 0; mi <= 11; mi++) {
+      var mnm = MONTH_NAMES[mi];
+      var isCur = mi === curMonthIdx;
+      var curBg = isCur ? 'background:#eef1fd;' : '';
+      if (mi <= curMonthIdx) {
+        h1 += '<th class="pst-th pst-grp1" colspan="3" style="text-align:center;' + curBg + '">' +
+              mnm + (isCur ? ' <span style="font-size:9px;color:#6366f1;vertical-align:middle;">●</span>' : '') + '</th>';
+        h2 += '<th class="pst-th pst-grp1" style="min-width:88px;' + curBg + '">목표</th>' +
+              '<th class="pst-th pst-grp1" style="min-width:88px;' + curBg + '">현황</th>' +
+              '<th class="pst-th pst-grp2" style="min-width:88px;' + curBg + '">달성률</th>';
+      } else {
+        h1 += '<th class="pst-th pst-grp2" rowspan="2" style="min-width:88px;">' +
+              mnm + '<br><small style="font-weight:400;color:var(--text3);">목표</small></th>';
+      }
+    }
+    h1 += '<th class="pst-th pst-grp2 pst-total-head" rowspan="2">합계</th></tr>';
+    h2 += '</tr>';
+    return '<thead>' + h1 + h2 + '</thead>';
+  }
+
+  // ── 메인 행 (1~3본부) ──
+  var bd = PIPELINE_BUDGET_DATA;
+  var mainRows = '';
+
+  bd.depts.forEach(function(dept, di) {
+    var rc = dept.rows.length;
+    dept.rows.forEach(function(row, ri) {
+      var sc = stageColor(row.stage);
+      var stageTag = '<span class="pst-stage-badge" style="background:' + sc + '1a;color:' + sc + ';border-color:' + sc + '40;">' + row.stage + '</span>';
+      mainRows += '<tr class="pst-data-row">' +
+        (ri === 0 ? '<td class="pst-dept pst-sticky0" rowspan="' + (rc + 1) + '">' + _escHtml(dept.name) + '</td>' : '') +
+        '<td class="pst-stage-cell pst-sticky1">' + stageTag + '</td>' +
+        monthCells('dept-row', di, ri, row.months, row.total, dept.name, row.stage) +
+        '</tr>';
+    });
+    var s = dept.sub;
+    mainRows += '<tr class="pst-sub-row">' +
+      '<td class="pst-sub-label pst-sticky1">' + _escHtml(dept.name) + ' 소계</td>' +
+      monthCells('dept-sub', di, 0, s.months, s.total, '__sub__', dept.name) +
+      '</tr>';
+  });
+
+  container.innerHTML =
+    '<table class="pst-table">' + buildHead() + '<tbody>' + mainRows + '</tbody>' + '</table>';
+
+  // ── 광고본부 (하단 고정 영역) ──
+  var grandContainer = document.getElementById('pipe-grand-container');
+  if (grandContainer) {
+    var grand = bd.grand;
+    var grandRows = '';
+    grand.rows.forEach(function(row, ri) {
+      var sc = stageColor(row.stage);
+      var stageTag = '<span class="pst-stage-badge" style="background:' + sc + '1a;color:' + sc + ';border-color:' + sc + '40;">' + row.stage + '</span>';
+      grandRows += '<tr class="pst-grand-row">' +
+        (ri === 0 ? '<td class="pst-dept pst-grand-dept pst-sticky0" rowspan="' + (grand.rows.length + 1) + '">' + _escHtml(grand.name) + '</td>' : '') +
+        '<td class="pst-stage-cell pst-sticky1 pst-grand-stage-cell">' + stageTag + '</td>' +
+        monthCells('grand-row', 0, ri, row.months, row.total, '__grand__', row.stage) +
+        '</tr>';
+    });
+    var gt = grand.total;
+    grandRows += '<tr class="pst-grand-total">' +
+      '<td class="pst-sub-label pst-grand-total-label pst-sticky1">Grand Total</td>' +
+      monthCells('grand-total', 0, 0, gt.months, gt.total, '__grand__', 'ALL') +
+      '</tr>';
+    grandContainer.innerHTML =
+      '<table class="pst-table">' + buildHead() + '<tbody>' + grandRows + '</tbody>' + '</table>';
+  }
+
+  // 헤더 2행의 top 값을 1행 높이로 자동 설정
+  requestAnimationFrame(_pstFixHeaderTops);
+
+  // 본부 표 세로 리사이즈 핸들 초기화 (최초 1회)
+  _initPstResize();
+}
+
+function _initPstResize() {
+  if (window._pstResizeInited) return;
+  window._pstResizeInited = true;
+  var handle   = document.getElementById('pst-resize-handle');
+  var mainOuter = document.getElementById('pst-main-outer');
+  if (!handle || !mainOuter) return;
+  var startY, startH;
+  handle.addEventListener('mousedown', function(e) {
+    startY = e.clientY;
+    startH = mainOuter.getBoundingClientRect().height;
+    handle.classList.add('dragging');
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    e.preventDefault();
+  });
+  function onMove(e) {
+    var newH = Math.max(80, startH + (e.clientY - startY));
+    mainOuter.style.flex = 'none';
+    mainOuter.style.height = newH + 'px';
+  }
+  function onUp() {
+    handle.classList.remove('dragging');
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+}
+
+function _pstFixHeaderTops() {
+  ['.pst-scroll-wrap', '.pst-grand-wrap'].forEach(function(sel) {
+    var thead = document.querySelector(sel + ' .pst-table thead');
+    if (!thead) return;
+    var rows = thead.querySelectorAll('tr');
+    if (rows.length < 2) return;
+    var row1H = rows[0].offsetHeight - 3;
+    rows[1].querySelectorAll('th').forEach(function(th) {
+      th.style.top = row1H + 'px';
+    });
+  });
+}
+
+function editPipelineCell(el) {
+  if (!currentUser || !(currentUser.isAdmin || ['이사','본부장'].includes(currentUser.rank))) return;
+  if (el.querySelector('input')) return;
+  var raw = el.getAttribute('data-raw');
+  var inp = document.createElement('input');
+  inp.type = 'number';
+  inp.value = raw;
+  inp.className = 'pst-edit-input';
+  el.innerHTML = '';
+  el.appendChild(inp);
+  inp.focus();
+  inp.select();
+  function save() {
+    var v = inp.value.trim() === '' ? null : Number(inp.value);
+    _savePipeStatCell(el, v);
+  }
+  inp.addEventListener('blur', save);
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter')  { e.preventDefault(); inp.blur(); }
+    if (e.key === 'Escape') { renderPipelineStats(); }
+  });
+}
+
+function _savePipeStatCell(el, val) {
+  var dtype = el.getAttribute('data-dtype');
+  var di    = +el.getAttribute('data-di');
+  var ri    = +el.getAttribute('data-ri');
+  var mi    = +el.getAttribute('data-mi'); // -1 = 합계
+  var field = el.getAttribute('data-field'); // 't' | 'a' | 'total'
+  var bd    = PIPELINE_BUDGET_DATA;
+  function setField(obj) {
+    if (mi === -1) { obj.total = val; }
+    else {
+      if (!obj.months[mi]) obj.months[mi] = {t:null, a:null};
+      obj.months[mi][field] = val;
+    }
+  }
+  if      (dtype === 'dept-row')    setField(bd.depts[di].rows[ri]);
+  else if (dtype === 'dept-sub')    setField(bd.depts[di].sub);
+  else if (dtype === 'grand-row')   setField(bd.grand.rows[ri]);
+  else if (dtype === 'grand-total') setField(bd.grand.total);
+
+  // Firebase에 목표 데이터 저장
+  _fbSavePipelineTargets();
+
+  // 스크롤 위치 보존 후 재렌더
+  var wrap = document.getElementById('pst-scroll-wrap');
+  var sx = wrap ? wrap.scrollLeft : 0;
+  var sy = wrap ? wrap.scrollTop  : 0;
+  renderPipelineStats();
+  requestAnimationFrame(function() {
+    var w = document.getElementById('pst-scroll-wrap');
+    if (w) { w.scrollLeft = sx; w.scrollTop = sy; }
+  });
+}
+
+
+// ══════════════════════════════════════════
+// FIREBASE — 캠페인 연동
+// ══════════════════════════════════════════
+
+// 캠페인 1건 Firestore에 저장 (등록/수정)
+async function _fbSaveCampaign(c) {
+  if (!window._db) return;
+  try {
+    await window._db.collection('campaigns').doc(c.id).set(c);
+  } catch(e) {
+    console.error('[FB] 캠페인 저장 실패:', e);
+  }
+}
+
+// 캠페인 1건 Firestore에서 삭제
+async function _fbDeleteCampaign(id) {
+  if (!window._db) return;
+  try {
+    await window._db.collection('campaigns').doc(id).delete();
+  } catch(e) {
+    console.error('[FB] 캠페인 삭제 실패:', e);
+  }
+}
+
+// 기존 DATA 전체를 Firestore에 업로드 (최초 1회)
+// Firestore 실시간 구독 — 캠페인
+function _fbWatchCampaigns() {
+  if (!window._db) return;
+  window._db.collection('campaigns').onSnapshot(snap => {
+    DATA.length = 0;
+    snap.forEach(d => DATA.push(d.data()));
+    DATA.sort((a, b) => (b.regDate || '').localeCompare(a.regDate || ''));
+    _nextCampaignNum = DATA.reduce((max, c) => {
+      const m = c.id && c.id.match(/C-\d{4}-(\d+)$/);
+      return m ? Math.max(max, parseInt(m[1]) + 1) : max;
+    }, 1);
+    // 새로고침 시 캠페인 상세 복원 (최초 1회)
+    if (window._pendingDetailId) {
+      const idx = DATA.findIndex(c => c.id === window._pendingDetailId);
+      window._pendingDetailId = null;
+      if (idx !== -1) { openDetail(idx); return; }
+    }
+    // 현재 활성 화면 재렌더
+    const sid = document.querySelector('.screen.active')?.id;
+    if (sid === 'screen-dashboard') renderDashboard();
+    if (sid === 'screen-campaigns') applyFilter();
+    if (sid === 'screen-calendar')  renderCalendar();
+    if (sid === 'screen-settlement') {
+      _stlPopulateDynFilters();
+      _stlSaveScroll();
+      renderSettlement();
+      _stlSetWrapHeight();
+      _stlRestoreScroll();
+    }
+    if (sid === 'screen-monthly')   renderMonthly();
+    if (sid === 'screen-adreport' && typeof _rptPopulateSeller === 'function') _rptPopulateSeller();
+  }, e => console.error('[FB] 캠페인 구독 실패:', e));
+}
+
+// ── 매출처 Firebase CRUD ──
+async function _fbSaveSeller(s) {
+  if (!window._db) return;
+  const key = s.company.replace(/\//g, '_');
+  try { await window._db.collection('sellers').doc(key).set(s); }
+  catch(e) { console.error('[FB] 매출처 저장 실패:', e); }
+}
+async function _fbDeleteSeller(company) {
+  if (!window._db) return;
+  const key = company.replace(/\//g, '_');
+  try { await window._db.collection('sellers').doc(key).delete(); }
+  catch(e) { console.error('[FB] 매출처 삭제 실패:', e); }
+}
+// Firestore 실시간 구독 — 매출처
+function _fbWatchSellers() {
+  if (!window._db) return;
+  window._db.collection('sellers').onSnapshot(snap => {
+    SELLER_DATA.length = 0;
+    snap.forEach(d => SELLER_DATA.push(d.data()));
+    _populateAdvFilter();
+    if (typeof _rptPopulateSeller === 'function') _rptPopulateSeller();
+    if (document.getElementById('screen-seller')?.classList.contains('active')) renderSellerList();
+  }, e => console.error('[FB] 매출처 구독 실패:', e));
+}
+
+// ── 매체사 수정 이력 ──
+const MEDIA_FIELD_LABELS = {
+  company:'매체명', type:'유형', invoiceTo:'청구처', unit:'단가',
+  contact:'담당자', tel:'연락처',
+  c1Base:'수수료1 기준', c1Req:'수수료1 요청', c1Adj:'수수료1 조정', c1Reason:'수수료1 사유', note1:'메모1',
+  c2Base:'수수료2 기준', c2Req:'수수료2 요청', c2Adj:'수수료2 조정', c2Reason:'수수료2 사유', note2:'메모2',
+  excTarget:'예외 대상', excAdj:'예외 조정', createdAt:'등록일'
+};
+let _mediaLogs = []; // 로드된 이력 캐시
+
+async function _fbSaveMediaLog(oldObj, newObj) {
+  if (!window._db || !currentUser) return;
+  const changes = [];
+  Object.keys(MEDIA_FIELD_LABELS).forEach(k => {
+    const before = String(oldObj[k] ?? '');
+    const after  = String(newObj[k]  ?? '');
+    if (before !== after) changes.push({ field: k, label: MEDIA_FIELD_LABELS[k], before, after });
+  });
+  if (!changes.length) return;
+  const log = {
+    company:   newObj.company,
+    changedBy: currentUser.name,
+    changedAt: new Date().toISOString(),
+    changes
+  };
+  try { await window._db.collection('mediaLogs').add(log); }
+  catch(e) { console.error('[FB] 매체사 이력 저장 실패:', e); }
+}
+
+let _mediaLogsCache = [];
+async function openMediaLog() {
+  openModal('modalMediaLog');
+  document.getElementById('mediaLogBody').innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);">불러오는 중...</div>';
+  try {
+    const snap = await window._db.collection('mediaLogs').orderBy('changedAt','desc').limit(300).get();
+    _mediaLogsCache = snap.docs.map(d => d.data());
+  } catch(e) {
+    _mediaLogsCache = [];
+    console.error('[FB] 매체사 이력 조회 실패:', e);
+  }
+  // 필터 옵션 구성
+  const companies = [...new Set(_mediaLogsCache.map(l => l.company))].sort((a,b) => a.localeCompare(b,'ko'));
+  const sel = document.getElementById('mediaLogFilter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">전체 매체사</option>' + companies.map(c => `<option value="${_escHtml(c)}">${_escHtml(c)}</option>`).join('');
+  if (cur) sel.value = cur;
+  renderMediaLog();
+}
+
+function renderMediaLog() {
+  const filter = document.getElementById('mediaLogFilter')?.value || '';
+  const logs = filter ? _mediaLogsCache.filter(l => l.company === filter) : _mediaLogsCache;
+  const body = document.getElementById('mediaLogBody');
+  if (!logs.length) {
+    body.innerHTML = '<div style="padding:60px;text-align:center;color:var(--text3);font-size:13px;">수정 이력이 없습니다.</div>';
+    return;
+  }
+  body.innerHTML = logs.map(l => {
+    const dt = l.changedAt ? new Date(l.changedAt).toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+    const rows = (l.changes||[]).map(ch =>
+      `<tr>
+        <td style="padding:5px 12px;font-size:12px;color:var(--text2);white-space:nowrap;">${_escHtml(ch.label)}</td>
+        <td style="padding:5px 12px;font-size:12px;color:var(--text3);max-width:200px;word-break:break-all;">${_escHtml(ch.before||'—')}</td>
+        <td style="padding:5px 12px;font-size:14px;color:var(--text3);">→</td>
+        <td style="padding:5px 12px;font-size:12px;color:var(--text);font-weight:600;max-width:200px;word-break:break-all;">${_escHtml(ch.after||'—')}</td>
+      </tr>`
+    ).join('');
+    return `<div style="border-bottom:1px solid var(--border);padding:12px 20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <span style="font-size:13px;font-weight:700;color:var(--text);">${_escHtml(l.company)}</span>
+        <span style="font-size:12px;color:var(--accent);font-weight:600;">${_escHtml(l.changedBy)}</span>
+        <span style="font-size:11.5px;color:var(--text3);">${dt}</span>
+        <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1px 8px;color:var(--text2);">${(l.changes||[]).length}개 항목 변경</span>
+      </div>
+      <table style="border-collapse:collapse;width:100%;background:var(--surface2);border-radius:6px;overflow:hidden;">
+        <thead><tr style="background:var(--border);">
+          <th style="padding:5px 12px;font-size:11px;color:var(--text3);text-align:left;font-weight:700;">항목</th>
+          <th style="padding:5px 12px;font-size:11px;color:var(--text3);text-align:left;font-weight:700;">변경 전</th>
+          <th style="padding:5px 12px;"></th>
+          <th style="padding:5px 12px;font-size:11px;color:var(--text3);text-align:left;font-weight:700;">변경 후</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+}
+
+// ── 매체사 Firebase CRUD ──
+async function _fbSaveMedia(m) {
+  if (!window._db) return;
+  const key = m.company.replace(/\//g, '_');
+  try { await window._db.collection('media').doc(key).set(m); }
+  catch(e) { console.error('[FB] 매체사 저장 실패:', e); }
+}
+async function _fbDeleteMedia(company) {
+  if (!window._db) return;
+  const key = company.replace(/\//g, '_');
+  try { await window._db.collection('media').doc(key).delete(); }
+  catch(e) { console.error('[FB] 매체사 삭제 실패:', e); }
+}
+function _populateMediaSelects() {
+  const opts = MEDIA_DATA.map(m => `<option value="${m.company}">${m.company}</option>`).join('');
+  ['fMedia', 'calFilterMedia', 'stl-fMedia'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="">매체사</option>' + opts;
+    if (cur) el.value = cur;
+  });
+}
+
+function _populateSalesSelects() {
+  const RANK_ORDER = ['이사','본부장','팀장','일반'];
+  const salesUsers = USERS
+    .filter(u => !u.isAdmin)
+    .sort((a, b) => {
+      const ri = u => { const i = RANK_ORDER.indexOf(u.rank||'일반'); return i<0?99:i; };
+      return ri(a) - ri(b) || (a.name||'').localeCompare(b.name||'', 'ko');
+    });
+  const nameOpts = salesUsers.map(u => `<option value="${u.name}">${u.name}</option>`).join('');
+  // 담당 선택 (폼용, 빈 옵션 없음)
+  ['r_ops','e_ops'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = nameOpts;
+    if (cur) el.value = cur;
+  });
+  // 필터용 (빈 옵션 포함)
+  const fMgr = document.getElementById('fMgr');
+  if (fMgr) {
+    const cur = fMgr.value;
+    fMgr.innerHTML = '<option value="">담당자</option>' + nameOpts;
+    if (cur) fMgr.value = cur;
+  }
+}
+
+// Firestore 실시간 구독 — 매체사
+function _fbWatchMedia() {
+  if (!window._db) return;
+  window._db.collection('media').onSnapshot(snap => {
+    MEDIA_DATA.length = 0;
+    snap.forEach(d => MEDIA_DATA.push(d.data()));
+    _populateMediaSelects();
+    if (document.getElementById('screen-media')?.classList.contains('active')) renderMediaList();
+  }, e => console.error('[FB] 매체사 구독 실패:', e));
+}
+
+// ── 파이프라인 Firebase CRUD ──
+async function _fbSavePipeline(p) {
+  if (!window._db) return;
+  try {
+    await window._db.collection('pipeline').doc(p.id).set(p);
+  } catch(e) { console.error('[FB] 파이프라인 저장 실패:', e); }
+}
+async function _fbDeletePipeline(id) {
+  if (!window._db) return;
+  try {
+    await window._db.collection('pipeline').doc(id).delete();
+  } catch(e) { console.error('[FB] 파이프라인 삭제 실패:', e); }
+}
+// Firestore 실시간 구독 — 파이프라인
+function _fbWatchPipeline() {
+  if (!window._db) return;
+  window._db.collection('pipeline').onSnapshot(snap => {
+    PIPELINE_DATA.length = 0;
+    snap.forEach(d => PIPELINE_DATA.push(d.data()));
+    PIPELINE_DATA.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    _pipelineNextNum = PIPELINE_DATA.reduce((max, p) => {
+      const m = p.id && p.id.match(/P-\d{4}-(\d+)$/);
+      return m ? Math.max(max, parseInt(m[1]) + 1) : max;
+    }, 1);
+    const sid = document.querySelector('.screen.active')?.id;
+    if (sid === 'screen-pipeline') renderPipeline();
+    if (sid === 'screen-dashboard') renderDashboard();
+  }, e => console.error('[FB] 파이프라인 구독 실패:', e));
+}
+
+
+async function _fbSavePipelineTargets() {
+  if (!window._db) return;
+  try {
+    await window._db.collection('settings').doc('pipeline_targets').set(PIPELINE_BUDGET_DATA);
+  } catch(e) { console.error('[FB] 목표 저장 실패:', e); }
+}
+function _fbLoadPipelineTargets() {
+  if (!window._db) return;
+  window._db.collection('settings').doc('pipeline_targets').onSnapshot(doc => {
+    if (!doc.exists) return;
+    const data = doc.data();
+    if (data && data.depts) Object.assign(PIPELINE_BUDGET_DATA, data);
+    // 현재 통계 탭이 열려 있으면 즉시 재렌더
+    const active = document.querySelector('#pipe-tabs .view-tab.active');
+    if (active && active.id === 'pipe-vt-stats') renderPipelineStats();
+  }, e => console.error('[FB] 목표 구독 실패:', e));
+}
+
+// ── 사용자 Firebase CRUD ──
+async function _fbSaveUser(u) {
+  if (!window._db) return;
+  try {
+    await window._db.collection('users').doc(u.id).set(u);
+  } catch(e) { console.error('[FB] 사용자 저장 실패:', e); }
+}
+// Firestore 실시간 구독 — 사용자
+function _fbWatchUsers() {
+  if (!window._db) return;
+  window._db.collection('users').onSnapshot(snap => {
+    USERS.length = 0;
+    snap.forEach(d => {
+      const u = d.data();
+      if (!u.rank) u.rank = '일반';
+      if (!u.perms) u.perms = {};
+      if (u.perms.ops !== true) { u.perms.ops = true; _fbSaveUser(u); }
+      USERS.push(u);
+    });
+    // 로그인된 경우 currentUser 최신 데이터로 갱신
+    if (currentUser) { const fresh = USERS.find(u => u.id === currentUser.id); if (fresh) { currentUser = fresh; sessionStorage.setItem('cu', JSON.stringify(fresh)); } }
+    _populateSalesSelects();
+    if (document.getElementById('screen-users')?.classList.contains('active')) _renderUserMgmtList();
+  }, e => console.error('[FB] 사용자 구독 실패:', e));
+}
+
+// 상품 드롭다운 초기화
+_populateProductSelects();
+
+// 페이지 로드 시 Firestore 실시간 구독 시작
+_fbWatchCampaigns();
+_fbWatchPipeline();
+_fbLoadPipelineTargets();
+_fbWatchSellers();
+_fbWatchMedia();
+_fbWatchUsers();
+
+// 최원준 계정 최초 1회 자동 등록
+(async function() {
+  if (!window._db) return;
+  try {
+    const doc = await window._db.collection('users').doc('wonjoon').get();
+    if (!doc.exists) {
+      await window._db.collection('users').doc('wonjoon').set({
+        id:'wonjoon', pw:'1234', name:'최원준', bonbu:'', dept:'',
+        rank:'대표이사', isAdmin:false, perms:{ops:true}
+      });
+    }
+  } catch(e) {}
+})();

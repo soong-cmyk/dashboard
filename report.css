@@ -1,0 +1,509 @@
+/* ══════════════════════════════════════════
+   광고주 리포트 전용 스타일 (report.css)
+══════════════════════════════════════════ */
+
+/* ── 필터 패널 ── */
+.rpt-filter-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+.rpt-filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.rpt-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.rpt-filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+/* ── 빈 상태 ── */
+.rpt-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+/* ── 액션 바 ── */
+.rpt-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.rpt-hide-cost-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+  cursor: pointer;
+  user-select: none;
+}
+.rpt-hide-cost-label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ── A. 헤더 ── */
+.rpt-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+.rpt-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rpt-header-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+.rpt-header-period {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.rpt-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.rpt-header-meta {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+/* ── B. KPI 카드 그리드 ── */
+.rpt-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.rpt-kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.rpt-kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+.rpt-kpi-card.c-blue::before   { background: var(--accent); }
+.rpt-kpi-card.c-green::before  { background: var(--green); }
+.rpt-kpi-card.c-purple::before { background: var(--accent2); }
+.rpt-kpi-card.c-orange::before { background: var(--orange); }
+.rpt-kpi-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text2);
+  margin-bottom: 8px;
+}
+.rpt-kpi-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: 'Noto Sans KR', monospace;
+}
+.rpt-kpi-sub {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 4px;
+}
+
+/* ── C. 전월 대비 ── */
+.rpt-mom {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+.rpt-mom-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.rpt-mom-grid {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+.rpt-mom-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rpt-mom-key {
+  font-size: 11.5px;
+  color: var(--text2);
+  font-weight: 600;
+}
+.rpt-mom-val {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', monospace;
+}
+
+/* ── E. 소재 & 타겟 아코디언 ── */
+.rpt-creative-item {
+  border-bottom: 1px solid var(--border);
+}
+.rpt-creative-item:last-child {
+  border-bottom: none;
+}
+.rpt-creative-head {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px 18px;
+  background: var(--surface);
+}
+.rpt-creative-head-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rpt-creative-head-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-left: 2px;
+}
+.rpt-creative-date {
+  font-size: 12px;
+  font-family: 'Noto Sans KR', monospace;
+  color: var(--text2);
+  flex-shrink: 0;
+}
+.rpt-creative-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.rpt-creative-media {
+  font-size: 11.5px;
+  color: var(--text2);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+.rpt-msg-toggle {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  transition: .12s;
+  font-family: inherit;
+}
+.rpt-msg-toggle:hover {
+  background: var(--accent-light);
+  border-color: var(--accent);
+}
+.rpt-creative-body {
+  padding: 12px 18px 14px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface2);
+  border-top: 1px solid var(--border);
+}
+.rpt-creative-body.collapsed {
+  display: none;
+}
+.rpt-creative-field {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.rpt-creative-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  width: 62px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.rpt-creative-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rpt-tag {
+  display: inline-block;
+  background: var(--accent-light);
+  color: var(--accent);
+  border: 1px solid #c5d0f5;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+}
+.rpt-creative-msg {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.7;
+  flex: 1;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+/* ── G. 인사이트 & 제안 ── */
+.rpt-insight-card {
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.rpt-insight-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 13px 20px;
+  background: var(--accent-light);
+  border-bottom: 1px solid #c5d0f5;
+}
+.rpt-insight-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.rpt-insight-summary {
+  font-size: 12.5px;
+  color: var(--text2);
+}
+.rpt-insight-summary strong {
+  color: var(--text);
+  font-weight: 700;
+}
+.rpt-insight-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 20px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.rpt-insight-recs {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.rpt-insight-rec {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.6;
+}
+.rpt-insight-rec:last-child {
+  border-bottom: none;
+}
+.rpt-insight-rec-icon {
+  flex-shrink: 0;
+  font-size: 15px;
+  margin-top: 1px;
+}
+.rpt-insight-rec-text {
+  flex: 1;
+}
+
+/* ── F. 카테고리 벤치마크 ── */
+#rpt-benchmark-section {
+  margin-bottom: 20px;
+}
+.rpt-bench-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+}
+.rpt-bench-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.rpt-bench-cat {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.rpt-bench-meta {
+  font-size: 11.5px;
+  color: var(--text3);
+}
+.rpt-bench-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+.rpt-bench-item {
+  padding: 16px 20px;
+  border-right: 1px solid var(--border);
+}
+.rpt-bench-item:last-child {
+  border-right: none;
+}
+.rpt-bench-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.rpt-bench-item-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text2);
+}
+.rpt-bench-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rpt-bench-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rpt-bench-bar-lbl {
+  font-size: 11px;
+  color: var(--text3);
+  width: 72px;
+  flex-shrink: 0;
+}
+.rpt-bench-bar-track {
+  flex: 1;
+  height: 10px;
+  background: var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.rpt-bench-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width .4s ease;
+}
+.rpt-bench-bar-fill.my  { background: var(--accent); }
+.rpt-bench-bar-fill.avg { background: var(--border2); }
+.rpt-bench-bar-val {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', monospace;
+  color: var(--text);
+  width: 54px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+/* ══════════════════════════════════════════
+   인쇄 (PDF 출력) 스타일
+══════════════════════════════════════════ */
+@media print {
+  /* 사이드바·탑바·필터·액션바 숨김 */
+  .sidebar,
+  .topbar,
+  #sidebar-overlay,
+  .rpt-filter-panel,
+  .rpt-action-bar,
+  .no-print {
+    display: none !important;
+  }
+
+  /* 메인 영역 전체 너비 */
+  body { display: block !important; }
+  .main { overflow: visible !important; }
+  .content { padding: 0 !important; overflow: visible !important; }
+
+  /* 리포트 화면만 표시 */
+  .screen { display: none !important; }
+  #screen-adreport { display: block !important; }
+
+  /* 아코디언 모두 펼치기 */
+  .rpt-creative-body.collapsed { display: flex !important; }
+
+  /* 카드 그림자 제거 */
+  .rpt-kpi-card,
+  .rpt-header,
+  .rpt-mom,
+  .table-card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  /* KPI 카드 4열 → 4열 유지 (인쇄 너비 맞춤) */
+  .rpt-kpi-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  /* 페이지 여백 */
+  @page {
+    margin: 16mm 14mm;
+  }
+}
