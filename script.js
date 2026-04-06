@@ -5237,8 +5237,8 @@ function renderSettlement() {
   const cntSubEl = document.querySelector('#stl-cnt')?.closest('.stat-card')?.querySelector('.stat-sub');
   if (cntSubEl) cntSubEl.textContent = scope === 'settled' ? '성과입력완료 기준' : '전체 캠페인 기준';
   set('stl-cnt',    settled.length + '건');
-  set('stl-adcost', totalAdc ? totalAdc.toLocaleString() + '원' : '—');
-  set('stl-rev',    totalBuy ? totalBuy.toLocaleString() + '원' : '—');
+  set('stl-adcost', totalAdc ? Math.round(totalAdc).toLocaleString() + '원' : '—');
+  set('stl-rev',    totalBuy ? Math.round(totalBuy).toLocaleString() + '원' : '—');
   set('stl-profit', totalPrf ? totalPrf.toLocaleString() + '원' : '—');
 
   const container = document.getElementById('stl-table-container');
