@@ -52,6 +52,11 @@ const DATA = [];
 let _nextCampaignNum = 1;
 
 // ══════════════════════════════════════════
+// TAX INVOICE DATA
+// ══════════════════════════════════════════
+let TAX_DATA = [];
+
+// ══════════════════════════════════════════
 // PIPELINE DATA
 // ══════════════════════════════════════════
 let PIPELINE_DATA = [];
@@ -192,6 +197,7 @@ function hasPerm(perm) {
 function canEdit(c) {
   if (!currentUser) return false;
   if (currentUser.isAdmin) return true;
+  if (currentUser.id === 'yoonhee') return true;
   if (c.regUser && c.regUser === currentUser.id) return true;
   // 등록자와 같은 팀 소속이면 수정 가능
   if (c.regUser && currentUser.bonbu && currentUser.dept) {
@@ -656,6 +662,11 @@ function closeSidebar() {
 }
 
 function goScreen(name, skipPush) {
+  // 현재 화면이 campaigns/settlement이면 필터 상태 저장 (뒤로가기 복원용)
+  const _curScreen = (window.location.hash || '').replace('#', '').split('/')[0];
+  if (['campaigns', 'settlement', 'tax'].includes(_curScreen)) {
+    _saveFilterState(_curScreen);
+  }
   closeSidebar();
   document.querySelector('.topbar').style.display = '';
   // update URL hash so refresh keeps same screen
@@ -682,11 +693,11 @@ function goScreen(name, skipPush) {
 
   // nav highlight
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',settlement:'nav-settlement',monthly:'nav-monthly',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',payment:'nav-payment','payment-detail':'nav-payment'};
+  const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',settlement:'nav-settlement',monthly:'nav-monthly',tax:'nav-tax',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',payment:'nav-payment','payment-detail':'nav-payment'};
   if (navIds[name]) document.getElementById(navIds[name]).classList.add('active');
 
   // breadcrumb
-  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',settlement:'정산',monthly:'월별 발송량',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
+  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
   if (labels[name]) {
     document.getElementById('breadcrumb').innerHTML = `<span class="cur">${labels[name]}</span>`;
   }
@@ -702,8 +713,12 @@ function goScreen(name, skipPush) {
     renderCalendar();
   }
   if (name === 'campaigns') {
-    resetFilter();
-    _populateAdvFilter();
+    if (skipPush) {
+      _restoreFilterState('campaigns');
+    } else {
+      resetFilter();
+      _populateAdvFilter();
+    }
   }
   // 캠페인 등록 버튼: 대시보드·캘린더·캠페인 목록에서만 표시
   const btnReg = document.getElementById('btn-reg');
@@ -729,7 +744,18 @@ function goScreen(name, skipPush) {
     renderPaymentList();
   }
   if (name === 'settlement') {
-    resetStlFilter();
+    if (skipPush) {
+      _restoreFilterState('settlement');
+    } else {
+      resetStlFilter();
+    }
+  }
+  if (name === 'tax') {
+    if (skipPush) {
+      _restoreFilterState('tax');
+    } else {
+      resetTaxFilter();
+    }
   }
 
   if (!skipPush) {
@@ -792,15 +818,16 @@ function openDetail(idx, skipPush) {
   const qty = c.qty||0, svc = c.svc||0, unit = c.sellUnit||0, buyUnit = c.buyUnit||0, disc = c.disc||0, comm = c.comm||0, agrate = c.agrate||0;
   const actual = c.actual||0;
   const bill    = actual ? actual - svc : null;
-  const billBase = c.billBase || 'actual';
-  const adcBill = billBase === 'sched'
-    ? (qty - svc)
-    : (actual ? (actual - svc) : (qty - svc)); // 실발송 없으면 예약 기준으로 미리보기
+  const sellBillBase = c.sellBillBase || c.billBase || 'actual';
+  const buyBillBase  = c.buyBillBase  || c.billBase || 'actual';
+  const _billQty = (base) => base === 'sched' ? (qty - svc) : (actual ? (actual - svc) : (qty - svc));
+  const adcBill  = _billQty(sellBillBase);
+  const buyBill  = _billQty(buyBillBase);
   const eu      = disc > 0 ? disc : unit;           // 실적용단가 (할인단가 입력 시 우선)
   const adcCalc  = adcBill * unit;
   const adc      = c.adcostFixed  || adcCalc;       // 광고비 (수동 고정값 우선)
   const real     = c.amtFixed     || (adcBill * eu);// 실청구
-  const revCalc  = (eu - buyUnit) * adcBill;
+  const revCalc  = adc - (buyBill * buyUnit);
   const rev      = c.revFixed     || revCalc;       // 매출수익
   const agf      = adc * (agrate / 100);
   const prf      = c.profitFixed  || (rev - agf);   // 이익
@@ -811,10 +838,17 @@ function openDetail(idx, skipPush) {
     if (bill != null) { billEl.className = 'f-val'; billEl.style.color = 'var(--green)'; billEl.style.fontWeight = '700'; billEl.textContent = bill.toLocaleString() + ' 건'; }
     else { billEl.className = 'f-val f-pending'; billEl.style.color = ''; billEl.style.fontWeight = ''; billEl.textContent = '— 실발송 입력 후 계산'; }
   }
-  const billBaseEl = document.getElementById('dBillBase');
-  if (billBaseEl) billBaseEl.textContent = billBase === 'sched' ? '발송예약수량 기준' : (billBase === 'da' ? 'DA' : '실발송수량 기준');
+  // dBillBase 제거됨 — sellBillBase/buyBillBase 레이블로 대체
+  const buyAmt = c.buyAmtFixed || (buyUnit * buyBill);
+  const _baseLbl = (base) => base === 'sched' ? '예약수량 기준' : '실발송수량 기준';
   document.getElementById('dSellUnit').textContent  = unit    ? unit.toLocaleString()    + '원'  : '—';
   document.getElementById('dBuyUnit').textContent   = buyUnit ? buyUnit.toLocaleString() + '원'  : '—';
+  const dBuyAmtEl = document.getElementById('dBuyAmt');
+  if (dBuyAmtEl) dBuyAmtEl.textContent = buyAmt ? buyAmt.toLocaleString() + '원' : '—';
+  const dBuyLbl = document.getElementById('dBuyBillBaseLbl');
+  if (dBuyLbl) dBuyLbl.textContent = _baseLbl(buyBillBase);
+  const dSellLbl = document.getElementById('dSellBillBaseLbl');
+  if (dSellLbl) dSellLbl.textContent = _baseLbl(sellBillBase);
   document.getElementById('dAdcost').textContent = adc  ? adc.toLocaleString()  + '원' : '—';
   document.getElementById('dDisc').textContent   = disc ? disc.toLocaleString() + '원' : '—';
   document.getElementById('dAmt').textContent    = adc  ? real.toLocaleString() + '원' : '—';
@@ -1045,6 +1079,9 @@ function openDetail(idx, skipPush) {
   const detailScreen = document.getElementById('screen-detail');
   detailScreen.classList.add('active');
   detailScreen.scrollTop = 0;
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  const contentEl = document.querySelector('.content');
+  if (contentEl) contentEl.scrollTop = 0;
   document.getElementById('nav-campaigns').classList.add('active');
 
   if (!skipPush) {
@@ -1088,7 +1125,7 @@ function renderTable(data) {
   document.getElementById('shownCnt').textContent = total;
   const totalAdc = data.reduce((s, c) => {
     if (c.product === 'DA') return s + (c.daAdcost || 0);
-    const base = c.billBase === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
+    const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
     return s + base * (c.sellUnit||0);
   }, 0);
   const adcEl = document.getElementById('shownAdc');
@@ -1125,7 +1162,7 @@ function renderTable(data) {
       <td class="td-dim">${c.product}</td>
       <td class="td-dim">${c.ops || '—'}</td>
       <td class="td-num td-r">${c.qty.toLocaleString()}</td>
-      <td class="td-num td-r">${(()=>{ const adc = c.product==='DA' ? (c.daAdcost||0) : (c.adcostFixed || (()=>{ const base=c.billBase==='sched'?(c.qty||0)-(c.svc||0):(c.actual?(c.actual-(c.svc||0)):(c.qty||0)-(c.svc||0)); return base*(c.sellUnit||0); })()); return adc?(adc>=10000?(adc/10000).toFixed(0)+'만':adc.toLocaleString())+'원':'<span style="color:var(--text3)">—</span>'; })()}</td>
+      <td class="td-num td-r">${(()=>{ const adc = c.product==='DA' ? (c.daAdcost||0) : (c.adcostFixed || (()=>{ const base=(c.sellBillBase||c.billBase||'actual')==='sched'?(c.qty||0)-(c.svc||0):(c.actual?(c.actual-(c.svc||0)):(c.qty||0)-(c.svc||0)); return base*(c.sellUnit||0); })()); return adc?(adc>=10000?(adc/10000).toFixed(0)+'만':adc.toLocaleString())+'원':'<span style="color:var(--text3)">—</span>'; })()}</td>
       <td class="td-num td-r">${c.clicks!==null?c.clicks.toLocaleString():'<span style="color:var(--text3)">—</span>'}</td>
       <td class="td-num td-r">${c.ctr!==null?c.ctr.toFixed(2)+'%':'<span style="color:var(--text3)">—</span>'}</td>
       <td><span class="badge b-${c.status}">${c.status}</span></td>
@@ -1186,6 +1223,84 @@ function filterStatus(s) {
   const activeEl = document.getElementById(boardIds[s]);
   if (activeEl) activeEl.classList.add('active-board');
   applyFilter();
+}
+
+function _saveFilterState(screen) {
+  if (screen === 'campaigns') {
+    sessionStorage.setItem('filterState_campaigns', JSON.stringify({
+      fCat:   document.getElementById('fCat')?.value   || '',
+      fProd:  document.getElementById('fProd')?.value  || '',
+      fMedia: document.getElementById('fMedia')?.value || '',
+      fMgr:   document.getElementById('fMgr')?.value   || '',
+      fAdv:   document.getElementById('fAdv')?.value   || '',
+      fQ:     document.getElementById('fQ')?.value     || '',
+      fFrom:  document.getElementById('fFrom')?.value  || '',
+      fTo:    document.getElementById('fTo')?.value    || '',
+      activeStatus
+    }));
+  } else if (screen === 'tax') {
+    sessionStorage.setItem('filterState_tax', JSON.stringify({
+      year:     document.getElementById('tax-year')?.value     || '',
+      month:    document.getElementById('tax-month')?.value    || '',
+      fManager: document.getElementById('tax-fManager')?.value || '',
+      fStatus:  document.getElementById('tax-fStatus')?.value  || '',
+      fCompany: document.getElementById('tax-fCompany')?.value || ''
+    }));
+  } else if (screen === 'settlement') {
+    sessionStorage.setItem('filterState_settlement', JSON.stringify({
+      year:   document.getElementById('stl-year')?.value    || '',
+      month:  document.getElementById('stl-month')?.value   || '',
+      fScope: document.getElementById('stl-fScope')?.value  || 'settled',
+      fProd:  document.getElementById('stl-fProd')?.value   || '',
+      fCat:   document.getElementById('stl-fCat')?.value    || '',
+      fMedia: document.getElementById('stl-fMedia')?.value  || '',
+      fAdv:   document.getElementById('stl-fAdv')?.value    || '',
+      fOps:   document.getElementById('stl-fOps')?.value    || '',
+      fOrg:   document.getElementById('stl-fOrg')?.value    || '',
+      stlView
+    }));
+  }
+}
+
+function _restoreFilterState(screen) {
+  if (screen === 'campaigns') {
+    const raw = sessionStorage.getItem('filterState_campaigns');
+    if (!raw) { resetFilter(); _populateAdvFilter(); return; }
+    const s = JSON.parse(raw);
+    ['fCat','fProd','fMedia','fMgr','fAdv','fQ','fFrom','fTo'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = s[id] || '';
+    });
+    activeStatus = s.activeStatus || 'all';
+    document.querySelectorAll('#screen-campaigns .board').forEach(b => b.classList.remove('active-board'));
+    const boardEl = document.getElementById('board-' + activeStatus);
+    if (boardEl) boardEl.classList.add('active-board');
+    _populateAdvFilter();
+    applyFilter();
+  } else if (screen === 'tax') {
+    resetTaxFilter();
+  } else if (screen === 'settlement') {
+    const raw = sessionStorage.getItem('filterState_settlement');
+    if (!raw) { resetStlFilter(); return; }
+    const s = JSON.parse(raw);
+    const _set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    _set('stl-year',    s.year);
+    _set('stl-month',   s.month);
+    _set('stl-fScope',  s.fScope);
+    _set('stl-fProd',   s.fProd);
+    _set('stl-fCat',    s.fCat);
+    _set('stl-fMedia',  s.fMedia);
+    _set('stl-fAdv',    s.fAdv);
+    _set('stl-fOps',    s.fOps);
+    _set('stl-fOrg',    s.fOrg);
+    stlView = s.stlView || 'media';
+    ['campaign','adv','agency','media','pc'].forEach(t => {
+      const el = document.getElementById('stl-vt-' + t);
+      if (el) el.classList.toggle('active', t === stlView);
+    });
+    _stlPopulateDynFilters();
+    renderSettlement();
+  }
 }
 
 function resetFilter() {
@@ -1785,6 +1900,14 @@ function onEditProductChange() {
   if (eDaImgSec) eDaImgSec.style.display = isDA  ? '' : 'none';
   if (eCardPC)   eCardPC.style.display   = isPC  ? '' : 'none';
   if (eCardCPA)  eCardCPA.style.display  = isCPA ? '' : 'none';
+  const ePerfCardProd = document.getElementById('e_card_perf');
+  if (ePerfCardProd) {
+    ePerfCardProd.style.display = isPC ? 'none' : '';
+    const epN = document.getElementById('ep_normal');
+    const epD = document.getElementById('ep_da');
+    if (epN) epN.style.display = isDA ? 'none' : '';
+    if (epD) epD.style.display = isDA ? '' : 'none';
+  }
 
   // 월 피커 기본값 세팅
   if (useMonthPicker) {
@@ -1866,13 +1989,17 @@ function calcReg() {
   const s=+document.getElementById('r_sched').value||0, sv=+document.getElementById('r_svc').value||0,
         u=+document.getElementById('r_sellUnit').value||0, d=+document.getElementById('r_disc').value||0,
         c=+document.getElementById('r_comm').value||0, ag=+document.getElementById('r_agrate').value||0;
-  const billBase = document.getElementById('r_billBase')?.value || 'actual';
+  const sellBillBase = document.getElementById('r_sellBillBase')?.value || 'actual';
+  const buyBillBase  = document.getElementById('r_buyBillBase')?.value  || 'actual';
+  const _rBillQty = (base) => base === 'sched' ? (s - sv) : (s - sv); // 등록 시 actual 미입력이므로 예약수량으로 미리보기
+  const sellBill = _rBillQty(sellBillBase);
+  const buyBill  = _rBillQty(buyBillBase);
   const eu   = d > 0 ? d : u;
   const buyU = u ? Math.round(u * (1 - c / 100)) : 0;
   const rBuyEl = document.getElementById('r_buyUnit');
   if (rBuyEl && !rBuyEl.dataset.manual) rBuyEl.value = u ? buyU : '';
   const curBuyU = rBuyEl?.dataset.manual ? (+rBuyEl.value || buyU) : buyU;
-  const bill = s - sv;
+  const bill = sellBill;
   const adc  = bill * u;
   const real = bill * eu;
   const rAdcEl = document.getElementById('r_adcost');
@@ -1880,10 +2007,10 @@ function calcReg() {
   const rAmtEl = document.getElementById('r_amt');
   if (rAmtEl && !rAmtEl.dataset.manual) rAmtEl.value = real || '';
   const curAdc = rAdcEl?.dataset.manual ? (+rAdcEl.value || adc) : adc;
-  const buyAmt = curBuyU * bill;
+  const buyAmt = curBuyU * buyBill;
   const rBuyAmtEl = document.getElementById('r_buyAmt');
-  if (rBuyAmtEl && !rBuyAmtEl.dataset.manual) rBuyAmtEl.value = bill ? buyAmt : '';
-  const rev  = (eu - curBuyU) * bill;
+  if (rBuyAmtEl && !rBuyAmtEl.dataset.manual) rBuyAmtEl.value = buyBill ? buyAmt : '';
+  const rev  = curAdc - buyAmt;
   const agf  = curAdc * (ag / 100);
   const prf  = rev - agf;
   const rRevEl = document.getElementById('r_rev');
@@ -2050,7 +2177,9 @@ function submitReg() {
     qty:       isCPA ? (+document.getElementById('r_cpa_qty').value  || 0) : (+document.getElementById('r_sched').value    || 0),
     svc:       isCPA ? 0 : (+document.getElementById('r_svc').value  || 0),
     disc:      isCPA ? 0 : (+document.getElementById('r_disc').value || 0),
-    billBase:  isDA  ? 'da' : (isCPA ? (document.getElementById('r_cpa_billbase')?.value || '') : (document.getElementById('r_billBase')?.value || 'actual')),
+    billBase:  isDA  ? 'da' : (isCPA ? (document.getElementById('r_cpa_billbase')?.value || '') : 'actual'), // 하위호환용
+    sellBillBase: isDA || isPC || isCPA ? undefined : (document.getElementById('r_sellBillBase')?.value || 'actual'),
+    buyBillBase:  isDA || isPC || isCPA ? undefined : (document.getElementById('r_buyBillBase')?.value  || 'actual'),
     comm:      isDA  ? (+document.getElementById('r_da_comm')?.value   || 0) : (isCPA ? (+document.getElementById('r_cpa_comm')?.value  || 0) : (+document.getElementById('r_comm').value  || 0)),
     buyUnit:   isDA  ? (+document.getElementById('r_da_buyUnit')?.value || 0)
                      : (isCPA ? Math.round((+document.getElementById('r_cpa_unit').value || 0) * (1 - (+document.getElementById('r_cpa_comm')?.value || 0) / 100))
@@ -2229,8 +2358,10 @@ function openEdit() {
   autoNameEdit();
   document.getElementById('e_qty').value    = c.qty    || '';
   document.getElementById('e_svc').value    = c.svc    || '';
-  const eBillBase = document.getElementById('e_billBase');
-  if (eBillBase) eBillBase.value = c.billBase || 'actual';
+  const eSellBillBase = document.getElementById('e_sellBillBase');
+  const eBuyBillBase  = document.getElementById('e_buyBillBase');
+  if (eSellBillBase) eSellBillBase.value = c.sellBillBase || c.billBase || 'actual';
+  if (eBuyBillBase)  eBuyBillBase.value  = c.buyBillBase  || c.billBase || 'actual';
   document.getElementById('e_sellUnit').value = c.sellUnit || '';
   // adcostFixed / amtFixed: 수동 입력값 복원
   const _restoreManual = (id, val) => {
@@ -2328,7 +2459,39 @@ function openEdit() {
     calcCPAEdit();
   }
 
+  // 2차 성과 카드 표시 & 값 로드
+  const ePerfCard = document.getElementById('e_card_perf');
+  const epNormal  = document.getElementById('ep_normal');
+  const epDA      = document.getElementById('ep_da');
+  if (ePerfCard) {
+    const showPerf = !isEditPC;
+    ePerfCard.style.display = showPerf ? '' : 'none';
+    if (showPerf) {
+      if (epNormal) epNormal.style.display = isEditDA ? 'none' : '';
+      if (epDA)     epDA.style.display     = isEditDA ? '' : 'none';
+      const setEp = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+      if (isEditDA) {
+        setEp('ep_imp',      c.daImp);
+        setEp('ep_da_click', c.daClick);
+        setEp('ep_conv',     c.daConv);
+        setEp('ep_da_rev',   c.daRev);
+        epCalcDA();
+      } else {
+        setEp('ep_actual', c.actual);
+        setEp('ep_click',  c.clicks);
+        setEp('ep_ctr',    c.ctr);
+        setEp('ep_db',     c.db);
+        setEp('ep_dbr',    c.dbr);
+        epCalcCTR();
+        epCalcDBR();
+      }
+    }
+  }
+
   calcEdit();
+  // 성과 카드 최종 표시 확정 (calcEdit 이후 덮어쓰기 방지)
+  const _ePerfFinal = document.getElementById('e_card_perf');
+  if (_ePerfFinal) _ePerfFinal.style.display = isEditPC ? 'none' : '';
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-edit').classList.add('active');
   history.pushState({ screen: 'edit', id: c.id }, '', '#edit/' + c.id);
@@ -2359,26 +2522,32 @@ function calcEdit() {
   const d  = +document.getElementById('e_disc').value    || 0;
   const c  = +document.getElementById('e_comm').value    || 0;
   const ag = +document.getElementById('e_agrate').value  || 0;
+  const sellBillBase = document.getElementById('e_sellBillBase')?.value || 'actual';
+  const buyBillBase  = document.getElementById('e_buyBillBase')?.value  || 'actual';
+  // 수정 시 actual 값은 캠페인에서 가져옴 (currentDetailIdx 기준)
+  const cActual = (DATA[currentDetailIdx]?.actual) || 0;
+  const _eBillQty = (base) => base === 'sched' ? (s - sv) : (cActual ? cActual - sv : s - sv);
+  const sellBill = _eBillQty(sellBillBase);
+  const buyBill  = _eBillQty(buyBillBase);
   const eu   = d > 0 ? d : u;
   const buyU = u ? Math.round(u * (1 - c / 100)) : 0;
   const eBuyEl = document.getElementById('e_buyUnit');
   if (eBuyEl && !eBuyEl.dataset.manual) eBuyEl.value = u ? buyU : '';
   const curBuyU = eBuyEl?.dataset.manual ? (+eBuyEl.value || buyU) : buyU;
-  const bill = s - sv;
-  const adc  = bill * u;
-  const real = bill * eu;
+  const adc  = sellBill * u;
+  const real = sellBill * eu;
   const eAdcEl = document.getElementById('e_adcost');
   if (eAdcEl && !eAdcEl.dataset.manual) eAdcEl.value = adc || '';
   const eBillAmt = document.getElementById('e_billamt');
   if (eBillAmt && !eBillAmt.dataset.manual) eBillAmt.value = real || '';
   const curAdc = eAdcEl?.dataset.manual ? (+eAdcEl.value || adc) : adc;
-  const buyAmtCalc = curBuyU * bill;
+  const buyAmtCalc = curBuyU * buyBill;
   const eBuyAmtEl = document.getElementById('e_buyAmt');
-  if (eBuyAmtEl && !eBuyAmtEl.dataset.manual) eBuyAmtEl.value = bill ? buyAmtCalc : '';
-  const rev  = (eu - curBuyU) * bill;
+  if (eBuyAmtEl && !eBuyAmtEl.dataset.manual) eBuyAmtEl.value = buyBill ? buyAmtCalc : '';
+  const rev  = curAdc - buyAmtCalc;
   const agf  = curAdc * (ag / 100);
   const prf  = rev - agf;
-  document.getElementById('e_bill').value = s ? bill.toLocaleString() + '건' : '';
+  document.getElementById('e_bill').value = s ? (sellBill).toLocaleString() + '건' : '';
   const eRevEl = document.getElementById('e_rev');
   if (eRevEl && !eRevEl.dataset.manual) eRevEl.value = rev || '';
   const ePrfEl = document.getElementById('e_profit');
@@ -2457,7 +2626,8 @@ function submitEdit() {
     c.disc     = +document.getElementById('e_disc').value;
     c.comm     = +document.getElementById('e_comm').value;
     c.agrate   = +document.getElementById('e_agrate').value;
-    c.billBase = document.getElementById('e_billBase')?.value || 'actual';
+    c.sellBillBase = document.getElementById('e_sellBillBase')?.value || 'actual';
+    c.buyBillBase  = document.getElementById('e_buyBillBase')?.value  || 'actual';
     c.msg      = document.getElementById('e_msg').value;
     const eAdcEl2    = document.getElementById('e_adcost');
     const eAmtEl2    = document.getElementById('e_billamt');
@@ -2614,6 +2784,34 @@ function submit2nd()  {
   _fbSaveCampaign(DATA[currentDetailIdx]);
   toast('✓ 성과 데이터가 저장되었습니다','ok');
 }
+// ── 수정화면 성과 자동계산 ──────────────────────────
+function epCalcCTR() {
+  const actual = parseFloat(document.getElementById('ep_actual')?.value) || 0;
+  const click  = parseFloat(document.getElementById('ep_click')?.value)  || 0;
+  const el = document.getElementById('ep_ctr');
+  if (el) el.value = actual > 0 ? (click / actual * 100).toFixed(2) + '%' : '';
+}
+function epCalcDBR() {
+  const click = parseFloat(document.getElementById('ep_click')?.value) || 0;
+  const db    = parseFloat(document.getElementById('ep_db')?.value)    || 0;
+  const el = document.getElementById('ep_dbr');
+  if (el) el.value = click > 0 ? (db / click * 100).toFixed(2) + '%' : '';
+}
+function epCalcDA() {
+  const imp   = parseFloat(document.getElementById('ep_imp')?.value)      || 0;
+  const click = parseFloat(document.getElementById('ep_da_click')?.value) || 0;
+  const conv  = parseFloat(document.getElementById('ep_conv')?.value)     || 0;
+  const rev   = parseFloat(document.getElementById('ep_da_rev')?.value)   || 0;
+  const ctrEl  = document.getElementById('ep_da_ctr');
+  const cpaEl  = document.getElementById('ep_da_cpa');
+  const roasEl = document.getElementById('ep_da_roas');
+  const c = DATA[currentDetailIdx];
+  const adcost = c ? (c.daAdcost || 0) : 0;
+  if (ctrEl)  ctrEl.value  = imp  > 0 ? (click / imp  * 100).toFixed(2) + '%' : '';
+  if (cpaEl)  cpaEl.value  = conv > 0 ? Math.round(rev / conv).toLocaleString() + '원' : '';
+  if (roasEl) roasEl.value = adcost > 0 ? (rev / adcost * 100).toFixed(1) + '%' : '';
+}
+
 function openDelModal() {
   const c = DATA[currentDetailIdx];
   if (!c) return;
@@ -3005,7 +3203,7 @@ function _updateCalMeta() {
 
   const totalQty = visible.reduce((s, c) => s + (c.qty || 0), 0);
   const totalAdc = visible.reduce((s, c) => {
-    const base = c.billBase === 'sched' ? (c.qty||0) - (c.svc||0) : (c.actual ? c.actual - (c.svc||0) : (c.qty||0) - (c.svc||0));
+    const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0) - (c.svc||0) : (c.actual ? c.actual - (c.svc||0) : (c.qty||0) - (c.svc||0));
     return s + base * (c.sellUnit || 0);
   }, 0);
   const qtyEl = document.getElementById('calMetaQty');
@@ -3420,7 +3618,7 @@ function renderDashboard() {
   const sentQty  = DATA.filter(c => c.sent).reduce((s, c) => s + (c.qty || 0), 0);
   const totalQty = DATA.reduce((s, c) => s + (c.qty || 0), 0);
   const monthAdc = DATA.filter(c => c.date?.startsWith(thisYear)).reduce((s, c) => {
-    const base = c.billBase === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
+    const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
     return s + base * (c.sellUnit||0);
   }, 0);
   const eYearCnt  = document.getElementById('dash-year-cnt');
@@ -3568,7 +3766,7 @@ function renderMonthly() {
   const totalQty    = src.reduce((s,c) => s+(c.qty||0), 0);
   const totalActual = src.reduce((s,c) => s+(c.actual||0), 0);
   const totalAdc    = src.reduce((s,c) => {
-    const base = c.billBase==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
+    const base = (c.sellBillBase||c.billBase||'actual')==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
     return s + base*(c.sellUnit||0);
   }, 0);
   const fmtAdc = v => v >= 100000000 ? (v/100000000).toFixed(1).replace(/\.0$/,'')+'억원' : (v/10000).toFixed(0)+'만원';
@@ -3668,7 +3866,7 @@ function mlySelectMedia(mediaName) {
   const catMap = {};
   src.forEach(c => {
     if (!catMap[c.cat]) catMap[c.cat] = {qty:0,clicks:0,adc:0,list:[]};
-    const base = c.billBase==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
+    const base = (c.sellBillBase||c.billBase||'actual')==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
     catMap[c.cat].qty    += c.qty||0;
     catMap[c.cat].clicks += c.clicks||0;
     catMap[c.cat].adc    += base*(c.sellUnit||0);
@@ -3692,7 +3890,7 @@ function mlySelectMedia(mediaName) {
           const ctr = d.qty ? (d.clicks/d.qty*100).toFixed(2)+'%' : '—';
           const subId = `mly-sub-${i}`;
           const subRows = d.list.sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(c => {
-            const cBase = c.billBase==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
+            const cBase = (c.sellBillBase||c.billBase||'actual')==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
             const cAdc  = cBase * (c.sellUnit||0);
             const cCtr  = (c.qty && c.clicks) ? (c.clicks/c.qty*100).toFixed(2)+'%' : '—';
             return `<tr style="background:var(--surface2);cursor:pointer;" onclick="openCalPreview(DATA.indexOf(DATA.find(d=>d.id==='${c.id}')))">
@@ -4678,7 +4876,7 @@ function _stlAmt(c) {
     const agFee  = Math.round(adc * (c.agrate || 0) / 100);
     const prf    = rev - agFee;
     const prfRate = adc > 0 ? (prf / adc * 100) : 0;
-    return { actual: 0, qty: 0, adc, adcVat, buyAmt, buyVat, stlRate: 0, agFee, prf, prfRate };
+    return { actual: 0, qty: 0, eu: 0, adc, amt: adc, adcVat, buyAmt, buyVat, stlRate: 0, agFee, prf, prfRate };
   }
   // CPA 캠페인: qty 기준 (actual 없이도 qty로 정산)
   if (c.product === 'CPA') {
@@ -4693,25 +4891,31 @@ function _stlAmt(c) {
     const agFee  = Math.round(adc * commR);
     const prf    = adc - buyAmt - agFee;
     const prfRate = adc > 0 ? (prf / adc * 100) : 0;
-    return { actual: qty, qty, adc, adcVat, buyAmt, buyVat, stlRate: 100, agFee, prf, prfRate };
+    return { actual: qty, qty, eu: unit, adc, amt: adc, adcVat, buyAmt, buyVat, stlRate: 100, agFee, prf, prfRate };
   }
   const actual   = c.actual   || 0;
   const qty      = c.qty      || 0;
   const svc      = c.svc      || 0;
   const unit     = c.sellUnit || 0;
   const buyU     = c.buyUnit  || Math.round(unit * (1 - (c.comm || 0) / 100));
-  const commR    = (c.comm    || 0) / 100;
-  const billBase = c.billBase || 'actual';
-  const stlQty   = Math.max(0, (billBase === 'sched' ? qty : actual) - svc);
-  const adc     = c.adcostFixed  || stlQty * unit;
-  const adcVat  = Math.round(adc * 0.1);
-  const buyAmt  = c.buyAmtFixed  || stlQty * buyU;
+  const commR       = (c.comm    || 0) / 100;
+  const sellBillBase = c.sellBillBase || c.billBase || 'actual';
+  const buyBillBase  = c.buyBillBase  || c.billBase || 'actual';
+  const _stlBillQty = (base) => Math.max(0, (base === 'sched' ? qty : actual) - svc);
+  const sellQty = _stlBillQty(sellBillBase);
+  const buyQty  = _stlBillQty(buyBillBase);
+  const disc    = c.disc || 0;
+  const eu      = disc > 0 ? disc : unit;             // 실적용단가
+  const adc     = c.adcostFixed  || sellQty * unit;   // 광고비 (매출단가 기준)
+  const amt     = c.amtFixed     || sellQty * eu;     // 실청구 (할인단가 기준)
+  const adcVat  = Math.round(amt * 0.1);
+  const buyAmt  = c.buyAmtFixed  || buyQty * buyU;
   const buyVat  = Math.round(buyAmt * 0.1);
   const stlRate = qty > 0 ? (actual / qty * 100) : 0;
-  const agFee   = Math.round(adc * commR);
-  const prf     = c.profitFixed  || (adc - buyAmt - agFee);
-  const prfRate = adc > 0 ? (prf / adc * 100) : 0;
-  return { actual: stlQty, qty, adc, adcVat, buyAmt, buyVat, stlRate, agFee, prf, prfRate };
+  const agFee   = Math.round(amt * commR);
+  const prf     = c.profitFixed  || (amt - buyAmt - agFee);
+  const prfRate = amt > 0 ? (prf / amt * 100) : 0;
+  return { actual: sellQty, qty, disc, eu, adc, amt, adcVat, buyAmt, buyVat, stlRate, agFee, prf, prfRate };
 }
 
 /** 정산 동적 필터 드롭다운 채우기 (매출처·담당자·본부·팀) */
@@ -4992,13 +5196,14 @@ function renderSettlement() {
   const media    = document.getElementById('stl-fMedia')?.value || '';
   const adv      = document.getElementById('stl-fAdv')?.value   || '';
   const ops      = document.getElementById('stl-fOps')?.value   || '';
+  const fQ       = (document.getElementById('stl-fQ')?.value    || '').trim().toLowerCase();
   const { bonbu, team } = _parseOrgFilter(document.getElementById('stl-fOrg')?.value || '');
   const selYear  = document.getElementById('stl-year')?.value   || '';
   const selMonth = document.getElementById('stl-month')?.value  || '';
   const settled = DATA.filter(c => {
     if (scope === 'settled') {
-      if      (c.product === 'DA')  { if (!c.daAdcost) return false; }   // DA: daAdcost 기준
-      else if (c.product === 'CPA') { if (!c.qty)      return false; }   // CPA: qty 기준
+      if      (c.product === 'DA')  { if (!c.daAdcost) return false; }
+      else if (c.product === 'CPA') { if (!c.qty)      return false; }
       else if (c.status !== '성과입력완료') return false;
     }
     if (prod  && c.product !== prod) return false;
@@ -5013,6 +5218,7 @@ function renderSettlement() {
     }
     if (selYear  && !c.date.startsWith(selYear))    return false;
     if (selMonth && c.date.slice(5,7) !== selMonth) return false;
+    if (fQ && !_cName(c).toLowerCase().includes(fQ) && !(c.id||'').toLowerCase().includes(fQ)) return false;
     return true;
   });
 
@@ -5022,7 +5228,7 @@ function renderSettlement() {
     const a      = _stlAmt(c);
     const has    = _stlHas(c);
     const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
-    if (has)    totalAdc += a.adc;
+    if (has)    totalAdc += (a.amt ?? a.adc);
     if (hasBuy) totalBuy += a.buyAmt;
     if (has)    totalPrf += a.prf;
   });
@@ -5161,11 +5367,11 @@ function renderStlCampaignView(data, container) {
       <td class="td-dim stl-s1" style="background:${bg0};">${_escHtml(c.cat)}</td>
       <td class="stl-s2" style="background:${bg0};font-weight:600;">${_escHtml(_cCompany(c))}</td>
       <td class="td-bold stl-s3" style="background:${bg0};">${_escHtml(_cName(c))}<div style="font-size:11px;font-weight:400;color:var(--text3);margin-top:2px;">${(c.date||'').slice(0,10)}</div></td>
-      <td class="td-num td-r grp-revenue">${has && !isDA ? fmt(c.sellUnit) : nd}</td>
+      <td class="td-num td-r grp-revenue">${has && !isDA ? fmt(a.eu) : nd}</td>
       <td class="td-num td-r">${has && !isDA ? fmt(c.qty) : nd}</td>
       <td class="td-num td-r">${has && !isDA ? fmt(a.actual) : nd}</td>
-      <td class="td-num td-r" style="font-weight:700;">${has ? fmt(a.adc) : nd}</td>
-      <td class="td-num td-r" style="color:var(--text2);">${has ? fmt(a.adc + a.adcVat) : nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${has ? fmt(a.amt ?? a.adc) : nd}</td>
+      <td class="td-num td-r" style="color:var(--text2);">${has ? fmt((a.amt ?? a.adc) + a.adcVat) : nd}</td>
       <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
       <td class="td-dim grp-purchase">${_escHtml(c.media)}</td>
       <td class="td-dim">${_escHtml(MEDIA_DATA.find(x=>x.company===c.media)?.invoiceTo||'—')}</td>
@@ -5197,10 +5403,10 @@ function renderStlCampaignView(data, container) {
         <th colspan="4" class="grp-head grp-status">정산</th>
       </tr>
       <tr>
-        <th class="grp-revenue" style="text-align:right;">매출단가</th>
+        <th class="grp-revenue" style="text-align:right;">적용단가</th>
         <th style="text-align:right;">발송수량</th>
         <th style="text-align:right;">정산수량</th>
-        <th style="text-align:right;">매출액</th>
+        <th style="text-align:right;">실청구액</th>
         <th style="text-align:right;">VAT포함</th>
         <th style="text-align:right;">정산율</th>
         <th class="grp-purchase">매체사</th>
@@ -5251,7 +5457,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
       const a    = _stlAmt(c);
       const isDA = c.product === 'DA';
       const has  = _stlHas(c);
-      tAdc += a.adc; tAdcVat += a.adcVat; tBuy += a.buyAmt; tBuyVat += a.buyVat; tFee += a.agFee; tPrf += a.prf;
+      tAdc += (a.amt ?? a.adc); tAdcVat += a.adcVat; tBuy += a.buyAmt; tBuyVat += a.buyVat; tFee += a.agFee; tPrf += a.prf;
       if (has && !isDA) { tQty += a.qty; tActual += a.actual; }
     });
     const tPrfRate = tAdc > 0 ? pct(tPrf / tAdc * 100) : '—';
@@ -5278,11 +5484,11 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
         <td class="td-dim stl-s1" style="background:${bgSb};padding-left:20px;">${_escHtml(c.cat)}</td>
         <td class="stl-s2" style="background:${bgSb};color:var(--text2);">${_escHtml(_cCompany(c))}</td>
         <td class="stl-s3" style="background:${bgSb};">${_escHtml(_cName(c))}<div style="font-size:11px;font-weight:400;color:var(--text3);margin-top:2px;">${(c.date||'').slice(0,10)}</div></td>
-        <td class="td-num td-r grp-revenue">${has && !isDA ? fmt(c.sellUnit) : nd}</td>
+        <td class="td-num td-r grp-revenue">${has && !isDA ? fmt(a.eu) : nd}</td>
         <td class="td-num td-r">${has && !isDA ? fmt(c.qty) : nd}</td>
         <td class="td-num td-r">${has && !isDA ? fmt(a.actual) : nd}</td>
-        <td class="td-num td-r" style="font-weight:600;">${has ? fmt(a.adc) : nd}</td>
-        <td class="td-num td-r" style="color:var(--text2);">${has ? fmt(a.adc + a.adcVat) : nd}</td>
+        <td class="td-num td-r" style="font-weight:600;">${has ? fmt(a.amt ?? a.adc) : nd}</td>
+        <td class="td-num td-r" style="color:var(--text2);">${has ? fmt((a.amt ?? a.adc) + a.adcVat) : nd}</td>
         <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
         <td class="td-dim grp-purchase">${_escHtml(c.media)}</td>
         <td class="td-dim">${_escHtml(MEDIA_DATA.find(x=>x.company===c.media)?.invoiceTo||'—')}</td>
@@ -5338,10 +5544,10 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
       </tr>
       <tr>
         <th colspan="3" class="stl-sc3" style="background:var(--surface2);">캠페인 상세</th>
-        <th class="grp-revenue" style="text-align:right;">매출단가</th>
+        <th class="grp-revenue" style="text-align:right;">적용단가</th>
         <th style="text-align:right;">발송수량</th>
         <th style="text-align:right;">정산수량</th>
-        <th style="text-align:right;">매출액</th>
+        <th style="text-align:right;">실청구액</th>
         <th style="text-align:right;">VAT포함</th>
         <th style="text-align:right;">정산율</th>
         <th class="grp-purchase">매체사</th>
@@ -5968,6 +6174,414 @@ function _savePipeStatCell(el, val) {
 
 
 // ══════════════════════════════════════════
+// ══════════════════════════════════════════
+// 세금계산서 — 유틸
+// ══════════════════════════════════════════
+function _taxNextId() {
+  return TAX_DATA.reduce((max, t) => Math.max(max, t.id || 0), 0) + 1;
+}
+function _taxMonthLabel(c) {
+  if (!c.date) return '';
+  return `${c.date.slice(0,4)}년${parseInt(c.date.slice(5,7))}월`;
+}
+function _taxContentAuto(c) {
+  const m = c.date ? parseInt(c.date.slice(5,7)) : '';
+  return `${m}월 ${c.product} 광고비_${c.media}`;
+}
+function _taxIsSettled(c) {
+  if (c.product === 'DA')  return !!c.daAdcost;
+  if (c.product === 'CPA') return !!c.qty;
+  return c.status === '성과입력완료';
+}
+
+// ── 세금계산서 필터/렌더 ──
+function resetTaxFilter() {
+  const now = new Date();
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const el = id => document.getElementById(id);
+  if (el('tax-year'))     el('tax-year').value     = String(prevMonth.getFullYear());
+  if (el('tax-month'))    el('tax-month').value     = String(prevMonth.getMonth() + 1).padStart(2, '0');
+  if (el('tax-fManager')) el('tax-fManager').value  = '';
+  if (el('tax-fStatus'))  el('tax-fStatus').value   = '';
+  if (el('tax-fCompany')) el('tax-fCompany').value  = '';
+  _taxPopulateManagerFilter();
+  renderTaxList();
+}
+
+function _taxPopulateManagerFilter() {
+  const sel = document.getElementById('tax-fManager');
+  if (!sel) return;
+  const cur = sel.value;
+  const names = [...new Set(TAX_DATA.map(t => t.manager).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">담당자 전체</option>' +
+    names.map(n => `<option value="${n}" ${n===cur?'selected':''}>${n}</option>`).join('');
+}
+
+function renderTaxList() {
+  _taxPopulateManagerFilter();
+  const year    = document.getElementById('tax-year')?.value     || '';
+  const month   = document.getElementById('tax-month')?.value    || '';
+  const manager = document.getElementById('tax-fManager')?.value || '';
+  const status  = document.getElementById('tax-fStatus')?.value  || '';
+  const company = (document.getElementById('tax-fCompany')?.value || '').trim().toLowerCase();
+
+  const list = TAX_DATA.filter(t => {
+    if (year    && !(t.month || '').includes(year+'년')) return false;
+    if (month   && !(t.month || '').includes(parseInt(month)+'월'))  return false;
+    if (manager && t.manager !== manager) return false;
+    if (status  && t.taxStatus !== status) return false;
+    if (company && !(t.company||'').toLowerCase().includes(company)) return false;
+    return true;
+  }).sort((a, b) => (b.id||0) - (a.id||0));
+
+  let totalSupply = 0, totalVat = 0, totalUnpaid = 0;
+  list.forEach(t => {
+    totalSupply += t.supplyAmt || 0;
+    totalVat    += t.vatAmt    || 0;
+    totalUnpaid += t.unpaid || 0;
+  });
+  const _v = n => n ? n.toLocaleString() : '—';
+  const _el = id => document.getElementById(id);
+  const issuedCnt = list.filter(t => t.taxStatus === '완료').length;
+  const totalByMonth = DATA.filter(c => {
+    if (!c.date) return false;
+    if (year  && !c.date.startsWith(year))        return false;
+    if (month && c.date.slice(5, 7) !== month)    return false;
+    return true;
+  }).length;
+  if (_el('tax-cnt'))     _el('tax-cnt').textContent     = list.length + '건';
+  if (_el('tax-cnt-sub')) _el('tax-cnt-sub').textContent = `발행 ${issuedCnt}건 / 전체 ${totalByMonth}건`;
+  if (_el('tax-supply')) _el('tax-supply').textContent = _v(totalSupply);
+  if (_el('tax-vat'))    _el('tax-vat').textContent    = _v(totalVat);
+  if (_el('tax-unpaid')) _el('tax-unpaid').textContent = totalUnpaid ? totalUnpaid.toLocaleString() : '—';
+
+  const tbody = document.getElementById('tax-tbody');
+  if (!tbody) return;
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="15" style="padding:32px;text-align:center;color:var(--text3);">해당 조건의 세금계산서가 없습니다.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(t => {
+    const unpaidVal = t.unpaid != null ? t.unpaid : null;
+    const isDone  = t.taxStatus === '완료';
+    const isPaid  = t.paid === '완료';
+    return `<tr>
+      <td style="color:var(--text3);">${t.id}</td>
+      <td>${t.manager||'—'}</td>
+      <td>${t.month||'—'}</td>
+      <td>${t.issueDate||'—'}</td>
+      <td style="text-align:center;">
+        ${isDone
+          ? `<span class="stl-inv-badge done" onclick="taxToggleStatus(${t.id})">✓ 완료</span>`
+          : `<div class="chk" onclick="taxToggleStatus(${t.id})" style="margin:0 auto;"></div>`}
+      </td>
+      <td><input type="date" class="form-input" style="font-size:12px;padding:3px 6px;min-width:130px;" value="${t.payDue||''}" onchange="taxSaveField(${t.id},'payDue',this.value)"></td>
+      <td style="text-align:center;">
+        ${isPaid
+          ? `<span class="stl-inv-badge done" onclick="taxTogglePaid(${t.id})">✓ 완료</span>`
+          : `<div class="chk" onclick="taxTogglePaid(${t.id})" style="margin:0 auto;"></div>`}
+      </td>
+      <td class="td-r" style="color:${unpaidVal?'var(--red)':''};cursor:pointer;" onclick="taxInlineEdit(this,${t.id},'unpaid')">${unpaidVal != null ? unpaidVal.toLocaleString() : '—'}</td>
+      <td style="font-weight:600;">${t.company||'—'}</td>
+      <td style="color:var(--text2);">${t.content||'—'}</td>
+      <td>${t.bizName||'—'}</td>
+      <td class="td-r">${t.supplyAmt ? t.supplyAmt.toLocaleString() : '—'}</td>
+      <td class="td-r" style="font-weight:600;">${t.vatAmt ? t.vatAmt.toLocaleString() : '—'}</td>
+      <td style="font-size:11px;color:var(--text2);cursor:pointer;" onclick="taxInlineEdit(this,${t.id},'contactEmail')">${t.contactEmail||'<span style=\'color:var(--text3)\'>클릭하여 입력</span>'}</td>
+      <td><button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent;" onclick="deleteTax(${t.id})">삭제</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 삭제 ──
+async function deleteTax(id) {
+  if (!confirm('삭제하시겠습니까?')) return;
+  const idx = TAX_DATA.findIndex(t => t.id === id);
+  if (idx !== -1) TAX_DATA.splice(idx, 1);
+  await _fbDeleteTax(id);
+  renderTaxList();
+}
+
+// ── 인라인 편집 ──
+async function taxTogglePaid(id) {
+  const t = TAX_DATA.find(x => x.id === id);
+  if (!t) return;
+  const isPaid = t.paid === '완료';
+  if (!confirm(isPaid ? '입금 완료를 취소하시겠습니까?' : '입금 완료 처리하시겠습니까?')) return;
+  t.paid = isPaid ? '' : '완료';
+  if (!isPaid) t.unpaid = 0;
+  await _fbSaveTax(t);
+  renderTaxList();
+}
+
+async function taxToggleStatus(id) {
+  const t = TAX_DATA.find(x => x.id === id);
+  if (!t) return;
+  const isDone = t.taxStatus === '완료';
+  if (!confirm(isDone ? '완료를 취소하시겠습니까?' : '완료 처리하시겠습니까?')) return;
+  t.taxStatus = isDone ? '' : '완료';
+  await _fbSaveTax(t);
+  renderTaxList();
+}
+
+async function taxSaveField(id, field, value) {
+  const t = TAX_DATA.find(x => x.id === id);
+  if (!t) return;
+  t[field] = value;
+  await _fbSaveTax(t);
+}
+
+function taxInlineEdit(td, id, field) {
+  if (td.querySelector('input')) return;
+  const t = TAX_DATA.find(x => x.id === id);
+  if (!t) return;
+  const curVal = field === 'unpaid'
+    ? (t.unpaid != null ? t.unpaid : Math.max(0, (t.vatAmt||0) - (t.paid||0)))
+    : (t[field] || '');
+  const isNum = field === 'unpaid';
+  td.innerHTML = `<input type="${isNum?'number':'text'}" class="form-input"
+    style="font-size:12px;padding:3px 6px;width:100%;min-width:${isNum?'90':'180'}px;"
+    value="${String(curVal).replace(/"/g,'&quot;')}">`;
+  const inp = td.querySelector('input');
+  inp.focus(); inp.select();
+  let saved = false;
+  const save = async () => {
+    if (saved) return; saved = true;
+    const newVal = isNum ? (parseFloat(inp.value) || 0) : inp.value.trim();
+    const tObj = TAX_DATA.find(x => x.id === id);
+    if (tObj) { tObj[field] = newVal; await _fbSaveTax(tObj); }
+    renderTaxList();
+  };
+  inp.addEventListener('blur', save);
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+    if (e.key === 'Escape') { saved = true; renderTaxList(); }
+  });
+}
+
+// ── 등록/수정 모달 ──
+function taxUpdateVat() {
+  const supply = parseFloat(document.getElementById('tax-r-supplyAmt')?.value) || 0;
+  const vatEl = document.getElementById('tax-r-vatAmt');
+  if (vatEl && supply) vatEl.value = Math.round(supply * 1.1);
+}
+
+function openTaxReg(id) {
+  const _el = k => document.getElementById(k);
+  const isNew = id === null;
+  _el('taxRegTitle').textContent = isNew ? '세금계산서 등록' : '세금계산서 수정';
+  if (isNew) {
+    ['tax-edit-id','tax-edit-campaignId','tax-r-manager','tax-r-month',
+     'tax-r-issueDate','tax-r-payDue','tax-r-company',
+     'tax-r-content','tax-r-bizName','tax-r-contactEmail'].forEach(k => { if(_el(k)) _el(k).value = ''; });
+    if (_el('tax-r-supplyAmt')) _el('tax-r-supplyAmt').value = '';
+    if (_el('tax-r-vatAmt'))    _el('tax-r-vatAmt').value    = '';
+    if (_el('tax-r-paid'))      _el('tax-r-paid').checked    = false;
+    if (_el('tax-r-taxStatus')) _el('tax-r-taxStatus').checked = false;
+  } else {
+    const t = TAX_DATA.find(x => x.id === id);
+    if (!t) return;
+    _el('tax-edit-id').value           = t.id;
+    _el('tax-edit-campaignId').value   = t.campaignId || '';
+    _el('tax-r-manager').value         = t.manager     || '';
+    _el('tax-r-month').value           = t.month       || '';
+    _el('tax-r-issueDate').value       = t.issueDate   || '';
+    _el('tax-r-taxStatus').checked     = t.taxStatus === '완료';
+    _el('tax-r-payDue').value          = t.payDue      || '';
+    _el('tax-r-paid').checked          = t.paid === '완료';
+    _el('tax-r-company').value         = t.company     || '';
+    _el('tax-r-content').value         = t.content     || '';
+    _el('tax-r-bizName').value         = t.bizName     || '';
+    _el('tax-r-supplyAmt').value       = t.supplyAmt   || '';
+    _el('tax-r-vatAmt').value          = t.vatAmt      || '';
+    _el('tax-r-contactEmail').value    = t.contactEmail|| '';
+  }
+  openModal('modalTaxReg');
+}
+
+function saveTaxReg() {
+  const _v  = id => (document.getElementById(id)?.value || '').trim();
+  const _n  = id => parseFloat(document.getElementById(id)?.value) || 0;
+  const editId = _v('tax-edit-id');
+  const isNew  = !editId;
+  const t = {
+    id:           isNew ? _taxNextId() : parseInt(editId),
+    campaignId:   _v('tax-edit-campaignId') || null,
+    manager:      _v('tax-r-manager'),
+    month:        _v('tax-r-month'),
+    issueDate:    _v('tax-r-issueDate'),
+    taxStatus:    document.getElementById('tax-r-taxStatus')?.checked ? '완료' : '',
+    payDue:       _v('tax-r-payDue'),
+    paid:         document.getElementById('tax-r-paid')?.checked ? '완료' : '',
+    company:      _v('tax-r-company'),
+    content:      _v('tax-r-content'),
+    bizName:      _v('tax-r-bizName'),
+    supplyAmt:    _n('tax-r-supplyAmt'),
+    vatAmt:       _n('tax-r-vatAmt'),
+    contactEmail: _v('tax-r-contactEmail')
+  };
+  if (isNew) {
+    TAX_DATA.push(t);
+  } else {
+    const idx = TAX_DATA.findIndex(x => x.id === t.id);
+    if (idx !== -1) TAX_DATA[idx] = t; else TAX_DATA.push(t);
+  }
+  _fbSaveTax(t);
+  closeModal('modalTaxReg');
+  renderTaxList();
+}
+
+// ── 자동 생성 모달 ──
+// 전체 eligible 캐시 (필터링용)
+let _taxGenEligible = [];
+
+function openTaxAutoGen() {
+  const linkedIds = new Set(TAX_DATA.map(t => t.campaignId).filter(Boolean));
+  _taxGenEligible = DATA.filter(c => _taxIsSettled(c) && !linkedIds.has(c.id));
+
+  // 필터 드롭다운 채우기
+  const companies = [...new Set(_taxGenEligible.map(c => c.seller||c.adv||'').filter(Boolean))].sort();
+  const managers  = [...new Set(_taxGenEligible.map(c => c.ops||'').filter(Boolean))].sort();
+  const fComp = document.getElementById('tax-gen-fCompany');
+  const fMgr  = document.getElementById('tax-gen-fManager');
+  if (fComp) fComp.innerHTML = '<option value="">업체명 전체</option>' + companies.map(v=>`<option>${_escHtml(v)}</option>`).join('');
+  if (fMgr)  fMgr.innerHTML  = '<option value="">담당자 전체</option>' + managers.map(v=>`<option>${_escHtml(v)}</option>`).join('');
+
+  // step1 초기화
+  document.getElementById('tax-gen-step1').style.display = '';
+  document.getElementById('tax-gen-step2').style.display = 'none';
+  document.getElementById('tax-gen-title').innerHTML = '캠페인 선택 <span style="font-size:12px;color:var(--text3);font-weight:400;">1단계 / 2단계</span>';
+  const allChk = document.getElementById('tax-gen-chk-all');
+  if (allChk) allChk.checked = false;
+
+  taxGenRenderList();
+  openModal('modalTaxAutoGen');
+}
+
+function taxGenRenderList() {
+  const fComp = document.getElementById('tax-gen-fCompany')?.value || '';
+  const fMgr  = document.getElementById('tax-gen-fManager')?.value  || '';
+  const filtered = _taxGenEligible.filter(c => {
+    if (fComp && (c.seller||c.adv||'') !== fComp) return false;
+    if (fMgr  && (c.ops||'') !== fMgr)            return false;
+    return true;
+  });
+  const countEl = document.getElementById('tax-gen-count');
+  if (countEl) countEl.textContent = `${filtered.length}건`;
+  const tbody = document.getElementById('tax-gen-tbody');
+  if (!tbody) return;
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:28px;text-align:center;color:var(--text3);">해당 조건의 캠페인이 없습니다.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(c => {
+    const supply = _stlAmt(c).adc || 0;
+    return `<tr style="cursor:pointer;" onclick="this.querySelector('.tax-gen-chk').click()">
+      <td style="text-align:center;" onclick="event.stopPropagation()"><input type="checkbox" class="tax-gen-chk" data-id="${c.id}"></td>
+      <td style="font-weight:600;">${_escHtml(_cName(c))}</td>
+      <td>${_escHtml(c.ops||'—')}</td>
+      <td>${_taxMonthLabel(c)}</td>
+      <td>${_escHtml(c.seller||c.adv||'—')}</td>
+      <td>${_escHtml(c.product||'—')}</td>
+      <td>${_escHtml(c.media||'—')}</td>
+      <td class="td-r">${supply ? supply.toLocaleString() : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function taxGenToggleAll(chk) {
+  document.querySelectorAll('.tax-gen-chk').forEach(c => c.checked = chk.checked);
+}
+
+function taxGenNext() {
+  const checked = [...document.querySelectorAll('.tax-gen-chk:checked')];
+  if (!checked.length) { alert('캠페인을 1개 이상 선택해주세요.'); return; }
+  const campaigns = checked.map(chk => DATA.find(c => c.id === chk.dataset.id)).filter(Boolean);
+
+  // 기본 날짜 계산
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+  const prevMonthEndStr = prevMonthEnd.toISOString().slice(0, 10);
+
+  // step2 일괄적용 필드에도 기본값 세팅
+  const bulkReq = document.getElementById('tax-gen-bulk-req');
+  const bulkIss = document.getElementById('tax-gen-bulk-iss');
+  if (bulkReq) bulkReq.value = todayStr;
+  if (bulkIss) bulkIss.value = prevMonthEndStr;
+
+  // step2 테이블 구성
+  const tbody = document.getElementById('tax-gen-step2-tbody');
+  if (tbody) {
+    tbody.innerHTML = campaigns.map((c, i) => {
+      const supply = _stlAmt(c).adc || 0;
+      return `<tr data-cid="${c.id}">
+        <td style="font-weight:600;">${_escHtml(_cName(c))}</td>
+        <td>${_escHtml(c.seller||c.adv||'—')}</td>
+        <td class="td-r">${supply ? supply.toLocaleString() : '—'}</td>
+        <td><input type="date" class="form-input tax-gen-req" style="font-size:12px;padding:4px 6px;width:138px;" value="${todayStr}"></td>
+        <td><input type="date" class="form-input tax-gen-iss" style="font-size:12px;padding:4px 6px;width:138px;" value="${prevMonthEndStr}"></td>
+        <td><input type="text" class="form-input tax-gen-email" placeholder="담당자명, email@domain.com" style="font-size:12px;padding:4px 6px;width:100%;min-width:180px;"></td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('tax-gen-step1').style.display = 'none';
+  document.getElementById('tax-gen-step2').style.display = '';
+  document.getElementById('tax-gen-title').innerHTML = '정보 입력 <span style="font-size:12px;color:var(--text3);font-weight:400;">2단계 / 2단계</span>';
+}
+
+function taxGenPrev() {
+  document.getElementById('tax-gen-step2').style.display = 'none';
+  document.getElementById('tax-gen-step1').style.display = '';
+  document.getElementById('tax-gen-title').innerHTML = '캠페인 선택 <span style="font-size:12px;color:var(--text3);font-weight:400;">1단계 / 2단계</span>';
+}
+
+function taxGenApplyBulk() {
+  const req = document.getElementById('tax-gen-bulk-req')?.value || '';
+  const iss = document.getElementById('tax-gen-bulk-iss')?.value || '';
+  if (req) document.querySelectorAll('.tax-gen-req').forEach(el => el.value = req);
+  if (iss) document.querySelectorAll('.tax-gen-iss').forEach(el => el.value = iss);
+}
+
+async function confirmTaxAutoGen() {
+  const rows = [...document.querySelectorAll('#tax-gen-step2-tbody tr')];
+  // 요청일자/발행일자 미입력 검증
+  const missing = rows.some(tr => !tr.querySelector('.tax-gen-req')?.value || !tr.querySelector('.tax-gen-iss')?.value);
+  if (missing) { alert('요청일자와 발행일자를 모두 입력해주세요.'); return; }
+
+  const linkedIds = new Set(TAX_DATA.map(t => t.campaignId).filter(Boolean));
+  for (const tr of rows) {
+    const cid   = tr.dataset.cid;
+    const c     = DATA.find(x => x.id === cid);
+    if (!c || linkedIds.has(c.id)) continue;
+    const supply = _stlAmt(c).adc || 0;
+    const t = {
+      id:           _taxNextId(),
+      campaignId:   c.id,
+      manager:      c.ops || '',
+      month:        _taxMonthLabel(c),
+      reqDate:      tr.querySelector('.tax-gen-req')?.value  || '',
+      issueDate:    tr.querySelector('.tax-gen-iss')?.value  || '',
+      taxStatus:    '',
+      payDue:       '',
+      paid:         null,
+      company:      c.seller || c.adv || '',
+      content:      _taxContentAuto(c),
+      bizName:      c.seller || c.adv || '',
+      supplyAmt:    supply,
+      vatAmt:       Math.round(supply * 1.1),
+      contactEmail: tr.querySelector('.tax-gen-email')?.value.trim() || ''
+    };
+    TAX_DATA.push(t);
+    linkedIds.add(c.id);
+    await _fbSaveTax(t);
+  }
+  closeModal('modalTaxAutoGen');
+  renderTaxList();
+}
+
+// ══════════════════════════════════════════
 // FIREBASE — 캠페인 연동
 // ══════════════════════════════════════════
 
@@ -6274,6 +6888,27 @@ function _fbWatchUsers() {
   }, e => console.error('[FB] 사용자 구독 실패:', e));
 }
 
+// ── 세금계산서 Firebase CRUD ──
+async function _fbSaveTax(t) {
+  if (!window._db) return;
+  try { await window._db.collection('taxInvoices').doc(String(t.id)).set(t); }
+  catch(e) { console.error('[FB] 세금계산서 저장 실패:', e); }
+}
+async function _fbDeleteTax(id) {
+  if (!window._db) return;
+  try { await window._db.collection('taxInvoices').doc(String(id)).delete(); }
+  catch(e) { console.error('[FB] 세금계산서 삭제 실패:', e); }
+}
+function _fbWatchTax() {
+  if (!window._db) return;
+  window._db.collection('taxInvoices').onSnapshot(snap => {
+    TAX_DATA.length = 0;
+    snap.forEach(d => TAX_DATA.push(d.data()));
+    TAX_DATA.sort((a, b) => (b.id||0) - (a.id||0));
+    if (document.getElementById('screen-tax')?.classList.contains('active')) renderTaxList();
+  }, e => console.error('[FB] 세금계산서 구독 실패:', e));
+}
+
 // 상품 드롭다운 초기화
 _populateProductSelects();
 
@@ -6284,6 +6919,7 @@ _fbLoadPipelineTargets();
 _fbWatchSellers();
 _fbWatchMedia();
 _fbWatchUsers();
+_fbWatchTax();
 
 // 최원준 계정 최초 1회 자동 등록
 (async function() {
