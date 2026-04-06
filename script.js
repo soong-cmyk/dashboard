@@ -827,9 +827,10 @@ function openDetail(idx, skipPush) {
   const adcCalc  = adcBill * unit;
   const adc      = c.adcostFixed  || adcCalc;       // 광고비 (수동 고정값 우선)
   const real     = c.amtFixed     || (adcBill * eu);// 실청구
-  const revCalc  = adc - (buyBill * buyUnit);
+  const buyAmt   = c.buyAmtFixed  || (buyBill * buyUnit);
+  const revCalc  = real - buyAmt;                   // 실청구 기준 매출수익
   const rev      = c.revFixed     || revCalc;       // 매출수익
-  const agf      = adc * (agrate / 100);
+  const agf      = real * (agrate / 100);
   const prf      = c.profitFixed  || (rev - agf);   // 이익
   document.getElementById('dQty').textContent       = qty    ? qty.toLocaleString()    + ' 건' : '—';
   document.getElementById('dSvc').textContent       = svc    ? svc.toLocaleString()    + ' 건' : '—';
