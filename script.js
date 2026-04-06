@@ -840,7 +840,6 @@ function openDetail(idx, skipPush) {
     else { billEl.className = 'f-val f-pending'; billEl.style.color = ''; billEl.style.fontWeight = ''; billEl.textContent = '— 실발송 입력 후 계산'; }
   }
   // dBillBase 제거됨 — sellBillBase/buyBillBase 레이블로 대체
-  const buyAmt = c.buyAmtFixed || (buyUnit * buyBill);
   const _baseLbl = (base) => base === 'sched' ? '예약수량 기준' : '실발송수량 기준';
   document.getElementById('dSellUnit').textContent  = unit    ? unit.toLocaleString()    + '원'  : '—';
   document.getElementById('dBuyUnit').textContent   = buyUnit ? buyUnit.toLocaleString() + '원'  : '—';
