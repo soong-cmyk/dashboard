@@ -5478,13 +5478,13 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
 
   const rows = groupOrder.map(gname => {
     const camps = groups[gname];
-    let tAdc = 0, tAdcVat = 0, tBuy = 0, tBuyVat = 0, tFee = 0, tPrf = 0, tQty = 0, tActual = 0;
+    let tAdc = 0, tAdcVat = 0, tBuy = 0, tBuyVat = 0, tFee = 0, tPrf = 0, tQty = 0, tActual = 0, tBuyActual = 0;
     camps.forEach(c => {
       const a    = _stlAmt(c);
       const isDA = c.product === 'DA';
       const has  = _stlHas(c);
       tAdc += (a.amt ?? a.adc); tAdcVat += a.adcVat; tBuy += a.buyAmt; tBuyVat += a.buyVat; tFee += a.agFee; tPrf += a.prf;
-      if (has && !isDA) { tQty += a.qty; tActual += a.actual; }
+      if (has && !isDA) { tQty += a.qty; tActual += a.actual; tBuyActual += (a.buyActual ?? a.actual); }
     });
     const tPrfRate = tAdc > 0 ? pct(tPrf / tAdc * 100) : '—';
     const n           = camps.length;
@@ -5544,7 +5544,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
       <td class="td-num td-r grp-revenue" style="font-weight:700;">${tAdc ? fmt(tAdc) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${tAdc ? fmt(tAdc + tAdcVat) : nd}</td>
       <td>${nd}</td>
-      <td class="grp-purchase">${nd}</td><td>${nd}</td><td>${nd}</td><td class="td-num td-r" style="font-weight:700;">${tActual ? fmt(tActual) : nd}</td>
+      <td class="grp-purchase">${nd}</td><td>${nd}</td><td>${nd}</td><td class="td-num td-r" style="font-weight:700;">${tBuyActual ? fmt(tBuyActual) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${tBuy ? fmt(tBuy) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${tBuy ? fmt(tBuy + tBuyVat) : nd}</td>
       <td>${nd}</td>
