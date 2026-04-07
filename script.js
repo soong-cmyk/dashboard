@@ -2018,7 +2018,7 @@ function calcReg() {
   const rPrfEl = document.getElementById('r_profit');
   if (rPrfEl && !rPrfEl.dataset.manual) rPrfEl.value = prf || '';
   const billHint = document.querySelector('#r_bill + .form-hint');
-  if (billHint) billHint.textContent = billBase === 'sched' ? '발송예약수량 − 서비스수량' : '실발송수량 − 서비스수량 (실발송 입력 후 확정)';
+  if (billHint) billHint.textContent = sellBillBase === 'sched' ? '발송예약수량 − 서비스수량' : '실발송수량 − 서비스수량 (실발송 입력 후 확정)';
   document.getElementById('r_bill').value = s ? bill.toLocaleString()+'건' : '';
 }
 function _calcDAByPrefix(p) {
@@ -2178,8 +2178,8 @@ function submitReg() {
     svc:       isCPA ? 0 : (+document.getElementById('r_svc').value  || 0),
     disc:      isCPA ? 0 : (+document.getElementById('r_disc').value || 0),
     billBase:  isDA  ? 'da' : (isCPA ? (document.getElementById('r_cpa_billbase')?.value || '') : 'actual'), // 하위호환용
-    sellBillBase: isDA || isPC || isCPA ? undefined : (document.getElementById('r_sellBillBase')?.value || 'actual'),
-    buyBillBase:  isDA || isPC || isCPA ? undefined : (document.getElementById('r_buyBillBase')?.value  || 'actual'),
+    sellBillBase: isDA || isPC || isCPA ? '' : (document.getElementById('r_sellBillBase')?.value || 'actual'),
+    buyBillBase:  isDA || isPC || isCPA ? '' : (document.getElementById('r_buyBillBase')?.value  || 'actual'),
     comm:      isDA  ? (+document.getElementById('r_da_comm')?.value   || 0) : (isCPA ? (+document.getElementById('r_cpa_comm')?.value  || 0) : (+document.getElementById('r_comm').value  || 0)),
     buyUnit:   isDA  ? (+document.getElementById('r_da_buyUnit')?.value || 0)
                      : (isCPA ? Math.round((+document.getElementById('r_cpa_unit').value || 0) * (1 - (+document.getElementById('r_cpa_comm')?.value || 0) / 100))
