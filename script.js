@@ -2959,8 +2959,14 @@ function _getFilteredEvents(key) {
       }
     });
 
-  if (!catF && !mediaF && !companyF && !brandF && !bonbuF && !teamF) return evts;
-  return evts.filter(ev => {
+  const sortEvts = arr => arr.slice().sort((a, b) => {
+    const da = DATA[a.idx]?.date || '';
+    const db = DATA[b.idx]?.date || '';
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+
+  if (!catF && !mediaF && !companyF && !brandF && !bonbuF && !teamF) return sortEvts(evts);
+  return sortEvts(evts.filter(ev => {
     const c = DATA[ev.idx];
     if (!c) return false;
     if (catF     && _getCat(c)      !== catF)     return false;
@@ -2983,7 +2989,7 @@ function _getFilteredEvents(key) {
       }
     }
     return true;
-  });
+  }));
 }
 
 function setCalProductTab(tab) {
