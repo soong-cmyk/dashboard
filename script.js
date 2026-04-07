@@ -3220,9 +3220,9 @@ function _updateCalMeta() {
     : totalQty.toLocaleString() + '건';
   if (cntEl) cntEl.textContent = visible.length + '건';
   if (adcEl) adcEl.textContent = totalAdc >= 100000000
-    ? (totalAdc / 100000000).toFixed(1).replace(/\.0$/, '') + '억원'
+    ? (totalAdc / 100000000).toFixed(2).replace(/\.?0+$/, '') + '억원'
     : totalAdc >= 10000
-    ? (totalAdc / 10000).toFixed(0) + '만원'
+    ? (totalAdc / 10000).toFixed(2).replace(/\.?0+$/, '') + '만원'
     : totalAdc.toLocaleString() + '원';
 }
 
