@@ -926,8 +926,7 @@ function openDetail(idx, skipPush) {
     const qtyFieldLbl = document.querySelector('#dCardQty .f-label');
     if (qtyFieldLbl) qtyFieldLbl.textContent = '정산수량';
     // 정산기준 표시 (신청수/로그인수/결제건수)
-    const billBaseEl = document.getElementById('dBillBase');
-    if (billBaseEl) billBaseEl.textContent = c.billBase || '—';
+    // dBillBase 제거됨 (CPA는 billBase를 e_cpa_billbase로 별도 표시)
     // CPA 대행수수료여부 추가 표시
     const cpaFeeEl = document.getElementById('dCpaFeeYn');
     if (cpaFeeEl) cpaFeeEl.textContent = c.cpaFeeYn || '—';
@@ -2285,8 +2284,10 @@ function resetRegForm() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  const rBillBase = document.getElementById('r_billBase');
-  if (rBillBase) rBillBase.value = 'actual';
+  const rSellBB = document.getElementById('r_sellBillBase');
+  const rBuyBB  = document.getElementById('r_buyBillBase');
+  if (rSellBB) rSellBB.value = 'actual';
+  if (rBuyBB)  rBuyBB.value  = 'actual';
   ['r_bill','r_amt','r_adcost','r_buyAmt','r_rev','r_profit'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.value = ''; delete el.dataset.manual; }
@@ -2591,7 +2592,9 @@ function submitEdit() {
     c.comm       = +document.getElementById('e_da_comm')?.value    || 0;
     c.agrate     = +document.getElementById('e_da_agrate')?.value  || 0;
     c.buyUnit    = +document.getElementById('e_da_buyUnit')?.value || Math.round(c.daAdcost * (1 - c.comm / 100));
-    c.billBase   = 'da';
+    c.billBase     = 'da';
+    c.sellBillBase = '';
+    c.buyBillBase  = '';
     c.daImage = [..._daEditImagesBase64];
     if (c.status !== '성과입력완료') c.status = '성과입력대기';
   } else if (isEditPC) {
@@ -2602,7 +2605,9 @@ function submitEdit() {
     c.pcOhcCost = +document.getElementById('e_pc_ohc_cost').value  || 0;
     c.pcDnuUnit = 5500;
     c.pcInflow  = +document.getElementById('e_pc_inflow').value    || 0;
-    c.pcAgree   = +document.getElementById('e_pc_agree').value     || 0;
+    c.pcAgree      = +document.getElementById('e_pc_agree').value   || 0;
+    c.sellBillBase = '';
+    c.buyBillBase  = '';
     c.status    = '성과입력완료';
   } else if (isEditCPA) {
     const yr = document.getElementById('e_da_year').value;
@@ -2615,6 +2620,8 @@ function submitEdit() {
     c.comm      = +document.getElementById('e_cpa_comm')?.value    || 0;
     c.agrate    = +document.getElementById('e_cpa_agrate')?.value  || 0;
     c.buyUnit   = Math.round(c.sellUnit * (1 - c.comm / 100));
+    c.sellBillBase = '';
+    c.buyBillBase  = '';
     c.svc       = 0;
     c.disc      = 0;
   } else {
