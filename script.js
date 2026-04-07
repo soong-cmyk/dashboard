@@ -4859,8 +4859,9 @@ window.addEventListener('hashchange', () => {
 
 /** 정산 데이터 표시 여부 (상품별 기준 필드 다름) */
 function _stlHas(c) {
-  if (c.product === 'DA')  return !!c.daAdcost;
-  if (c.product === 'CPA') return !!c.qty;
+  if (c.product === 'DA')        return !!c.daAdcost;
+  if (c.product === 'CPA')       return !!c.qty;
+  if (c.product === '퍼미션콜')  return !!c.pcAdvUnit || !!c.pcAgree;
   return !!c.actual;
 }
 
@@ -4877,6 +4878,18 @@ function _stlAmt(c) {
     const prf    = rev - agFee;
     const prfRate = adc > 0 ? (prf / adc * 100) : 0;
     return { actual: 0, qty: 0, eu: 0, adc, amt: adc, adcVat, buyAmt, buyVat, stlRate: 0, agFee, prf, prfRate };
+  }
+  // 퍼미션콜
+  if (c.product === '퍼미션콜') {
+    const agree   = c.pcAgree   || 0;
+    const advU    = c.pcAdvUnit || 0;
+    const adc     = agree * advU;
+    const ohcCost = c.pcOhcCost || 0;
+    const dnuCost = agree * 5500;
+    const prf     = adc - ohcCost - dnuCost;
+    const prfRate = adc > 0 ? (prf / adc * 100) : 0;
+    const adcVat  = Math.round(adc * 0.1);
+    return { actual: agree, qty: agree, eu: advU, adc, amt: adc, adcVat, buyAmt: ohcCost + dnuCost, buyVat: Math.round((ohcCost + dnuCost) * 0.1), stlRate: 100, agFee: 0, prf, prfRate };
   }
   // CPA 캠페인: qty 기준 (actual 없이도 qty로 정산)
   if (c.product === 'CPA') {
