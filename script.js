@@ -5211,10 +5211,10 @@ function renderSettlement() {
     if (media && c.media !== media) return false;
     if (adv   && (c.seller || c.adv || '') !== adv) return false;
     if (ops   && c.ops   !== ops)   return false;
-    if (team  && c.dept  !== team)  return false;
-    if (bonbu) {
+    if (team || bonbu) {
       const u = USERS.find(u => u.name === c.ops);
-      if (!u || u.bonbu !== bonbu) return false;
+      if (bonbu && (!u || u.bonbu !== bonbu)) return false;
+      if (team  && (!u || u.dept  !== team))  return false;
     }
     if (selYear  && !c.date.startsWith(selYear))    return false;
     if (selMonth && c.date.slice(5,7) !== selMonth) return false;
@@ -5269,10 +5269,10 @@ function renderStlPermCall(container) {
     if (c.product !== '퍼미션콜') return false;
     if (cat  && c.cat  !== cat)  return false;
     if (ops  && c.ops  !== ops)  return false;
-    if (team && c.dept !== team) return false;
-    if (bonbu) {
+    if (team || bonbu) {
       const u = USERS.find(u => u.name === c.ops);
-      if (!u || u.bonbu !== bonbu) return false;
+      if (bonbu && (!u || u.bonbu !== bonbu)) return false;
+      if (team  && (!u || u.dept  !== team))  return false;
     }
     if (selYear  && !c.date.startsWith(selYear))    return false;
     if (selMonth && c.date.slice(5,7) !== selMonth) return false;
