@@ -4862,7 +4862,7 @@ function _stlHas(c) {
   if (c.product === 'DA')        return !!c.daAdcost;
   if (c.product === 'CPA')       return !!c.qty;
   if (c.product === '퍼미션콜')  return !!c.pcAdvUnit || !!c.pcAgree;
-  return !!c.actual;
+  return !!(c.sellUnit && c.qty);
 }
 
 /** 실발송수량(actual) 기준 정산 금액 계산 */
@@ -4926,7 +4926,7 @@ function _stlAmt(c) {
   const buyVat  = Math.round(buyAmt * 0.1);
   const stlRate = qty > 0 ? (actual / qty * 100) : 0;
   const agFee   = Math.round(amt * commR);
-  const prf     = c.profitFixed  || (amt - buyAmt - agFee);
+  const prf     = c.profitFixed  || Math.round(amt - buyAmt - agFee);
   const prfRate = amt > 0 ? (prf / amt * 100) : 0;
   return { actual: sellQty, qty, disc, eu, adc, amt, adcVat, buyAmt, buyVat, stlRate, agFee, prf, prfRate };
 }
@@ -5252,7 +5252,7 @@ function renderSettlement() {
   set('stl-cnt',    settled.length + '건');
   set('stl-adcost', totalAdc ? Math.round(totalAdc).toLocaleString() + '원' : '—');
   set('stl-rev',    totalBuy ? Math.round(totalBuy).toLocaleString() + '원' : '—');
-  set('stl-profit', totalPrf ? totalPrf.toLocaleString() + '원' : '—');
+  set('stl-profit', totalPrf ? Math.round(totalPrf).toLocaleString() + '원' : '—');
 
   const container = document.getElementById('stl-table-container');
   if (!container) return;
