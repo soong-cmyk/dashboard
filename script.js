@@ -3437,7 +3437,7 @@ function _makeDABarEl(bar) {
   const mr = bar.rightRound ? '0'   : '-9px';
   const pl = bar.leftRound  ? '6px' : '1px';
   const pr = bar.rightRound ? '6px' : '1px';
-  el.style.cssText = `background:${color}cc;color:#fff;border-radius:${lr} ${rr} ${rr} ${lr};margin-left:${ml};margin-right:${mr};padding-left:${pl};padding-right:${pr};margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+  el.style.cssText = `background:${color}cc;color:#333;border-radius:${lr} ${rr} ${rr} ${lr};margin-left:${ml};margin-right:${mr};padding-left:${pl};padding-right:${pr};margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
   el.textContent = bar.showLabel ? _cName(bar.camp) : '\u00a0';
   el.title = _cName(bar.camp);
   el.onclick = e => { e.stopPropagation(); if (bar.idx !== -1) openCalPreview(bar.idx); };
