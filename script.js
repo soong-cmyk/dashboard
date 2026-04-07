@@ -4941,7 +4941,7 @@ function _stlAmt(c) {
   const agFee   = Math.round(amt * commR);
   const prf     = c.profitFixed  || Math.round(amt - buyAmt - agFee);
   const prfRate = amt > 0 ? (prf / amt * 100) : 0;
-  return { actual: sellQty, qty, disc, eu, adc, amt, adcVat, buyAmt, buyVat, stlRate, agFee, prf, prfRate };
+  return { actual: sellQty, buyActual: buyQty, qty, disc, eu, adc, amt, adcVat, buyAmt, buyVat, stlRate, agFee, prf, prfRate };
 }
 
 /** 정산 동적 필터 드롭다운 채우기 (매출처·담당자·본부·팀) */
@@ -5402,7 +5402,7 @@ function renderStlCampaignView(data, container) {
       <td class="td-dim grp-purchase">${_escHtml(c.media)}</td>
       <td class="td-dim">${_escHtml(MEDIA_DATA.find(x=>x.company===c.media)?.invoiceTo||'—')}</td>
       <td class="td-num td-r">${hasBuy && !isDA ? fmt(c.buyUnit) : nd}</td>
-      <td class="td-num td-r">${has && !isDA ? fmt(a.actual) : nd}</td>
+      <td class="td-num td-r">${has && !isDA ? fmt(a.buyActual ?? a.actual) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${hasBuy ? fmt(a.buyAmt) : nd}</td>
       <td class="td-num td-r" style="color:var(--text2);">${hasBuy ? fmt(a.buyAmt + a.buyVat) : nd}</td>
       <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
@@ -5519,7 +5519,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
         <td class="td-dim grp-purchase">${_escHtml(c.media)}</td>
         <td class="td-dim">${_escHtml(MEDIA_DATA.find(x=>x.company===c.media)?.invoiceTo||'—')}</td>
         <td class="td-num td-r">${hasBuy && !isDA ? fmt(c.buyUnit) : nd}</td>
-        <td class="td-num td-r">${has && !isDA ? fmt(a.actual) : nd}</td>
+        <td class="td-num td-r">${has && !isDA ? fmt(a.buyActual ?? a.actual) : nd}</td>
         <td class="td-num td-r" style="font-weight:600;">${hasBuy ? fmt(a.buyAmt) : nd}</td>
         <td class="td-num td-r" style="color:var(--text2);">${hasBuy ? fmt(a.buyAmt + a.buyVat) : nd}</td>
         <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
