@@ -5508,7 +5508,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
       </tr>`;
     }).join('');
 
-    return `<tr data-stlgroup style="border-top:1px solid var(--border);">
+    return `<tr data-stlgroup style="border-top:2px solid var(--border2);">
       <td colspan="3" class="td-bold stl-sc3" style="background:${bg0};">
         ${_escHtml(groupLabel)}: ${_escHtml(gname)} <span style="font-size:11px;font-weight:400;color:var(--text3);">${n}건</span>
       </td>
