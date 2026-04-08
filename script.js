@@ -4941,7 +4941,6 @@ function _stlAmt(c) {
   const svc      = c.svc      || 0;
   const unit     = c.sellUnit || 0;
   const buyU     = c.buyUnit  || Math.round(unit * (1 - (c.comm || 0) / 100));
-  const commR       = (c.comm    || 0) / 100;
   const sellBillBase = c.sellBillBase || c.billBase || 'actual';
   const buyBillBase  = c.buyBillBase  || c.billBase || 'actual';
   const _stlBillQty = (base) => Math.max(0, (base === 'sched' ? qty : actual) - svc);
@@ -4955,7 +4954,7 @@ function _stlAmt(c) {
   const buyAmt  = c.buyAmtFixed  || buyQty * buyU;
   const buyVat  = Math.round(buyAmt * 0.1);
   const stlRate = qty > 0 ? (actual / qty * 100) : 0;
-  const agFee   = Math.round(amt * commR);
+  const agFee   = Math.round(amt * (c.agrate || 0) / 100); // 대행료: agrate(대행%) 기준
   const prf     = c.profitFixed  || Math.round(amt - buyAmt - agFee);
   const prfRate = amt > 0 ? (prf / amt * 100) : 0;
   return { actual: sellQty, buyActual: buyQty, qty, disc, eu, adc, amt, adcVat, buyAmt, buyVat, stlRate, agFee, prf, prfRate };
@@ -5423,7 +5422,7 @@ function renderStlCampaignView(data, container) {
       <td class="td-num td-r" style="font-weight:700;">${hasBuy ? fmt(a.buyAmt) : nd}</td>
       <td class="td-num td-r" style="color:var(--text2);">${hasBuy ? fmt(a.buyAmt + a.buyVat) : nd}</td>
       <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
-      <td class="td-num grp-pnl" style="text-align:center;">${has ? (c.comm + '%') : nd}</td>
+      <td class="td-num grp-pnl" style="text-align:center;">${has ? ((c.agrate || 0) + '%') : nd}</td>
       <td class="td-num td-r">${has ? fmt(a.agFee) : nd}</td>
       <td class="td-num td-r" style="color:var(--green);font-weight:700;">${has ? fmt(a.prf) : nd}</td>
       <td class="td-num" style="text-align:center;">${has ? pct(a.prfRate) : nd}</td>
@@ -5540,7 +5539,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
         <td class="td-num td-r" style="font-weight:600;">${hasBuy ? fmt(a.buyAmt) : nd}</td>
         <td class="td-num td-r" style="color:var(--text2);">${hasBuy ? fmt(a.buyAmt + a.buyVat) : nd}</td>
         <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
-        <td class="td-num grp-pnl" style="text-align:center;">${has ? (c.comm + '%') : nd}</td>
+        <td class="td-num grp-pnl" style="text-align:center;">${has ? ((c.agrate || 0) + '%') : nd}</td>
         <td class="td-num td-r">${has ? fmt(a.agFee) : nd}</td>
         <td class="td-num td-r" style="color:var(--green);">${has ? fmt(a.prf) : nd}</td>
         <td class="td-num" style="text-align:center;">${has ? pct(a.prfRate) : nd}</td>
