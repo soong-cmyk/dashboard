@@ -4926,12 +4926,11 @@ function _stlAmt(c) {
     const qty    = c.qty      || 0;
     const unit   = c.sellUnit || 0;
     const buyU   = c.buyUnit  || Math.round(unit * (1 - (c.comm || 0) / 100));
-    const commR  = (c.comm    || 0) / 100;
     const adc    = c.adcostFixed || qty * unit;
     const adcVat = Math.round(adc * 0.1);
     const buyAmt = qty * buyU;
     const buyVat = Math.round(buyAmt * 0.1);
-    const agFee  = Math.round(adc * commR);
+    const agFee  = Math.round(adc * (c.agrate || 0) / 100); // 대행료: agrate(대행%) 기준
     const prf    = adc - buyAmt - agFee;
     const prfRate = adc > 0 ? (prf / adc * 100) : 0;
     return { actual: qty, qty, eu: unit, adc, amt: adc, adcVat, buyAmt, buyVat, stlRate: 100, agFee, prf, prfRate };
