@@ -3624,27 +3624,44 @@ function renderDashboard() {
 
   // ── 상단 통계 카드 ──
   const now = new Date();
-  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const thisYear = String(now.getFullYear());
-  const yearCnt  = DATA.filter(c => c.date?.startsWith(thisYear)).length;
-  const monthCnt = DATA.filter(c => c.date?.startsWith(ym)).length;
-  const sentQty  = DATA.filter(c => c.sent).reduce((s, c) => s + (c.qty || 0), 0);
-  const totalQty = DATA.reduce((s, c) => s + (c.qty || 0), 0);
-  const monthAdc = DATA.filter(c => c.date?.startsWith(thisYear)).reduce((s, c) => {
+  const curMonth = String(now.getMonth() + 1).padStart(2, '0');
+
+  // 월 필터 초기화 (첫 렌더 시 현재 월로 설정)
+  const dashMonthEl = document.getElementById('dash-stat-month');
+  if (dashMonthEl && dashMonthEl.dataset.init !== '1') {
+    dashMonthEl.value = curMonth;
+    dashMonthEl.dataset.init = '1';
+  }
+  const selMonth = dashMonthEl?.value || '';
+  const prefix = selMonth ? `${thisYear}-${selMonth}` : thisYear;
+
+  const statData = DATA.filter(c => (c.date || '').startsWith(prefix));
+  const campCnt  = statData.length;
+  const sentQty  = statData.filter(c => c.sent).reduce((s, c) => s + (c.qty || 0), 0);
+  const totalQty = statData.reduce((s, c) => s + (c.qty || 0), 0);
+  const statAdc  = statData.reduce((s, c) => {
     const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
     return s + base * (c.sellUnit||0);
   }, 0);
+
+  const lbl = selMonth ? `${+selMonth}월` : `${thisYear}년`;
+  const campLbl = document.getElementById('dash-camp-lbl');
+  const campSub = document.getElementById('dash-camp-sub');
+  const adcLbl  = document.getElementById('dash-adc-lbl');
+  if (campLbl) campLbl.textContent = lbl + ' 진행 캠페인';
+  if (campSub) campSub.textContent = lbl + ' 기준';
+  if (adcLbl)  adcLbl.textContent  = lbl + ' 광고비';
+
   const eYearCnt  = document.getElementById('dash-year-cnt');
-  const eMonthCnt = document.getElementById('dash-month-cnt');
   const eSentQty  = document.getElementById('dash-sent-qty');
   const eTotalQty = document.getElementById('dash-total-qty');
   const eMonthAdc = document.getElementById('dash-month-adc');
-  if (eYearCnt)  eYearCnt.textContent  = yearCnt + '건';
-  if (eMonthCnt) eMonthCnt.textContent = monthCnt + '건';
+  if (eYearCnt)  eYearCnt.textContent  = campCnt + '건';
   if (eSentQty)  eSentQty.textContent  = sentQty.toLocaleString() + '건';
   if (eTotalQty) eTotalQty.textContent = '예정 ' + totalQty.toLocaleString() + '건 중';
-  if (eMonthAdc) eMonthAdc.textContent = monthAdc
-    ? (monthAdc >= 100000000 ? (monthAdc/100000000).toFixed(1).replace(/\.0$/,'')+'억원' : (monthAdc/10000).toFixed(0)+'만원')
+  if (eMonthAdc) eMonthAdc.textContent = statAdc
+    ? (statAdc >= 100000000 ? (statAdc/100000000).toFixed(1).replace(/\.0$/,'')+'억원' : (statAdc/10000).toFixed(0)+'만원')
     : '—';
 
   // 단계별 현황 (전체 캠페인 기준) - 건수

@@ -143,13 +143,22 @@
 
 
         <!-- ── 브레인큐브 ── -->
-        <div class="dash-section">통계</div>
+        <div class="dash-section" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>통계</span>
+          <select id="dash-stat-month" onchange="renderDashboard()" style="font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;">
+            <option value="">전체</option>
+            <option value="01">1월</option><option value="02">2월</option><option value="03">3월</option>
+            <option value="04">4월</option><option value="05">5월</option><option value="06">6월</option>
+            <option value="07">7월</option><option value="08">8월</option><option value="09">9월</option>
+            <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+          </select>
+        </div>
         <!-- Row 1: 통계 3개 -->
         <div class="dash-stat-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:0;">
           <div class="stat-card c-blue">
-            <div class="stat-label">올해 진행 캠페인</div>
+            <div class="stat-label" id="dash-camp-lbl">진행 캠페인</div>
             <div class="stat-value" id="dash-year-cnt">—</div>
-            <div class="stat-sub">2026년 기준</div>
+            <div class="stat-sub" id="dash-camp-sub">2026년 기준</div>
           </div>
           <div class="stat-card c-purple">
             <div class="stat-label">실제 발송량</div>
@@ -157,7 +166,7 @@
             <div class="stat-sub" id="dash-total-qty">—</div>
           </div>
           <div class="stat-card c-orange">
-            <div class="stat-label">올해 광고비</div>
+            <div class="stat-label" id="dash-adc-lbl">광고비</div>
             <div class="stat-value" id="dash-month-adc" style="font-size:16px;">—</div>
             <div class="stat-sub">정산수량 × 매출단가</div>
           </div>
