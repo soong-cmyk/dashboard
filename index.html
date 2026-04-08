@@ -1056,12 +1056,12 @@
                 </div>
                 <div class="fg"><label class="form-label">광고비</label>
                   <input type="number" class="form-input" id="e_adcost" placeholder="자동계산"
-                    oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcEdit()">
+                    oninput="this.dataset.manual='1';calcEdit()" onblur="if(!this.value){delete this.dataset.manual;calcEdit();}">
                   <span class="form-hint">정산수량 × 매출단가 (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">실청구</label>
                   <input type="number" class="form-input" id="e_billamt" placeholder="자동계산"
-                    oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcEdit()">
+                    oninput="this.dataset.manual='1';calcEdit()" onblur="if(!this.value){delete this.dataset.manual;calcEdit();}">
                   <span class="form-hint">정산수량 × 할인단가 (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">수수료율 (%)</label>
@@ -1079,12 +1079,12 @@
                 </div>
                 <div class="fg"><label class="form-label">매입단가 (원)</label>
                   <input type="number" step="0.1" class="form-input" id="e_buyUnit" placeholder="자동계산"
-                    oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcEdit()">
+                    oninput="this.dataset.manual='1';calcEdit()" onblur="if(!this.value){delete this.dataset.manual;calcEdit();}">
                   <span class="form-hint">매출단가 × (1 − 수수료율) (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">매입액</label>
                   <input type="number" class="form-input" id="e_buyAmt" placeholder="자동계산"
-                    oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcEdit()">
+                    oninput="this.dataset.manual='1';calcEdit()" onblur="if(!this.value){delete this.dataset.manual;calcEdit();}">
                   <span class="form-hint">매입단가 × 정산수량 (직접 입력 시 고정)</span>
                 </div>
 
@@ -1093,7 +1093,7 @@
 
                 <div class="fg"><label class="form-label">매출수익</label>
                   <input type="number" class="form-input" id="e_rev" placeholder="자동계산"
-                    oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcEdit()">
+                    oninput="this.dataset.manual='1';calcEdit()" onblur="if(!this.value){delete this.dataset.manual;calcEdit();}">
                   <span class="form-hint">광고비 − 매입액 (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">대행 (%)</label>
@@ -1101,7 +1101,7 @@
                 </div>
                 <div class="fg"><label class="form-label">이익</label>
                   <input type="number" class="form-input" id="e_profit" placeholder="자동계산"
-                    oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcEdit()">
+                    oninput="this.dataset.manual='1';calcEdit()" onblur="if(!this.value){delete this.dataset.manual;calcEdit();}">
                   <span class="form-hint">매출수익 − 대행료 (직접 입력 시 고정)</span>
                 </div>
               </div>
@@ -2410,11 +2410,11 @@
                 <span class="form-hint">매출단가에서 차감</span></div>
               <div class="fg"><label class="form-label">광고비</label>
                 <input type="number" class="form-input" id="r_adcost" placeholder="자동계산"
-                  oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcReg()">
+                  oninput="this.dataset.manual='1';calcReg()" onblur="if(!this.value){delete this.dataset.manual;calcReg();}">
                 <span class="form-hint">정산수량 × 매출단가 (직접 입력 시 고정)</span></div>
               <div class="fg"><label class="form-label">실청구</label>
                 <input type="number" class="form-input" id="r_amt" placeholder="자동계산"
-                  oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcReg()">
+                  oninput="this.dataset.manual='1';calcReg()" onblur="if(!this.value){delete this.dataset.manual;calcReg();}">
                 <span class="form-hint">정산수량 × 할인단가 (직접 입력 시 고정)</span></div>
               <div class="fg"><label class="form-label">수수료율 (%)</label>
                 <input type="number" class="form-input" id="r_comm" placeholder="매체사 선택 시 자동" oninput="calcReg()"></div>
@@ -2429,24 +2429,24 @@
               </div>
               <div class="fg"><label class="form-label">매입단가 (원)</label>
                 <input type="number" step="0.1" class="form-input" id="r_buyUnit" placeholder="자동계산"
-                  oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcReg()">
+                  oninput="this.dataset.manual='1';calcReg()" onblur="if(!this.value){delete this.dataset.manual;calcReg();}">
                 <span class="form-hint">매출단가 × (1 − 수수료율) (직접 입력 시 고정)</span></div>
               <div class="fg"><label class="form-label">매입액</label>
                 <input type="number" class="form-input" id="r_buyAmt" placeholder="자동계산"
-                  oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcReg()">
+                  oninput="this.dataset.manual='1';calcReg()" onblur="if(!this.value){delete this.dataset.manual;calcReg();}">
                 <span class="form-hint">매입단가 × 정산수량 (직접 입력 시 고정)</span></div>
 
               <!-- 손익 -->
               <div class="form-section-lbl">손익</div>
               <div class="fg"><label class="form-label">매출수익</label>
                 <input type="number" class="form-input" id="r_rev" placeholder="자동계산"
-                  oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcReg()">
+                  oninput="this.dataset.manual='1';calcReg()" onblur="if(!this.value){delete this.dataset.manual;calcReg();}">
                 <span class="form-hint">광고비 − 매입액 (직접 입력 시 고정)</span></div>
               <div class="fg"><label class="form-label">대행 (%)</label>
                 <input type="number" class="form-input" id="r_agrate" placeholder="0" oninput="calcReg()"></div>
               <div class="fg"><label class="form-label">이익</label>
                 <input type="number" class="form-input" id="r_profit" placeholder="자동계산"
-                  oninput="if(!this.value)delete this.dataset.manual;else this.dataset.manual='1';calcReg()">
+                  oninput="this.dataset.manual='1';calcReg()" onblur="if(!this.value){delete this.dataset.manual;calcReg();}">
                 <span class="form-hint">매출수익 − 대행료 (직접 입력 시 고정)</span></div>
             </div><!-- /r_qty_normal -->
             <!-- 퍼미션콜 전용 -->
