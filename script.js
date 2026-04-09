@@ -2128,6 +2128,17 @@ function submitReg() {
     }
   }
 
+  // 시간 검증 (LMS/MMS/push/카톡msg는 00:00 불가)
+  const TIME_REQUIRED = ['LMS','MMS','push','카톡msg'];
+  if (TIME_REQUIRED.includes(prod)) {
+    const _dt = _getDateTime('r');
+    if (!_dt || _dt.endsWith('00:00')) {
+      toast('⚠ 시간을 설정해주세요', 'warn');
+      document.getElementById('r_hour')?.focus();
+      return;
+    }
+  }
+
   // 광고주/대행사 등록 여부 검증
   const _rSellerVal = document.getElementById('r_seller').value;
   if (_rSellerVal && !SELLER_DATA.some(s => s.company === _rSellerVal)) {
