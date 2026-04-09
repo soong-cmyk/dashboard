@@ -3779,14 +3779,19 @@ function downloadSettlementExcel() {
 // ══════════════════════════════════════════
 function renderMonthly() {
   // 연도 셀렉트 초기화 (최초 1회)
-  const yearSel = document.getElementById('mly-year');
+  const yearSel  = document.getElementById('mly-year');
+  const monthSel = document.getElementById('mly-month');
+  const now = new Date();
+  const curYear  = String(now.getFullYear());
+  const curMonth = String(now.getMonth() + 1).padStart(2, '0');
   const years = [...new Set(DATA.map(c => c.date.slice(0,4)))].sort();
   if (yearSel.options.length === 0) {
     years.forEach(y => { const o = document.createElement('option'); o.value=y; o.textContent=y+'년'; yearSel.appendChild(o); });
-    yearSel.value = years[years.length-1];
+    yearSel.value = years.includes(curYear) ? curYear : years[years.length-1];
+    monthSel.value = curMonth;
   }
   const year = yearSel.value;
-  const month = document.getElementById('mly-month').value; // '' or '01'~'12'
+  const month = monthSel.value; // '' or '01'~'12'
   const src = DATA.filter(c => {
     if (!c.date.startsWith(year)) return false;
     if (month && c.date.slice(5,7) !== month) return false;
