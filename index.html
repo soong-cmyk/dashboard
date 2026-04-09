@@ -1969,11 +1969,14 @@
             <option value="요청중">요청중</option>
             <option value="대기">대기</option>
           </select>
-          <input class="form-input" id="tax-fCompany" placeholder="업체명 검색" oninput="renderTaxList()" style="width:140px;">
+          <select class="form-sel" id="tax-fSeller" onchange="renderTaxList()" style="width:120px;">
+            <option value="">매출처 전체</option>
+          </select>
+          <input class="form-input" id="tax-fCompany" placeholder="업체명/상호명 검색" oninput="renderTaxList()" style="width:160px;">
           <button class="btn btn-ghost btn-sm" onclick="resetTaxFilter()">✕ 초기화</button>
           <div style="flex:1;"></div>
-          <button class="btn btn-outline btn-sm" onclick="openTaxAutoGen()">+ 캠페인에서 가져오기</button>
-          <button class="btn btn-primary btn-sm" onclick="openTaxReg(null)">+ 수동 등록</button>
+          <button class="btn btn-ghost btn-sm" onclick="openTaxReg(null)">+ 수동 등록</button>
+          <button class="btn btn-primary btn-sm" onclick="openTaxAutoGen()">+ 캠페인에서 가져오기</button>
         </div>
         <!-- 요약 카드 -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;">
