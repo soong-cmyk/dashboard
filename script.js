@@ -1129,7 +1129,7 @@ function renderTable(data) {
   }, 0);
   const adcEl = document.getElementById('shownAdc');
   if (adcEl) adcEl.textContent = totalAdc
-    ? (totalAdc >= 100000000 ? (totalAdc/100000000).toFixed(1).replace(/\.0$/,'')+'억원' : (totalAdc/10000).toFixed(0)+'만원')
+    ? (totalAdc >= 100000000 ? (totalAdc/100000000).toFixed(2).replace(/\.?0+$/,'')+'억원' : (totalAdc/10000).toFixed(2).replace(/\.?0+$/,'')+'만원')
     : '—';
 
   // pg-info
@@ -3663,7 +3663,7 @@ function renderDashboard() {
   if (eSentQty)  eSentQty.textContent  = sentQty.toLocaleString() + '건';
   if (eTotalQty) eTotalQty.textContent = '예정 ' + totalQty.toLocaleString() + '건 중';
   if (eMonthAdc) eMonthAdc.textContent = statAdc
-    ? (statAdc >= 100000000 ? (statAdc/100000000).toFixed(1).replace(/\.0$/,'')+'억원' : (statAdc/10000).toFixed(0)+'만원')
+    ? (statAdc >= 100000000 ? (statAdc/100000000).toFixed(2).replace(/\.?0+$/,'')+'억원' : (statAdc/10000).toFixed(2).replace(/\.?0+$/,'')+'만원')
     : '—';
 
   // 단계별 현황 (전체 캠페인 기준) - 건수
@@ -3801,7 +3801,7 @@ function renderMonthly() {
     const base = (c.sellBillBase||c.billBase||'actual')==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
     return s + base*(c.sellUnit||0);
   }, 0);
-  const fmtAdc = v => v >= 100000000 ? (v/100000000).toFixed(1).replace(/\.0$/,'')+'억원' : (v/10000).toFixed(0)+'만원';
+  const fmtAdc = v => v >= 100000000 ? (v/100000000).toFixed(2).replace(/\.?0+$/,'')+'억원' : (v/10000).toFixed(2).replace(/\.?0+$/,'')+'만원';
   document.getElementById('mly-stats').innerHTML = [
     ['집행건수',    src.length,           '건',  null],
     ['총 부킹수량', totalQty,             '건',  null],
@@ -3905,7 +3905,7 @@ function mlySelectMedia(mediaName) {
     catMap[c.cat].list.push(c);
   });
 
-  const fmtAdc = v => v >= 100000000 ? (v/100000000).toFixed(1).replace(/\.0$/,'')+'억원' : v >= 10000 ? (v/10000).toFixed(0)+'만원' : v ? v.toLocaleString()+'원' : '—';
+  const fmtAdc = v => v >= 100000000 ? (v/100000000).toFixed(2).replace(/\.?0+$/,'')+'억원' : v >= 10000 ? (v/10000).toFixed(2).replace(/\.?0+$/,'')+'만원' : v ? v.toLocaleString()+'원' : '—';
 
   document.getElementById('mly-cat-title').textContent = `카테고리별 성과 — ${mediaName}`;
   document.getElementById('mly-cat-panel').innerHTML = `
