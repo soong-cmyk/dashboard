@@ -3551,20 +3551,12 @@ function openModal(id) {
 }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-// 배경 클릭·ESC로 닫으면 안 되는 모달 목록
-const NO_EASY_CLOSE = new Set(['modalReg','modalUserReg','modalChangePw','modalResetPw','modalMedia','modalSeller','modalBrandAdd']);
-
+// ESC로 모든 모달 닫기 (배경 클릭으로는 닫히지 않음)
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   // 캠페인 수정 화면이 활성 중이면 ESC 무시
   if (document.getElementById('screen-edit')?.classList.contains('active')) return;
-  document.querySelectorAll('.modal-overlay.open').forEach(m => {
-    if (!NO_EASY_CLOSE.has(m.id)) m.classList.remove('open');
-  });
-});
-document.querySelectorAll('.modal-overlay').forEach(o => {
-  if (!NO_EASY_CLOSE.has(o.id))
-    o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
 });
 
 // ══════════════════════════════════════════
@@ -4852,7 +4844,7 @@ window.addEventListener('popstate', (e) => {
   }
 });
 
-let stlView = 'media'; // 'media' | 'adv' | 'agency' | 'campaign'
+let stlView = 'adv'; // 'media' | 'adv' | 'agency' | 'campaign'
 
 (function initRoute() {
   if (!checkAuth()) {
@@ -5016,10 +5008,10 @@ function resetStlFilter() {
     const el = document.getElementById(id);
     if (el) el.value = id === 'stl-fScope' ? 'settled' : '';
   });
-  stlView = 'media';
+  stlView = 'adv';
   ['campaign', 'adv', 'agency', 'media', 'pc'].forEach(t => {
     const el = document.getElementById('stl-vt-' + t);
-    if (el) el.classList.toggle('active', t === 'media');
+    if (el) el.classList.toggle('active', t === 'adv');
   });
   _stlPopulateDynFilters();
   renderSettlement();
@@ -5282,7 +5274,7 @@ function renderSettlement() {
   });
 
   // 합산 — 표에 실제로 표시되는 값 기준
-  let totalAdc = 0, totalBuy = 0, totalPrf = 0;
+  let totalAdc = 0, totalBuy = 0, totalPrf = 0, totalSellQty = 0, totalBuyQty = 0;
   settled.forEach(c => {
     const a      = _stlAmt(c);
     const has    = _stlHas(c);
@@ -5290,15 +5282,21 @@ function renderSettlement() {
     if (has)    totalAdc += (a.amt ?? a.adc);
     if (hasBuy) totalBuy += a.buyAmt;
     if (has)    totalPrf += a.prf;
+    if (has && c.product !== 'DA') {
+      totalSellQty += a.actual ?? 0;
+      totalBuyQty  += a.buyActual ?? a.actual ?? 0;
+    }
   });
 
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   const cntSubEl = document.querySelector('#stl-cnt')?.closest('.stat-card')?.querySelector('.stat-sub');
   if (cntSubEl) cntSubEl.textContent = scope === 'settled' ? '성과입력완료 기준' : '전체 캠페인 기준';
-  set('stl-cnt',    settled.length + '건');
-  set('stl-adcost', totalAdc ? Math.round(totalAdc).toLocaleString() + '원' : '—');
-  set('stl-rev',    totalBuy ? Math.round(totalBuy).toLocaleString() + '원' : '—');
-  set('stl-profit', totalPrf ? Math.round(totalPrf).toLocaleString() + '원' : '—');
+  set('stl-cnt',      settled.length + '건');
+  set('stl-adcost',   totalAdc ? Math.round(totalAdc).toLocaleString() + '원' : '—');
+  set('stl-rev',      totalBuy ? Math.round(totalBuy).toLocaleString() + '원' : '—');
+  set('stl-profit',   totalPrf ? Math.round(totalPrf).toLocaleString() + '원' : '—');
+  set('stl-sell-qty', totalSellQty ? totalSellQty.toLocaleString() + ' 건' : '—');
+  set('stl-buy-qty',  totalBuyQty  ? totalBuyQty.toLocaleString()  + ' 건' : '—');
 
   const container = document.getElementById('stl-table-container');
   if (!container) return;

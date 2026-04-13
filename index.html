@@ -1272,11 +1272,13 @@
             <div class="stat-label">총 매출액</div>
             <div class="stat-value" id="stl-adcost" style="font-size:16px;color:var(--accent);">—</div>
             <div class="stat-sub">실발송 기준 · VAT 별도</div>
+            <div class="stat-sub" style="margin-top:4px;">정산수량 <span id="stl-sell-qty" style="font-weight:600;color:var(--accent);">—</span></div>
           </div>
           <div class="stat-card c-yellow">
             <div class="stat-label">총 매입액</div>
             <div class="stat-value" id="stl-rev" style="font-size:16px;color:var(--yellow);">—</div>
             <div class="stat-sub">매입 기준 · VAT 별도</div>
+            <div class="stat-sub" style="margin-top:4px;">인정수량 <span id="stl-buy-qty" style="font-weight:600;color:var(--yellow);">—</span></div>
           </div>
           <div class="stat-card c-green">
             <div class="stat-label">총 매출이익</div>
@@ -1290,8 +1292,8 @@
           <span class="f-label">보기</span>
           <div
             style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px;gap:2px;">
-            <div class="view-tab active" id="stl-vt-media" onclick="stlSetView('media')">매체사별</div>
-            <div class="view-tab" id="stl-vt-adv" onclick="stlSetView('adv')">매출처별</div>
+            <div class="view-tab active" id="stl-vt-adv" onclick="stlSetView('adv')">매출처별</div>
+            <div class="view-tab" id="stl-vt-media" onclick="stlSetView('media')">매체사별</div>
             <div class="view-tab" id="stl-vt-campaign" onclick="stlSetView('campaign')">캠페인별</div>
             <div class="view-tab" id="stl-vt-pc" onclick="stlSetView('pc')">퍼미션콜</div>
           </div>
