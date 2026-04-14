@@ -5507,6 +5507,8 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
     return `<span style="color:${col};font-weight:600;">${done}/${total}</span>`;
   };
 
+  groupOrder.sort((a, b) => a.localeCompare(b, 'ko'));
+
   const rows = groupOrder.map(gname => {
     const camps = groups[gname];
     let tAdc = 0, tAdcVat = 0, tBuy = 0, tBuyVat = 0, tFee = 0, tPrf = 0, tQty = 0, tActual = 0, tBuyActual = 0;
