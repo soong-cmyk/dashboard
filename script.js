@@ -817,19 +817,11 @@ function openDetail(idx, skipPush) {
   // 수량/금액 동적 계산
   const qty = c.qty||0, svc = c.svc||0, unit = c.sellUnit||0, buyUnit = c.buyUnit||0, disc = c.disc||0, comm = c.comm||0, agrate = c.agrate||0;
   const actual = c.actual||0;
-  const isCPAcalc = c.product === 'CPA';
-  // CPA: 정산기준수량은 항상 정산수량(qty) 기준 — 실발송수량(actual)과 무관
-  const bill    = isCPAcalc ? (qty - svc) : (actual ? actual - svc : null);
+  const bill    = actual ? actual - svc : null;
   const sellBillBase = c.sellBillBase || c.billBase || 'actual';
   const buyBillBase  = c.buyBillBase  || c.billBase || 'actual';
-  const _billQty = (base) => {
-    if (isCPAcalc) return qty - svc; // CPA: 항상 정산수량(qty) 기준, 실발송수량 무시
-    return base === 'sched' ? (qty - svc) : (actual ? (actual - svc) : (qty - svc));
-  };
-  const _baseLbl = (base) => {
-    if (isCPAcalc) return '정산수량 기준';
-    return base === 'sched' ? '예약수량 기준' : '실발송수량 기준';
-  };
+  const _billQty = (base) => base === 'sched' ? (qty - svc) : (actual ? (actual - svc) : (qty - svc));
+  const _baseLbl = (base) => base === 'sched' ? '예약수량 기준' : '실발송수량 기준';
   const adcBill  = _billQty(sellBillBase);
   const buyBill  = _billQty(buyBillBase);
   const eu      = disc > 0 ? disc : unit;           // 실적용단가 (할인단가 입력 시 우선)
@@ -837,9 +829,12 @@ function openDetail(idx, skipPush) {
   const adc      = c.adcostFixed  || adcCalc;       // 광고비 (수동 고정값 우선)
   const real     = c.amtFixed     || (adcBill * eu);// 실청구
   const buyAmt   = c.buyAmtFixed  || (buyBill * buyUnit);
-  const revCalc  = real - buyAmt;                   // 실청구 기준 매출수익
+  // CPA: 단가가 작을 때 buyUnit 반올림으로 rev=0이 되는 문제 방지 — comm% 직접 계산
+  const revCalc  = c.product === 'CPA'
+    ? Math.round(real * comm / 100)
+    : real - buyAmt;                                // 일반: 실청구 기준 매출수익
   const rev      = c.revFixed     || revCalc;       // 매출수익
-  const agf      = real * (agrate / 100);
+  const agf      = Math.round(real * (agrate / 100));
   const prf      = c.profitFixed  || (rev - agf);   // 이익
   document.getElementById('dQty').textContent       = qty    ? qty.toLocaleString()    + ' 건' : '—';
   document.getElementById('dSvc').textContent       = svc    ? svc.toLocaleString()    + ' 건' : '—';
@@ -2070,8 +2065,29 @@ function _calcCPAByPrefix(p) {
   set('rev',     rev     ? rev.toLocaleString()     + '원' : '');
   set('profit',  adc     ? prf.toLocaleString()     + '원' : '');
 }
-function calcCPA()     { _calcCPAByPrefix('r_cpa_'); }
-function calcCPAEdit() { _calcCPAByPrefix('e_cpa_'); }
+function calcCPA() { _calcCPAByPrefix('r_cpa_'); }
+function calcCPAEdit() {
+  const qty  = +document.getElementById('e_cpa_qty')?.value    || 0;
+  const unit = +document.getElementById('e_cpa_unit')?.value   || 0;
+  const comm = +document.getElementById('e_cpa_comm')?.value   || 0;
+  const ag   = +document.getElementById('e_cpa_agrate')?.value || 0;
+  const adc     = qty * unit;
+  const buyUnit = unit ? Math.round(unit * (1 - comm / 100)) : 0;
+  const rev     = adc  ? Math.round(adc  * comm / 100) : 0;  // comm% 직접 계산
+  const agf     = adc  ? Math.round(adc  * ag   / 100) : 0;
+  const prf     = rev  - agf;
+  // 자동계산만 덮어씀 — dataset.manual 있으면 사용자 입력 유지
+  const setAuto = (id, v) => { const el = document.getElementById(id); if (el && !el.dataset.manual) el.value = v !== '' ? v : ''; };
+  setAuto('e_cpa_adcost',  adc     || '');
+  setAuto('e_cpa_buyUnit', buyUnit || '');
+  setAuto('e_cpa_rev',     rev     || '');
+  setAuto('e_cpa_profit',  adc ? prf : '');
+  // e_cpa_bill(실청구): adcost 기준 자동표시 (항상 갱신)
+  const adcFinal = document.getElementById('e_cpa_adcost')?.dataset.manual
+    ? (+document.getElementById('e_cpa_adcost').value || adc) : adc;
+  const billEl = document.getElementById('e_cpa_bill');
+  if (billEl) billEl.value = adcFinal ? adcFinal.toLocaleString() + '원' : '';
+}
 function calcDaPerf() {
   const imp    = +document.getElementById('p_imp')?.value    || 0;
   const click  = +document.getElementById('p_da_click')?.value || 0;
@@ -2477,6 +2493,18 @@ function openEdit() {
     setEl('e_cpa_fee_yn',   c.cpaFeeYn  || '포함');
     setEl('e_cpa_comm',     c.comm      || '');
     setEl('e_cpa_agrate',   c.agrate    || '');
+    // 수기입력 고정값 복원 (있으면 manual 표시, 없으면 자동계산)
+    const _restoreCpaManual = (id, val) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (val) { el.value = val; el.dataset.manual = '1'; }
+      else     { el.value = ''; delete el.dataset.manual; }
+    };
+    _restoreCpaManual('e_cpa_adcost', c.adcostFixed || 0);
+    const calcBuyUnit = Math.round((c.sellUnit || 0) * (1 - (c.comm || 0) / 100));
+    _restoreCpaManual('e_cpa_buyUnit', c.buyUnit !== calcBuyUnit ? c.buyUnit : 0);
+    _restoreCpaManual('e_cpa_rev',     c.revFixed    || 0);
+    _restoreCpaManual('e_cpa_profit',  c.profitFixed || 0);
     calcCPAEdit();
   }
 
@@ -2640,7 +2668,18 @@ function submitEdit() {
     c.cpaFeeYn  = document.getElementById('e_cpa_fee_yn')?.value   || '';
     c.comm      = +document.getElementById('e_cpa_comm')?.value    || 0;
     c.agrate    = +document.getElementById('e_cpa_agrate')?.value  || 0;
-    c.buyUnit   = Math.round(c.sellUnit * (1 - c.comm / 100));
+    // 매입단가: 수기입력 시 고정, 아니면 자동계산
+    const eCpaBuyUnitEl = document.getElementById('e_cpa_buyUnit');
+    c.buyUnit   = eCpaBuyUnitEl?.dataset.manual ? (+eCpaBuyUnitEl.value || 0) : Math.round(c.sellUnit * (1 - c.comm / 100));
+    // 광고비·매출수익·이익: 수기입력 시 Fixed에 저장
+    const eCpaAdcEl = document.getElementById('e_cpa_adcost');
+    const eCpaRevEl = document.getElementById('e_cpa_rev');
+    const eCpaPrfEl = document.getElementById('e_cpa_profit');
+    c.adcostFixed  = eCpaAdcEl?.dataset.manual ? (+eCpaAdcEl.value || 0) : 0;
+    c.revFixed     = eCpaRevEl?.dataset.manual ? (+eCpaRevEl.value || 0) : 0;
+    c.profitFixed  = eCpaPrfEl?.dataset.manual ? (+eCpaPrfEl.value || 0) : 0;
+    c.amtFixed     = 0;
+    c.buyAmtFixed  = 0;
     c.sellBillBase = '';
     c.buyBillBase  = '';
     c.svc       = 0;
@@ -2731,7 +2770,7 @@ function submit2nd()  {
     if (c.status !== prevStatus) _log(c.id,'field','status', prevStatus, c.status);
     _fbSaveCampaign(c);
     closeModal('modal2nd');
-    openDetail(currentDetailIdx);
+    openDetail(currentDetailIdx, true);
     toast('✓ DA 성과가 저장되었습니다', 'ok');
     return;
   }
@@ -2761,7 +2800,7 @@ function submit2nd()  {
 
   _fbSaveCampaign(DATA[currentDetailIdx]);
   closeModal('modal2nd');
-  openDetail(currentDetailIdx);
+  openDetail(currentDetailIdx, true);
   toast('✓ 성과 데이터가 저장되었습니다', 'ok');
 }
 // ── 수정화면 성과 자동계산 ──────────────────────────
@@ -4860,7 +4899,7 @@ window.addEventListener('hashchange', () => {
 /** 정산 데이터 표시 여부 (상품별 기준 필드 다름) */
 function _stlHas(c) {
   if (c.product === 'DA')        return !!c.daAdcost;
-  if (c.product === 'CPA')       return !!c.qty;
+  if (c.product === 'CPA')       return !!c.actual;  // 실발송수량(2차 성과) 입력 후 정산
   if (c.product === '퍼미션콜')  return !!c.pcAdvUnit || !!c.pcAgree;
   return !!(c.sellUnit && c.qty);
 }
@@ -4891,19 +4930,22 @@ function _stlAmt(c) {
     const adcVat  = Math.round(adc * 0.1);
     return { actual: agree, qty: agree, eu: advU, adc, amt: adc, adcVat, buyAmt: ohcCost + dnuCost, buyVat: Math.round((ohcCost + dnuCost) * 0.1), stlRate: 100, agFee: 0, prf, prfRate };
   }
-  // CPA 캠페인: qty 기준 (actual 없이도 qty로 정산)
+  // CPA 캠페인: 실발송수량(actual, 2차 성과) 기준 정산
   if (c.product === 'CPA') {
-    const qty    = c.qty      || 0;
-    const unit   = c.sellUnit || 0;
-    const buyU   = c.buyUnit  || Math.round(unit * (1 - (c.comm || 0) / 100));
-    const adc    = c.adcostFixed || qty * unit;
-    const adcVat = Math.round(adc * 0.1);
-    const buyAmt = qty * buyU;
-    const buyVat = Math.round(buyAmt * 0.1);
-    const agFee  = Math.round(adc * (c.agrate || 0) / 100); // 대행료: agrate(대행%) 기준
-    const prf    = adc - buyAmt - agFee;
+    const billQty = c.actual   || 0;  // 실발송수량 기준
+    const qty     = c.qty      || 0;  // 정산예정수량 (stlRate 계산용)
+    const unit    = c.sellUnit || 0;
+    const adc     = c.adcostFixed || billQty * unit;
+    const adcVat  = Math.round(adc * 0.1);
+    // comm% 직접 계산 — 단가 소액 시 buyUnit 반올림으로 수익이 0이 되는 문제 방지
+    const rev     = Math.round(adc * (c.comm   || 0) / 100);
+    const buyAmt  = adc - rev;
+    const buyVat  = Math.round(buyAmt * 0.1);
+    const agFee   = Math.round(adc * (c.agrate || 0) / 100);
+    const prf     = rev - agFee;
     const prfRate = adc > 0 ? (prf / adc * 100) : 0;
-    return { actual: qty, qty, eu: unit, adc, amt: adc, adcVat, buyAmt, buyVat, stlRate: 100, agFee, prf, prfRate };
+    const stlRate = qty > 0 ? (billQty / qty * 100) : 0;
+    return { actual: billQty, qty, eu: unit, adc, amt: adc, adcVat, buyAmt, buyVat, stlRate, agFee, prf, prfRate };
   }
   const actual   = c.actual   || 0;
   const qty      = c.qty      || 0;
@@ -5214,7 +5256,7 @@ function renderSettlement() {
   const settled = DATA.filter(c => {
     if (scope === 'settled') {
       if      (c.product === 'DA')  { if (!c.daAdcost) return false; }
-      else if (c.product === 'CPA') { if (!c.qty)      return false; }
+      else if (c.product === 'CPA') { if (!c.actual)   return false; }
       else if (c.status !== '성과입력완료') return false;
     }
     if (prod  && c.product !== prod) return false;
@@ -6209,7 +6251,7 @@ function _taxContentAuto(c) {
 }
 function _taxIsSettled(c) {
   if (c.product === 'DA')  return !!c.daAdcost;
-  if (c.product === 'CPA') return !!c.qty;
+  if (c.product === 'CPA') return !!c.actual;
   return c.status === '성과입력완료';
 }
 

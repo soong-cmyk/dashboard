@@ -995,8 +995,8 @@
                   </select>
                 </div>
                 <div class="fg"><label class="form-label">광고비</label>
-                  <input class="form-input auto" id="e_cpa_adcost" readonly placeholder="자동계산">
-                  <span class="form-hint">정산수량 × 정산단가</span>
+                  <input type="number" class="form-input auto" id="e_cpa_adcost" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPAEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPAEdit();}">
+                  <span class="form-hint">정산수량 × 정산단가 (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">실청구</label>
                   <input class="form-input auto" id="e_cpa_bill" readonly placeholder="자동계산">
@@ -1005,19 +1005,19 @@
                   <input type="number" class="form-input" id="e_cpa_comm" placeholder="0" oninput="calcCPAEdit()">
                 </div>
                 <div class="fg"><label class="form-label">매입단가 (원)</label>
-                  <input class="form-input auto" id="e_cpa_buyUnit" readonly placeholder="자동계산">
-                  <span class="form-hint">정산단가 × (1 − 수수료율)</span>
+                  <input type="number" class="form-input auto" id="e_cpa_buyUnit" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPAEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPAEdit();}">
+                  <span class="form-hint">정산단가 × (1 − 수수료율) (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">매출수익</label>
-                  <input class="form-input auto" id="e_cpa_rev" readonly placeholder="자동계산">
-                  <span class="form-hint">광고비 × 수수료율</span>
+                  <input type="number" class="form-input auto" id="e_cpa_rev" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPAEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPAEdit();}">
+                  <span class="form-hint">광고비 × 수수료율 (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">대행 (%)</label>
                   <input type="number" class="form-input" id="e_cpa_agrate" placeholder="0" oninput="calcCPAEdit()">
                 </div>
                 <div class="fg full"><label class="form-label">이익</label>
-                  <input class="form-input auto" id="e_cpa_profit" readonly placeholder="자동계산">
-                  <span class="form-hint">매출수익 − 대행료</span>
+                  <input type="number" class="form-input auto" id="e_cpa_profit" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPAEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPAEdit();}">
+                  <span class="form-hint">매출수익 − 대행료 (직접 입력 시 고정)</span>
                 </div>
               </div>
             </div>
