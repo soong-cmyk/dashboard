@@ -817,12 +817,18 @@ function openDetail(idx, skipPush) {
   // 수량/금액 동적 계산
   const qty = c.qty||0, svc = c.svc||0, unit = c.sellUnit||0, buyUnit = c.buyUnit||0, disc = c.disc||0, comm = c.comm||0, agrate = c.agrate||0;
   const actual = c.actual||0;
-  const bill    = actual ? actual - svc : null;
+  const isCPAcalc = c.product === 'CPA';
+  // CPA: 정산기준수량은 항상 정산수량(qty) 기준 — 실발송수량(actual)과 무관
+  const bill    = isCPAcalc ? (qty - svc) : (actual ? actual - svc : null);
   const sellBillBase = c.sellBillBase || c.billBase || 'actual';
   const buyBillBase  = c.buyBillBase  || c.billBase || 'actual';
   const _billQty = (base) => {
-    if (c.product === 'CPA') return qty - svc; // CPA: 항상 정산수량(qty) 기준, 실발송수량 무시
+    if (isCPAcalc) return qty - svc; // CPA: 항상 정산수량(qty) 기준, 실발송수량 무시
     return base === 'sched' ? (qty - svc) : (actual ? (actual - svc) : (qty - svc));
+  };
+  const _baseLbl = (base) => {
+    if (isCPAcalc) return '정산수량 기준';
+    return base === 'sched' ? '예약수량 기준' : '실발송수량 기준';
   };
   const adcBill  = _billQty(sellBillBase);
   const buyBill  = _billQty(buyBillBase);
@@ -842,8 +848,7 @@ function openDetail(idx, skipPush) {
     if (bill != null) { billEl.className = 'f-val'; billEl.style.color = 'var(--green)'; billEl.style.fontWeight = '700'; billEl.textContent = bill.toLocaleString() + ' 건'; }
     else { billEl.className = 'f-val f-pending'; billEl.style.color = ''; billEl.style.fontWeight = ''; billEl.textContent = '— 실발송 입력 후 계산'; }
   }
-  // dBillBase 제거됨 — sellBillBase/buyBillBase 레이블로 대체
-  const _baseLbl = (base) => base === 'sched' ? '예약수량 기준' : '실발송수량 기준';
+  // dBillBase 제거됨 — sellBillBase/buyBillBase 레이블로 대체 (_baseLbl은 위에서 정의)
   document.getElementById('dSellUnit').textContent  = unit    ? unit.toLocaleString()    + '원'  : '—';
   document.getElementById('dBuyUnit').textContent   = buyUnit ? buyUnit.toLocaleString() + '원'  : '—';
   const dBuyAmtEl = document.getElementById('dBuyAmt');
@@ -2736,14 +2741,6 @@ function submit2nd()  {
   const ctr    = document.getElementById('p_ctr').value;
   const db     = document.getElementById('p_db').value;
   const dbr    = document.getElementById('p_dbr').value;
-  const vals = [
-    actual ? Number(actual).toLocaleString()+'건' : '미입력',
-    click  ? Number(click).toLocaleString()+'건'  : '미입력',
-    ctr    ? ctr                                  : '자동계산',
-    db     ? Number(db).toLocaleString()+'건'     : '미입력',
-    dbr    ? dbr                                  : '자동계산',
-  ];
-
   // DATA 업데이트 (변경된 필드만 이력 기록)
   if (c) {
     const newActual = actual !== '' ? Number(actual) : null;
