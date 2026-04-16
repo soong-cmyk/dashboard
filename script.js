@@ -820,7 +820,10 @@ function openDetail(idx, skipPush) {
   const bill    = actual ? actual - svc : null;
   const sellBillBase = c.sellBillBase || c.billBase || 'actual';
   const buyBillBase  = c.buyBillBase  || c.billBase || 'actual';
-  const _billQty = (base) => base === 'sched' ? (qty - svc) : (actual ? (actual - svc) : (qty - svc));
+  const _billQty = (base) => {
+    if (c.product === 'CPA') return qty - svc; // CPA: 항상 정산수량(qty) 기준, 실발송수량 무시
+    return base === 'sched' ? (qty - svc) : (actual ? (actual - svc) : (qty - svc));
+  };
   const adcBill  = _billQty(sellBillBase);
   const buyBill  = _billQty(buyBillBase);
   const eu      = disc > 0 ? disc : unit;           // 실적용단가 (할인단가 입력 시 우선)
@@ -2759,50 +2762,10 @@ function submit2nd()  {
     if (c.status !== prevStatus) _log(c.id,'field','status', prevStatus, c.status);
   }
 
-  closeModal('modal2nd');
-
-  // perfStatus 업데이트
-  const autoVals = ['자동계산'];
-  document.querySelectorAll('#perfStatus .ist-item').forEach((el,i) => {
-    const dot = el.querySelector('.s-dot');
-    const v = el.querySelector('.s-val');
-    if (!dot || !v) return;
-    const txt = vals[i];
-    const isEmpty = txt === '미입력' || txt === '자동계산';
-    dot.className = isEmpty ? 's-dot dot-pend' : 's-dot dot-ok';
-    v.textContent = txt;
-    if (isEmpty) { v.classList.add('f-pending'); v.style.color = ''; }
-    else         { v.classList.remove('f-pending'); v.style.color = 'var(--green)'; }
-  });
-
-  // 수량/금액 실발송수량 + 정산수량 업데이트
-  const actualEl = document.getElementById('dActual');
-  if (actualEl && actual) {
-    actualEl.classList.remove('f-pending');
-    actualEl.removeAttribute('style');
-    actualEl.style.color='var(--green)';
-    actualEl.textContent = Number(actual).toLocaleString() + ' 건';
-  }
-  const billEl = document.getElementById('dBill');
-  if (billEl && actual) {
-    const c2 = DATA[currentDetailIdx];
-    const svc2 = c2 ? (c2.svc||0) : 0;
-    const bill2 = Number(actual) - svc2;
-    billEl.className = 'f-val'; billEl.style.color = 'var(--green)'; billEl.style.fontWeight = '700';
-    billEl.textContent = bill2.toLocaleString() + ' 건';
-  }
-
-  // stepTrack 업데이트 → 성과입력완료
-  const steps = ['부킹확정','테스트완료','성과입력대기','성과입력완료'];
-  const ci = steps.indexOf('성과입력완료');
-  document.querySelectorAll('#stepTrack .step').forEach((el,i) => {
-    el.className = 'step';
-    if (i < ci) el.classList.add('done');
-    else if (i === ci) el.classList.add('current');
-  });
-
   _fbSaveCampaign(DATA[currentDetailIdx]);
-  toast('✓ 성과 데이터가 저장되었습니다','ok');
+  closeModal('modal2nd');
+  openDetail(currentDetailIdx);
+  toast('✓ 성과 데이터가 저장되었습니다', 'ok');
 }
 // ── 수정화면 성과 자동계산 ──────────────────────────
 function epCalcCTR() {
