@@ -3785,27 +3785,55 @@ function downloadCampaignsExcel() {
     'ID', '카테고리', '캠페인명', '매체사', '상품', '매출처', '광고내용',
     '담당자', '부서', '발송일시',
     '발송예약수량', '실발송수량', '클릭수', 'CTR(%)',
-    '단가(원)', '서비스물량', '할인금액(원)', '수수료율(%)', '대행료율(%)', '단계'
+    '매출단가(원)', '매입단가(원)', '서비스물량', '할인금액(원)', '수수료율(%)', '대행료율(%)', '단계'
   ];
-  const rows = [headers, ...filtered.map(c => [
-    c.id, c.cat, _cName(c), c.media, c.product,
-    c.seller || c.adv || '', c.content || '',
-    c.ops, c.dept, c.date,
-    c.qty || '', c.actual || '', c.clicks || '', c.ctr || '',
-    c.sellUnit, c.buyUnit, c.svc, c.disc, c.comm, c.agrate, c.status
-  ])];
+  const rows = [headers, ...filtered.map(c => {
+    const ctrVal = c.ctr != null ? (typeof c.ctr === 'string' ? parseFloat(c.ctr) : c.ctr) : '';
+    return [
+      c.id, c.cat, _cName(c), c.media, c.product,
+      c.seller || c.adv || '', c.content || '',
+      c.ops, c.dept, c.date,
+      c.qty || '', c.actual || '', c.clicks != null ? c.clicks : '', ctrVal,
+      c.sellUnit || '', c.buyUnit || '', c.svc || '', c.disc || '', c.comm || '', c.agrate || '', c.status
+    ];
+  })];
   _xlsxDownload(rows, `캠페인목록_${_todayStr()}.xlsx`);
   toast('✓ 캠페인 목록 엑셀 다운로드 완료', 'ok');
 }
 
-/** 정산 엑셀 다운로드 (현재 필터 기준) */
+/** 정산 엑셀 다운로드 (현재 화면 필터와 동일 기준) */
 function downloadSettlementExcel() {
-  const cat   = document.getElementById('stl-fCat')?.value   || '';
-  const media = document.getElementById('stl-fMedia')?.value || '';
+  // renderSettlement()와 동일한 필터 로직 적용
+  const scope    = document.getElementById('stl-fScope')?.value  || 'settled';
+  const prod     = document.getElementById('stl-fProd')?.value   || '';
+  const cat      = document.getElementById('stl-fCat')?.value    || '';
+  const media    = document.getElementById('stl-fMedia')?.value  || '';
+  const adv      = document.getElementById('stl-fAdv')?.value    || '';
+  const ops      = document.getElementById('stl-fOps')?.value    || '';
+  const fQ       = (document.getElementById('stl-fQ')?.value     || '').trim().toLowerCase();
+  const { bonbu, team } = _parseOrgFilter(document.getElementById('stl-fOrg')?.value || '');
+  const selYear  = document.getElementById('stl-year')?.value    || '';
+  const selMonth = document.getElementById('stl-month')?.value   || '';
+
   const settled = DATA.filter(c => {
-    if (c.status !== '성과입력완료') return false;
-    if (cat   && c.cat   !== cat)   return false;
-    if (media && c.media !== media) return false;
+    if (scope === 'settled') {
+      if      (c.product === 'DA')  { if (!c.daAdcost) return false; }
+      else if (c.product === 'CPA') { if (!c.actual)   return false; }
+      else if (c.status !== '성과입력완료') return false;
+    }
+    if (prod  && c.product !== prod) return false;
+    if (cat   && c.cat   !== cat)    return false;
+    if (media && c.media !== media)  return false;
+    if (adv   && (c.seller || c.adv || '') !== adv) return false;
+    if (ops   && c.ops   !== ops)    return false;
+    if (team || bonbu) {
+      const u = USERS.find(u => u.name === c.ops);
+      if (bonbu && (!u || u.bonbu !== bonbu)) return false;
+      if (team  && (!u || u.dept  !== team))  return false;
+    }
+    if (selYear  && !c.date.startsWith(selYear))    return false;
+    if (selMonth && c.date.slice(5,7) !== selMonth) return false;
+    if (fQ && !_cName(c).toLowerCase().includes(fQ) && !(c.id||'').toLowerCase().includes(fQ)) return false;
     return true;
   });
   if (settled.length === 0) { toast('다운로드할 정산 데이터가 없습니다.', 'err'); return; }
@@ -3819,21 +3847,22 @@ function downloadSettlementExcel() {
   ];
   const rows = [headers, ...settled.map(c => {
     const a      = _stlAmt(c);
-    const has    = !!c.actual;
+    const has    = _stlHas(c);
     const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
-    const r = v => has ? v : '';
+    const r  = v => has    ? v : '';
     const rb = v => hasBuy ? v : '';
+    const buyQty = a.buyActual ?? a.actual ?? 0;
     return [
       c.cat, _cCompany(c), _cName(c),
       r(c.sellUnit), r(c.qty), r(a.actual),
-      r(a.adc), r(a.adc + a.adcVat), r(+a.stlRate.toFixed(1)),
-      c.media, MEDIA_DATA.find(x=>x.company===c.media)?.invoiceTo||'',
-      rb(c.buyUnit), r(a.actual), rb(a.buyAmt), rb(a.buyAmt + a.buyVat), r(+a.stlRate.toFixed(1)),
+      r(a.amt ?? a.adc), r((a.amt ?? a.adc) + a.adcVat), r(+a.stlRate.toFixed(1)),
+      c.media, MEDIA_DATA.find(x => x.company === c.media)?.invoiceTo || '',
+      rb(c.buyUnit), rb(buyQty), rb(a.buyAmt), rb(a.buyAmt + a.buyVat), rb(+a.stlRate.toFixed(1)),
       r(c.comm), r(a.agFee), r(a.prf), r(+a.prfRate.toFixed(1)),
       c.invoiceOut ? '발행' : '미발행',
-      c.payIn  ? '완료' : '미완료',
+      c.payIn      ? '완료' : '미완료',
       c.invoiceIn  ? '발행' : '미발행',
-      c.payOut ? '완료' : '미완료'
+      c.payOut     ? '완료' : '미완료'
     ];
   })];
   _xlsxDownload(rows, `정산내역_${_todayStr()}.xlsx`);
