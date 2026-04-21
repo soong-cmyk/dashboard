@@ -695,7 +695,7 @@ function goScreen(name, skipPush) {
   // nav highlight
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',settlement:'nav-settlement',monthly:'nav-monthly',tax:'nav-tax',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',payment:'nav-payment','payment-detail':'nav-payment'};
-  if (navIds[name]) document.getElementById(navIds[name]).classList.add('active');
+  if (navIds[name]) document.getElementById(navIds[name])?.classList.add('active');
 
   // breadcrumb
   const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
