@@ -461,6 +461,7 @@ let PAGE_SIZE = 10;
 let pendingTestEl = null, pendingTestIdx = null;
 let pendingSendEl = null, pendingSendIdx = null;
 let currentDetailIdx = null;
+let _detailFromScreen = 'campaigns'; // 상세보기 진입 전 화면 (back-btn 귀환 대상)
 
 // ══════════════════════════════════════════
 // HISTORY (수정 이력)
@@ -765,6 +766,17 @@ function goScreen(name, skipPush) {
 
 function openDetail(idx, skipPush) {
   document.querySelector('.topbar').style.display = 'none';
+  // skipPush=true는 상세화면 내부 갱신(수정저장·성과저장)이므로 이전 화면 유지
+  if (!skipPush) {
+    const activeScreen = document.querySelector('.screen.active');
+    if (activeScreen && activeScreen.id !== 'screen-detail' && activeScreen.id !== 'screen-edit') {
+      _detailFromScreen = activeScreen.id.replace('screen-', '');
+      // 뒤로가기 시 필터 복원을 위해 현재 필터 상태 저장
+      if (['campaigns', 'settlement', 'tax'].includes(_detailFromScreen)) {
+        _saveFilterState(_detailFromScreen);
+      }
+    }
+  }
   currentDetailIdx = idx;
   const c = DATA[idx];
 
@@ -922,15 +934,20 @@ function openDetail(idx, skipPush) {
   const dCardPC = document.getElementById('dCardPC');
   if (dCardPC) dCardPC.style.display = isPCcamp ? 'flex' : 'none';
 
-  // CPA: 수량 카드 레이블 동적 변경
+  // CPA: 수량 카드 레이블 동적 변경 + 발송예약/서비스수량 행 숨김
+  const dFieldQtySvc = document.getElementById('dFieldQtySvc');
   if (isCPAcamp) {
     const qtyLbl = document.querySelector('#dCardQty .card-title');
     if (qtyLbl) qtyLbl.textContent = '정산 / 금액';
-    const qtyFieldLbl = document.querySelector('#dCardQty .f-label');
-    if (qtyFieldLbl) qtyFieldLbl.textContent = '정산수량';
-    // 정산기준 표시 (신청수/로그인수/결제건수)
-    // dBillBase 제거됨 (CPA는 billBase를 e_cpa_billbase로 별도 표시)
-    // CPA 대행수수료여부 추가 표시
+    if (dFieldQtySvc) dFieldQtySvc.style.display = 'none'; // 발송예약/서비스수량 행 숨김
+    // CPA: dBill(정산수량)에 c.qty 표시 (실발송 미입력 시에도 항상 보임)
+    const dBillEl = document.getElementById('dBill');
+    if (dBillEl) {
+      dBillEl.className = 'f-val f-mono';
+      dBillEl.style.color = '';
+      dBillEl.style.fontWeight = '';
+      dBillEl.textContent = qty ? qty.toLocaleString() + ' 건' : '—';
+    }
     const cpaFeeEl = document.getElementById('dCpaFeeYn');
     if (cpaFeeEl) cpaFeeEl.textContent = c.cpaFeeYn || '—';
     const cpaFeeField = document.getElementById('dCpaFeeYnField');
@@ -938,8 +955,7 @@ function openDetail(idx, skipPush) {
   } else {
     const qtyLbl = document.querySelector('#dCardQty .card-title');
     if (qtyLbl) qtyLbl.textContent = '수량 / 금액';
-    const qtyFieldLbl = document.querySelector('#dCardQty .f-label');
-    if (qtyFieldLbl) qtyFieldLbl.textContent = '발송예약수량';
+    if (dFieldQtySvc) dFieldQtySvc.style.display = '';
     const cpaFeeField = document.getElementById('dCpaFeeYnField');
     if (cpaFeeField) cpaFeeField.style.display = 'none';
   }
@@ -1143,14 +1159,19 @@ function renderTable(data) {
     pgInfo.textContent = `${from} – ${to} / ${total}건`;
   }
 
-  // pg-btns
+  // pg-btns (10페이지 단위 그룹)
   const pgBtns = document.getElementById('pg-btns');
   if (pgBtns) {
-    let html = `<button class="pg-btn" onclick="prevPage()" ${currentPage===1?'disabled':''}>‹</button>`;
-    for (let p = 1; p <= totalPages; p++) {
+    const PG_WIN = 10;
+    const curGroup   = Math.ceil(currentPage / PG_WIN);
+    const totalGroups = Math.ceil(totalPages / PG_WIN);
+    const groupStart = (curGroup - 1) * PG_WIN + 1;
+    const groupEnd   = Math.min(curGroup * PG_WIN, totalPages);
+    let html = `<button class="pg-btn" onclick="prevPageGroup()" ${curGroup===1?'disabled':''}>‹</button>`;
+    for (let p = groupStart; p <= groupEnd; p++) {
       html += `<button class="pg-btn${p===currentPage?' active':''}" onclick="goPage(${p})">${p}</button>`;
     }
-    html += `<button class="pg-btn" onclick="nextPage()" ${currentPage===totalPages?'disabled':''}>›</button>`;
+    html += `<button class="pg-btn" onclick="nextPageGroup()" ${curGroup===totalGroups?'disabled':''}>›</button>`;
     pgBtns.innerHTML = html;
   }
 
@@ -1163,10 +1184,10 @@ function renderTable(data) {
       <td class="td-bold">${c.content||_cCompany(c)}<span style="color:var(--text2);font-weight:400;">_${c.media}</span></td>
       <td class="td-dim">${c.product}</td>
       <td class="td-dim">${c.ops || '—'}</td>
-      <td class="td-num td-r">${c.qty.toLocaleString()}</td>
+      <td class="td-num td-r">${(c.qty||0).toLocaleString()}</td>
       <td class="td-num td-r">${(()=>{ const adc = c.product==='DA' ? (c.daAdcost||0) : (c.adcostFixed || (()=>{ const base=(c.sellBillBase||c.billBase||'actual')==='sched'?(c.qty||0)-(c.svc||0):(c.actual?(c.actual-(c.svc||0)):(c.qty||0)-(c.svc||0)); return base*(c.sellUnit||0); })()); return adc?(adc>=10000?(adc/10000).toFixed(0)+'만':adc.toLocaleString())+'원':'<span style="color:var(--text3)">—</span>'; })()}</td>
-      <td class="td-num td-r">${c.clicks!==null?c.clicks.toLocaleString():'<span style="color:var(--text3)">—</span>'}</td>
-      <td class="td-num td-r">${c.ctr!==null?c.ctr.toFixed(2)+'%':'<span style="color:var(--text3)">—</span>'}</td>
+      <td class="td-num td-r">${c.clicks!=null?c.clicks.toLocaleString():'<span style="color:var(--text3)">—</span>'}</td>
+      <td class="td-num td-r">${(()=>{ const v=c.ctr; if(v==null)return '<span style="color:var(--text3)">—</span>'; const n=typeof v==='string'?parseFloat(v):v; return isNaN(n)?'<span style="color:var(--text3)">—</span>':n.toFixed(2)+'%'; })()}</td>
       <td><span class="badge b-${c.status}">${c.status}</span></td>
       <td onclick="event.stopPropagation()" style="text-align:center;">
         <div class="chk ${c.testOk?'on':''}" onclick="clickTest(${i},this)">${c.testOk?'✓':''}</div>
@@ -1181,6 +1202,16 @@ function renderTable(data) {
 function goPage(n)  { currentPage = n; renderTable(filtered); }
 function prevPage() { if (currentPage > 1) { currentPage--; renderTable(filtered); } }
 function nextPage() { if (currentPage < Math.ceil(filtered.length / PAGE_SIZE)) { currentPage++; renderTable(filtered); } }
+function prevPageGroup() {
+  const curGroup = Math.ceil(currentPage / 10);
+  if (curGroup > 1) goPage((curGroup - 2) * 10 + 1);
+}
+function nextPageGroup() {
+  const curGroup  = Math.ceil(currentPage / 10);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const nextFirst  = curGroup * 10 + 1;
+  if (nextFirst <= totalPages) goPage(nextFirst);
+}
 function changePageSize(val) { PAGE_SIZE = +val; currentPage = 1; renderTable(filtered); }
 
 function _populateAdvFilter() {
@@ -1311,6 +1342,13 @@ function resetFilter() {
   const now = new Date();
   document.getElementById('fFrom').value = _dateKey(new Date(now.getFullYear(), now.getMonth(), 1));
   document.getElementById('fTo').value   = _dateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  // 날짜 피커 트리거 레이블 초기화
+  const _drpLbl = document.getElementById('drp-label');
+  if (_drpLbl) {
+    const _m = String(now.getMonth()+1).padStart(2,'0');
+    const _lastDay = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+    _drpLbl.textContent = now.getFullYear()+'.'+_m+'.01. ~ '+now.getFullYear()+'.'+_m+'.'+String(_lastDay).padStart(2,'0')+'.';
+  }
   activeStatus='all';
   document.querySelectorAll('#screen-campaigns .board').forEach(b => b.classList.remove('active-board'));
   document.getElementById('board-all').classList.add('active-board');
@@ -2132,7 +2170,6 @@ function submitReg() {
     { id:'r_product',  label:'상품' },
     { id:'r_media',    label:'매체사',  focusId:'r_media_text' },
     { id:'r_seller',   label:'매출처',  focusId:'r_seller_text' },
-    { id:'r_cpa_qty',  label:'정산수량' },
     { id:'r_cpa_unit', label:'정산단가' },
   ] : [
     { id:'r_product', label:'상품' },
@@ -2209,7 +2246,7 @@ function submitReg() {
     dept:     currentUser ? currentUser.dept : '영업 1팀',
     ops:      document.getElementById('r_ops').value,
     sellUnit:  isCPA ? (+document.getElementById('r_cpa_unit').value || 0) : (+document.getElementById('r_sellUnit').value || 0),
-    qty:       isCPA ? (+document.getElementById('r_cpa_qty').value  || 0) : (+document.getElementById('r_sched').value    || 0),
+    qty:       isCPA ? (+document.getElementById('r_cpa_qty')?.value || 0) : (+document.getElementById('r_sched').value || 0),
     svc:       isCPA ? 0 : (+document.getElementById('r_svc').value  || 0),
     disc:      isCPA ? 0 : (+document.getElementById('r_disc').value || 0),
     billBase:  isDA  ? 'da' : (isCPA ? (document.getElementById('r_cpa_billbase')?.value || '') : 'actual'), // 하위호환용
@@ -2708,6 +2745,25 @@ function submitEdit() {
     c.profitFixed  = ePrfEl2?.dataset.manual    ? (+ePrfEl2.value    || 0) : 0;
   }
 
+  // 2차 성과 저장 (PC 제외)
+  if (!isEditPC) {
+    if (isEditDA) {
+      c.daImp   = +document.getElementById('ep_imp')?.value       || 0;
+      c.daClick = +document.getElementById('ep_da_click')?.value  || 0;
+      c.daConv  = +document.getElementById('ep_conv')?.value      || 0;
+      c.daRev   = +document.getElementById('ep_da_rev')?.value    || 0;
+    } else {
+      const _epVal = id => document.getElementById(id)?.value ?? '';
+      const _epNum = id => { const v = _epVal(id); return v !== '' ? Number(v)      : null; };
+      const _epFlt = id => { const v = _epVal(id); return v !== '' ? parseFloat(v)  : null; };
+      c.actual = _epNum('ep_actual');
+      c.clicks = _epNum('ep_click');
+      c.ctr    = _epFlt('ep_ctr');   // "2.34%" → 2.34 (parseFloat이 % 무시)
+      c.db     = _epNum('ep_db');
+      c.dbr    = _epFlt('ep_dbr');
+    }
+  }
+
   // 변경된 필드만 이력 기록
   TRACK.forEach(k => {
     const bv = snap[k];
@@ -2716,11 +2772,19 @@ function submitEdit() {
   });
 
   _fbSaveCampaign(DATA[currentDetailIdx]);
-  openDetail(currentDetailIdx);
+  const _savedCampId = DATA[currentDetailIdx].id;
+  history.replaceState({ screen: 'detail', id: _savedCampId }, '', '#detail/' + _savedCampId);
+  openDetail(currentDetailIdx, true);
   toast('✓ 수정사항이 저장되었습니다','ok');
 }
 
-function cancelEdit() { document.querySelector('.topbar').style.display = ''; openDetail(currentDetailIdx); }
+function cancelEdit() {
+  document.querySelector('.topbar').style.display = '';
+  const _cancelCampId = DATA[currentDetailIdx]?.id;
+  if (_cancelCampId) history.replaceState({ screen: 'detail', id: _cancelCampId }, '', '#detail/' + _cancelCampId);
+  openDetail(currentDetailIdx, true);
+}
+function goDetailBack() { goScreen((_detailFromScreen && _detailFromScreen !== 'edit') ? _detailFromScreen : 'campaigns', true); }
 
 function open2ndModal() {
   const c = DATA[currentDetailIdx];
@@ -4859,15 +4923,18 @@ let stlView = 'adv'; // 'media' | 'adv' | 'agency' | 'campaign'
   const parts = h.split('/');
   const screenName = parts[0];
 
-  if (screenName === 'detail' && parts[1]) {
-    // 캠페인 상세 복원 — Firestore 로드 후 처리
+  if ((screenName === 'detail' || screenName === 'edit') && parts[1]) {
+    // 캠페인 상세/수정 복원 — edit는 새로고침 시 detail로 복원 (수정 상태는 유지 불가)
     window._pendingDetailId = parts[1];
     // campaigns 플래시 방지: detail 화면을 바로 활성화 (데이터는 FB 로드 후 채워짐)
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById('screen-detail').classList.add('active');
     document.querySelector('.topbar').style.display = 'none';
+    history.replaceState({ screen: 'detail', id: parts[1] }, '', '#detail/' + parts[1]);
   } else if (screenName && document.getElementById('screen-' + screenName)) {
     goScreen(screenName, true);
+    // 새로고침 시 캠페인 날짜 필터를 현재월로 초기화 (drp-label 포함)
+    if (screenName === 'campaigns') resetFilter();
     history.replaceState({ screen: screenName }, '', '#' + screenName);
   } else {
     goScreen('dashboard', true);
@@ -4880,7 +4947,7 @@ window.addEventListener('hashchange', () => {
   const h = location.hash.slice(1);
   const parts = h.split('/');
   const screenName = parts[0];
-  if (screenName === 'detail' && parts[1]) {
+  if ((screenName === 'detail' || screenName === 'edit') && parts[1]) {
     const idx = DATA.findIndex(c => c.id === parts[1]);
     if (idx !== -1) openDetail(idx, true);
     else { window._pendingDetailId = parts[1]; }
@@ -4899,7 +4966,7 @@ window.addEventListener('hashchange', () => {
 /** 정산 데이터 표시 여부 (상품별 기준 필드 다름) */
 function _stlHas(c) {
   if (c.product === 'DA')        return !!c.daAdcost;
-  if (c.product === 'CPA')       return !!c.actual;  // 실발송수량(2차 성과) 입력 후 정산
+  if (c.product === 'CPA')       return !!(c.actual || c.qty);  // 실발송수량 있으면 우선, 없으면 정산수량 기준
   if (c.product === '퍼미션콜')  return !!c.pcAdvUnit || !!c.pcAgree;
   return !!(c.sellUnit && c.qty);
 }
@@ -4930,9 +4997,9 @@ function _stlAmt(c) {
     const adcVat  = Math.round(adc * 0.1);
     return { actual: agree, qty: agree, eu: advU, adc, amt: adc, adcVat, buyAmt: ohcCost + dnuCost, buyVat: Math.round((ohcCost + dnuCost) * 0.1), stlRate: 100, agFee: 0, prf, prfRate };
   }
-  // CPA 캠페인: 실발송수량(actual, 2차 성과) 기준 정산
+  // CPA 캠페인: 실발송수량(actual) 기준, 미입력 시 정산수량(qty) 기준으로 폴백
   if (c.product === 'CPA') {
-    const billQty = c.actual   || 0;  // 실발송수량 기준
+    const billQty = c.actual || c.qty || 0;  // 실발송수량 우선, 없으면 정산수량
     const qty     = c.qty      || 0;  // 정산예정수량 (stlRate 계산용)
     const unit    = c.sellUnit || 0;
     const adc     = c.adcostFixed || billQty * unit;
@@ -7007,4 +7074,398 @@ _fbWatchTax();
       });
     }
   } catch(e) {}
+})();
+
+// ══════════════════════════════════════════
+// 효율 분석 (Efficiency Analysis)
+// ══════════════════════════════════════════
+
+function adrSwitchTab(tab) {
+  const tabs = ['rpt','eff'];
+  tabs.forEach(t => {
+    const btn = document.getElementById('adr-tab-'+t);
+    const pane = document.getElementById('adr-pane-'+t);
+    const isActive = t === tab;
+    if (btn) {
+      btn.style.color = isActive ? '#185FA5' : 'var(--text3)';
+      btn.style.fontWeight = isActive ? '700' : '600';
+      btn.style.borderBottom = isActive ? '2px solid #185FA5' : '2px solid transparent';
+    }
+    if (pane) pane.style.display = isActive ? '' : 'none';
+  });
+  if (tab === 'eff') {
+    _effPopulateFilters();
+    effRender();
+  }
+}
+
+function _effPopulateFilters() {
+  // 브랜드
+  const brands = [...new Set(DATA.map(c => c.content).filter(Boolean))].sort();
+  const bSel = document.getElementById('eff-brand');
+  if (bSel) {
+    const cur = bSel.value;
+    bSel.innerHTML = '<option value="">전체 브랜드</option>' +
+      brands.map(b => `<option value="${b}">${b}</option>`).join('');
+    bSel.value = cur;
+  }
+  // 매체사
+  const medias = [...new Set(DATA.map(c => c.media).filter(Boolean))].sort();
+  const mSel = document.getElementById('eff-media');
+  if (mSel) {
+    const cur = mSel.value;
+    mSel.innerHTML = '<option value="">전체 매체사</option>' +
+      medias.map(m => `<option value="${m}">${m}</option>`).join('');
+    mSel.value = cur;
+  }
+  // 상품
+  const prods = [...new Set(DATA.map(c => c.product).filter(Boolean))].sort();
+  const pSel = document.getElementById('eff-prod');
+  if (pSel) {
+    const cur = pSel.value;
+    pSel.innerHTML = '<option value="">전체 상품</option>' +
+      prods.map(p => `<option value="${p}">${p}</option>`).join('');
+    pSel.value = cur;
+  }
+}
+
+function effReset() {
+  ['eff-brand','eff-media','eff-prod'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const mo = document.getElementById('eff-months');
+  if (mo) mo.value = '12';
+  effRender();
+}
+
+function effRender() {
+  const brandF = document.getElementById('eff-brand')?.value || '';
+  const mediaF = document.getElementById('eff-media')?.value || '';
+  const prodF  = document.getElementById('eff-prod')?.value  || '';
+  const months = parseInt(document.getElementById('eff-months')?.value || '12');
+
+  // 조회 월 목록 생성 (최근 N개월, 최신→과거 역순)
+  const now = new Date();
+  const monthKeys = []; // 'YYYY-MM'
+  for (let i = 0; i < months; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    monthKeys.unshift(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
+  }
+
+  // 필터링
+  const base = DATA.filter(c => {
+    if (brandF && c.content !== brandF) return false;
+    if (mediaF && c.media   !== mediaF) return false;
+    if (prodF  && c.product !== prodF)  return false;
+    const mo = (c.date||'').slice(0,7);
+    return monthKeys.includes(mo);
+  });
+
+  if (!base.length) {
+    document.getElementById('eff-body').innerHTML =
+      '<div style="padding:40px;text-align:center;color:var(--text3);">해당 조건의 데이터가 없습니다.</div>';
+    return;
+  }
+
+  // 브랜드×매체사 그룹핑
+  const groupMap = {}; // key: 'brand||media'
+  base.forEach(c => {
+    const brand = c.content || '(미지정)';
+    const media = c.media   || '(미지정)';
+    const key = brand + '||' + media;
+    if (!groupMap[key]) groupMap[key] = { brand, media, months: {} };
+    const mo = (c.date||'').slice(0,7);
+    if (!groupMap[key].months[mo]) {
+      groupMap[key].months[mo] = { actual:0, clicks:0, db:0, adc:0, prf:0, count:0 };
+    }
+    const m = groupMap[key].months[mo];
+    m.count++;
+    m.actual += c.actual || 0;
+    m.clicks += c.clicks || 0;
+    m.db     += c.db     || 0;
+    // 광고비
+    const adc = _stlAmt(c).adc || 0;
+    m.adc += adc;
+    m.prf += _stlAmt(c).prf || 0;
+  });
+
+  // 브랜드별로 묶어서 렌더
+  const byBrand = {};
+  Object.values(groupMap).forEach(g => {
+    if (!byBrand[g.brand]) byBrand[g.brand] = [];
+    byBrand[g.brand].push(g);
+  });
+
+  const fmtNum = n => n ? n.toLocaleString() : '—';
+  const fmtCtr = (clicks, actual) => actual > 0 ? (clicks/actual*100).toFixed(2)+'%' : '—';
+  const fmtAdc = n => n >= 10000 ? (n/10000).toFixed(0)+'만' : (n ? n.toLocaleString() : '—');
+
+  // 변화 방향 아이콘
+  const trend = (vals) => {
+    const nonNull = vals.filter(v => v !== null);
+    if (nonNull.length < 2) return '';
+    const last = nonNull[nonNull.length-1], prev = nonNull[nonNull.length-2];
+    if (last > prev) return '<span style="color:#2f9e44;font-weight:700;">▲</span>';
+    if (last < prev) return '<span style="color:#c92a2a;font-weight:700;">▼</span>';
+    return '<span style="color:var(--text3);">━</span>';
+  };
+
+  const thStyle = 'padding:7px 10px;text-align:center;font-size:11px;font-weight:600;color:var(--text3);background:var(--bg);border-bottom:1px solid var(--border);white-space:nowrap;';
+  const tdStyle = 'padding:6px 10px;text-align:right;font-size:12px;border-bottom:1px solid var(--border);white-space:nowrap;';
+  const tdLStyle = 'padding:6px 10px;text-align:left;font-size:12px;border-bottom:1px solid var(--border);white-space:nowrap;font-weight:600;';
+
+  let html = '';
+  Object.keys(byBrand).sort().forEach(brand => {
+    const rows = byBrand[brand].sort((a,b) => a.media.localeCompare(b.media));
+
+    // 브랜드 헤더
+    html += `<div style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:700;color:var(--text1);padding:8px 4px;border-left:3px solid #185FA5;padding-left:10px;margin-bottom:6px;">${brand}</div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:12px;">
+        <thead><tr>
+          <th style="${thStyle}text-align:left;">매체사</th>`;
+
+    monthKeys.forEach(mk => {
+      const [y,m] = mk.split('-');
+      html += `<th colspan="4" style="${thStyle}border-left:1px solid var(--border);">${parseInt(m)}월${y !== String(now.getFullYear()) ? ' ('+y+')' : ''}</th>`;
+    });
+    html += '<th style="'+thStyle+'border-left:1px solid var(--border);">추이</th></tr>';
+
+    // 서브헤더
+    html += '<tr><th style="'+thStyle+'text-align:left;">　</th>';
+    monthKeys.forEach(() => {
+      html += `<th style="${thStyle}font-weight:500;">광고비</th>
+               <th style="${thStyle}font-weight:500;">실발송</th>
+               <th style="${thStyle}font-weight:500;">CTR</th>
+               <th style="${thStyle}font-weight:500;">DB</th>`;
+    });
+    html += '<th style="'+thStyle+'"></th></tr></thead><tbody>';
+
+    rows.forEach(g => {
+      const ctrVals = monthKeys.map(mk => {
+        const m = g.months[mk];
+        return m && m.actual > 0 ? m.clicks/m.actual*100 : null;
+      });
+      html += `<tr><td style="${tdLStyle}">${g.media}</td>`;
+      monthKeys.forEach(mk => {
+        const m = g.months[mk];
+        if (!m) {
+          html += `<td style="${tdStyle}color:var(--text3);">—</td><td style="${tdStyle}color:var(--text3);">—</td><td style="${tdStyle}color:var(--text3);">—</td><td style="${tdStyle}color:var(--text3);">—</td>`;
+        } else {
+          const ctr = m.actual > 0 ? (m.clicks/m.actual*100).toFixed(2)+'%' : '—';
+          html += `<td style="${tdStyle}">${fmtAdc(m.adc)}</td>
+                   <td style="${tdStyle}">${fmtNum(m.actual)}</td>
+                   <td style="${tdStyle}">${ctr}</td>
+                   <td style="${tdStyle}">${fmtNum(m.db)}</td>`;
+        }
+      });
+      html += `<td style="${tdStyle}text-align:center;">${trend(ctrVals)}</td></tr>`;
+    });
+    html += '</tbody></table></div></div>';
+  });
+
+  document.getElementById('eff-body').innerHTML = html;
+}
+
+// ══════════════════════════════════════════
+// DATE RANGE PICKER (drp)
+// ══════════════════════════════════════════
+(function() {
+  const DRP = {
+    start: null, end: null,
+    hover: null,
+    picking: 'from',
+    viewYear: 0, viewMonth: 0,
+    activePreset: null,
+  };
+
+  function _ymd(d) {
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function _parse(s) {
+    if (!s) return null;
+    const [y,m,d] = s.split('-').map(Number);
+    return new Date(y, m-1, d);
+  }
+  function _fmt(d) {
+    if (!d) return '—';
+    return d.getFullYear()+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0')+'.';
+  }
+  function _sod(d) { const r=new Date(d); r.setHours(0,0,0,0); return r; }
+  function _addDays(d, n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+  function _startOfWeek(d) { const r=new Date(d); r.setDate(r.getDate()-r.getDay()); return _sod(r); }
+  function _endOfWeek(d)   { return _addDays(_startOfWeek(d), 6); }
+  function _startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function _endOfMonth(d)  { return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+  function _startOfQuarter(d){ const q=Math.floor(d.getMonth()/3); return new Date(d.getFullYear(), q*3, 1); }
+  function _endOfQuarter(d)  { const q=Math.floor(d.getMonth()/3); return new Date(d.getFullYear(), q*3+3, 0); }
+
+  function _presetRange(key) {
+    const today = _sod(new Date());
+    switch(key) {
+      case 'thisweek':    return { s:_startOfWeek(today), e:_endOfWeek(today) };
+      case 'lastweek':    { const sm=_addDays(_startOfWeek(today),-7); return { s:sm, e:_addDays(sm,6) }; }
+      case 'last7':       return { s:_addDays(today,-7), e:_addDays(today,-1) };
+      case 'thismonth':   return { s:_startOfMonth(today), e:_endOfMonth(today) };
+      case 'lastmonth':   { const lm=new Date(today.getFullYear(), today.getMonth()-1, 1); return { s:lm, e:_endOfMonth(lm) }; }
+      case 'nextmonth':   { const nm=new Date(today.getFullYear(), today.getMonth()+1, 1); return { s:nm, e:_endOfMonth(nm) }; }
+      case 'last30':      return { s:_addDays(today,-30), e:_addDays(today,-1) };
+      case 'thisquarter': return { s:_startOfQuarter(today), e:_endOfQuarter(today) };
+      case 'lastquarter': { const lqs=new Date(today.getFullYear(), Math.floor(today.getMonth()/3)*3-3, 1); return { s:lqs, e:_endOfQuarter(lqs) }; }
+      case 'nextquarter': { const nqs=new Date(today.getFullYear(), Math.floor(today.getMonth()/3)*3+3, 1); return { s:nqs, e:_endOfQuarter(nqs) }; }
+    }
+    return null;
+  }
+
+  function _updateChips() {
+    const cf = document.getElementById('drp-chip-from');
+    const ct = document.getElementById('drp-chip-to');
+    if (cf) { cf.textContent = _fmt(DRP.start); cf.classList.toggle('active', DRP.picking==='from'); }
+    if (ct) { ct.textContent = _fmt(DRP.end);   ct.classList.toggle('active', DRP.picking==='to'); }
+    const lbl = document.getElementById('drp-label');
+    if (lbl) {
+      if (DRP.start && DRP.end) lbl.textContent = _fmt(DRP.start)+' ~ '+_fmt(DRP.end);
+      else if (DRP.start) lbl.textContent = _fmt(DRP.start)+' ~ —';
+      else lbl.textContent = '기간 선택';
+    }
+  }
+
+  function _renderCals() {
+    const ly = DRP.viewYear, lm = DRP.viewMonth;
+    const ry = lm === 11 ? ly+1 : ly;
+    const rm = lm === 11 ? 0 : lm+1;
+    document.getElementById('drp-cal-title-l').textContent = ly+'년 '+(lm+1)+'월';
+    document.getElementById('drp-cal-title-r').textContent = ry+'년 '+(rm+1)+'월';
+    document.getElementById('drp-cal-l').innerHTML = _buildCal(ly, lm);
+    document.getElementById('drp-cal-r').innerHTML = _buildCal(ry, rm);
+    document.querySelectorAll('.drp-day:not(.empty)').forEach(function(el) {
+      el.addEventListener('mouseenter', function() {
+        if (DRP.start && !DRP.end) { DRP.hover = _parse(el.dataset.date); _renderCals(); }
+      });
+    });
+  }
+
+  function _buildCal(y, m) {
+    const today = _sod(new Date());
+    const firstDay = new Date(y, m, 1).getDay();
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    const S = DRP.start ? _sod(DRP.start) : null;
+    const hov = (DRP.hover && DRP.start && !DRP.end) ? _sod(DRP.hover) : null;
+    const E = DRP.end ? _sod(DRP.end) : hov;
+    const rangeS = S && E ? (S <= E ? S : E) : S;
+    const rangeE = S && E ? (S <= E ? E : S) : null;
+
+    let html = '<div class="drp-cal-grid">';
+    ['일','월','화','수','목','금','토'].forEach(function(day) { html += '<div class="drp-dow">'+day+'</div>'; });
+    for (let i=0; i<firstDay; i++) html += '<div class="drp-day empty"></div>';
+    for (let d=1; d<=daysInMonth; d++) {
+      const dt = _sod(new Date(y, m, d));
+      const ds = _ymd(dt);
+      let cls = 'drp-day';
+      if (dt.getTime() === today.getTime()) cls += ' today';
+      const isStart = S && dt.getTime() === S.getTime();
+      const isEnd   = rangeE && dt.getTime() === rangeE.getTime();
+      const inRange = rangeS && rangeE && dt > rangeS && dt < rangeE;
+      if (isStart) cls += ' start';
+      if (isEnd)   cls += ' end';
+      if (inRange || (isStart && rangeE) || (isEnd && rangeS)) cls += ' in-range';
+      html += '<div class="'+cls+'" data-date="'+ds+'" onclick="drpDayClick(\''+ds+'\')">'+d+'</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  window.drpOpen = function() {
+    const popup = document.getElementById('drp-popup');
+    const trigger = document.getElementById('drp-trigger');
+    if (!popup || !trigger) return;
+    const fv = document.getElementById('fFrom') ? document.getElementById('fFrom').value : '';
+    const tv = document.getElementById('fTo')   ? document.getElementById('fTo').value   : '';
+    DRP.start = fv ? _parse(fv) : null;
+    DRP.end   = tv ? _parse(tv) : null;
+    DRP.hover = null;
+    DRP.picking = 'from';
+    DRP.activePreset = null;
+    const base = DRP.start || new Date();
+    DRP.viewYear  = base.getFullYear();
+    DRP.viewMonth = base.getMonth();
+    const rect = trigger.getBoundingClientRect();
+    const backdrop = document.getElementById('drp-backdrop');
+    if (backdrop) backdrop.style.display = 'block';
+    popup.style.display = 'block';
+    popup.style.top  = (rect.bottom + window.scrollY + 6)+'px';
+    popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 690)+'px';
+    _updateChips();
+    _renderCals();
+    document.querySelectorAll('.drp-preset').forEach(function(b){ b.classList.remove('active'); });
+  };
+
+  window.drpClose = function() {
+    const popup = document.getElementById('drp-popup');
+    if (popup) popup.style.display = 'none';
+    const backdrop = document.getElementById('drp-backdrop');
+    if (backdrop) backdrop.style.display = 'none';
+  };
+  window.drpCancel = window.drpClose;
+
+  window.drpConfirm = function() {
+    const s = DRP.start ? _ymd(DRP.start) : '';
+    const e = DRP.end   ? _ymd(DRP.end)   : s;
+    const fFrom = document.getElementById('fFrom');
+    const fTo   = document.getElementById('fTo');
+    if (fFrom) fFrom.value = s;
+    if (fTo)   fTo.value   = e;
+    _updateChips();
+    drpClose();
+    if (typeof applyFilter === 'function') applyFilter();
+  };
+
+  window.drpChipClick = function(which) {
+    DRP.picking = which;
+    _updateChips();
+  };
+
+  window.drpDayClick = function(ds) {
+    const dt = _parse(ds);
+    if (!DRP.start || DRP.end) {
+      DRP.start = dt; DRP.end = null; DRP.hover = null; DRP.picking = 'to';
+    } else {
+      if (dt < DRP.start) { DRP.end = DRP.start; DRP.start = dt; }
+      else DRP.end = dt;
+      DRP.picking = 'from';
+    }
+    DRP.activePreset = null;
+    document.querySelectorAll('.drp-preset').forEach(function(b){ b.classList.remove('active'); });
+    _updateChips();
+    _renderCals();
+  };
+
+  window.drpPrevMonth = function() {
+    if (DRP.viewMonth === 0) { DRP.viewYear--; DRP.viewMonth = 11; }
+    else DRP.viewMonth--;
+    _renderCals();
+  };
+  window.drpNextMonth = function() {
+    if (DRP.viewMonth === 11) { DRP.viewYear++; DRP.viewMonth = 0; }
+    else DRP.viewMonth++;
+    _renderCals();
+  };
+
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.drp-preset');
+    if (!btn) return;
+    const key = btn.dataset.preset;
+    const r = _presetRange(key);
+    if (!r) return;
+    DRP.start = r.s; DRP.end = r.e; DRP.hover = null; DRP.picking = 'from';
+    DRP.activePreset = key;
+    DRP.viewYear  = r.s.getFullYear();
+    DRP.viewMonth = r.s.getMonth();
+    document.querySelectorAll('.drp-preset').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    _updateChips();
+    _renderCals();
+  });
 })();

@@ -17,8 +17,10 @@ function initAdReport() {
   // 기간 기본값: 이번 달
   const now = new Date();
   const y = now.getFullYear(), m = now.getMonth();
-  document.getElementById('rpt-from').value = _dateKey(new Date(y, m, 1));
-  document.getElementById('rpt-to').value   = _dateKey(new Date(y, m + 1, 0));
+  const _rptFrom = document.getElementById('rpt-from');
+  const _rptTo   = document.getElementById('rpt-to');
+  if (_rptFrom) _rptFrom.value = _dateKey(new Date(y, m, 1));
+  if (_rptTo)   _rptTo.value   = _dateKey(new Date(y, m + 1, 0));
 
   // 체크박스 초기화
   const chk = document.getElementById('rpt-show-cost');
@@ -28,8 +30,10 @@ function initAdReport() {
   const benchSection = document.getElementById('rpt-benchmark-section');
   if (benchSection) benchSection.style.display = 'none';
 
-  document.getElementById('rpt-body').style.display  = 'none';
-  document.getElementById('rpt-empty').style.display = '';
+  const _rptBody  = document.getElementById('rpt-body');
+  const _rptEmpty = document.getElementById('rpt-empty');
+  if (_rptBody)  _rptBody.style.display  = 'none';
+  if (_rptEmpty) _rptEmpty.style.display = '';
 }
 
 // ── 광고주 콤보 populate ──────────────────
@@ -256,6 +260,7 @@ function _rptRenderKPI(kpi) {
 // ── C. 비교 기간 렌더링 ─────────────────────
 function _rptRenderMoM(cur, momData) {
   const section = document.getElementById('rpt-mom-section');
+  if (!section) return;
   if (!momData) { section.style.display = 'none'; return; }
   section.style.display = '';
 
@@ -605,7 +610,10 @@ function _rptRenderCreatives(campaigns) {
 
 // ── 발송문구 토글 ─────────────────────────
 function rptToggleCreative(btn) {
-  const body        = btn.closest('.rpt-creative-item').querySelector('.rpt-creative-body');
+  const item = btn.closest('.rpt-creative-item');
+  if (!item) return;
+  const body = item.querySelector('.rpt-creative-body');
+  if (!body) return;
   const isCollapsed = body.classList.contains('collapsed');
   body.classList.toggle('collapsed', !isCollapsed);
   btn.textContent = isCollapsed ? '발송문구 ▲' : '발송문구 ▼';
