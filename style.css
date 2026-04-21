@@ -755,3 +755,29 @@ td.grp-status2{border-left:2px solid var(--green-bg);}
   .cal-date { font-size: 11px; }
   .cal-evt { font-size: 10px; padding: 1px 4px; }
 }
+
+/* ── 날짜 범위 피커 ── */
+.drp-preset {
+  width:100%;text-align:left;padding:6px 10px;border:none;border-radius:5px;
+  background:none;cursor:pointer;font-size:12px;color:var(--text1);transition:background .15s;
+}
+.drp-preset:hover { background:var(--bg); }
+.drp-preset.active { background:#185FA5;color:#fff;font-weight:600; }
+
+.drp-cal-grid { display:grid;grid-template-columns:repeat(7,1fr);gap:2px; }
+.drp-dow { text-align:center;font-size:11px;font-weight:600;color:var(--text3);padding:4px 0; }
+.drp-day {
+  text-align:center;padding:5px 2px;border-radius:50%;cursor:pointer;
+  font-size:12px;position:relative;transition:background .1s,color .1s;
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+}
+.drp-day:hover { background:var(--bg); }
+.drp-day.today::after { content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:#185FA5; }
+.drp-day.start,.drp-day.end { background:#185FA5;color:#fff;border-radius:50%; }
+.drp-day.in-range { background:#E6F1FB;border-radius:0; }
+.drp-day.start.in-range { border-radius:50% 0 0 50%; }
+.drp-day.end.in-range   { border-radius:0 50% 50% 0; }
+.drp-day.start.end      { border-radius:50%; }
+.drp-day.other-month    { color:var(--text3); }
+.drp-day.empty          { pointer-events:none; }
+#drp-chip-from.active,#drp-chip-to.active { border-color:#185FA5;color:#185FA5; }

@@ -446,9 +446,12 @@
             <option value="">광고주/대행사</option>
           </select>
           <div class="f-div"></div>
-          <input type="date" class="f-date" id="fFrom" onchange="applyFilter()">
-          <span style="font-size:12px;color:var(--text3);">~</span>
-          <input type="date" class="f-date" id="fTo" onchange="applyFilter()">
+          <div id="drp-trigger" onclick="drpOpen()" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:13px;color:var(--text1);white-space:nowrap;user-select:none;">
+            <span id="drp-label">기간 선택</span>
+          </div>
+          <!-- hidden inputs (기존 호환) -->
+          <input type="hidden" id="fFrom">
+          <input type="hidden" id="fTo">
           <div class="f-div"></div>
           <input type="text" class="f-search" id="fQ" placeholder="🔍  캠페인명/캠페인ID 검색" oninput="applyFilter()">
           <span class="f-reset" onclick="resetFilter()">✕ 초기화</span>
@@ -500,7 +503,7 @@
       <div class="screen" id="screen-detail">
         <div class="detail-top">
           <div style="display:flex;align-items:center;gap:8px;">
-            <button class="back-btn" onclick="history.back()">←</button>
+            <button class="back-btn" onclick="goDetailBack()">←</button>
             <span class="detail-id" id="dId">C-2026-0047</span>
             <h1 class="detail-name" id="dName">여름할인이벤트_SKT비즈챗</h1>
             <button class="btn btn-danger btn-sm" id="btn-detail-del" onclick="openDelModal()">🗑 삭제</button>
@@ -655,7 +658,7 @@
           <div class="card" id="dCardQty" style="align-self:stretch;display:flex;flex-direction:column;">
             <div class="card-head"><span class="card-icon">📦</span><span class="card-title">수량 / 금액</span></div>
             <div class="card-body" style="flex:1;display:flex;flex-direction:column;">
-              <div class="field" style="gap:0;">
+              <div class="field" id="dFieldQtySvc" style="gap:0;">
                 <span class="f-label">발송예약수량</span><span class="f-val f-mono" id="dQty">—</span>
                 <span class="f-label" style="margin-left:12px;">서비스수량</span><span class="f-val f-mono"
                   id="dSvc">—</span>
@@ -1402,6 +1405,15 @@
     ══════════════════════════════════ -->
       <div class="screen" id="screen-adreport">
 
+        <!-- 탭 -->
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;">
+          <button id="adr-tab-rpt" onclick="adrSwitchTab('rpt')" style="padding:8px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:700;color:#185FA5;border-bottom:2px solid #185FA5;margin-bottom:-2px;">광고주 리포트</button>
+          <button id="adr-tab-eff" onclick="adrSwitchTab('eff')" style="padding:8px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:var(--text3);border-bottom:2px solid transparent;margin-bottom:-2px;">효율 분석</button>
+        </div>
+
+        <!-- ── 광고주 리포트 탭 ── -->
+        <div id="adr-pane-rpt">
+
         <!-- 필터 패널 -->
         <div class="rpt-filter-panel">
           <div class="rpt-filter-row">
@@ -1581,6 +1593,36 @@
           </div>
 
         </div><!-- /rpt-body -->
+
+        </div><!-- /adr-pane-rpt -->
+
+        <!-- ── 효율 분석 탭 ── -->
+        <div id="adr-pane-eff" style="display:none;">
+
+          <!-- 필터 -->
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+            <select id="eff-brand" class="f-sel" style="width:160px;" onchange="effRender()">
+              <option value="">전체 브랜드</option>
+            </select>
+            <select id="eff-media" class="f-sel" style="width:140px;" onchange="effRender()">
+              <option value="">전체 매체사</option>
+            </select>
+            <select id="eff-prod" class="f-sel" style="width:120px;" onchange="effRender()">
+              <option value="">전체 상품</option>
+            </select>
+            <select id="eff-months" class="f-sel" style="width:110px;" onchange="effRender()">
+              <option value="6">최근 6개월</option>
+              <option value="12" selected>최근 12개월</option>
+              <option value="24">최근 24개월</option>
+            </select>
+            <button class="btn btn-outline btn-sm" onclick="effReset()">초기화</button>
+          </div>
+
+          <!-- 테이블 -->
+          <div id="eff-body"></div>
+
+        </div><!-- /adr-pane-eff -->
+
       </div><!-- /screen-adreport -->
 
 
@@ -2344,7 +2386,7 @@
             </div>
             <!-- CPA 전용 -->
             <div id="r_qty_cpa" style="display:none;" class="form-grid">
-              <div class="fg"><label class="form-label">정산수량 <span class="req">*</span></label>
+              <div class="fg"><label class="form-label">정산수량</label>
                 <input type="number" class="form-input" id="r_cpa_qty" placeholder="0" oninput="calcCPA()">
               </div>
               <div class="fg"><label class="form-label">정산기준</label>
@@ -3418,5 +3460,57 @@
 <script src="script.js"></script>
 <!-- report.js 불러오기 -->
 <script src="report.js"></script>
+
+<!-- ── 날짜 범위 피커 backdrop + 팝업 ── -->
+<div id="drp-backdrop" style="display:none;position:fixed;inset:0;z-index:8999;"></div>
+<div id="drp-popup" style="display:none;position:fixed;z-index:9000;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.18);width:680px;font-size:13px;overflow:hidden;">
+  <!-- 헤더 -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px;border-bottom:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div id="drp-chip-from" style="padding:4px 12px;border-radius:20px;border:2px solid var(--border);cursor:pointer;font-weight:600;color:var(--text1);" onclick="drpChipClick('from')">—</div>
+      <span style="color:var(--text3);">→</span>
+      <div id="drp-chip-to" style="padding:4px 12px;border-radius:20px;border:2px solid var(--border);cursor:pointer;font-weight:600;color:var(--text1);" onclick="drpChipClick('to')">—</div>
+    </div>
+    <button onclick="drpClose()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);padding:0 4px;line-height:1;">×</button>
+  </div>
+  <!-- 바디 -->
+  <div style="display:flex;">
+    <!-- 사이드바 프리셋 -->
+    <div id="drp-sidebar" style="width:160px;min-width:160px;border-right:1px solid var(--border);padding:10px 8px;display:flex;flex-direction:column;gap:2px;">
+      <button class="drp-preset" data-preset="thisweek">이번 주</button>
+      <button class="drp-preset" data-preset="lastweek">지난 주</button>
+      <button class="drp-preset" data-preset="last7">최근 7일</button>
+      <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+      <button class="drp-preset" data-preset="thismonth">이번 달</button>
+      <button class="drp-preset" data-preset="lastmonth">지난 달</button>
+      <button class="drp-preset" data-preset="nextmonth">다음 달</button>
+      <button class="drp-preset" data-preset="last30">최근 30일</button>
+      <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+      <button class="drp-preset" data-preset="thisquarter">이번 분기</button>
+      <button class="drp-preset" data-preset="lastquarter">지난 분기</button>
+      <button class="drp-preset" data-preset="nextquarter">다음 분기</button>
+    </div>
+    <!-- 달력 영역 -->
+    <div style="flex:1;padding:12px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <button onclick="drpPrevMonth()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--text2);padding:2px 8px;">‹</button>
+        <div style="display:flex;gap:40px;flex:1;justify-content:center;">
+          <span id="drp-cal-title-l" style="font-weight:700;font-size:13px;"></span>
+          <span id="drp-cal-title-r" style="font-weight:700;font-size:13px;"></span>
+        </div>
+        <button onclick="drpNextMonth()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--text2);padding:2px 8px;">›</button>
+      </div>
+      <div style="display:flex;gap:24px;">
+        <div id="drp-cal-l" style="flex:1;"></div>
+        <div id="drp-cal-r" style="flex:1;"></div>
+      </div>
+    </div>
+  </div>
+  <!-- 푸터 -->
+  <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--border);">
+    <button onclick="drpCancel()" class="btn btn-outline btn-sm">취소</button>
+    <button onclick="drpConfirm()" class="btn btn-primary btn-sm">확인</button>
+  </div>
+</div>
 
 </html>
