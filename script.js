@@ -4003,7 +4003,7 @@ async function downloadInvoicePDF() {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>매입 계산서</title>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'맑은 고딕',sans-serif;font-size:12px;color:#222}
+    body{font-family:'맑은 고딕',sans-serif;font-size:12px;color:#222;padding-top:0}
     .section{padding:28px 32px;page-break-after:always}
     .section:last-child{page-break-after:auto}
     .head{font-size:17px;font-weight:700;margin-bottom:18px;display:flex;align-items:baseline;gap:12px}
@@ -4018,15 +4018,21 @@ async function downloadInvoicePDF() {
     .img-wrap{margin-bottom:16px}
     .img-label{font-size:11px;color:#888;margin-bottom:5px}
     .img-wrap img{max-width:100%;border:1px solid #ddd;border-radius:3px}
-    @media print{@page{margin:12mm}body{font-size:11px}}
-  </style></head><body>${sections}</body></html>`;
+    /* 플로팅 다운로드 버튼 */
+    #dl-fab{position:fixed;top:18px;right:22px;z-index:9999;background:#185FA5;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;align-items:center;gap:7px;font-family:inherit;}
+    #dl-fab:hover{background:#1450a3}
+    @media print{#dl-fab{display:none!important}@page{margin:12mm}body{font-size:11px}}
+  </style></head>
+  <body>
+    <button id="dl-fab" onclick="window.print()">🖨 인쇄 / PDF 저장</button>
+    ${sections}
+  </body></html>`;
 
   const win = window.open('', '_blank');
   if (!win) { toast('팝업이 차단됐습니다. 팝업 허용 후 다시 시도해주세요.', 'err'); return; }
   win.document.write(html);
   win.document.close();
   win.focus();
-  setTimeout(() => win.print(), 600);
 }
 
 /** 다운로드 드롭다운 토글 (fixed 위치 계산) */
