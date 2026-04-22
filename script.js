@@ -782,11 +782,13 @@ function openDetail(idx, skipPush) {
 
   // 권한별 버튼 표시
   const btnEdit = document.getElementById('btn-detail-edit');
+  const btnCopy = document.getElementById('btn-detail-copy');
   const btnDel  = document.getElementById('btn-detail-del');
   const btnTgt  = document.getElementById('btn-edit-target');
   const btnNote = document.getElementById('btn-edit-note');
   const btn2nd  = document.getElementById('btn-2nd');
   if (btnEdit) btnEdit.style.display = canEdit(c) ? '' : 'none';
+  if (btnCopy) btnCopy.style.display = hasPerm('ops') ? '' : 'none';
   const _superDel = currentUser && ['wonjoon','sukjoo'].includes(currentUser.id);
   const showDel = (_superDel || canEdit(c)) ? '' : 'none';
   if (btnDel)  btnDel.style.display  = showDel;
@@ -2400,6 +2402,101 @@ function confirmRegDate() {
   el.blur();
   document.getElementById('r_media_text').focus();
   toast('✓ 발송일시가 설정되었습니다', 'ok');
+}
+
+function openCopyCampaign() {
+  const c = DATA[currentDetailIdx];
+  if (!c) return;
+
+  const isDA  = c.product === 'DA';
+  const isPC  = c.product === '퍼미션콜';
+  const isCPA = c.product === 'CPA';
+
+  // 1. 폼 초기화 후 제품 유형 설정 (섹션 표시 변경)
+  resetRegForm();
+  setSelectVal('r_product', c.product);
+  onRegProductChange();
+
+  // 2. 콤보박스 세팅 헬퍼
+  const _setCombo = (name, val) => {
+    const cfg = _comboConfig(name);
+    const textEl   = document.getElementById(cfg.textId);
+    const hiddenEl = document.getElementById(cfg.hiddenId);
+    if (textEl)   textEl.value   = val || '';
+    if (hiddenEl) hiddenEl.value = val || '';
+  };
+
+  // 3. 공통 필드 복사 (날짜·시간은 제외)
+  const _set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+  _set('r_cat',     c.cat);
+  _set('r_adpromo', c.promo);
+  setSelectVal('r_ops', c.ops || (currentUser ? currentUser.name : ''));
+
+  // 매출처·브랜드·매체 콤보
+  _setCombo('seller',  c.seller || c.adv);
+  _set('r_content',      c.content || '');
+  _set('r_content_text', c.content || '');
+  _setCombo('media',   c.media);
+
+  // 금액·수량·수수료 (공통)
+  _set('r_sellBillBase', c.sellBillBase || c.billBase || 'actual');
+  _set('r_buyBillBase',  c.buyBillBase  || c.billBase || 'actual');
+  _set('r_sched',   c.qty      || '');
+  _set('r_svc',     c.svc      || '');
+  _set('r_disc',    c.disc     || '');
+  _set('r_sellUnit', c.sellUnit || '');
+  _set('r_buyUnit',  c.buyUnit  || '');
+  _set('r_comm',    c.comm     || '');
+  _set('r_agrate',  c.agrate   || '');
+
+  // 고정값 (manual)
+  const _setManual = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (val) { el.value = val; el.dataset.manual = '1'; }
+    else { el.value = ''; delete el.dataset.manual; }
+  };
+  _setManual('r_adcost', c.adcostFixed || 0);
+  _setManual('r_amt',    c.amtFixed    || 0);
+  _setManual('r_buyAmt', c.buyAmtFixed || 0);
+  _setManual('r_rev',    c.revFixed    || 0);
+  _setManual('r_profit', c.profitFixed || 0);
+
+  // 타겟·메시지·메모
+  _set('r_target',  c.target);
+  _set('r_dtarget', c.dtarget);
+  _set('r_msg',     c.msg);
+  _set('r_note',    c.note);
+
+  // 4. 상품별 전용 필드
+  if (isDA) {
+    // DA: 날짜는 초기화(연도/월만 현재값 유지), 광고비·수수료 복사
+    _set('r_da_adcost',   c.daAdcost   || '');
+    _set('r_da_billbase', c.daBillBase || 'CPP');
+    _set('r_da_fee_yn',   c.daFeeYn   || '포함');
+    _set('r_da_comm',     c.comm       || '');
+    _set('r_da_agrate',   c.agrate     || '');
+    _set('r_da_buyUnit',  c.buyUnit    || '');
+    // DA 이미지는 복사하지 않음 (새 캠페인 용도)
+    _daImagesBase64 = [];
+    _daRenderGrid('r_da_preview_grid', _daImagesBase64);
+  } else if (isPC) {
+    _set('r_pc_adv_unit', c.pcAdvUnit || '');
+    _set('r_pc_ohc_cost', c.pcOhcCost || '');
+    _set('r_pc_inflow',   c.pcInflow  || '');
+    _set('r_pc_agree',    c.pcAgree   || '');
+  } else if (isCPA) {
+    _set('r_cpa_unit',     c.sellUnit  || '');
+    _set('r_cpa_qty',      c.qty       || '');
+    _set('r_cpa_billbase', c.billBase  || '신청수');
+    _set('r_cpa_fee_yn',   c.cpaFeeYn  || '포함');
+    _set('r_cpa_comm',     c.comm      || '');
+    _set('r_cpa_agrate',   c.agrate    || '');
+  }
+
+  // 5. 모달 열기
+  openModal('modalReg');
+  toast('📋 캠페인 정보를 불러왔습니다. 날짜를 입력해주세요.', 'ok');
 }
 
 function openEdit() {
