@@ -3883,6 +3883,9 @@ async function downloadSettlementExcel() {
   ];
   ws.columns = colDefs.map(d => ({ width: d.width }));
 
+  // 구분선 열 (오른쪽 border 두껍게): 매출 정산율%, 매입 정산율%, 매출이익율%
+  const SEP_COLS = new Set([11, 18, 22]);
+
   // 헤더 행
   const headerRow = ws.addRow(colDefs.map(d => d.header));
   headerRow.eachCell((cell, colNum) => {
@@ -3902,9 +3905,6 @@ async function downloadSettlementExcel() {
 
   // 자동 필터
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: colDefs.length } };
-
-  // 구분선 열 (오른쪽 border 두껍게): 매출 정산율%, 매입 정산율%, 매출이익율%
-  const SEP_COLS = new Set([11, 18, 22]);
 
   // 데이터 행
   settled.forEach(c => {
