@@ -5326,8 +5326,9 @@ let stlView = 'adv'; // 'media' | 'adv' | 'agency' | 'campaign'
     history.replaceState({ screen: 'detail', id: parts[1] }, '', '#detail/' + parts[1]);
   } else if (screenName && document.getElementById('screen-' + screenName)) {
     goScreen(screenName, true);
-    // 새로고침 시 캠페인 날짜 필터를 현재월로 초기화 (drp-label 포함)
+    // 새로고침 시 필터 초기화
     if (screenName === 'campaigns') resetFilter();
+    if (screenName === 'settlement') resetStlFilter();
     history.replaceState({ screen: screenName }, '', '#' + screenName);
   } else {
     goScreen('dashboard', true);
