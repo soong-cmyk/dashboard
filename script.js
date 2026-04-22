@@ -3801,9 +3801,8 @@ function downloadCampaignsExcel() {
   toast('✓ 캠페인 목록 엑셀 다운로드 완료', 'ok');
 }
 
-/** 정산 엑셀 다운로드 (현재 화면 필터와 동일 기준) */
-function downloadSettlementExcel() {
-  // renderSettlement()와 동일한 필터 로직 적용
+/** 정산탭 현재 필터 기준 데이터 반환 (renderSettlement와 동일 로직) */
+function _getStlFilteredData() {
   const scope    = document.getElementById('stl-fScope')?.value  || 'settled';
   const prod     = document.getElementById('stl-fProd')?.value   || '';
   const cat      = document.getElementById('stl-fCat')?.value    || '';
@@ -3814,8 +3813,7 @@ function downloadSettlementExcel() {
   const { bonbu, team } = _parseOrgFilter(document.getElementById('stl-fOrg')?.value || '');
   const selYear  = document.getElementById('stl-year')?.value    || '';
   const selMonth = document.getElementById('stl-month')?.value   || '';
-
-  const settled = DATA.filter(c => {
+  return DATA.filter(c => {
     if (scope === 'settled') {
       if      (c.product === 'DA')  { if (!c.daAdcost) return false; }
       else if (c.product === 'CPA') { if (!c.actual)   return false; }
@@ -3836,8 +3834,12 @@ function downloadSettlementExcel() {
     if (fQ && !_cName(c).toLowerCase().includes(fQ) && !(c.id||'').toLowerCase().includes(fQ)) return false;
     return true;
   });
-  if (settled.length === 0) { toast('다운로드할 정산 데이터가 없습니다.', 'err'); return; }
+}
 
+/** 정산 엑셀 다운로드 */
+function downloadSettlementExcel() {
+  const settled = _getStlFilteredData();
+  if (settled.length === 0) { toast('다운로드할 정산 데이터가 없습니다.', 'err'); return; }
   const headers = [
     '카테고리', '매출처', '캠페인',
     '매출단가', '발송수량', '정산수량', '매출액', 'VAT포함(매출)', '정산율(%)',
@@ -3868,6 +3870,247 @@ function downloadSettlementExcel() {
   _xlsxDownload(rows, `정산내역_${_todayStr()}.xlsx`);
   toast('✓ 정산 내역 엑셀 다운로드 완료', 'ok');
 }
+
+/** 계산서 엑셀 — 매체사(매입처)별 시트 */
+function downloadInvoiceExcel() {
+  if (typeof XLSX === 'undefined') { toast('엑셀 라이브러리 로드 실패.', 'err'); return; }
+  const settled = _getStlFilteredData();
+  if (settled.length === 0) { toast('다운로드할 데이터가 없습니다.', 'err'); return; }
+
+  const wb = XLSX.utils.book_new();
+  // 매체사별 그룹핑
+  const byMedia = {};
+  settled.forEach(c => {
+    const key = c.media || '미지정';
+    if (!byMedia[key]) byMedia[key] = [];
+    byMedia[key].push(c);
+  });
+
+  Object.keys(byMedia).sort().forEach(media => {
+    const camps = byMedia[media];
+    const invoiceTo = MEDIA_DATA.find(x => x.company === media)?.invoiceTo || '';
+    const title = [`[${media}] 매입 계산서`, invoiceTo ? `청구처: ${invoiceTo}` : ''];
+    const headers = ['캠페인명', '광고기간', '정산수량', '매입단가(원)', '매입액(원)', 'VAT(원)', '합계(원)', '계산서'];
+    let totalBuy = 0, totalVat = 0;
+    const dataRows = camps.map(c => {
+      const a = _stlAmt(c);
+      const has = _stlHas(c);
+      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
+      const buyQty = hasBuy ? (a.buyActual ?? a.actual ?? 0) : 0;
+      const buyAmt = hasBuy ? a.buyAmt : 0;
+      const buyVat = hasBuy ? a.buyVat : 0;
+      if (hasBuy) { totalBuy += buyAmt; totalVat += buyVat; }
+      return [
+        _cName(c), c.date || '',
+        hasBuy ? buyQty : '',
+        hasBuy ? (c.buyUnit || '') : '',
+        hasBuy ? buyAmt : '',
+        hasBuy ? buyVat : '',
+        hasBuy ? (buyAmt + buyVat) : '',
+        c.invoiceIn || '미처리'
+      ];
+    });
+    dataRows.push(['합계', '', '', '', totalBuy, totalVat, totalBuy + totalVat, '']);
+
+    const wsData = [title, [], headers, ...dataRows];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, media.slice(0, 31));
+  });
+
+  XLSX.writeFile(wb, `계산서_매체사별_${_todayStr()}.xlsx`);
+  toast('✓ 계산서 엑셀 다운로드 완료', 'ok');
+}
+
+/** 계산서 PDF — 매체사별 섹션 + 이미지 포함 */
+async function downloadInvoicePDF() {
+  const settled = _getStlFilteredData();
+  if (settled.length === 0) { toast('다운로드할 데이터가 없습니다.', 'err'); return; }
+
+  toast('PDF 생성 중...', 'ok');
+  // 이미지 캐시 미스 시 Firebase에서 로드
+  const needLoad = settled.filter(c => c.invoiceInHasImg && !_INVOICE_IMG_CACHE[c.id]);
+  await Promise.all(needLoad.map(async c => {
+    const img = await _fbLoadInvoiceImage(c.id);
+    if (img) _INVOICE_IMG_CACHE[c.id] = img;
+  }));
+
+  // 매체사별 그룹핑
+  const byMedia = {};
+  settled.forEach(c => {
+    const key = c.media || '미지정';
+    if (!byMedia[key]) byMedia[key] = [];
+    byMedia[key].push(c);
+  });
+
+  let sections = '';
+  Object.keys(byMedia).sort().forEach(media => {
+    const camps = byMedia[media];
+    const invoiceTo = MEDIA_DATA.find(x => x.company === media)?.invoiceTo || '';
+    let totalBuy = 0, totalVat = 0;
+    let rows = '';
+    camps.forEach(c => {
+      const a = _stlAmt(c);
+      const has = _stlHas(c);
+      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
+      const buyQty = hasBuy ? (a.buyActual ?? a.actual ?? 0) : 0;
+      const buyAmt = hasBuy ? a.buyAmt : 0;
+      const buyVat = hasBuy ? a.buyVat : 0;
+      if (hasBuy) { totalBuy += buyAmt; totalVat += buyVat; }
+      rows += `<tr>
+        <td>${_cName(c)}</td><td class="c">${(c.date||'').slice(0,10)}</td>
+        <td class="r">${hasBuy ? buyQty.toLocaleString() : '—'}</td>
+        <td class="r">${hasBuy && c.buyUnit ? c.buyUnit.toLocaleString()+'원' : '—'}</td>
+        <td class="r">${hasBuy ? buyAmt.toLocaleString()+'원' : '—'}</td>
+        <td class="r">${hasBuy ? buyVat.toLocaleString()+'원' : '—'}</td>
+        <td class="r">${hasBuy ? (buyAmt+buyVat).toLocaleString()+'원' : '—'}</td>
+        <td class="c">${c.invoiceIn||'미처리'}</td>
+      </tr>`;
+    });
+    rows += `<tr class="total">
+      <td colspan="4">합계</td>
+      <td class="r">${totalBuy.toLocaleString()}원</td>
+      <td class="r">${totalVat.toLocaleString()}원</td>
+      <td class="r">${(totalBuy+totalVat).toLocaleString()}원</td>
+      <td></td>
+    </tr>`;
+
+    // 이미지들
+    let imgHtml = '';
+    camps.forEach(c => {
+      const img = _INVOICE_IMG_CACHE[c.id];
+      if (img) imgHtml += `<div class="img-wrap">
+        <div class="img-label">${_cName(c)}</div>
+        <img src="${img}">
+      </div>`;
+    });
+
+    sections += `<div class="section">
+      <div class="head">
+        <span class="media-name">${media}</span> 매입 계산서
+        ${invoiceTo ? `<span class="invoice-to">청구처: ${invoiceTo}</span>` : ''}
+      </div>
+      <table>
+        <thead><tr>
+          <th>캠페인명</th><th>광고기간</th><th>정산수량</th>
+          <th>매입단가</th><th>매입액</th><th>VAT(10%)</th><th>합계</th><th>계산서</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${imgHtml ? `<div class="imgs">${imgHtml}</div>` : ''}
+    </div>`;
+  });
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>매입 계산서</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'맑은 고딕',sans-serif;font-size:12px;color:#222}
+    .section{padding:28px 32px;page-break-after:always}
+    .section:last-child{page-break-after:auto}
+    .head{font-size:17px;font-weight:700;margin-bottom:18px;display:flex;align-items:baseline;gap:12px}
+    .media-name{color:#185FA5}
+    .invoice-to{font-size:12px;color:#666;font-weight:400}
+    table{width:100%;border-collapse:collapse;margin-bottom:20px}
+    th,td{border:1px solid #ddd;padding:6px 9px;font-size:11.5px}
+    th{background:#f5f5f5;font-weight:600;text-align:center}
+    td.r{text-align:right} td.c{text-align:center}
+    tr.total td{font-weight:700;background:#f0f4ff}
+    .imgs{margin-top:4px}
+    .img-wrap{margin-bottom:16px}
+    .img-label{font-size:11px;color:#888;margin-bottom:5px}
+    .img-wrap img{max-width:100%;border:1px solid #ddd;border-radius:3px}
+    @media print{@page{margin:12mm}body{font-size:11px}}
+  </style></head><body>${sections}</body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { toast('팝업이 차단됐습니다. 팝업 허용 후 다시 시도해주세요.', 'err'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 600);
+}
+
+/** 다운로드 드롭다운 토글 */
+function toggleStlDownload() {
+  const menu = document.getElementById('stl-dl-menu');
+  if (!menu) return;
+  const opening = menu.style.display === 'none' || !menu.style.display;
+  menu.style.display = opening ? '' : 'none';
+  if (opening) {
+    setTimeout(() => {
+      document.addEventListener('click', function _close(e) {
+        if (!e.target.closest('#stl-dl-wrap')) {
+          menu.style.display = 'none';
+          document.removeEventListener('click', _close);
+        }
+      });
+    }, 0);
+  }
+}
+
+// ── 계산서 이미지 캐시 (campaignId → base64) ──
+const _INVOICE_IMG_CACHE = {};
+let _invoiceInPendingImgData = null;
+
+/** Firebase — 계산서 이미지 로드 */
+async function _fbLoadInvoiceImage(campaignId) {
+  if (!window._db) return null;
+  try {
+    const doc = await window._db.collection('invoiceImages').doc(campaignId).get();
+    return doc.exists ? doc.data().data : null;
+  } catch(e) { console.error('[FB] 계산서 이미지 로드 실패:', e); return null; }
+}
+
+/** Firebase — 계산서 이미지 저장 (null이면 삭제) */
+async function _fbSaveInvoiceImage(campaignId, imgData) {
+  if (!window._db) return;
+  try {
+    if (imgData) {
+      await window._db.collection('invoiceImages').doc(campaignId).set({
+        data: imgData, updatedAt: new Date().toISOString()
+      });
+    } else {
+      await window._db.collection('invoiceImages').doc(campaignId).delete();
+    }
+  } catch(e) { console.error('[FB] 계산서 이미지 저장 실패:', e); }
+}
+
+// 클립보드 붙여넣기 → 계산서 이미지 (modalInvoiceIn 열렸을 때만)
+document.addEventListener('paste', function(e) {
+  const modal = document.getElementById('modalInvoiceIn');
+  if (!modal || !modal.classList.contains('open')) return;
+  if (_invoiceInPendingValue !== '발행완료') return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of Array.from(items)) {
+    if (!item.type.startsWith('image/')) continue;
+    const file = item.getAsFile();
+    if (!file) continue;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      // canvas로 리사이즈/압축 (Firestore 1MB 한계 대응)
+      const tmpImg = new Image();
+      tmpImg.onload = () => {
+        const MAX_W = 1400;
+        const scale = tmpImg.width > MAX_W ? MAX_W / tmpImg.width : 1;
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(tmpImg.width  * scale);
+        canvas.height = Math.round(tmpImg.height * scale);
+        canvas.getContext('2d').drawImage(tmpImg, 0, 0, canvas.width, canvas.height);
+        const compressed = canvas.toDataURL('image/jpeg', 0.82);
+        _invoiceInPendingImgData = compressed;
+        const prev = document.getElementById('invInPastePreview');
+        const ph   = document.getElementById('invInPastePlaceholder');
+        const st   = document.getElementById('invInPasteStatus');
+        if (prev) { prev.src = compressed; prev.style.display = ''; }
+        if (ph)   ph.style.display = 'none';
+        if (st)   st.textContent = `✓ 이미지 첨부됨 (${Math.round(compressed.length*0.75/1024)}KB)`;
+      };
+      tmpImg.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    break;
+  }
+});
 
 // ══════════════════════════════════════════
 // 월별 발송량
@@ -5265,7 +5508,35 @@ function openInvoiceInModal(campaignId) {
   const c = DATA.find(d => d.id === campaignId);
   if (!c) return;
   _invoiceInPendingValue = c.invoiceIn || '';
+  _invoiceInPendingImgData = null;
   document.getElementById('invoiceInCampName').textContent = _cName(c);
+
+  // 이미지 미리보기 초기화
+  const prev = document.getElementById('invInPastePreview');
+  const ph   = document.getElementById('invInPastePlaceholder');
+  const st   = document.getElementById('invInPasteStatus');
+  if (prev) { prev.style.display = 'none'; prev.src = ''; }
+  if (ph)   ph.style.display = '';
+  if (st)   st.textContent = '';
+
+  // 기존 이미지 표시
+  if (c.invoiceIn === '발행완료') {
+    const cached = _INVOICE_IMG_CACHE[campaignId];
+    if (cached) {
+      if (prev) { prev.src = cached; prev.style.display = ''; }
+      if (ph)   ph.style.display = 'none';
+      if (st)   st.textContent = '✓ 등록된 이미지 있음';
+    } else if (c.invoiceInHasImg) {
+      _fbLoadInvoiceImage(campaignId).then(img => {
+        if (!img) return;
+        _INVOICE_IMG_CACHE[campaignId] = img;
+        if (prev) { prev.src = img; prev.style.display = ''; }
+        if (ph)   ph.style.display = 'none';
+        if (st)   st.textContent = '✓ 등록된 이미지 있음';
+      });
+    }
+  }
+
   _updateInvoiceInOptUI();
   openModal('modalInvoiceIn');
 }
@@ -5283,6 +5554,8 @@ function _updateInvoiceInOptUI() {
   o2.className = 'btn ' + (_invoiceInPendingValue === '발행완료'    ? 'btn-primary' : 'btn-outline');
   o1.style.width = '100%'; o1.style.padding = '13px'; o1.style.fontSize = '14px';
   o2.style.width = '100%'; o2.style.padding = '13px'; o2.style.fontSize = '14px';
+  const pasteArea = document.getElementById('invInPasteArea');
+  if (pasteArea) pasteArea.style.display = _invoiceInPendingValue === '발행완료' ? '' : 'none';
 }
 
 /** 매입계산서 선택 저장 (value='' 이면 초기화) */
@@ -5292,6 +5565,19 @@ function saveInvoiceInChoice(value) {
   if (!c) return;
   const before = c.invoiceIn || '';
   c.invoiceIn = value;
+
+  // 이미지 처리
+  if (value === '발행완료' && _invoiceInPendingImgData) {
+    _INVOICE_IMG_CACHE[_invoiceInCampaignId] = _invoiceInPendingImgData;
+    _fbSaveInvoiceImage(_invoiceInCampaignId, _invoiceInPendingImgData);
+    c.invoiceInHasImg = true;
+  } else if (!value) {
+    delete _INVOICE_IMG_CACHE[_invoiceInCampaignId];
+    _fbSaveInvoiceImage(_invoiceInCampaignId, null);
+    c.invoiceInHasImg = false;
+  }
+  _invoiceInPendingImgData = null;
+
   if (before !== value) {
     const beforeLabel = before === '발행완료' ? '발행완료' : before === '발행필요없음' ? '발행필요없음' : '미선택';
     const afterLabel  = value  === '발행완료' ? '발행완료' : value  === '발행필요없음' ? '발행필요없음' : '미선택';

@@ -1334,7 +1334,14 @@
           <input class="f-sel" id="stl-fQ" type="text" placeholder="캠페인명 / ID 검색" oninput="renderSettlement()" style="width:170px;">
           <div style="flex:1;"></div>
           <span class="f-reset" onclick="resetStlFilter()">✕ 초기화</span>
-          <button class="btn btn-ghost btn-sm" onclick="downloadSettlementExcel()">⬇ 엑셀 다운로드</button>
+          <div id="stl-dl-wrap" style="position:relative;display:inline-block;">
+            <button class="btn btn-ghost btn-sm" onclick="toggleStlDownload()">⬇ 다운로드 ▾</button>
+            <div id="stl-dl-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;min-width:160px;overflow:hidden;">
+              <div onclick="downloadSettlementExcel();document.getElementById('stl-dl-menu').style.display='none'" style="padding:9px 16px;cursor:pointer;font-size:13px;white-space:nowrap;" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">📊 정산내역 엑셀</div>
+              <div onclick="downloadInvoiceExcel();document.getElementById('stl-dl-menu').style.display='none'" style="padding:9px 16px;cursor:pointer;font-size:13px;white-space:nowrap;" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">📋 계산서 엑셀</div>
+              <div onclick="downloadInvoicePDF();document.getElementById('stl-dl-menu').style.display='none'" style="padding:9px 16px;cursor:pointer;font-size:13px;white-space:nowrap;" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">🖨 계산서 PDF</div>
+            </div>
+          </div>
         </div>
 
         <!-- 테이블 -->
@@ -3414,6 +3421,18 @@
         <div style="display:flex;flex-direction:column;gap:8px;">
           <button id="invInOpt1" class="btn btn-outline" style="width:100%;padding:13px;font-size:14px;" onclick="selectInvoiceInOpt('발행필요없음')">발행필요없음</button>
           <button id="invInOpt2" class="btn btn-outline" style="width:100%;padding:13px;font-size:14px;" onclick="selectInvoiceInOpt('발행완료')">발행완료</button>
+        </div>
+        <!-- 발행완료 선택 시 이미지 붙여넣기 영역 -->
+        <div id="invInPasteArea" style="display:none;margin-top:14px;">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">계산서 이미지 첨부 (Ctrl+V 붙여넣기)</div>
+          <div style="border:2px dashed var(--border);border-radius:8px;min-height:110px;display:flex;align-items:center;justify-content:center;background:var(--bg);overflow:hidden;position:relative;">
+            <div id="invInPastePlaceholder" style="text-align:center;color:var(--text3);font-size:12px;pointer-events:none;">
+              <div style="font-size:28px;margin-bottom:6px;">📋</div>
+              Ctrl+V로 이미지 붙여넣기
+            </div>
+            <img id="invInPastePreview" style="display:none;max-width:100%;max-height:220px;object-fit:contain;">
+          </div>
+          <div id="invInPasteStatus" style="font-size:11px;color:var(--text3);margin-top:5px;"></div>
         </div>
       </div>
       <div class="modal-foot">
