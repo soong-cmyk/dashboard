@@ -3838,10 +3838,16 @@ function _getStlFilteredData() {
 
 /** 정산 엑셀 다운로드 */
 function downloadSettlementExcel() {
-  const settled = _getStlFilteredData();
+  const settled = _getStlFilteredData().slice().sort((a, b) => {
+    const ca = (a.cat || '').localeCompare(b.cat || '', 'ko');
+    if (ca !== 0) return ca;
+    const cb = (_cCompany(a) || '').localeCompare(_cCompany(b) || '', 'ko');
+    if (cb !== 0) return cb;
+    return (a.content || '').localeCompare(b.content || '', 'ko');
+  });
   if (settled.length === 0) { toast('다운로드할 정산 데이터가 없습니다.', 'err'); return; }
   const headers = [
-    '상품', '카테고리', '매출처', '캠페인',
+    '발송일자', '상품', '카테고리', '매출처', '캠페인',
     '매출단가', '발송수량', '정산수량', '매출액', 'VAT포함(매출)', '정산율(%)',
     '매체사', '매입처', '매입단가', '인정수량', '매입액', 'VAT포함(매입)', '정산율(%)',
     '대행수수료%', '대행수수료', '매출이익', '매출이익율(%)',
@@ -3855,7 +3861,7 @@ function downloadSettlementExcel() {
     const rb = v => hasBuy ? v : '';
     const buyQty = a.buyActual ?? a.actual ?? 0;
     return [
-      c.product, c.cat, _cCompany(c), _cName(c),
+      c.date ? c.date.slice(0, 10) : '', c.product, c.cat, _cCompany(c), _cName(c),
       r(c.sellUnit), r(c.qty), r(a.actual),
       r(a.amt ?? a.adc), r((a.amt ?? a.adc) + a.adcVat), r(+a.stlRate.toFixed(1)),
       c.media, MEDIA_DATA.find(x => x.company === c.media)?.invoiceTo || '',
