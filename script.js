@@ -5835,6 +5835,19 @@ function toggleSettlePay(campaignId, field) {
   _fbSaveCampaign(c);
   _stlSaveScroll();
   _stlCellUpdate(campaignId, field);
+
+  // 세금계산서 탭 동기화 (invoiceOut ↔ taxStatus, payIn ↔ paid)
+  const taxField = field === 'invoiceOut' ? 'taxStatus' : field === 'payIn' ? 'paid' : null;
+  if (taxField) {
+    const t = TAX_DATA.find(x => x.campaignId === campaignId);
+    if (t) {
+      const newVal = c[field] ? '완료' : '';
+      if (t[taxField] !== newVal) {
+        t[taxField] = newVal;
+        _fbSaveTax(t);
+      }
+    }
+  }
 }
 
 /** 정산 테이블 플로팅 가로스크롤바 동기화 */
@@ -6997,6 +7010,15 @@ async function taxTogglePaid(id) {
   t.paid = isPaid ? '' : '완료';
   if (!isPaid) t.unpaid = 0;
   await _fbSaveTax(t);
+  // 정산 탭 payIn 동기화
+  if (t.campaignId) {
+    const c = DATA.find(d => d.id === t.campaignId);
+    if (c && !!c.payIn !== !isPaid) {
+      c.payIn = !isPaid;
+      _fbSaveCampaign(c);
+      _stlCellUpdate(t.campaignId, 'payIn');
+    }
+  }
   renderTaxList();
 }
 
@@ -7007,6 +7029,15 @@ async function taxToggleStatus(id) {
   if (!confirm(isDone ? '완료를 취소하시겠습니까?' : '완료 처리하시겠습니까?')) return;
   t.taxStatus = isDone ? '' : '완료';
   await _fbSaveTax(t);
+  // 정산 탭 invoiceOut 동기화
+  if (t.campaignId) {
+    const c = DATA.find(d => d.id === t.campaignId);
+    if (c && !!c.invoiceOut !== !isDone) {
+      c.invoiceOut = !isDone;
+      _fbSaveCampaign(c);
+      _stlCellUpdate(t.campaignId, 'invoiceOut');
+    }
+  }
   renderTaxList();
 }
 
