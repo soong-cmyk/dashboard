@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(python3:*)",
+      "Bash(python:*)",
+      "Bash(\"/c/Users/LG/AppData/Local/Programs/Python/Launcher/py\":*)",
+      "Bash(node:*)",
+      "Bash(\"C:\\\\Users\\\\LG\\\\Desktop\\\\dashboard\\\\style.css\":*)",
+      "Bash(xargs -I{} wc -l {})",
+      "Bash(JSONL_PATH=\"$HOME/.claude/projects/C--Users-LG-Desktop-dashboard/5e344a99-1d03-4a11-b5a2-9715e1690406.jsonl\")",
+      "Bash(echo \"Path: $JSONL_PATH\")",
+      "Read(//c/Users/LG/Desktop/dashboard/**)",
+      "Bash(JSONL=\"C:/Users/LG/.claude/projects/C--Users-LG-Desktop-dashboard/5e344a99-1d03-4a11-b5a2-9715e1690406.jsonl\"\nnode << 'EOF'\nconst fs = require\\('fs'\\);\nconst p = 'C:/Users/LG/.claude/projects/C--Users-LG-Desktop-dashboard/5e344a99-1d03-4a11-b5a2-9715e1690406.jsonl';\nconst lines = fs.readFileSync\\(p, 'utf8'\\).split\\('\\\\n'\\);\nconst large = lines.map\\(\\(l,i\\)=>[i,l.length]\\).filter\\(\\([i,sz]\\)=>sz>200000\\);\nconsole.log\\('Total lines:', lines.length\\);\nlarge.slice\\(0,20\\).forEach\\(\\([i,sz]\\)=>console.log\\(' Line',i,sz,'bytes'\\)\\);\nEOF)",
+      "Bash(git push:*)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}
