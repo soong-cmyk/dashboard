@@ -3988,83 +3988,94 @@ async function downloadInvoiceExcel() {
     const invoiceTo = MEDIA_DATA.find(x => x.company === media)?.invoiceTo || '';
     const ws = wb.addWorksheet(media.slice(0, 31));
 
-    // 열 너비 설정
+    // A열 공백, B열(2)부터 표
+    // 열 순서: A(빈칸), B광고기간, C캠페인명, D상품, E광고비, F매입단가, G매입액, H VAT, I합계, J계산서
     ws.columns = [
-      { width: 12 }, // 상품
-      { width: 36 }, // 캠페인명
-      { width: 14 }, // 광고기간
-      { width: 10 }, // 정산수량
-      { width: 13 }, // 매입단가
-      { width: 13 }, // 매입액
-      { width: 11 }, // VAT
-      { width: 13 }, // 합계
-      { width: 10 }, // 계산서
+      { width: 3  }, // A — 빈칸
+      { width: 14 }, // B — 광고기간
+      { width: 36 }, // C — 캠페인명
+      { width: 12 }, // D — 상품
+      { width: 14 }, // E — 광고비(실청구액)
+      { width: 13 }, // F — 매입단가
+      { width: 14 }, // G — 매입액
+      { width: 12 }, // H — VAT
+      { width: 14 }, // I — 합계
+      { width: 10 }, // J — 계산서
     ];
 
-    // 제목 행
-    const titleRow = ws.addRow([`[${media}] 매입 계산서`]);
-    titleRow.getCell(1).font = { bold: true, size: 14, color: { argb: 'FF185FA5' } };
-    ws.addRow([invoiceTo ? `청구처: ${invoiceTo}` : '']);
+    // 제목 행 (B열에 표기)
+    const titleRow = ws.addRow(['', `[${media}] 광고비 지급요청서`]);
+    titleRow.getCell(2).font = { bold: true, size: 14, color: { argb: 'FF185FA5' } };
+    if (invoiceTo) {
+      const subRow = ws.addRow(['', `청구처: ${invoiceTo}`]);
+      subRow.getCell(2).font = { size: 11, color: { argb: 'FF555555' } };
+    }
     ws.addRow([]);
 
     // 헤더 행
-    const headerRow = ws.addRow(['상품', '캠페인명', '광고기간', '정산수량', '매입단가(원)', '매입액(원)', 'VAT(원)', '합계(원)', '계산서']);
-    headerRow.eachCell(cell => {
+    const headerRow = ws.addRow(['', '광고기간', '캠페인명', '상품', '광고비', '매입단가(원)', '매입액(원)', 'VAT(원)', '합계(원)', '계산서']);
+    headerRow.eachCell((cell, colNum) => {
+      if (colNum === 1) return;
       cell.font = { bold: true, size: 11 };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FF' } };
       cell.border = {
-        top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+        top:    { style: 'thin', color: { argb: 'FFCCCCCC' } },
         bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
-        left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
-        right: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+        left:   { style: 'thin', color: { argb: 'FFCCCCCC' } },
+        right:  { style: 'thin', color: { argb: 'FFCCCCCC' } },
       };
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     });
 
     // 데이터 행
-    let totalBuy = 0, totalVat = 0;
+    // 숫자 열(1-based): E=5(광고비), F=6(매입단가), G=7(매입액), H=8(VAT), I=9(합계)
+    const NUM_COLS = new Set([5, 6, 7, 8, 9]);
+    let totalAdc = 0, totalBuy = 0, totalVat = 0;
     camps.forEach(c => {
       const a = _stlAmt(c);
       const has = _stlHas(c);
       const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
-      const buyQty = hasBuy ? (a.buyActual ?? a.actual ?? 0) : 0;
-      const buyAmt = hasBuy ? a.buyAmt : 0;
-      const buyVat = hasBuy ? a.buyVat : 0;
-      if (hasBuy) { totalBuy += buyAmt; totalVat += buyVat; }
+      const adcost = has ? (a.amt ?? a.adc) : null;
+      const buyAmt = hasBuy ? a.buyAmt : null;
+      const buyVat = hasBuy ? a.buyVat : null;
+      if (adcost) totalAdc += adcost;
+      if (buyAmt)  totalBuy += buyAmt;
+      if (buyVat)  totalVat += buyVat;
 
       const row = ws.addRow([
-        c.product || '',
-        _cName(c),
+        '',
         (c.date || '').slice(0, 10),
-        hasBuy ? buyQty : '',
-        hasBuy ? (c.buyUnit || '') : '',
-        hasBuy ? buyAmt : '',
-        hasBuy ? buyVat : '',
-        hasBuy ? (buyAmt + buyVat) : '',
+        _cName(c),
+        c.product || '',
+        adcost,
+        hasBuy ? (c.buyUnit || null) : null,
+        buyAmt,
+        buyVat,
+        hasBuy ? buyAmt + buyVat : null,
         c.invoiceIn || '미처리',
       ]);
-      // 숫자 열 우측 정렬
-      [4,5,6,7,8].forEach(col => {
-        const cell = row.getCell(col);
-        cell.alignment = { horizontal: 'right' };
-        if (typeof cell.value === 'number') cell.numFmt = '#,##0';
-      });
-      row.eachCell(cell => {
+      row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        if (colNum === 1) return;
+        if (NUM_COLS.has(colNum) && typeof cell.value === 'number') {
+          cell.numFmt = '#,##0';
+          cell.alignment = { horizontal: 'right' };
+        }
         cell.border = {
-          top: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+          top:    { style: 'hair', color: { argb: 'FFDDDDDD' } },
           bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } },
-          left: { style: 'hair', color: { argb: 'FFDDDDDD' } },
-          right: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+          left:   { style: 'hair', color: { argb: 'FFDDDDDD' } },
+          right:  { style: 'hair', color: { argb: 'FFDDDDDD' } },
         };
       });
     });
 
     // 합계 행
-    const totalRow = ws.addRow(['', '합계', '', '', '', totalBuy, totalVat, totalBuy + totalVat, '']);
-    totalRow.eachCell((cell, col) => {
+    const totalRow = ws.addRow(['', '합계', '', '', totalAdc, '', totalBuy, totalVat, totalBuy + totalVat, '']);
+    totalRow.eachCell((cell, colNum) => {
+      if (colNum === 1) return;
       cell.font = { bold: true };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFBE6' } };
-      if (col >= 6 && typeof cell.value === 'number') {
+      if (NUM_COLS.has(colNum) && typeof cell.value === 'number') {
         cell.numFmt = '#,##0';
         cell.alignment = { horizontal: 'right' };
       }
@@ -4075,23 +4086,23 @@ async function downloadInvoiceExcel() {
 
     // 이미지 삽입
     for (const c of camps) {
-      const imgs = _INVOICE_IMG_CACHE[c.id]; // string[] 또는 없음
+      const imgs = _INVOICE_IMG_CACHE[c.id];
       if (!imgs || !imgs.length) continue;
 
-      // 캠페인 레이블 행
-      const labelRow = ws.addRow([`▼ ${_cName(c)}`]);
-      labelRow.getCell(1).font = { italic: false, color: { argb: 'FF333333' }, size: 10 };
+      // 캠페인 레이블 행 (B열에 표기)
+      const labelRow = ws.addRow(['', `▼ ${_cName(c)}`]);
+      labelRow.getCell(2).font = { italic: false, color: { argb: 'FF333333' }, size: 10 };
 
       for (const imgData of imgs) {
         const ext = imgData.startsWith('data:image/png') ? 'png' : 'jpeg';
         const base64 = imgData.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
 
         const imgId = wb.addImage({ base64, extension: ext });
-        const anchorRow = ws.rowCount; // 현재 행 번호 (1-based)
+        const anchorRow = ws.rowCount;
 
         ws.addImage(imgId, {
-          tl: { col: 0, row: anchorRow },
-          br: { col: 8, row: anchorRow + 20 },
+          tl: { col: 1, row: anchorRow },        // B열(0-based=1)부터
+          br: { col: 9, row: anchorRow + 20 },   // J열(0-based=9)까지
           editAs: 'oneCell',
         });
 
@@ -4107,10 +4118,10 @@ async function downloadInvoiceExcel() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `계산서_매체사별_${_todayStr()}.xlsx`;
+  a.download = `광고비 지급요청서_${_todayStr()}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
-  toast('✓ 계산서 엑셀 다운로드 완료', 'ok');
+  toast('✓ 광고비 지급요청서 다운로드 완료', 'ok');
 }
 
 /** 다운로드 드롭다운 토글 (fixed 위치 계산) */
