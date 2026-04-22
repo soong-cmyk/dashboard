@@ -6883,10 +6883,9 @@ function _taxIsSettled(c) {
 // ── 세금계산서 필터/렌더 ──
 function resetTaxFilter() {
   const now = new Date();
-  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const el = id => document.getElementById(id);
-  if (el('tax-year'))     el('tax-year').value     = String(prevMonth.getFullYear());
-  if (el('tax-month'))    el('tax-month').value     = String(prevMonth.getMonth() + 1).padStart(2, '0');
+  if (el('tax-year'))     el('tax-year').value     = String(now.getFullYear());
+  if (el('tax-month'))    el('tax-month').value     = String(now.getMonth() + 1).padStart(2, '0');
   if (el('tax-fManager')) el('tax-fManager').value  = '';
   if (el('tax-fStatus'))  el('tax-fStatus').value   = '';
   if (el('tax-fSeller'))  el('tax-fSeller').value   = '';
@@ -7295,11 +7294,12 @@ async function confirmTaxAutoGen() {
     await _fbSaveTax(t);
   }
   closeModal('modalTaxAutoGen');
-  // 등록한 항목이 보이도록 연도/월 필터 초기화
+  // 등록한 항목이 보이도록 현재 연도/월로 필터 설정
+  const _now = new Date();
   const elY = document.getElementById('tax-year');
   const elM = document.getElementById('tax-month');
-  if (elY) elY.value = '';
-  if (elM) elM.value = '';
+  if (elY) elY.value = String(_now.getFullYear());
+  if (elM) elM.value = String(_now.getMonth() + 1).padStart(2, '0');
   renderTaxList();
 }
 
