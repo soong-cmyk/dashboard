@@ -3837,7 +3837,8 @@ function _getStlFilteredData() {
 }
 
 /** 정산 엑셀 다운로드 */
-function downloadSettlementExcel() {
+async function downloadSettlementExcel() {
+  if (typeof ExcelJS === 'undefined') { toast('ExcelJS 라이브러리 로드 실패. 인터넷 연결을 확인해주세요.', 'err'); return; }
   const settled = _getStlFilteredData().slice().sort((a, b) => {
     const ca = (a.cat || '').localeCompare(b.cat || '', 'ko');
     if (ca !== 0) return ca;
@@ -3846,22 +3847,72 @@ function downloadSettlementExcel() {
     return (a.content || '').localeCompare(b.content || '', 'ko');
   });
   if (settled.length === 0) { toast('다운로드할 정산 데이터가 없습니다.', 'err'); return; }
-  const headers = [
-    '발송일자', '상품', '카테고리', '매출처', '캠페인',
-    '매출단가', '발송수량', '정산수량', '매출액', 'VAT포함(매출)', '정산율(%)',
-    '매체사', '매입처', '매입단가', '인정수량', '매입액', 'VAT포함(매입)', '정산율(%)',
-    '대행수수료%', '대행수수료', '매출이익', '매출이익율(%)',
-    '매출계산서발행', '입금', '매입계산서발행', '지급'
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Dashboard';
+  const ws = wb.addWorksheet('정산내역');
+
+  // 열 정의 (너비 + 헤더)
+  const colDefs = [
+    { header: '발송일자',      width: 13 },
+    { header: '상품',          width: 10 },
+    { header: '카테고리',      width: 12 },
+    { header: '매출처',        width: 18 },
+    { header: '캠페인',        width: 28 },
+    { header: '매출단가',      width: 12, numFmt: '#,##0' },
+    { header: '발송수량',      width: 11, numFmt: '#,##0' },
+    { header: '정산수량',      width: 11, numFmt: '#,##0' },
+    { header: '매출액',        width: 14, numFmt: '#,##0' },
+    { header: 'VAT포함(매출)', width: 15, numFmt: '#,##0' },
+    { header: '정산율(%)',     width: 10, numFmt: '0.0' },
+    { header: '매체사',        width: 16 },
+    { header: '매입처',        width: 16 },
+    { header: '매입단가',      width: 12, numFmt: '#,##0' },
+    { header: '인정수량',      width: 11, numFmt: '#,##0' },
+    { header: '매입액',        width: 14, numFmt: '#,##0' },
+    { header: 'VAT포함(매입)', width: 15, numFmt: '#,##0' },
+    { header: '정산율(%)',     width: 10, numFmt: '0.0' },
+    { header: '대행수수료%',   width: 12, numFmt: '0.0' },
+    { header: '대행수수료',    width: 14, numFmt: '#,##0' },
+    { header: '매출이익',      width: 14, numFmt: '#,##0' },
+    { header: '매출이익율(%)', width: 13, numFmt: '0.0' },
+    { header: '매출계산서발행', width: 14 },
+    { header: '입금',          width: 10 },
+    { header: '매입계산서발행', width: 14 },
+    { header: '지급',          width: 10 },
   ];
-  const rows = [headers, ...settled.map(c => {
+  ws.columns = colDefs.map(d => ({ width: d.width }));
+
+  // 헤더 행
+  const headerRow = ws.addRow(colDefs.map(d => d.header));
+  headerRow.eachCell(cell => {
+    cell.font = { bold: true, size: 11 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF7' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: false };
+    cell.border = {
+      top:    { style: 'thin', color: { argb: 'FFB0BBD0' } },
+      bottom: { style: 'thin', color: { argb: 'FFB0BBD0' } },
+      left:   { style: 'thin', color: { argb: 'FFB0BBD0' } },
+      right:  { style: 'thin', color: { argb: 'FFB0BBD0' } },
+    };
+  });
+  headerRow.height = 22;
+
+  // 자동 필터
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: colDefs.length } };
+
+  // 데이터 행
+  settled.forEach(c => {
     const a      = _stlAmt(c);
     const has    = _stlHas(c);
     const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
-    const r  = v => has    ? v : '';
-    const rb = v => hasBuy ? v : '';
+    const r  = v => has    ? v : null;
+    const rb = v => hasBuy ? v : null;
     const buyQty = a.buyActual ?? a.actual ?? 0;
-    return [
-      c.date ? c.date.slice(0, 10) : '', c.product, c.cat, _cCompany(c), _cName(c),
+
+    const values = [
+      c.date ? c.date.slice(0, 10) : '',
+      c.product, c.cat, _cCompany(c), _cName(c),
       r(c.sellUnit), r(c.qty), r(a.actual),
       r(a.amt ?? a.adc), r((a.amt ?? a.adc) + a.adcVat), r(+a.stlRate.toFixed(1)),
       c.media, MEDIA_DATA.find(x => x.company === c.media)?.invoiceTo || '',
@@ -3870,10 +3921,32 @@ function downloadSettlementExcel() {
       c.invoiceOut ? '발행' : '미발행',
       c.payIn      ? '완료' : '미완료',
       c.invoiceIn  ? '발행' : '미발행',
-      c.payOut     ? '완료' : '미완료'
+      c.payOut     ? '완료' : '미완료',
     ];
-  })];
-  _xlsxDownload(rows, `정산내역_${_todayStr()}.xlsx`);
+
+    const row = ws.addRow(values);
+    row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+      const def = colDefs[colNum - 1];
+      if (def?.numFmt && cell.value !== null && cell.value !== '') cell.numFmt = def.numFmt;
+      if (typeof cell.value === 'number') cell.alignment = { horizontal: 'right' };
+      cell.border = {
+        top:    { style: 'hair', color: { argb: 'FFDDDDDD' } },
+        bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+        left:   { style: 'hair', color: { argb: 'FFDDDDDD' } },
+        right:  { style: 'hair', color: { argb: 'FFDDDDDD' } },
+      };
+    });
+  });
+
+  // 첫 행 고정
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `정산내역_${_todayStr()}.xlsx`; a.click();
+  URL.revokeObjectURL(url);
   toast('✓ 정산 내역 엑셀 다운로드 완료', 'ok');
 }
 
