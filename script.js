@@ -7295,6 +7295,11 @@ async function confirmTaxAutoGen() {
     await _fbSaveTax(t);
   }
   closeModal('modalTaxAutoGen');
+  // 등록한 항목이 보이도록 연도/월 필터 초기화
+  const elY = document.getElementById('tax-year');
+  const elM = document.getElementById('tax-month');
+  if (elY) elY.value = '';
+  if (elM) elM.value = '';
   renderTaxList();
 }
 
