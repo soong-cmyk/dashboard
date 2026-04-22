@@ -3841,7 +3841,7 @@ function downloadSettlementExcel() {
   const settled = _getStlFilteredData();
   if (settled.length === 0) { toast('다운로드할 정산 데이터가 없습니다.', 'err'); return; }
   const headers = [
-    '카테고리', '매출처', '캠페인',
+    '상품', '카테고리', '매출처', '캠페인',
     '매출단가', '발송수량', '정산수량', '매출액', 'VAT포함(매출)', '정산율(%)',
     '매체사', '매입처', '매입단가', '인정수량', '매입액', 'VAT포함(매입)', '정산율(%)',
     '대행수수료%', '대행수수료', '매출이익', '매출이익율(%)',
@@ -3855,7 +3855,7 @@ function downloadSettlementExcel() {
     const rb = v => hasBuy ? v : '';
     const buyQty = a.buyActual ?? a.actual ?? 0;
     return [
-      c.cat, _cCompany(c), _cName(c),
+      c.product, c.cat, _cCompany(c), _cName(c),
       r(c.sellUnit), r(c.qty), r(a.actual),
       r(a.amt ?? a.adc), r((a.amt ?? a.adc) + a.adcVat), r(+a.stlRate.toFixed(1)),
       c.media, MEDIA_DATA.find(x => x.company === c.media)?.invoiceTo || '',
@@ -3904,6 +3904,7 @@ async function downloadInvoiceExcel() {
 
     // 열 너비 설정
     ws.columns = [
+      { width: 12 }, // 상품
       { width: 36 }, // 캠페인명
       { width: 14 }, // 광고기간
       { width: 10 }, // 정산수량
@@ -3921,7 +3922,7 @@ async function downloadInvoiceExcel() {
     ws.addRow([]);
 
     // 헤더 행
-    const headerRow = ws.addRow(['캠페인명', '광고기간', '정산수량', '매입단가(원)', '매입액(원)', 'VAT(원)', '합계(원)', '계산서']);
+    const headerRow = ws.addRow(['상품', '캠페인명', '광고기간', '정산수량', '매입단가(원)', '매입액(원)', 'VAT(원)', '합계(원)', '계산서']);
     headerRow.eachCell(cell => {
       cell.font = { bold: true, size: 11 };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FF' } };
@@ -3946,6 +3947,7 @@ async function downloadInvoiceExcel() {
       if (hasBuy) { totalBuy += buyAmt; totalVat += buyVat; }
 
       const row = ws.addRow([
+        c.product || '',
         _cName(c),
         (c.date || '').slice(0, 10),
         hasBuy ? buyQty : '',
@@ -3956,7 +3958,7 @@ async function downloadInvoiceExcel() {
         c.invoiceIn || '미처리',
       ]);
       // 숫자 열 우측 정렬
-      [3,4,5,6,7].forEach(col => {
+      [4,5,6,7,8].forEach(col => {
         const cell = row.getCell(col);
         cell.alignment = { horizontal: 'right' };
         if (typeof cell.value === 'number') cell.numFmt = '#,##0';
@@ -3972,11 +3974,11 @@ async function downloadInvoiceExcel() {
     });
 
     // 합계 행
-    const totalRow = ws.addRow(['합계', '', '', '', totalBuy, totalVat, totalBuy + totalVat, '']);
+    const totalRow = ws.addRow(['', '합계', '', '', '', totalBuy, totalVat, totalBuy + totalVat, '']);
     totalRow.eachCell((cell, col) => {
       cell.font = { bold: true };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFBE6' } };
-      if (col >= 5 && typeof cell.value === 'number') {
+      if (col >= 6 && typeof cell.value === 'number') {
         cell.numFmt = '#,##0';
         cell.alignment = { horizontal: 'right' };
       }
@@ -3987,30 +3989,29 @@ async function downloadInvoiceExcel() {
 
     // 이미지 삽입
     for (const c of camps) {
-      const imgData = _INVOICE_IMG_CACHE[c.id];
-      if (!imgData) continue;
+      const imgs = _INVOICE_IMG_CACHE[c.id]; // string[] 또는 없음
+      if (!imgs || !imgs.length) continue;
 
-      // 이미지 레이블 행
+      // 캠페인 레이블 행
       const labelRow = ws.addRow([`▼ ${_cName(c)}`]);
       labelRow.getCell(1).font = { italic: false, color: { argb: 'FF333333' }, size: 10 };
 
-      // base64에서 확장자 추출
-      const ext = imgData.startsWith('data:image/png') ? 'png' : 'jpeg';
-      const base64 = imgData.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+      for (const imgData of imgs) {
+        const ext = imgData.startsWith('data:image/png') ? 'png' : 'jpeg';
+        const base64 = imgData.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
 
-      const imgId = wb.addImage({ base64, extension: ext });
-      const anchorRow = ws.rowCount; // 현재 행 번호 (1-based)
+        const imgId = wb.addImage({ base64, extension: ext });
+        const anchorRow = ws.rowCount; // 현재 행 번호 (1-based)
 
-      // 이미지 너비/높이 추정 (픽셀 → 엑셀 단위 변환)
-      ws.addImage(imgId, {
-        tl: { col: 0, row: anchorRow },       // 시작 셀 (0-based)
-        br: { col: 7, row: anchorRow + 20 },  // 끝 셀
-        editAs: 'oneCell',
-      });
+        ws.addImage(imgId, {
+          tl: { col: 0, row: anchorRow },
+          br: { col: 8, row: anchorRow + 20 },
+          editAs: 'oneCell',
+        });
 
-      // 이미지가 차지할 행 높이 확보 (약 20행)
-      for (let i = 0; i < 20; i++) ws.addRow([]);
-      ws.addRow([]);
+        for (let i = 0; i < 20; i++) ws.addRow([]);
+        ws.addRow([]);
+      }
     }
   }
 
@@ -4024,120 +4025,6 @@ async function downloadInvoiceExcel() {
   a.click();
   URL.revokeObjectURL(url);
   toast('✓ 계산서 엑셀 다운로드 완료', 'ok');
-}
-
-/** 계산서 PDF — 매체사별 섹션 + 이미지 포함 */
-async function downloadInvoicePDF() {
-  const settled = _getStlFilteredData();
-  if (settled.length === 0) { toast('다운로드할 데이터가 없습니다.', 'err'); return; }
-
-  toast('PDF 생성 중...', 'ok');
-  // 이미지 캐시 미스 시 Firebase에서 로드
-  const needLoad = settled.filter(c => c.invoiceInHasImg && !_INVOICE_IMG_CACHE[c.id]);
-  await Promise.all(needLoad.map(async c => {
-    const img = await _fbLoadInvoiceImage(c.id);
-    if (img) _INVOICE_IMG_CACHE[c.id] = img;
-  }));
-
-  // 매체사별 그룹핑
-  const byMedia = {};
-  settled.forEach(c => {
-    const key = c.media || '미지정';
-    if (!byMedia[key]) byMedia[key] = [];
-    byMedia[key].push(c);
-  });
-
-  let sections = '';
-  Object.keys(byMedia).sort().forEach(media => {
-    const camps = byMedia[media];
-    const invoiceTo = MEDIA_DATA.find(x => x.company === media)?.invoiceTo || '';
-    let totalBuy = 0, totalVat = 0;
-    let rows = '';
-    camps.forEach(c => {
-      const a = _stlAmt(c);
-      const has = _stlHas(c);
-      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
-      const buyQty = hasBuy ? (a.buyActual ?? a.actual ?? 0) : 0;
-      const buyAmt = hasBuy ? a.buyAmt : 0;
-      const buyVat = hasBuy ? a.buyVat : 0;
-      if (hasBuy) { totalBuy += buyAmt; totalVat += buyVat; }
-      rows += `<tr>
-        <td>${_cName(c)}</td><td class="c">${(c.date||'').slice(0,10)}</td>
-        <td class="r">${hasBuy ? buyQty.toLocaleString() : '—'}</td>
-        <td class="r">${hasBuy && c.buyUnit ? c.buyUnit.toLocaleString()+'원' : '—'}</td>
-        <td class="r">${hasBuy ? buyAmt.toLocaleString()+'원' : '—'}</td>
-        <td class="r">${hasBuy ? buyVat.toLocaleString()+'원' : '—'}</td>
-        <td class="r">${hasBuy ? (buyAmt+buyVat).toLocaleString()+'원' : '—'}</td>
-        <td class="c">${c.invoiceIn||'미처리'}</td>
-      </tr>`;
-    });
-    rows += `<tr class="total">
-      <td colspan="4">합계</td>
-      <td class="r">${totalBuy.toLocaleString()}원</td>
-      <td class="r">${totalVat.toLocaleString()}원</td>
-      <td class="r">${(totalBuy+totalVat).toLocaleString()}원</td>
-      <td></td>
-    </tr>`;
-
-    // 이미지들
-    let imgHtml = '';
-    camps.forEach(c => {
-      const img = _INVOICE_IMG_CACHE[c.id];
-      if (img) imgHtml += `<div class="img-wrap">
-        <div class="img-label">${_cName(c)}</div>
-        <img src="${img}">
-      </div>`;
-    });
-
-    sections += `<div class="section">
-      <div class="head">
-        <span class="media-name">${media}</span> 매입 계산서
-        ${invoiceTo ? `<span class="invoice-to">청구처: ${invoiceTo}</span>` : ''}
-      </div>
-      <table>
-        <thead><tr>
-          <th>캠페인명</th><th>광고기간</th><th>정산수량</th>
-          <th>매입단가</th><th>매입액</th><th>VAT(10%)</th><th>합계</th><th>계산서</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-      ${imgHtml ? `<div class="imgs">${imgHtml}</div>` : ''}
-    </div>`;
-  });
-
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>매입 계산서</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'맑은 고딕',sans-serif;font-size:12px;color:#222;padding-top:0}
-    .section{padding:28px 32px;page-break-after:always}
-    .section:last-child{page-break-after:auto}
-    .head{font-size:17px;font-weight:700;margin-bottom:18px;display:flex;align-items:baseline;gap:12px}
-    .media-name{color:#185FA5}
-    .invoice-to{font-size:12px;color:#666;font-weight:400}
-    table{width:100%;border-collapse:collapse;margin-bottom:20px}
-    th,td{border:1px solid #ddd;padding:6px 9px;font-size:11.5px}
-    th{background:#f5f5f5;font-weight:600;text-align:center}
-    td.r{text-align:right} td.c{text-align:center}
-    tr.total td{font-weight:700;background:#f0f4ff}
-    .imgs{margin-top:4px}
-    .img-wrap{margin-bottom:16px}
-    .img-label{font-size:11px;color:#888;margin-bottom:5px}
-    .img-wrap img{max-width:100%;border:1px solid #ddd;border-radius:3px}
-    /* 플로팅 다운로드 버튼 */
-    #dl-fab{position:fixed;top:18px;right:22px;z-index:9999;background:#185FA5;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;align-items:center;gap:7px;font-family:inherit;}
-    #dl-fab:hover{background:#1450a3}
-    @media print{#dl-fab{display:none!important}@page{margin:12mm}body{font-size:11px}}
-  </style></head>
-  <body>
-    <button id="dl-fab" onclick="window.print()">🖨 인쇄 / PDF 저장</button>
-    ${sections}
-  </body></html>`;
-
-  const win = window.open('', '_blank');
-  if (!win) { toast('팝업이 차단됐습니다. 팝업 허용 후 다시 시도해주세요.', 'err'); return; }
-  win.document.write(html);
-  win.document.close();
-  win.focus();
 }
 
 /** 다운로드 드롭다운 토글 (fixed 위치 계산) */
@@ -4163,30 +4050,83 @@ function toggleStlDownload(btn) {
 }
 
 // ── 계산서 이미지 캐시 (campaignId → base64) ──
-const _INVOICE_IMG_CACHE = {};
-let _invoiceInPendingImgData = null;
+const _INVOICE_IMG_CACHE = {}; // campaignId → string[] (base64 배열)
+let _invoiceInPendingImgs = []; // 모달 임시 배열
 
-/** Firebase — 계산서 이미지 로드 */
+/** Firebase — 계산서 이미지 로드 (배열 반환, 구버전 단일 데이터 호환) */
 async function _fbLoadInvoiceImage(campaignId) {
   if (!window._db) return null;
   try {
     const doc = await window._db.collection('invoiceImages').doc(campaignId).get();
-    return doc.exists ? doc.data().data : null;
+    if (!doc.exists) return null;
+    const d = doc.data();
+    // 구버전: { data: '...' } → 배열로 변환
+    if (d.images) return d.images;
+    if (d.data)   return [d.data];
+    return null;
   } catch(e) { console.error('[FB] 계산서 이미지 로드 실패:', e); return null; }
 }
 
 /** Firebase — 계산서 이미지 저장 (null이면 삭제) */
-async function _fbSaveInvoiceImage(campaignId, imgData) {
+async function _fbSaveInvoiceImage(campaignId, imgs) {
   if (!window._db) return;
   try {
-    if (imgData) {
+    if (imgs && imgs.length) {
       await window._db.collection('invoiceImages').doc(campaignId).set({
-        data: imgData, updatedAt: new Date().toISOString()
+        images: imgs, updatedAt: new Date().toISOString()
       });
     } else {
       await window._db.collection('invoiceImages').doc(campaignId).delete();
     }
   } catch(e) { console.error('[FB] 계산서 이미지 저장 실패:', e); }
+}
+
+/** 이미지 리사이즈/압축 후 배열에 추가 */
+function _invInAddImage(dataUrl) {
+  const tmpImg = new Image();
+  tmpImg.onload = () => {
+    const MAX_W = 1400;
+    const scale = tmpImg.width > MAX_W ? MAX_W / tmpImg.width : 1;
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(tmpImg.width  * scale);
+    canvas.height = Math.round(tmpImg.height * scale);
+    canvas.getContext('2d').drawImage(tmpImg, 0, 0, canvas.width, canvas.height);
+    const compressed = canvas.toDataURL('image/jpeg', 0.82);
+    _invoiceInPendingImgs.push(compressed);
+    _renderInvInImgList();
+  };
+  tmpImg.src = dataUrl;
+}
+
+/** 이미지 목록 렌더링 */
+function _renderInvInImgList() {
+  const list = document.getElementById('invInImgList');
+  const st   = document.getElementById('invInPasteStatus');
+  if (!list) return;
+  list.innerHTML = _invoiceInPendingImgs.map((src, i) => `
+    <div style="position:relative;display:inline-block;">
+      <img src="${src}" style="width:90px;height:72px;object-fit:cover;border-radius:5px;border:1px solid var(--border);">
+      <button onclick="invInRemoveImg(${i})" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#e53;color:#fff;border:none;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;">✕</button>
+    </div>`).join('');
+  if (st) st.textContent = _invoiceInPendingImgs.length ? `✓ ${_invoiceInPendingImgs.length}장 첨부됨` : '';
+}
+
+/** 이미지 삭제 */
+function invInRemoveImg(idx) {
+  _invoiceInPendingImgs.splice(idx, 1);
+  _renderInvInImgList();
+}
+
+/** 파일 선택 → 이미지 추가 */
+function invInFileSelect(input) {
+  const files = Array.from(input.files || []);
+  files.forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = ev => _invInAddImage(ev.target.result);
+    reader.readAsDataURL(file);
+  });
+  input.value = ''; // 동일 파일 재선택 허용
 }
 
 // 클립보드 붙여넣기 → 계산서 이미지 (modalInvoiceIn 열렸을 때만)
@@ -4201,27 +4141,7 @@ document.addEventListener('paste', function(e) {
     const file = item.getAsFile();
     if (!file) continue;
     const reader = new FileReader();
-    reader.onload = ev => {
-      // canvas로 리사이즈/압축 (Firestore 1MB 한계 대응)
-      const tmpImg = new Image();
-      tmpImg.onload = () => {
-        const MAX_W = 1400;
-        const scale = tmpImg.width > MAX_W ? MAX_W / tmpImg.width : 1;
-        const canvas = document.createElement('canvas');
-        canvas.width  = Math.round(tmpImg.width  * scale);
-        canvas.height = Math.round(tmpImg.height * scale);
-        canvas.getContext('2d').drawImage(tmpImg, 0, 0, canvas.width, canvas.height);
-        const compressed = canvas.toDataURL('image/jpeg', 0.82);
-        _invoiceInPendingImgData = compressed;
-        const prev = document.getElementById('invInPastePreview');
-        const ph   = document.getElementById('invInPastePlaceholder');
-        const st   = document.getElementById('invInPasteStatus');
-        if (prev) { prev.src = compressed; prev.style.display = ''; }
-        if (ph)   ph.style.display = 'none';
-        if (st)   st.textContent = `✓ 이미지 첨부됨 (${Math.round(compressed.length*0.75/1024)}KB)`;
-      };
-      tmpImg.src = ev.target.result;
-    };
+    reader.onload = ev => _invInAddImage(ev.target.result);
     reader.readAsDataURL(file);
     break;
   }
@@ -5623,31 +5543,27 @@ function openInvoiceInModal(campaignId) {
   const c = DATA.find(d => d.id === campaignId);
   if (!c) return;
   _invoiceInPendingValue = c.invoiceIn || '';
-  _invoiceInPendingImgData = null;
+  _invoiceInPendingImgs = [];
   document.getElementById('invoiceInCampName').textContent = _cName(c);
 
-  // 이미지 미리보기 초기화
-  const prev = document.getElementById('invInPastePreview');
-  const ph   = document.getElementById('invInPastePlaceholder');
+  // 이미지 목록 초기화
+  const list = document.getElementById('invInImgList');
   const st   = document.getElementById('invInPasteStatus');
-  if (prev) { prev.style.display = 'none'; prev.src = ''; }
-  if (ph)   ph.style.display = '';
+  if (list) list.innerHTML = '';
   if (st)   st.textContent = '';
 
-  // 기존 이미지 표시
+  // 기존 이미지 로드
   if (c.invoiceIn === '발행완료') {
     const cached = _INVOICE_IMG_CACHE[campaignId];
-    if (cached) {
-      if (prev) { prev.src = cached; prev.style.display = ''; }
-      if (ph)   ph.style.display = 'none';
-      if (st)   st.textContent = '✓ 등록된 이미지 있음';
+    if (cached && cached.length) {
+      _invoiceInPendingImgs = [...cached];
+      _renderInvInImgList();
     } else if (c.invoiceInHasImg) {
-      _fbLoadInvoiceImage(campaignId).then(img => {
-        if (!img) return;
-        _INVOICE_IMG_CACHE[campaignId] = img;
-        if (prev) { prev.src = img; prev.style.display = ''; }
-        if (ph)   ph.style.display = 'none';
-        if (st)   st.textContent = '✓ 등록된 이미지 있음';
+      _fbLoadInvoiceImage(campaignId).then(imgs => {
+        if (!imgs || !imgs.length) return;
+        _INVOICE_IMG_CACHE[campaignId] = imgs;
+        _invoiceInPendingImgs = [...imgs];
+        _renderInvInImgList();
       });
     }
   }
@@ -5682,16 +5598,16 @@ function saveInvoiceInChoice(value) {
   c.invoiceIn = value;
 
   // 이미지 처리
-  if (value === '발행완료' && _invoiceInPendingImgData) {
-    _INVOICE_IMG_CACHE[_invoiceInCampaignId] = _invoiceInPendingImgData;
-    _fbSaveInvoiceImage(_invoiceInCampaignId, _invoiceInPendingImgData);
+  if (value === '발행완료' && _invoiceInPendingImgs.length) {
+    _INVOICE_IMG_CACHE[_invoiceInCampaignId] = [..._invoiceInPendingImgs];
+    _fbSaveInvoiceImage(_invoiceInCampaignId, _invoiceInPendingImgs);
     c.invoiceInHasImg = true;
   } else if (!value) {
     delete _INVOICE_IMG_CACHE[_invoiceInCampaignId];
     _fbSaveInvoiceImage(_invoiceInCampaignId, null);
     c.invoiceInHasImg = false;
   }
-  _invoiceInPendingImgData = null;
+  _invoiceInPendingImgs = [];
 
   if (before !== value) {
     const beforeLabel = before === '발행완료' ? '발행완료' : before === '발행필요없음' ? '발행필요없음' : '미선택';
