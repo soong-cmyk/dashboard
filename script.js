@@ -3885,21 +3885,26 @@ async function downloadSettlementExcel() {
 
   // 헤더 행
   const headerRow = ws.addRow(colDefs.map(d => d.header));
-  headerRow.eachCell(cell => {
+  headerRow.eachCell((cell, colNum) => {
     cell.font = { bold: true, size: 11 };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF7' } };
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: false };
     cell.border = {
-      top:    { style: 'thin', color: { argb: 'FFB0BBD0' } },
-      bottom: { style: 'thin', color: { argb: 'FFB0BBD0' } },
-      left:   { style: 'thin', color: { argb: 'FFB0BBD0' } },
-      right:  { style: 'thin', color: { argb: 'FFB0BBD0' } },
+      top:    { style: 'thin',  color: { argb: 'FFB0BBD0' } },
+      bottom: { style: 'thin',  color: { argb: 'FFB0BBD0' } },
+      left:   { style: 'thin',  color: { argb: 'FFB0BBD0' } },
+      right:  SEP_COLS.has(colNum)
+        ? { style: 'medium', color: { argb: 'FF7A94C1' } }
+        : { style: 'thin',  color: { argb: 'FFB0BBD0' } },
     };
   });
   headerRow.height = 22;
 
   // 자동 필터
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: colDefs.length } };
+
+  // 구분선 열 (오른쪽 border 두껍게): 매출 정산율%, 매입 정산율%, 매출이익율%
+  const SEP_COLS = new Set([11, 18, 22]);
 
   // 데이터 행
   settled.forEach(c => {
@@ -3930,10 +3935,12 @@ async function downloadSettlementExcel() {
       if (def?.numFmt && cell.value !== null && cell.value !== '') cell.numFmt = def.numFmt;
       if (typeof cell.value === 'number') cell.alignment = { horizontal: 'right' };
       cell.border = {
-        top:    { style: 'hair', color: { argb: 'FFDDDDDD' } },
-        bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } },
-        left:   { style: 'hair', color: { argb: 'FFDDDDDD' } },
-        right:  { style: 'hair', color: { argb: 'FFDDDDDD' } },
+        top:    { style: 'hair',  color: { argb: 'FFDDDDDD' } },
+        bottom: { style: 'hair',  color: { argb: 'FFDDDDDD' } },
+        left:   { style: 'hair',  color: { argb: 'FFDDDDDD' } },
+        right:  SEP_COLS.has(colNum)
+          ? { style: 'medium', color: { argb: 'FF7A94C1' } }
+          : { style: 'hair',  color: { argb: 'FFDDDDDD' } },
       };
     });
   });
