@@ -4578,7 +4578,8 @@ function renderMediaDetail() {
   // 예외사항
   document.getElementById('med-detail-exc').innerHTML =
     `<div class="field"><span class="f-label">대상</span><span class="f-val">${v(m.excTarget)}</span></div>
-    <div class="field"><span class="f-label">조정</span><span class="f-val">${v(m.excAdj)}</span></div>`;
+    <div class="field"><span class="f-label">조정</span><span class="f-val">${v(m.excAdj)}</span></div>
+    <div class="field"><span class="f-label">광고비 지급일자</span><span class="f-val">${v(m.payDay)}</span></div>`;
 }
 
 function openMediaModalFromDetail() {
@@ -4614,7 +4615,7 @@ function openMediaModal(idx) {
   document.getElementById('med-type').value = m.type || '매체사';
   medTypeChange();
   const _medNumKeys = ['unit','c1Base','c1Req','c1Adj','c2Base','c2Req','c2Adj'];
-  ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','createdAt']
+  ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay','createdAt']
     .forEach(k => { const el=document.getElementById('med-'+k); if(el) el.value = _medNumKeys.includes(k) ? (m[k] || '') : (m[k] ?? ''); });
   openModal('modalMedia');
 }
@@ -4622,7 +4623,7 @@ function openMediaModal(idx) {
 function saveMedia() {
   const company = document.getElementById('med-company').value.trim();
   if (!company) { toast('⚠ 매체명을 입력해주세요','warn'); return; }
-  const keys = ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj'];
+  const keys = ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay'];
   const obj = { type: document.getElementById('med-type').value || '매체사' };
   keys.forEach(k => {
     const v = document.getElementById('med-'+k)?.value ?? '';
