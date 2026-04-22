@@ -3984,8 +3984,10 @@ async function downloadInvoiceExcel() {
   });
 
   for (const media of Object.keys(byMedia).sort()) {
+    const mediaInfo = MEDIA_DATA.find(x => x.company === media);
+    if (mediaInfo?.payDay === '선입금') continue; // 선입금 매체사는 시트 생성 제외
     const camps = byMedia[media];
-    const invoiceTo = MEDIA_DATA.find(x => x.company === media)?.invoiceTo || '';
+    const invoiceTo = mediaInfo?.invoiceTo || '';
     const ws = wb.addWorksheet(media.slice(0, 31));
 
     // A열 공백, B열(2)부터 표
