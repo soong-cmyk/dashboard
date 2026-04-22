@@ -4029,22 +4029,26 @@ async function downloadInvoicePDF() {
   setTimeout(() => win.print(), 600);
 }
 
-/** 다운로드 드롭다운 토글 */
-function toggleStlDownload() {
+/** 다운로드 드롭다운 토글 (fixed 위치 계산) */
+function toggleStlDownload(btn) {
   const menu = document.getElementById('stl-dl-menu');
   if (!menu) return;
   const opening = menu.style.display === 'none' || !menu.style.display;
-  menu.style.display = opening ? '' : 'none';
-  if (opening) {
-    setTimeout(() => {
-      document.addEventListener('click', function _close(e) {
-        if (!e.target.closest('#stl-dl-wrap')) {
-          menu.style.display = 'none';
-          document.removeEventListener('click', _close);
-        }
-      });
-    }, 0);
-  }
+  if (!opening) { menu.style.display = 'none'; return; }
+  // 버튼 위치 기준으로 fixed 좌표 계산
+  const r = btn.getBoundingClientRect();
+  menu.style.display = '';
+  const menuW = menu.offsetWidth;
+  menu.style.top  = (r.bottom + 4) + 'px';
+  menu.style.left = Math.max(4, r.right - menuW) + 'px';
+  setTimeout(() => {
+    document.addEventListener('click', function _close(e) {
+      if (!e.target.closest('#stl-dl-menu') && !e.target.closest('#stl-dl-wrap')) {
+        menu.style.display = 'none';
+        document.removeEventListener('click', _close);
+      }
+    });
+  }, 0);
 }
 
 // ── 계산서 이미지 캐시 (campaignId → base64) ──
