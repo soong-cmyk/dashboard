@@ -4486,7 +4486,7 @@ function renderMediaList() {
       return mediaSortDir === 'asc' ? va - vb : vb - va;
     });
   }
-  const colspan = isAdmin ? 19 : 18;
+  const colspan = isAdmin ? 20 : 19;
   document.getElementById('media-tbody').innerHTML = list.map(({m, realIdx}, i) => {
     const isOn = m.active !== false;
     const toggleCell = isAdmin
@@ -4512,6 +4512,7 @@ function renderMediaList() {
       <td>${v(m.note2)}</td>
       <td>${v(m.excTarget)}</td>
       <td>${v(m.excAdj)}</td>
+      <td>${v(m.payDay)}</td>
     </tr>`;
   }).join('') || `<tr><td colspan="${colspan}" style="padding:32px;text-align:center;color:var(--text3);font-size:13px;">검색 결과가 없습니다.</td></tr>`;
 }
