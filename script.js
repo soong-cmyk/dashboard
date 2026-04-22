@@ -3991,8 +3991,8 @@ async function downloadInvoiceExcel() {
       if (!imgData) continue;
 
       // 이미지 레이블 행
-      const labelRow = ws.addRow([`▼ 계산서 이미지: ${_cName(c)}`]);
-      labelRow.getCell(1).font = { italic: true, color: { argb: 'FF888888' }, size: 10 };
+      const labelRow = ws.addRow([`▼ ${_cName(c)}`]);
+      labelRow.getCell(1).font = { italic: false, color: { argb: 'FF333333' }, size: 10 };
 
       // base64에서 확장자 추출
       const ext = imgData.startsWith('data:image/png') ? 'png' : 'jpeg';
