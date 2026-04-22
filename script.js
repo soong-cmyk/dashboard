@@ -207,12 +207,12 @@ function canEdit(c) {
   return false;
 }
 function checkAuth() {
-  const saved = sessionStorage.getItem('cu');
+  const saved = localStorage.getItem('cu');
   if (!saved) return false;
   try {
     const u = JSON.parse(saved);
     // 구버전 세션({id만 있는 형식}) 감지 → 재로그인 유도
-    if (!u || !u.id || !u.name) { sessionStorage.removeItem('cu'); return false; }
+    if (!u || !u.id || !u.name) { localStorage.removeItem('cu'); return false; }
     currentUser = u;
     return true;
   } catch(e) { return false; }
@@ -232,7 +232,7 @@ async function login() {
   if (!user) { if (errEl) errEl.style.display = ''; return; }
   if (errEl) errEl.style.display = 'none';
   currentUser = user;
-  sessionStorage.setItem('cu', JSON.stringify(user));
+  localStorage.setItem('cu', JSON.stringify(user));
   _updateUserUI();
   // 로그인 전에 detail URL로 접근했던 경우 복원
   const afterHash = sessionStorage.getItem('_afterLoginHash');
@@ -253,7 +253,7 @@ async function login() {
 }
 function logout() {
   currentUser = null;
-  sessionStorage.removeItem('cu');
+  localStorage.removeItem('cu');
   goScreen('login');
 }
 function _updateUserUI() {
@@ -7471,7 +7471,7 @@ function _fbWatchUsers() {
       USERS.push(u);
     });
     // 로그인된 경우 currentUser 최신 데이터로 갱신
-    if (currentUser) { const fresh = USERS.find(u => u.id === currentUser.id); if (fresh) { currentUser = fresh; sessionStorage.setItem('cu', JSON.stringify(fresh)); } }
+    if (currentUser) { const fresh = USERS.find(u => u.id === currentUser.id); if (fresh) { currentUser = fresh; localStorage.setItem('cu', JSON.stringify(fresh)); } }
     _populateSalesSelects();
     if (document.getElementById('screen-users')?.classList.contains('active')) _renderUserMgmtList();
   }, e => console.error('[FB] 사용자 구독 실패:', e));
