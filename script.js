@@ -3871,13 +3871,24 @@ function downloadSettlementExcel() {
   toast('✓ 정산 내역 엑셀 다운로드 완료', 'ok');
 }
 
-/** 계산서 엑셀 — 매체사(매입처)별 시트 */
-function downloadInvoiceExcel() {
-  if (typeof XLSX === 'undefined') { toast('엑셀 라이브러리 로드 실패.', 'err'); return; }
+/** 계산서 엑셀 — 매체사(매입처)별 시트 + 이미지 포함 (ExcelJS) */
+async function downloadInvoiceExcel() {
+  if (typeof ExcelJS === 'undefined') { toast('ExcelJS 라이브러리 로드 실패. 인터넷 연결을 확인해주세요.', 'err'); return; }
   const settled = _getStlFilteredData();
   if (settled.length === 0) { toast('다운로드할 데이터가 없습니다.', 'err'); return; }
 
-  const wb = XLSX.utils.book_new();
+  toast('엑셀 생성 중...', 'ok');
+
+  // 이미지 캐시 미스 시 Firebase에서 로드
+  const needLoad = settled.filter(c => c.invoiceInHasImg && !_INVOICE_IMG_CACHE[c.id]);
+  await Promise.all(needLoad.map(async c => {
+    const img = await _fbLoadInvoiceImage(c.id);
+    if (img) _INVOICE_IMG_CACHE[c.id] = img;
+  }));
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Dashboard';
+
   // 매체사별 그룹핑
   const byMedia = {};
   settled.forEach(c => {
@@ -3886,13 +3897,46 @@ function downloadInvoiceExcel() {
     byMedia[key].push(c);
   });
 
-  Object.keys(byMedia).sort().forEach(media => {
+  for (const media of Object.keys(byMedia).sort()) {
     const camps = byMedia[media];
     const invoiceTo = MEDIA_DATA.find(x => x.company === media)?.invoiceTo || '';
-    const title = [`[${media}] 매입 계산서`, invoiceTo ? `청구처: ${invoiceTo}` : ''];
-    const headers = ['캠페인명', '광고기간', '정산수량', '매입단가(원)', '매입액(원)', 'VAT(원)', '합계(원)', '계산서'];
+    const ws = wb.addWorksheet(media.slice(0, 31));
+
+    // 열 너비 설정
+    ws.columns = [
+      { width: 36 }, // 캠페인명
+      { width: 14 }, // 광고기간
+      { width: 10 }, // 정산수량
+      { width: 13 }, // 매입단가
+      { width: 13 }, // 매입액
+      { width: 11 }, // VAT
+      { width: 13 }, // 합계
+      { width: 10 }, // 계산서
+    ];
+
+    // 제목 행
+    const titleRow = ws.addRow([`[${media}] 매입 계산서`]);
+    titleRow.getCell(1).font = { bold: true, size: 14, color: { argb: 'FF185FA5' } };
+    ws.addRow([invoiceTo ? `청구처: ${invoiceTo}` : '']);
+    ws.addRow([]);
+
+    // 헤더 행
+    const headerRow = ws.addRow(['캠페인명', '광고기간', '정산수량', '매입단가(원)', '매입액(원)', 'VAT(원)', '합계(원)', '계산서']);
+    headerRow.eachCell(cell => {
+      cell.font = { bold: true, size: 11 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FF' } };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+        bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+        left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+        right: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+      };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+
+    // 데이터 행
     let totalBuy = 0, totalVat = 0;
-    const dataRows = camps.map(c => {
+    camps.forEach(c => {
       const a = _stlAmt(c);
       const has = _stlHas(c);
       const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
@@ -3900,24 +3944,85 @@ function downloadInvoiceExcel() {
       const buyAmt = hasBuy ? a.buyAmt : 0;
       const buyVat = hasBuy ? a.buyVat : 0;
       if (hasBuy) { totalBuy += buyAmt; totalVat += buyVat; }
-      return [
-        _cName(c), c.date || '',
+
+      const row = ws.addRow([
+        _cName(c),
+        (c.date || '').slice(0, 10),
         hasBuy ? buyQty : '',
         hasBuy ? (c.buyUnit || '') : '',
         hasBuy ? buyAmt : '',
         hasBuy ? buyVat : '',
         hasBuy ? (buyAmt + buyVat) : '',
-        c.invoiceIn || '미처리'
-      ];
+        c.invoiceIn || '미처리',
+      ]);
+      // 숫자 열 우측 정렬
+      [3,4,5,6,7].forEach(col => {
+        const cell = row.getCell(col);
+        cell.alignment = { horizontal: 'right' };
+        if (typeof cell.value === 'number') cell.numFmt = '#,##0';
+      });
+      row.eachCell(cell => {
+        cell.border = {
+          top: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+          bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+          left: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+          right: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+        };
+      });
     });
-    dataRows.push(['합계', '', '', '', totalBuy, totalVat, totalBuy + totalVat, '']);
 
-    const wsData = [title, [], headers, ...dataRows];
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    XLSX.utils.book_append_sheet(wb, ws, media.slice(0, 31));
-  });
+    // 합계 행
+    const totalRow = ws.addRow(['합계', '', '', '', totalBuy, totalVat, totalBuy + totalVat, '']);
+    totalRow.eachCell((cell, col) => {
+      cell.font = { bold: true };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFBE6' } };
+      if (col >= 5 && typeof cell.value === 'number') {
+        cell.numFmt = '#,##0';
+        cell.alignment = { horizontal: 'right' };
+      }
+    });
 
-  XLSX.writeFile(wb, `계산서_매체사별_${_todayStr()}.xlsx`);
+    ws.addRow([]);
+    ws.addRow([]);
+
+    // 이미지 삽입
+    for (const c of camps) {
+      const imgData = _INVOICE_IMG_CACHE[c.id];
+      if (!imgData) continue;
+
+      // 이미지 레이블 행
+      const labelRow = ws.addRow([`▼ 계산서 이미지: ${_cName(c)}`]);
+      labelRow.getCell(1).font = { italic: true, color: { argb: 'FF888888' }, size: 10 };
+
+      // base64에서 확장자 추출
+      const ext = imgData.startsWith('data:image/png') ? 'png' : 'jpeg';
+      const base64 = imgData.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+
+      const imgId = wb.addImage({ base64, extension: ext });
+      const anchorRow = ws.rowCount; // 현재 행 번호 (1-based)
+
+      // 이미지 너비/높이 추정 (픽셀 → 엑셀 단위 변환)
+      ws.addImage(imgId, {
+        tl: { col: 0, row: anchorRow },       // 시작 셀 (0-based)
+        br: { col: 7, row: anchorRow + 20 },  // 끝 셀
+        editAs: 'oneCell',
+      });
+
+      // 이미지가 차지할 행 높이 확보 (약 20행)
+      for (let i = 0; i < 20; i++) ws.addRow([]);
+      ws.addRow([]);
+    }
+  }
+
+  // 버퍼 → Blob → 다운로드
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `계산서_매체사별_${_todayStr()}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
   toast('✓ 계산서 엑셀 다운로드 완료', 'ok');
 }
 
