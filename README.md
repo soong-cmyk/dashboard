@@ -116,6 +116,7 @@ dashboard/
 | `sellers` | `s.company` (슬래시→언더스코어) | 매출처(광고주/대행사) |
 | `media` | `m.company` (슬래시→언더스코어) | 매체사 |
 | `users` | `u.id` (로그인 아이디) | 사용자 계정 |
+| `tax` | `t.id` (숫자) | 세금계산서 발행요청 |
 | `settings/pipeline_targets` | 단일 문서 | 파이프라인 월별 목표 |
 
 ### 시작 시 로드 순서 (script.js 하단)
@@ -231,6 +232,28 @@ _fbLoadUsers()       → USERS[]
 | `dept` | string | 팀 |
 | `isAdmin` | boolean | 관리자 여부 |
 | `perms` | object | `{sales: bool, ops: bool}` |
+
+### 세금계산서 (`TAX_DATA` → `tax`)
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `id` | number | 고유 ID |
+| `groupId` | number | 같은 발행요청 묶음 ID |
+| `taxType` | string | `adv`(광고주) / `media`(매체) |
+| `company` | string | 발행 대상 업체명 |
+| `campaignId` | string | 연결된 캠페인 ID |
+| `month` | string | 발송월 (`YYYY년M월`) |
+| `content` | string | 상품명 |
+| `supplyAmt` | number | 공급가액 |
+| `reqDate` | string | 발행요청일 (`YYYY-MM-DD`) |
+| `issueDate` | string | 발행일 |
+| `payDue` | string | 입금예정일 |
+| `taxStatus` | string | `''`(미발행) / `완료`(발행완료) |
+| `paid` | boolean | 입금 완료 여부 |
+| `contactEmail` | string | 담당자 이름/이메일 |
+| `memo` | string | 메모 |
+| `createdBy` | string | 등록자 이름 |
+| `createdAt` | string | 등록일시 |
 
 ### 수정 이력 (`history`)
 
@@ -349,8 +372,19 @@ MAKEUP → POTENTIAL → COMMITMENT → ACTUAL
 ### 정산 (`renderSettlement`)
 - 캠페인·매체·광고주·대행사별 뷰 전환
 - 매출액 / 매입액 / 대행수수료 / 매출이익 자동 계산 (`_stlAmt`)
+- 상단 카드: 총 매출액·매입액·매출이익 합산, **이익율(%)** = 매출이익 ÷ 매출액 × 100
 - 입금·지급 상태 토글 (`toggleSettlePay`)
-- 세금계산서 번호 입력 (`openInvoiceModal`, `saveInvoice`)
+
+### 세금계산서 (`renderTaxList`)
+- 발행요청 카드 목록 (업체명·발행구분별 그룹)
+- **[캠페인에서 가져오기]**: 정산완료 캠페인 중 미발행 항목 불러오기 (2-step 모달)
+  - Step 1: 발송월·상품·담당자 필터, 광고주/매체 발행구분 선택, 공급가액 실시간 합계
+  - Step 2: 발행요청일·발행일·입금예정일·담당자 이메일·메모 입력
+- 발행구분: **광고주(`adv`)** / **매체(`media`)** — 캠페인당 각각 독립 발행 가능
+- 세발(발행 완료) / 입금 상태 토글 → 정산탭 계산서·입금 필드와 동기화 (광고주 타입만)
+- 카드 수정: 수정 버튼 클릭 시 Step 2 모달로 기존 데이터 불러와 편집
+- 메모: 카드 하단 말줄임 표시 + 호버 버블 / 클릭 시 sticky 버블(✕ 닫기)
+- 상단 통계 카드: 전체 건수·미발행 건수·공급가액 합계·부가세포함 합계·미수 합계
 
 ### 매체 관리 (`renderMediaList`)
 - 매체사 목록 조회·검색
@@ -429,10 +463,9 @@ MAKEUP → POTENTIAL → COMMITMENT → ACTUAL
 
 - [ ] 서버 인증 (현재 클라이언트 sessionStorage 방식)
 - [ ] 권한별 메뉴 노출 제어
-- [ ] 세금계산서 번호 입력 기능 확장
 - [ ] 매체별·대행사별 단가 데이터 정비 (LMS/MMS 수수료 구분)
 - [ ] 타겟 태그 정형화 → 타겟별 효율 통계 분석
 
 ---
 
-*BRAINCUBE Ad Operation Dashboard — v1.3*
+*BRAINCUBE Ad Operation Dashboard — v1.4*

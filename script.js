@@ -1808,7 +1808,7 @@ function closeMediaModal() {
   closeModal('modalMedia');
 }
 
-function medTypeChange() { /* 매체사만 사용 */ }
+function medTypeChange() {}
 
 // 매체별 기본 수수료율 (MEDIA_DATA에서 동적으로 조회)
 function _mediaComm(mediaName) {
@@ -4717,6 +4717,8 @@ function openMediaModal(idx) {
   const _medNumKeys = ['unit','c1Base','c1Req','c1Adj','c2Base','c2Req','c2Adj'];
   ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay','createdAt']
     .forEach(k => { const el=document.getElementById('med-'+k); if(el) el.value = _medNumKeys.includes(k) ? (m[k] || '') : (m[k] ?? ''); });
+  const taxYnEl = document.getElementById('med-taxYn');
+  if (taxYnEl) taxYnEl.checked = m.taxYn !== false; // 기본값 true
   openModal('modalMedia');
 }
 
@@ -4729,6 +4731,7 @@ function saveMedia() {
     const v = document.getElementById('med-'+k)?.value ?? '';
     obj[k] = ['unit','c1Base','c1Req','c1Adj','c2Base','c2Req','c2Adj'].includes(k) ? (v===''?'':+v) : v;
   });
+  obj.taxYn = document.getElementById('med-taxYn')?.checked !== false;
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   obj.createdAt = (mediaEditIdx != null && MEDIA_DATA[mediaEditIdx]?.createdAt) ? MEDIA_DATA[mediaEditIdx].createdAt : todayStr;
@@ -5602,29 +5605,6 @@ function stlSetView(v) {
   renderSettlement();
 }
 
-/* TODO: 세금계산서 번호 입력 기능 (추후 사용)
-function openInvoiceModal(campaignId, type) {
-  const c = DATA.find(d => d.id === campaignId);
-  if (!c) return;
-  const isOut = (type === 'out');
-  document.getElementById('inv-campaign-name').textContent = c.promo + '_' + c.media;
-  document.getElementById('inv-type-label').textContent = isOut ? '매출 세금계산서' : '매입 세금계산서';
-  document.getElementById('inv-number').value = (isOut ? c.invoiceOut : c.invoiceIn) || '';
-  document.getElementById('inv-save-btn').onclick = () => saveInvoice(campaignId, type);
-  openModal('modalInvoice');
-}
-
-function saveInvoice(campaignId, type) {
-  const c = DATA.find(d => d.id === campaignId);
-  if (!c) return;
-  const num = document.getElementById('inv-number').value.trim();
-  if (type === 'out') c.invoiceOut = num;
-  else                c.invoiceIn  = num;
-  closeModal('modalInvoice');
-  renderSettlement();
-  toast('✓ 세금계산서 번호가 저장되었습니다', 'ok');
-}
-*/
 
 // ── 정산 테이블 wheel 스크롤 순서 제어 ──
 // 화면 전체 스크롤 → 바닥 도달 후 표 스크롤
@@ -5836,16 +5816,21 @@ function toggleSettlePay(campaignId, field) {
   _stlSaveScroll();
   _stlCellUpdate(campaignId, field);
 
-  // 세금계산서 탭 동기화 (invoiceOut ↔ taxStatus, payIn ↔ paid)
+  // 세금계산서 탭 동기화 (invoiceOut ↔ taxStatus, payIn ↔ paid, 광고주 타입 우선)
   const taxField = field === 'invoiceOut' ? 'taxStatus' : field === 'payIn' ? 'paid' : null;
   if (taxField) {
-    const t = TAX_DATA.find(x => x.campaignId === campaignId);
+    const t = TAX_DATA.find(x => x.campaignId === campaignId && (x.taxType === 'adv' || !x.taxType))
+           || TAX_DATA.find(x => x.campaignId === campaignId);
     if (t) {
       const newVal = c[field] ? '완료' : '';
-      if (t[taxField] !== newVal) {
-        t[taxField] = newVal;
-        _fbSaveTax(t);
-      }
+      const gid = _taxGroupId(t);
+      // 같은 그룹의 모든 항목 동기화
+      TAX_DATA.filter(x => _taxGroupId(x) === gid).forEach(x => {
+        if (x[taxField] !== newVal) {
+          x[taxField] = newVal;
+          _fbSaveTax(x);
+        }
+      });
     }
   }
 }
@@ -5922,6 +5907,16 @@ function renderSettlement() {
   set('stl-adcost',   totalAdc ? Math.round(totalAdc).toLocaleString() + '원' : '—');
   set('stl-rev',      totalBuy ? Math.round(totalBuy).toLocaleString() + '원' : '—');
   set('stl-profit',   totalPrf ? Math.round(totalPrf).toLocaleString() + '원' : '—');
+  const rateEl = document.getElementById('stl-profit-rate');
+  if (rateEl) {
+    if (totalAdc && totalPrf) {
+      const rate = (totalPrf / totalAdc * 100).toFixed(1);
+      rateEl.textContent = rate + '%';
+      rateEl.style.color = totalPrf >= 0 ? 'var(--green)' : 'var(--red)';
+    } else {
+      rateEl.textContent = '';
+    }
+  }
   set('stl-sell-qty', totalSellQty ? totalSellQty.toLocaleString() + ' 건' : '—');
   set('stl-buy-qty',  totalBuyQty  ? totalBuyQty.toLocaleString()  + ' 건' : '—');
 
@@ -6866,18 +6861,81 @@ function _savePipeStatCell(el, val) {
 function _taxNextId() {
   return TAX_DATA.reduce((max, t) => Math.max(max, t.id || 0), 0) + 1;
 }
+function _memoBubblePos(el, b) {
+  const r  = el.getBoundingClientRect();
+  const bw = 300;
+  let top  = r.bottom + 6;
+  let left = r.left;
+  if (left + bw > window.innerWidth  - 8) left = window.innerWidth  - bw - 8;
+  if (top  + 80 > window.innerHeight - 8) top  = r.top - 80 - 6;
+  b.style.top  = top  + 'px';
+  b.style.left = left + 'px';
+}
+function showMemoBubble(el, text) {
+  if (!text) return;
+  const b = document.getElementById('tax-memo-bubble');
+  if (!b || b.dataset.sticky === '1') return;
+  b.dataset.sticky = '0';
+  b.style.pointerEvents = 'none';
+  b.textContent = text;
+  b.style.display = 'block';
+  _memoBubblePos(el, b);
+}
+function showMemoBubbleSticky(el, text) {
+  if (!text) return;
+  const b = document.getElementById('tax-memo-bubble');
+  if (!b) return;
+  b.dataset.sticky = '1';
+  b.style.pointerEvents = 'auto';
+  b.style.position = 'fixed';
+  b.innerHTML = `<span onclick="event.stopPropagation();hideMemoBubble()" style="position:absolute;top:5px;right:8px;cursor:pointer;font-size:14px;color:#bbb;line-height:1;padding:2px;">✕</span><span style="display:block;padding-right:20px;">${_escHtml(text)}</span>`;
+  b.style.display = 'block';
+  _memoBubblePos(el, b);
+}
+function hideMemoBubble() {
+  const b = document.getElementById('tax-memo-bubble');
+  if (!b) return;
+  b.style.display = 'none';
+  b.dataset.sticky = '0';
+  b.innerHTML = '';
+}
+document.addEventListener('click', e => {
+  const b = document.getElementById('tax-memo-bubble');
+  if (!b || b.dataset.sticky === '1') return;
+  if (!e.target.closest('.tax-memo-cell')) hideMemoBubble();
+});
+
+function _taxNextGroupId() {
+  return TAX_DATA.reduce((max, t) => Math.max(max, t.groupId || 0), 0) + 1;
+}
+function _taxGroupId(t) {
+  // 하위호환: groupId 없는 기존 항목은 id를 groupId로 사용
+  return t.groupId != null ? t.groupId : t.id;
+}
 function _taxMonthLabel(c) {
   if (!c.date) return '';
   return `${c.date.slice(0,4)}년${parseInt(c.date.slice(5,7))}월`;
 }
 function _taxContentAuto(c) {
-  const m = c.date ? parseInt(c.date.slice(5,7)) : '';
-  return `${m}월 ${c.product} 광고비_${c.media}`;
+  const m = c.date ? parseInt(c.date.slice(5,7)) + '월' : '';
+  return [m, c.adv||'', c.media||'', c.product||'', '광고비'].filter(Boolean).join('_');
 }
 function _taxIsSettled(c) {
   if (c.product === 'DA')  return !!c.daAdcost;
   if (c.product === 'CPA') return !!c.actual;
   return c.status === '성과입력완료';
+}
+function _taxCampaignPending(c) {
+  if (!_taxIsSettled(c)) return false;
+  const mediaRec   = MEDIA_DATA.find(m => m.company === c.media);
+  const mediaNoTax = mediaRec && mediaRec.taxYn === false;
+  // 광고주 타입: 플래그 OR 기존 TAX_DATA 항목 (taxType 없는 구버전도 광고주로 간주)
+  const hasAdvTax   = c.taxAdvReq   || TAX_DATA.some(t => t.campaignId===c.id && (t.taxType==='adv' || !t.taxType));
+  // 매체 타입: 플래그 OR 매체 타입 TAX_DATA 항목
+  const hasMediaTax = c.taxMediaReq || TAX_DATA.some(t => t.campaignId===c.id && t.taxType==='media');
+  const canAdv   = !hasAdvTax;
+  const canMedia = !hasMediaTax && !mediaNoTax;
+  return canAdv || canMedia;
 }
 
 // ── 세금계산서 필터/렌더 ──
@@ -6912,7 +6970,12 @@ function _taxPopulateSellerFilter() {
     sellers.map(s => `<option value="${s}" ${s===cur?'selected':''}>${s}</option>`).join('');
 }
 
+// 접힌 그룹 ID 목록
+const _taxCollapsed = new Set(); // 명시적으로 접힌 그룹 (기본: 열림)
+
 function renderTaxList() {
+  const purgeBtn = document.getElementById('btn-tax-purge');
+  if (purgeBtn) purgeBtn.style.display = currentUser?.isAdmin ? '' : 'none';
   _taxPopulateManagerFilter();
   _taxPopulateSellerFilter();
   const year    = document.getElementById('tax-year')?.value     || '';
@@ -6922,7 +6985,8 @@ function renderTaxList() {
   const seller  = document.getElementById('tax-fSeller')?.value  || '';
   const company = (document.getElementById('tax-fCompany')?.value || '').trim().toLowerCase();
 
-  const list = TAX_DATA.filter(t => {
+  // 필터링
+  const filtered = TAX_DATA.filter(t => {
     if (year    && !(t.month || '').includes(year+'년')) return false;
     if (month   && !(t.month || '').includes(parseInt(month)+'월'))  return false;
     if (manager && t.manager !== manager) return false;
@@ -6930,114 +6994,333 @@ function renderTaxList() {
     if (seller  && (t.seller || t.company) !== seller) return false;
     if (company && !(t.company||'').toLowerCase().includes(company) && !(t.tradeShopName||'').toLowerCase().includes(company)) return false;
     return true;
-  }).sort((a, b) => (b.id||0) - (a.id||0));
+  });
 
+  // groupId 기준으로 묶기
+  const groupMap = new Map(); // groupId → items[]
+  filtered.forEach(t => {
+    const gid = _taxGroupId(t);
+    if (!groupMap.has(gid)) groupMap.set(gid, []);
+    groupMap.get(gid).push(t);
+  });
+  // 그룹 정렬: 가장 큰 id 기준 내림차순
+  const groups = [...groupMap.entries()].sort((a, b) => {
+    const maxA = Math.max(...a[1].map(t => t.id || 0));
+    const maxB = Math.max(...b[1].map(t => t.id || 0));
+    return maxB - maxA;
+  });
+
+  // 요약 통계
   let totalSupply = 0, totalVat = 0, totalUnpaid = 0;
-  list.forEach(t => {
+  filtered.forEach(t => {
     totalSupply += t.supplyAmt || 0;
     totalVat    += t.vatAmt    || 0;
-    totalUnpaid += t.unpaid || 0;
   });
+  // 미수: 그룹별 대표값 합산 (중복 방지)
+  groups.forEach(([, items]) => {
+    const rep = items[0];
+    totalUnpaid += rep.unpaid || 0;
+  });
+
   const _v = n => n ? n.toLocaleString() : '—';
   const _el = id => document.getElementById(id);
-  const issuedCnt = list.filter(t => t.taxStatus === '완료').length;
+  const issuedCnt = groups.filter(([, items]) => items[0].taxStatus === '완료').length;
   const totalByMonth = DATA.filter(c => {
     if (!c.date) return false;
     if (year  && !c.date.startsWith(year))        return false;
     if (month && c.date.slice(5, 7) !== month)    return false;
     return true;
   }).length;
-  if (_el('tax-cnt'))     _el('tax-cnt').textContent     = list.length + '건';
+  if (_el('tax-cnt'))     _el('tax-cnt').textContent     = groups.length + '건';
   if (_el('tax-cnt-sub')) _el('tax-cnt-sub').textContent = `발행 ${issuedCnt}건 / 전체 ${totalByMonth}건`;
   if (_el('tax-supply')) _el('tax-supply').textContent = _v(totalSupply);
   if (_el('tax-vat'))    _el('tax-vat').textContent    = _v(totalVat);
   if (_el('tax-unpaid')) _el('tax-unpaid').textContent = totalUnpaid ? totalUnpaid.toLocaleString() : '—';
 
-  const tbody = document.getElementById('tax-tbody');
-  if (!tbody) return;
-  if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="15" style="padding:32px;text-align:center;color:var(--text3);">해당 조건의 세금계산서가 없습니다.</td></tr>`;
+  const listEl = document.getElementById('tax-list');
+  if (!listEl) return;
+  if (!groups.length) {
+    listEl.innerHTML = `<div class="tax-card-empty">해당 조건의 세금계산서가 없습니다.</div>`;
     return;
   }
-  tbody.innerHTML = list.map(t => {
-    const unpaidVal = t.unpaid != null ? t.unpaid : null;
-    const isDone  = t.taxStatus === '완료';
-    const isPaid  = t.paid === '완료';
-    return `<tr>
-      <td style="color:var(--text3);">${t.id}</td>
-      <td>${t.manager||'—'}</td>
-      <td>${t.month||'—'}</td>
-      <td>${t.issueDate||'—'}</td>
-      <td style="text-align:center;">
-        ${isDone
-          ? `<span class="stl-inv-badge done" onclick="taxToggleStatus(${t.id})">✓ 완료</span>`
-          : `<div class="chk" onclick="taxToggleStatus(${t.id})" style="margin:0 auto;"></div>`}
-      </td>
-      <td><input type="date" class="form-input" style="font-size:12px;padding:3px 6px;min-width:130px;" value="${t.payDue||''}" onchange="taxSaveField(${t.id},'payDue',this.value)"></td>
-      <td style="text-align:center;">
-        ${isPaid
-          ? `<span class="stl-inv-badge done" onclick="taxTogglePaid(${t.id})">✓ 완료</span>`
-          : `<div class="chk" onclick="taxTogglePaid(${t.id})" style="margin:0 auto;"></div>`}
-      </td>
-      <td class="td-r" style="color:${unpaidVal?'var(--red)':''};cursor:pointer;" onclick="taxInlineEdit(this,${t.id},'unpaid')">${unpaidVal != null ? unpaidVal.toLocaleString() : '—'}</td>
-      <td style="font-weight:600;">${t.company||'—'}</td>
-      <td style="color:var(--text2);">${t.content||'—'}</td>
-      <td>${t.bizName||'—'}</td>
-      <td class="td-r">${t.supplyAmt ? t.supplyAmt.toLocaleString() : '—'}</td>
-      <td class="td-r" style="font-weight:600;">${t.vatAmt ? t.vatAmt.toLocaleString() : '—'}</td>
-      <td style="font-size:11px;color:var(--text2);cursor:pointer;" onclick="taxInlineEdit(this,${t.id},'contactEmail')">${t.contactEmail||'<span style=\'color:var(--text3)\'>클릭하여 입력</span>'}</td>
-      <td><button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent;" onclick="deleteTax(${t.id})">삭제</button></td>
-    </tr>`;
-  }).join('');
+
+  const _dateDisp = v => v ? v.replace(/-/g, '.').slice(2) : '—'; // 2026-04-22 → 26.04.22
+
+  const cards = [];
+  groups.forEach(([gid, items]) => {
+    const rep = items[0];
+    const isDone      = rep.taxStatus === '완료';
+    const isPaid      = rep.paid === '완료';
+    const isCollapsed = _taxCollapsed.has(gid);
+    const canDelete   = !!(currentUser?.isAdmin || currentUser?.name === rep.createdBy);
+    const supplySum   = items.reduce((s, t) => s + (t.supplyAmt || 0), 0);
+    const vatSum      = items.reduce((s, t) => s + (t.vatAmt    || 0), 0);
+    const unpaidVal   = rep.unpaid != null ? rep.unpaid : null;
+
+    // ── 캠페인 행들 ──
+    const campRows = items.map(t => {
+      const camp = DATA.find(c => c.id === t.campaignId);
+      const campName = camp ? _cName(camp) : (t.content || '—');
+      const mgr = t.manager || '—';
+      const monthShort = (t.month || '').replace(/\d+년/, ''); // "2026년4월" → "4월"
+      return `<tr>
+        <td style="padding:7px 10px 7px 10px;white-space:nowrap;">${monthShort||'—'}</td>
+        <td style="width:150px;min-width:150px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escHtml(t.bizName||'—')}</td>
+        <td style="font-weight:500;">${_escHtml(campName)}</td>
+        <td style="color:var(--text2);">${_escHtml(mgr)}</td>
+        <td class="td-r">${t.supplyAmt ? t.supplyAmt.toLocaleString() : '—'}</td>
+        <td class="td-r" style="font-weight:600;">${t.vatAmt ? t.vatAmt.toLocaleString() : '—'}</td>
+        <td style="color:var(--text2);">${_escHtml(t.contactEmail||'—')}</td>
+        <td class="tax-memo-cell" data-memo="${_escHtml(t.memo||'')}"
+          style="width:150px;min-width:150px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:${t.memo?'pointer':'default'};color:var(--text2);"
+          onmouseenter="if(this.dataset.memo)showMemoBubble(this,this.dataset.memo)"
+          onmouseleave="if(document.getElementById('tax-memo-bubble')?.dataset.sticky!=='1')hideMemoBubble()"
+          onclick="event.stopPropagation();if(this.dataset.memo)showMemoBubbleSticky(this,this.dataset.memo)"
+        >${_escHtml(t.memo||'')}</td>
+        <td style="text-align:right;padding:4px 8px;">
+          ${canDelete ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent;font-size:11px;" onclick="deleteTax(${t.id})">×</button>` : ''}
+        </td>
+      </tr>`;
+    }).join('');
+
+    const sumRow = items.length > 1 ? `
+      <tr class="tax-camp-sum">
+        <td colspan="4" style="text-align:right;color:var(--text3);font-size:11px;">합계</td>
+        <td class="td-r">${supplySum.toLocaleString()}</td>
+        <td class="td-r">${vatSum.toLocaleString()}</td>
+        <td colspan="2"></td>
+      </tr>` : '';
+
+    const bodyHtml = isCollapsed ? '' : `
+      <div class="tax-card-body">
+        <table class="tax-camp-table">
+          <thead>
+            <tr>
+              <th style="padding:6px 10px;width:60px;min-width:60px;white-space:nowrap;">월</th>
+              <th style="width:150px;min-width:150px;max-width:150px;">상호명</th>
+              <th style="min-width:160px;">캠페인명</th>
+              <th>담당자</th>
+              <th class="td-r">공급가액</th>
+              <th class="td-r">부가세포함</th>
+              <th style="min-width:180px;">담당자 이름/이메일</th>
+              <th style="width:150px;min-width:150px;">메모</th>
+              <th style="width:36px;"></th>
+            </tr>
+          </thead>
+          <tbody>${campRows}</tbody>
+          ${sumRow ? `<tfoot>${sumRow}</tfoot>` : ''}
+        </table>
+      </div>`;
+
+    const datePart = `
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <span style="display:flex;align-items:center;gap:4px;">
+          <span style="font-size:11px;color:var(--text3);white-space:nowrap;">요청일</span>
+          <span style="font-size:12px;color:var(--text1);">${rep.reqDate||'—'}</span>
+        </span>
+        <span style="display:flex;align-items:center;gap:4px;">
+          <span style="font-size:11px;color:var(--text3);white-space:nowrap;">발행일</span>
+          <span style="font-size:12px;color:var(--text1);">${rep.issueDate||'—'}</span>
+        </span>
+        <span style="display:flex;align-items:center;gap:4px;">
+          <span style="font-size:11px;color:var(--text3);white-space:nowrap;">입금예정</span>
+          <span style="font-size:12px;color:var(--text1);">${rep.payDue||'—'}</span>
+        </span>
+      </div>`;
+
+    cards.push(`
+      <div class="tax-card" data-gid="${gid}">
+        <div class="tax-card-head">
+          <div class="tax-card-toggle" onclick="taxToggleCollapse(${gid})">${isCollapsed ? '▶' : '▼'}</div>
+          <div class="tax-card-head-main">
+            <span class="tax-card-company">${_escHtml(rep.company||'(업체명 없음)')}</span>
+            <span style="font-size:12px;color:var(--text2);white-space:nowrap;min-width:240px;">공급가 <b>${supplySum.toLocaleString()}</b> · 부가세포함 <b>${vatSum.toLocaleString()}</b></span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:11px;color:var(--text3);">세발</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:52px;">
+                ${isDone
+                  ? `<span class="stl-inv-badge done" onclick="taxGroupToggleStatus(${gid})">✓ 완료</span>`
+                  : `<div class="chk" onclick="taxGroupToggleStatus(${gid})" style="margin:0;"></div>`}
+              </span>
+              <span style="font-size:11px;color:var(--text3);margin-left:4px;">입금</span>
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:52px;">
+                ${isPaid
+                  ? `<span class="stl-inv-badge done" onclick="taxGroupTogglePaid(${gid})">✓ 완료</span>`
+                  : `<div class="chk" onclick="taxGroupTogglePaid(${gid})" style="margin:0;"></div>`}
+              </span>
+            </div>
+            ${datePart}
+            <div style="flex:1;"></div>
+            ${(rep.createdBy||rep.manager) ? `<span class="tax-card-manager">요청자: ${_escHtml(rep.createdBy||rep.manager)}</span>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="taxEditGroup(${gid})">수정</button>
+            ${canDelete ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent;" onclick="deleteGroup(${gid})">삭제</button>` : ''}
+          </div>
+        </div>
+        ${bodyHtml}
+      </div>`);
+  });
+
+  listEl.innerHTML = cards.join('');
+}
+
+function taxToggleCollapse(gid) {
+  if (_taxCollapsed.has(gid)) _taxCollapsed.delete(gid);
+  else _taxCollapsed.add(gid);
+  renderTaxList();
 }
 
 // ── 삭제 ──
 async function deleteTax(id) {
-  if (!confirm('삭제하시겠습니까?')) return;
-  const idx = TAX_DATA.findIndex(t => t.id === id);
+  if (!confirm('이 캠페인 항목을 삭제하시겠습니까?')) return;
+  const t = TAX_DATA.find(x => x.id === id);
+  if (!t) return;
+  const { campaignId, taxType } = t;
+  const idx = TAX_DATA.findIndex(x => x.id === id);
   if (idx !== -1) TAX_DATA.splice(idx, 1);
   await _fbDeleteTax(id);
-  renderTaxList();
-}
-
-// ── 인라인 편집 ──
-async function taxTogglePaid(id) {
-  const t = TAX_DATA.find(x => x.id === id);
-  if (!t) return;
-  const isPaid = t.paid === '완료';
-  if (!confirm(isPaid ? '입금 완료를 취소하시겠습니까?' : '입금 완료 처리하시겠습니까?')) return;
-  t.paid = isPaid ? '' : '완료';
-  if (!isPaid) t.unpaid = 0;
-  await _fbSaveTax(t);
-  // 정산 탭 payIn 동기화
-  if (t.campaignId) {
-    const c = DATA.find(d => d.id === t.campaignId);
-    if (c && !!c.payIn !== !isPaid) {
-      c.payIn = !isPaid;
-      _fbSaveCampaign(c);
-      _stlCellUpdate(t.campaignId, 'payIn');
+  // 캠페인 요청 플래그 리셋 (삭제 후 같은 타입 항목이 없으면)
+  if (campaignId && taxType) {
+    const stillExists = TAX_DATA.some(x => x.campaignId === campaignId && x.taxType === taxType);
+    if (!stillExists) {
+      const c = DATA.find(x => x.id === campaignId);
+      if (c) {
+        if (taxType === 'adv')   c.taxAdvReq   = false;
+        if (taxType === 'media') c.taxMediaReq = false;
+        _fbSaveCampaign(c);
+      }
     }
   }
   renderTaxList();
 }
 
-async function taxToggleStatus(id) {
-  const t = TAX_DATA.find(x => x.id === id);
-  if (!t) return;
-  const isDone = t.taxStatus === '완료';
+async function deleteGroup(gid) {
+  if (!confirm('이 발행요청 전체를 삭제하시겠습니까?')) return;
+  const toDelete = TAX_DATA.filter(t => _taxGroupId(t) === gid);
+  toDelete.forEach(t => {
+    const idx = TAX_DATA.findIndex(x => x.id === t.id);
+    if (idx !== -1) TAX_DATA.splice(idx, 1);
+  });
+  await Promise.all(toDelete.map(t => _fbDeleteTax(t.id)));
+  // 각 캠페인 요청 플래그 리셋
+  toDelete.forEach(t => {
+    if (!t.campaignId || !t.taxType) return;
+    const stillExists = TAX_DATA.some(x => x.campaignId === t.campaignId && x.taxType === t.taxType);
+    if (!stillExists) {
+      const c = DATA.find(x => x.id === t.campaignId);
+      if (c) {
+        if (t.taxType === 'adv')   c.taxAdvReq   = false;
+        if (t.taxType === 'media') c.taxMediaReq = false;
+        _fbSaveCampaign(c);
+      }
+    }
+  });
+  renderTaxList();
+}
+
+async function taxPurgeAll() {
+  if (!currentUser?.isAdmin) { toast('관리자만 사용할 수 있습니다.', 'warn'); return; }
+  const cnt = TAX_DATA.length;
+  if (!cnt) { toast('삭제할 항목이 없습니다.', 'warn'); return; }
+  if (!confirm(`세금계산서 요청 전체 ${cnt}건을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+
+  // 캠페인 플래그 초기화
+  const affectedCids = [...new Set(TAX_DATA.map(t => t.campaignId).filter(Boolean))];
+  affectedCids.forEach(cid => {
+    const c = DATA.find(x => x.id === cid);
+    if (c) {
+      c.taxAdvReq   = false;
+      c.taxMediaReq = false;
+      _fbSaveCampaign(c);
+    }
+  });
+
+  // Firebase 일괄 삭제
+  await Promise.all(TAX_DATA.map(t => _fbDeleteTax(t.id)));
+  TAX_DATA.length = 0;
+  renderTaxList();
+  toast('✓ 전체 삭제 완료', 'ok');
+}
+
+// ── 그룹 단위 토글/저장 ──
+async function taxGroupToggleStatus(gid) {
+  const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
+  if (!items.length) return;
+  const isDone = items[0].taxStatus === '완료';
   if (!confirm(isDone ? '완료를 취소하시겠습니까?' : '완료 처리하시겠습니까?')) return;
-  t.taxStatus = isDone ? '' : '완료';
-  await _fbSaveTax(t);
-  // 정산 탭 invoiceOut 동기화
-  if (t.campaignId) {
-    const c = DATA.find(d => d.id === t.campaignId);
-    if (c && !!c.invoiceOut !== !isDone) {
-      c.invoiceOut = !isDone;
-      _fbSaveCampaign(c);
-      _stlCellUpdate(t.campaignId, 'invoiceOut');
+  const newStatus = isDone ? '' : '완료';
+  for (const t of items) {
+    t.taxStatus = newStatus;
+    await _fbSaveTax(t);
+    // 정산 탭 invoiceOut 동기화 (광고주 타입만)
+    if (t.campaignId && (t.taxType === 'adv' || !t.taxType)) {
+      const c = DATA.find(d => d.id === t.campaignId);
+      if (c && !!c.invoiceOut !== !isDone) {
+        c.invoiceOut = !isDone;
+        _fbSaveCampaign(c);
+        _stlCellUpdate(t.campaignId, 'invoiceOut');
+      }
     }
   }
   renderTaxList();
+}
+
+async function taxGroupTogglePaid(gid) {
+  const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
+  if (!items.length) return;
+  const isPaid = items[0].paid === '완료';
+  if (!confirm(isPaid ? '입금 완료를 취소하시겠습니까?' : '입금 완료 처리하시겠습니까?')) return;
+  const newPaid = isPaid ? '' : '완료';
+  for (const t of items) {
+    t.paid = newPaid;
+    if (!isPaid) t.unpaid = 0;
+    await _fbSaveTax(t);
+    // 정산 탭 payIn 동기화 (광고주 타입만)
+    if (t.campaignId && (t.taxType === 'adv' || !t.taxType)) {
+      const c = DATA.find(d => d.id === t.campaignId);
+      if (c && !!c.payIn !== !isPaid) {
+        c.payIn = !isPaid;
+        _fbSaveCampaign(c);
+        _stlCellUpdate(t.campaignId, 'payIn');
+      }
+    }
+  }
+  renderTaxList();
+}
+
+async function taxGroupSaveField(gid, field, value) {
+  const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
+  for (const t of items) {
+    t[field] = value;
+    await _fbSaveTax(t);
+  }
+}
+
+function taxGroupInlineEdit(el, gid, field) {
+  if (el.querySelector('input')) return;
+  const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
+  if (!items.length) return;
+  const rep = items[0];
+  const curVal = field === 'unpaid'
+    ? (rep.unpaid != null ? rep.unpaid : 0)
+    : (rep[field] || '');
+  const isNum = field === 'unpaid';
+  el.innerHTML = `<input type="${isNum?'number':'text'}" class="form-input"
+    style="font-size:12px;padding:3px 6px;width:${isNum?'90px':'140px'};"
+    value="${String(curVal).replace(/"/g,'&quot;')}">`;
+  const inp = el.querySelector('input');
+  inp.focus(); inp.select();
+  let saved = false;
+  const save = async () => {
+    if (saved) return; saved = true;
+    const newVal = isNum ? (parseFloat(inp.value) || 0) : inp.value.trim();
+    await taxGroupSaveField(gid, field, newVal);
+    renderTaxList();
+  };
+  inp.addEventListener('blur', save);
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+    if (e.key === 'Escape') { saved = true; renderTaxList(); }
+  });
 }
 
 async function taxSaveField(id, field, value) {
@@ -7051,21 +7334,17 @@ function taxInlineEdit(td, id, field) {
   if (td.querySelector('input')) return;
   const t = TAX_DATA.find(x => x.id === id);
   if (!t) return;
-  const curVal = field === 'unpaid'
-    ? (t.unpaid != null ? t.unpaid : Math.max(0, (t.vatAmt||0) - (t.paid||0)))
-    : (t[field] || '');
-  const isNum = field === 'unpaid';
-  td.innerHTML = `<input type="${isNum?'number':'text'}" class="form-input"
-    style="font-size:12px;padding:3px 6px;width:100%;min-width:${isNum?'90':'180'}px;"
+  const curVal = t[field] || '';
+  td.innerHTML = `<input type="text" class="form-input"
+    style="font-size:12px;padding:3px 6px;width:100%;min-width:180px;"
     value="${String(curVal).replace(/"/g,'&quot;')}">`;
   const inp = td.querySelector('input');
   inp.focus(); inp.select();
   let saved = false;
   const save = async () => {
     if (saved) return; saved = true;
-    const newVal = isNum ? (parseFloat(inp.value) || 0) : inp.value.trim();
     const tObj = TAX_DATA.find(x => x.id === id);
-    if (tObj) { tObj[field] = newVal; await _fbSaveTax(tObj); }
+    if (tObj) { tObj[field] = inp.value.trim(); await _fbSaveTax(tObj); }
     renderTaxList();
   };
   inp.addEventListener('blur', save);
@@ -7120,9 +7399,13 @@ function saveTaxReg() {
   const _n  = id => parseFloat(document.getElementById(id)?.value) || 0;
   const editId = _v('tax-edit-id');
   const isNew  = !editId;
+  const newId  = isNew ? _taxNextId() : parseInt(editId);
+  const existingT = isNew ? null : TAX_DATA.find(x => x.id === newId);
   const t = {
-    id:           isNew ? _taxNextId() : parseInt(editId),
+    id:           newId,
+    groupId:      existingT ? _taxGroupId(existingT) : newId,
     campaignId:   _v('tax-edit-campaignId') || null,
+    createdBy:    existingT?.createdBy || currentUser?.name || '',
     manager:      _v('tax-r-manager'),
     month:        _v('tax-r-month'),
     issueDate:    _v('tax-r-issueDate'),
@@ -7152,16 +7435,26 @@ function saveTaxReg() {
 let _taxGenEligible = [];
 
 function openTaxAutoGen() {
-  const linkedIds = new Set(TAX_DATA.map(t => t.campaignId).filter(Boolean));
-  _taxGenEligible = DATA.filter(c => _taxIsSettled(c) && !linkedIds.has(c.id));
+  _taxGenEligible = DATA.filter(c => _taxCampaignPending(c));
 
   // 필터 드롭다운 채우기
-  const companies = [...new Set(_taxGenEligible.map(c => c.seller||c.adv||'').filter(Boolean))].sort();
-  const managers  = [...new Set(_taxGenEligible.map(c => c.ops||'').filter(Boolean))].sort();
-  const fComp = document.getElementById('tax-gen-fCompany');
-  const fMgr  = document.getElementById('tax-gen-fManager');
-  if (fComp) fComp.innerHTML = '<option value="">업체명 전체</option>' + companies.map(v=>`<option>${_escHtml(v)}</option>`).join('');
-  if (fMgr)  fMgr.innerHTML  = '<option value="">담당자 전체</option>' + managers.map(v=>`<option>${_escHtml(v)}</option>`).join('');
+  const months   = [...new Set(_taxGenEligible.map(c => _taxMonthLabel(c)).filter(Boolean))].sort();
+  const sellers  = [...new Set(_taxGenEligible.map(c => c.seller||c.adv||'').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+  const medias   = [...new Set(_taxGenEligible.map(c => c.media||'').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+  const managers = [...new Set(_taxGenEligible.map(c => c.ops||'').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+  const fMonth  = document.getElementById('tax-gen-fMonth');
+  const fSeller = document.getElementById('tax-gen-fSeller');
+  const fMedia  = document.getElementById('tax-gen-fMedia');
+  const fMgr    = document.getElementById('tax-gen-fManager');
+  if (fMonth) {
+    fMonth.innerHTML = '<option value="">발송월 전체</option>' + months.map(v=>`<option>${_escHtml(v)}</option>`).join('');
+    const now = new Date();
+    const curLabel = `${now.getFullYear()}년${now.getMonth()+1}월`;
+    if (months.includes(curLabel)) fMonth.value = curLabel;
+  }
+  if (fSeller) fSeller.innerHTML = '<option value="">광고주/대행사 전체</option>' + sellers.map(v=>`<option>${_escHtml(v)}</option>`).join('');
+  if (fMedia)  fMedia.innerHTML  = '<option value="">매체사 전체</option>'        + medias.map(v=>`<option>${_escHtml(v)}</option>`).join('');
+  if (fMgr)    fMgr.innerHTML    = '<option value="">담당자 전체</option>'        + managers.map(v=>`<option>${_escHtml(v)}</option>`).join('');
 
   // step1 초기화
   document.getElementById('tax-gen-step1').style.display = '';
@@ -7175,11 +7468,17 @@ function openTaxAutoGen() {
 }
 
 function taxGenRenderList() {
-  const fComp = document.getElementById('tax-gen-fCompany')?.value || '';
-  const fMgr  = document.getElementById('tax-gen-fManager')?.value  || '';
+  const fMonth  = document.getElementById('tax-gen-fMonth')?.value  || '';
+  const fSeller = document.getElementById('tax-gen-fSeller')?.value || '';
+  const fMedia  = document.getElementById('tax-gen-fMedia')?.value  || '';
+  const fMgr    = document.getElementById('tax-gen-fManager')?.value || '';
+  const fSearch = (document.getElementById('tax-gen-fSearch')?.value || '').trim().toLowerCase();
   const filtered = _taxGenEligible.filter(c => {
-    if (fComp && (c.seller||c.adv||'') !== fComp) return false;
-    if (fMgr  && (c.ops||'') !== fMgr)            return false;
+    if (fMonth  && _taxMonthLabel(c) !== fMonth)                    return false;
+    if (fSeller && (c.seller||c.adv||'') !== fSeller)              return false;
+    if (fMedia  && (c.media||'') !== fMedia)                        return false;
+    if (fMgr    && (c.ops||'') !== fMgr)                            return false;
+    if (fSearch && !_cName(c).toLowerCase().includes(fSearch) && !(c.id||'').toLowerCase().includes(fSearch)) return false;
     return true;
   });
   const countEl = document.getElementById('tax-gen-count');
@@ -7191,55 +7490,154 @@ function taxGenRenderList() {
     return;
   }
   tbody.innerHTML = filtered.map(c => {
-    const supply = _stlAmt(c).adc || 0;
-    return `<tr style="cursor:pointer;" onclick="this.querySelector('.tax-gen-chk').click()">
-      <td style="text-align:center;" onclick="event.stopPropagation()"><input type="checkbox" class="tax-gen-chk" data-id="${c.id}"></td>
-      <td style="font-weight:600;">${_escHtml(_cName(c))}</td>
-      <td>${_escHtml(c.ops||'—')}</td>
+    const supply    = _stlAmt(c).adc || 0;
+    const mediaRec  = MEDIA_DATA.find(m => m.company === c.media);
+    const mediaNoTax = mediaRec && mediaRec.taxYn === false;
+
+    // 요청 가능한 타입만 옵션으로 구성 (플래그 or 기존 TAX_DATA 기준)
+    const hasAdv   = c.taxAdvReq   || TAX_DATA.some(t => t.campaignId===c.id && (t.taxType==='adv' || !t.taxType));
+    const hasMedia = c.taxMediaReq || TAX_DATA.some(t => t.campaignId===c.id && t.taxType==='media');
+    const opts = ['<option value="">선택</option>'];
+    if (!hasAdv)              opts.push('<option value="adv">광고주</option>');
+    if (!hasMedia && !mediaNoTax) opts.push('<option value="media">매체</option>');
+
+    const typeSelect = `<select class="tax-gen-type form-sel" data-id="${c.id}" data-supply="${supply}"
+      style="font-size:12px;padding:2px 4px;width:80px;opacity:0.4;cursor:not-allowed;"
+      disabled onclick="event.stopPropagation()" onchange="taxGenUpdateTotal()">
+      ${opts.join('')}
+    </select>`;
+
+    return `<tr style="cursor:pointer;" onclick="event.target.tagName!=='SELECT'&&event.target.tagName!=='OPTION'&&this.querySelector('.tax-gen-chk').click()">
+      <td style="text-align:center;" onclick="event.stopPropagation()">
+        <input type="checkbox" class="tax-gen-chk" data-id="${c.id}" data-supply="${supply}" onchange="taxGenRowToggle(this)">
+      </td>
       <td>${_taxMonthLabel(c)}</td>
-      <td>${_escHtml(c.seller||c.adv||'—')}</td>
       <td>${_escHtml(c.product||'—')}</td>
-      <td>${_escHtml(c.media||'—')}</td>
+      <td style="font-weight:600;">${_escHtml(_cName(c))}</td>
+      <td style="text-align:center;" onclick="event.stopPropagation()">${typeSelect}</td>
       <td class="td-r">${supply ? supply.toLocaleString() : '—'}</td>
+      <td>${_escHtml(c.ops||'—')}</td>
     </tr>`;
   }).join('');
+  taxGenUpdateTotal();
+}
+
+function taxGenRowToggle(chk) {
+  const sel = chk.closest('tr')?.querySelector('.tax-gen-type');
+  if (sel) {
+    sel.disabled = !chk.checked;
+    sel.style.opacity = chk.checked ? '1' : '0.4';
+    sel.style.cursor  = chk.checked ? '' : 'not-allowed';
+    if (!chk.checked) sel.value = '';
+  }
+  taxGenUpdateTotal();
 }
 
 function taxGenToggleAll(chk) {
-  document.querySelectorAll('.tax-gen-chk').forEach(c => c.checked = chk.checked);
+  document.querySelectorAll('.tax-gen-chk').forEach(c => {
+    c.checked = chk.checked;
+    taxGenRowToggle(c);
+  });
+}
+
+function taxGenUpdateTotal() {
+  let total = 0;
+  document.querySelectorAll('.tax-gen-chk:checked').forEach(chk => {
+    const typeEl = chk.closest('tr')?.querySelector('.tax-gen-type');
+    if (typeEl && typeEl.value) total += parseInt(chk.dataset.supply || 0, 10);
+  });
+  const el = document.getElementById('tax-gen-total');
+  if (el) el.innerHTML = `선택 합계 <b>${total ? total.toLocaleString() : '0'}</b>원`;
 }
 
 function taxGenNext() {
   const checked = [...document.querySelectorAll('.tax-gen-chk:checked')];
   if (!checked.length) { alert('캠페인을 1개 이상 선택해주세요.'); return; }
-  const campaigns = checked.map(chk => DATA.find(c => c.id === chk.dataset.id)).filter(Boolean);
 
-  // 기본 날짜 계산
+  // 선택된 행에서 발행구분 select 값 수집
+  const entries = [];
+  checked.forEach(chk => {
+    const c = DATA.find(x => x.id === chk.dataset.id);
+    if (!c) return;
+    const typeEl = chk.closest('tr')?.querySelector('.tax-gen-type');
+    const taxType = typeEl?.value;
+    if (taxType === 'adv' || taxType === 'media') entries.push({c, taxType});
+  });
+  if (!entries.length) { alert('발행 구분(광고주/매체)을 선택해주세요.'); return; }
+
+  // taxType+업체명으로 그룹화
+  const byGroup = new Map();
+  entries.forEach(({c, taxType}) => {
+    const company = taxType==='adv' ? (c.seller||c.adv||'(미지정)') : (c.media||'(미지정)');
+    const key = `${taxType}::${company}`;
+    if (!byGroup.has(key)) byGroup.set(key, {company, taxType, campaigns:[]});
+    byGroup.get(key).campaigns.push(c);
+  });
+
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
+  const todayStr = now.toISOString().slice(0,10);
   const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-  const prevMonthEndStr = prevMonthEnd.toISOString().slice(0, 10);
+  const prevMonthEndStr = prevMonthEnd.toISOString().slice(0,10);
 
-  // step2 일괄적용 필드에도 기본값 세팅
-  const bulkReq = document.getElementById('tax-gen-bulk-req');
-  const bulkIss = document.getElementById('tax-gen-bulk-iss');
-  if (bulkReq) bulkReq.value = todayStr;
-  if (bulkIss) bulkIss.value = prevMonthEndStr;
+  const container = document.getElementById('tax-gen-step2-container');
+  if (container) {
+    const cards = [];
+    cards.push(`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;">
+      <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">발행요청일자 (공통)</span>
+      <input type="date" class="form-input" id="tax-gen-common-req" style="font-size:12px;padding:4px 8px;width:160px;" value="${todayStr}">
+      <span style="font-size:12px;color:var(--text3);">※ 아래 모든 업체에 동일하게 적용됩니다</span>
+    </div>`);
 
-  // step2 테이블 구성
-  const tbody = document.getElementById('tax-gen-step2-tbody');
-  if (tbody) {
-    tbody.innerHTML = campaigns.map((c, i) => {
-      const supply = _stlAmt(c).adc || 0;
-      return `<tr data-cid="${c.id}">
-        <td style="font-weight:600;">${_escHtml(_cName(c))}</td>
-        <td>${_escHtml(c.seller||c.adv||'—')}</td>
-        <td class="td-r">${supply ? supply.toLocaleString() : '—'}</td>
-        <td><input type="date" class="form-input tax-gen-req" style="font-size:12px;padding:4px 6px;width:138px;" value="${todayStr}"></td>
-        <td><input type="date" class="form-input tax-gen-iss" style="font-size:12px;padding:4px 6px;width:138px;" value="${prevMonthEndStr}"></td>
-        <td><input type="text" class="form-input tax-gen-email" placeholder="담당자명, email@domain.com" style="font-size:12px;padding:4px 6px;width:100%;min-width:180px;"></td>
-      </tr>`;
-    }).join('');
+    let gi = 0;
+    byGroup.forEach(({company, taxType, campaigns}) => {
+      const supplyTotal = campaigns.reduce((s,c) => s + (_stlAmt(c).adc||0), 0);
+      const typeLabel = taxType==='adv' ? '광고주' : '매체';
+      const campaignRows = campaigns.map(c => {
+        const supply = _stlAmt(c).adc||0;
+        return `<tr data-cid="${c.id}" data-taxtype="${taxType}" class="tax-gen-camp-row">
+          <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_taxMonthLabel(c)}</td>
+          <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_escHtml(c.product||'—')}</td>
+          <td style="font-size:12px;font-weight:600;padding:5px 4px;">${_escHtml(_cName(c))}</td>
+          <td class="td-r" style="font-size:12px;padding:5px 4px;">${supply ? supply.toLocaleString() : '—'}</td>
+          <td style="padding:5px 4px;"><input type="text" class="form-input tax-gen-email" placeholder="이름, email@domain.com" style="font-size:12px;padding:3px 6px;width:100%;min-width:180px;"></td>
+          <td style="padding:5px 4px;"><input type="text" class="form-input tax-gen-memo" placeholder="메모" style="font-size:12px;padding:3px 6px;width:100%;min-width:120px;"></td>
+        </tr>`;
+      }).join('');
+      cards.push(`<div class="tax-gen-group-card" data-gi="${gi}" style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;">
+        <div style="background:var(--surface2);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-weight:700;font-size:14px;">${_escHtml(company)}</span>
+          <span style="font-size:11px;color:var(--primary,#1a73e8);background:rgba(26,115,232,.1);padding:2px 8px;border-radius:20px;font-weight:600;">${typeLabel}</span>
+          <span style="font-size:12px;color:var(--text2);">캠페인 ${campaigns.length}건 · 공급가액 합계 ${supplyTotal.toLocaleString()}원</span>
+        </div>
+        <div style="padding:10px 14px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">발행일자</label>
+              <input type="date" class="form-input tax-gen-iss" style="font-size:12px;padding:4px 6px;width:100%;" value="${prevMonthEndStr}">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">입금예정일</label>
+              <input type="date" class="form-input tax-gen-paydue" style="font-size:12px;padding:4px 6px;width:100%;">
+            </div>
+          </div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;border-top:1px solid var(--border);">
+            <thead>
+              <tr style="color:var(--text3);">
+                <th style="text-align:left;padding:6px 4px;font-weight:500;">월별</th>
+                <th style="text-align:left;padding:6px 4px;font-weight:500;">상품</th>
+                <th style="text-align:left;padding:6px 4px;font-weight:500;">캠페인명</th>
+                <th style="text-align:right;padding:6px 4px;font-weight:500;">공급가액</th>
+                <th style="text-align:left;padding:6px 4px;font-weight:500;">담당자 이름/이메일</th>
+                <th style="text-align:left;padding:6px 4px;font-weight:500;">메모</th>
+              </tr>
+            </thead>
+            <tbody>${campaignRows}</tbody>
+          </table>
+        </div>
+      </div>`);
+      gi++;
+    });
+    container.innerHTML = cards.join('');
   }
 
   document.getElementById('tax-gen-step1').style.display = 'none';
@@ -7251,50 +7649,184 @@ function taxGenPrev() {
   document.getElementById('tax-gen-step2').style.display = 'none';
   document.getElementById('tax-gen-step1').style.display = '';
   document.getElementById('tax-gen-title').innerHTML = '캠페인 선택 <span style="font-size:12px;color:var(--text3);font-weight:400;">1단계 / 2단계</span>';
+  _taxSetStep2Footer('new');
 }
 
-function taxGenApplyBulk() {
-  const req = document.getElementById('tax-gen-bulk-req')?.value || '';
-  const iss = document.getElementById('tax-gen-bulk-iss')?.value || '';
-  if (req) document.querySelectorAll('.tax-gen-req').forEach(el => el.value = req);
-  if (iss) document.querySelectorAll('.tax-gen-iss').forEach(el => el.value = iss);
+let _taxEditGid = null;
+
+function _taxSetStep2Footer(mode) {
+  const foot = document.querySelector('#tax-gen-step2 .modal-foot');
+  if (!foot) return;
+  if (mode === 'edit') {
+    foot.innerHTML = `
+      <button class="btn btn-ghost" onclick="closeModal('modalTaxAutoGen');_taxEditGid=null;">취소</button>
+      <button class="btn btn-primary" onclick="confirmTaxEdit()">저장</button>`;
+  } else {
+    foot.innerHTML = `
+      <button class="btn btn-ghost" onclick="taxGenPrev()">← 이전</button>
+      <button class="btn btn-primary" onclick="confirmTaxAutoGen()">등록</button>`;
+  }
+}
+
+function taxEditGroup(gid) {
+  _taxEditGid = gid;
+  const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
+  if (!items.length) return;
+  const rep = items[0];
+
+  const container = document.getElementById('tax-gen-step2-container');
+  if (container) {
+    const supplyTotal = items.reduce((s, t) => s + (t.supplyAmt||0), 0);
+    const campaignRows = items.map(t => {
+      const camp = DATA.find(c => c.id === t.campaignId);
+      const campName = camp ? _cName(camp) : (t.content||'—');
+      const supply = t.supplyAmt||0;
+      return `<tr data-tid="${t.id}" class="tax-gen-camp-row">
+        <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_escHtml(t.month||'—')}</td>
+        <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_escHtml(camp?.product||'—')}</td>
+        <td style="font-size:12px;font-weight:600;padding:5px 4px;">${_escHtml(campName)}</td>
+        <td class="td-r" style="font-size:12px;padding:5px 4px;">${supply ? supply.toLocaleString() : '—'}</td>
+        <td style="padding:5px 4px;"><input type="text" class="form-input tax-gen-email" value="${_escHtml(t.contactEmail||'')}" placeholder="이름, email@domain.com" style="font-size:12px;padding:3px 6px;width:100%;min-width:180px;"></td>
+        <td style="padding:5px 4px;"><input type="text" class="form-input tax-gen-memo" value="${_escHtml(t.memo||'')}" placeholder="메모" style="font-size:12px;padding:3px 6px;width:100%;min-width:120px;"></td>
+      </tr>`;
+    }).join('');
+
+    const prevMonthEndStr = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().slice(0,10);
+    container.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;">
+        <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">발행요청일자 (공통)</span>
+        <input type="date" class="form-input" id="tax-gen-common-req" style="font-size:12px;padding:4px 8px;width:160px;" value="${rep.reqDate||''}">
+      </div>
+      <div class="tax-gen-group-card" style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;">
+        <div style="background:var(--surface2);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-weight:700;font-size:14px;">${_escHtml(rep.company||'')}</span>
+          <span style="font-size:12px;color:var(--text3);">캠페인 ${items.length}건 · 공급가액 합계 ${supplyTotal.toLocaleString()}원</span>
+        </div>
+        <div style="padding:10px 14px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">발행일자</label>
+              <input type="date" class="form-input tax-gen-iss" style="font-size:12px;padding:4px 6px;width:100%;" value="${rep.issueDate||prevMonthEndStr}">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">입금예정일</label>
+              <input type="date" class="form-input tax-gen-paydue" style="font-size:12px;padding:4px 6px;width:100%;" value="${rep.payDue||''}">
+            </div>
+          </div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;border-top:1px solid var(--border);">
+            <thead>
+              <tr style="color:var(--text3);">
+                <th style="text-align:left;padding:6px 4px;font-weight:500;">월별</th>
+                <th style="text-align:left;padding:6px 4px;font-weight:500;">상품</th>
+                <th style="text-align:left;padding:6px 4px;font-weight:500;">캠페인명</th>
+                <th style="text-align:right;padding:6px 4px;font-weight:500;">공급가액</th>
+                <th style="text-align:left;padding:6px 4px;font-weight:500;">담당자 이름/이메일</th>
+                <th style="text-align:left;padding:6px 4px;font-weight:500;">메모</th>
+              </tr>
+            </thead>
+            <tbody>${campaignRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('tax-gen-step1').style.display = 'none';
+  document.getElementById('tax-gen-step2').style.display = '';
+  document.getElementById('tax-gen-title').innerHTML = '발행요청 수정';
+  _taxSetStep2Footer('edit');
+  openModal('modalTaxAutoGen');
+}
+
+async function confirmTaxEdit() {
+  if (!_taxEditGid) return;
+  const commonReq = document.getElementById('tax-gen-common-req')?.value || '';
+  const card      = document.querySelector('#tax-gen-step2-container .tax-gen-group-card');
+  if (!card) return;
+  const issDate = card.querySelector('.tax-gen-iss')?.value    || '';
+  const payDue  = card.querySelector('.tax-gen-paydue')?.value || '';
+  const campRows = [...card.querySelectorAll('.tax-gen-camp-row')];
+
+  for (const tr of campRows) {
+    const tid = parseInt(tr.dataset.tid);
+    const t   = TAX_DATA.find(x => x.id === tid);
+    if (!t) continue;
+    t.reqDate      = commonReq;
+    t.issueDate    = issDate;
+    t.payDue       = payDue;
+    t.contactEmail = tr.querySelector('.tax-gen-email')?.value.trim() || '';
+    t.memo         = tr.querySelector('.tax-gen-memo')?.value.trim()  || '';
+    await _fbSaveTax(t);
+  }
+
+  _taxEditGid = null;
+  closeModal('modalTaxAutoGen');
+  renderTaxList();
+  toast('✓ 수정되었습니다', 'ok');
 }
 
 async function confirmTaxAutoGen() {
-  const rows = [...document.querySelectorAll('#tax-gen-step2-tbody tr')];
-  // 요청일자/발행일자 미입력 검증
-  const missing = rows.some(tr => !tr.querySelector('.tax-gen-req')?.value || !tr.querySelector('.tax-gen-iss')?.value);
-  if (missing) { alert('요청일자와 발행일자를 모두 입력해주세요.'); return; }
+  const commonReq = document.getElementById('tax-gen-common-req')?.value || '';
+  if (!commonReq) { alert('발행요청일자를 입력해주세요.'); return; }
 
-  const linkedIds = new Set(TAX_DATA.map(t => t.campaignId).filter(Boolean));
-  for (const tr of rows) {
-    const cid   = tr.dataset.cid;
-    const c     = DATA.find(x => x.id === cid);
-    if (!c || linkedIds.has(c.id)) continue;
-    const supply = _stlAmt(c).adc || 0;
-    const t = {
-      id:           _taxNextId(),
-      campaignId:   c.id,
-      manager:      c.ops || '',
-      month:        _taxMonthLabel(c),
-      reqDate:      tr.querySelector('.tax-gen-req')?.value  || '',
-      issueDate:    tr.querySelector('.tax-gen-iss')?.value  || '',
-      taxStatus:    '',
-      payDue:       '',
-      paid:         null,
-      company:      c.seller || c.adv || '',
-      content:      _taxContentAuto(c),
-      bizName:      c.seller || c.adv || '',
-      supplyAmt:    supply,
-      vatAmt:       Math.round(supply * 1.1),
-      contactEmail: tr.querySelector('.tax-gen-email')?.value.trim() || ''
-    };
-    TAX_DATA.push(t);
-    linkedIds.add(c.id);
-    await _fbSaveTax(t);
+  const cards = [...document.querySelectorAll('.tax-gen-group-card')];
+
+  for (const card of cards) {
+    const issDate  = card.querySelector('.tax-gen-iss')?.value    || '';
+    const payDue   = card.querySelector('.tax-gen-paydue')?.value || '';
+    const campRows = [...card.querySelectorAll('.tax-gen-camp-row')];
+    if (!campRows.length) continue;
+
+    const groupId = _taxNextGroupId();
+
+    for (const tr of campRows) {
+      const cid     = tr.dataset.cid;
+      const taxType = tr.dataset.taxtype; // 'adv' | 'media'
+      const c       = DATA.find(x => x.id === cid);
+      if (!c) continue;
+
+      // 이미 완료된 타입은 스킵
+      const existing = TAX_DATA.find(t => t.campaignId===cid && t.taxType===taxType);
+      if (existing && existing.taxStatus==='완료') continue;
+
+      const supply  = _stlAmt(c).adc || 0;
+      const email   = tr.querySelector('.tax-gen-email')?.value.trim() || '';
+      const memo    = tr.querySelector('.tax-gen-memo')?.value.trim()  || '';
+      const company = taxType==='adv' ? (c.seller||c.adv||'') : (c.media||'');
+
+      const t = {
+        id:           _taxNextId(),
+        groupId:      groupId,
+        campaignId:   c.id,
+        taxType:      taxType,
+        createdBy:    currentUser?.name || '',
+        manager:      c.ops || '',
+        month:        _taxMonthLabel(c),
+        reqDate:      commonReq,
+        issueDate:    issDate,
+        taxStatus:    '',
+        payDue:       payDue,
+        paid:         null,
+        unpaid:       null,
+        company:      company,
+        content:      _taxContentAuto(c),
+        bizName:      company,
+        supplyAmt:    supply,
+        vatAmt:       Math.round(supply * 1.1),
+        contactEmail: email,
+        memo:         memo
+      };
+
+      // 캠페인에 요청 플래그 기록
+      if (taxType==='adv')   c.taxAdvReq   = true;
+      if (taxType==='media') c.taxMediaReq = true;
+      _fbSaveCampaign(c);
+
+      TAX_DATA.push(t);
+      await _fbSaveTax(t);
+    }
   }
+
   closeModal('modalTaxAutoGen');
-  // 등록한 항목이 보이도록 현재 연도/월로 필터 설정
   const _now = new Date();
   const elY = document.getElementById('tax-year');
   const elM = document.getElementById('tax-month');

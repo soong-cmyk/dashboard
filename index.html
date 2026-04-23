@@ -1287,7 +1287,10 @@
           </div>
           <div class="stat-card c-green">
             <div class="stat-label">총 매출이익</div>
-            <div class="stat-value" id="stl-profit" style="font-size:16px;color:var(--green);">—</div>
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <div class="stat-value" id="stl-profit" style="font-size:16px;color:var(--green);">—</div>
+              <span id="stl-profit-rate" style="font-size:13px;font-weight:600;color:var(--green);"></span>
+            </div>
             <div class="stat-sub">매출액 − 매입액 − 대행수수료</div>
           </div>
         </div>
@@ -2034,23 +2037,8 @@
           <div class="stat-card"><div class="stat-label">부가세포함 합계</div><div class="stat-val" id="tax-vat">—</div></div>
           <div class="stat-card"><div class="stat-label">미수 합계</div><div class="stat-val" id="tax-unpaid" style="color:var(--red);">—</div></div>
         </div>
-        <!-- 테이블 -->
-        <div class="table-card">
-          <div class="table-wrap">
-            <table class="data-table" style="font-size:12px;white-space:nowrap;">
-              <thead>
-                <tr>
-                  <th>번호</th><th>담당자</th><th>월별</th><th>발행일자</th>
-                  <th style="text-align:center;">세발</th><th>입금예정일</th><th style="text-align:center;">입금</th><th class="td-r">미수</th>
-                  <th>업체명</th><th style="min-width:180px;">내용</th><th>상호명</th>
-                  <th class="td-r">공급가액</th><th class="td-r">부가세포함</th>
-                  <th style="min-width:180px;">담당자 메일</th><th></th>
-                </tr>
-              </thead>
-              <tbody id="tax-tbody"></tbody>
-            </table>
-          </div>
-        </div>
+        <!-- 카드 목록 -->
+        <div id="tax-list"></div>
       </div>
 
     </div><!-- /content -->
@@ -2139,8 +2127,10 @@
   </div>
 
   <!-- 세금계산서 자동 생성 모달 -->
+  <div id="tax-memo-bubble" style="display:none;position:fixed;z-index:9999;max-width:300px;padding:8px 12px;background:#333;color:#fff;font-size:12px;border-radius:6px;line-height:1.5;word-break:break-all;box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none;"></div>
+
   <div class="modal-overlay" id="modalTaxAutoGen">
-    <div class="modal" style="width:860px;max-width:96vw;">
+    <div class="modal" style="width:900px;max-width:96vw;">
       <div class="modal-head">
         <span class="modal-title" id="tax-gen-title">캠페인 선택 <span style="font-size:12px;color:var(--text3);font-weight:400;">1단계 / 2단계</span></span>
         <button class="modal-close" onclick="closeModal('modalTaxAutoGen')">✕</button>
@@ -2151,29 +2141,37 @@
         <div class="modal-body" style="padding-bottom:0;">
           <!-- 필터 -->
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-            <select class="form-sel" id="tax-gen-fCompany" onchange="taxGenRenderList()" style="width:150px;">
-              <option value="">업체명 전체</option>
+            <select class="form-sel" id="tax-gen-fMonth" onchange="taxGenRenderList()" style="width:100px;">
+              <option value="">발송월 전체</option>
+            </select>
+            <select class="form-sel" id="tax-gen-fSeller" onchange="taxGenRenderList()" style="width:150px;">
+              <option value="">광고주/대행사 전체</option>
+            </select>
+            <select class="form-sel" id="tax-gen-fMedia" onchange="taxGenRenderList()" style="width:130px;">
+              <option value="">매체사 전체</option>
             </select>
             <select class="form-sel" id="tax-gen-fManager" onchange="taxGenRenderList()" style="width:120px;">
               <option value="">담당자 전체</option>
             </select>
+            <input class="form-input" id="tax-gen-fSearch" placeholder="캠페인명/ID 검색" oninput="taxGenRenderList()" style="width:160px;">
             <span id="tax-gen-count" style="font-size:12px;color:var(--text3);margin-left:4px;"></span>
           </div>
-          <!-- 전체선택 -->
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <!-- 전체선택 + 실시간 합계 -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
               <input type="checkbox" id="tax-gen-chk-all" onchange="taxGenToggleAll(this)"> 전체 선택
             </label>
+            <span id="tax-gen-total" style="font-size:12px;color:var(--text2);padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;">선택 합계 <b>0</b>원</span>
           </div>
         </div>
         <div style="overflow-x:auto;max-height:380px;overflow-y:auto;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
-          <table class="data-table" style="font-size:12px;white-space:nowrap;min-width:640px;">
+          <table class="data-table" style="font-size:12px;white-space:nowrap;min-width:680px;">
             <thead style="position:sticky;top:0;z-index:1;background:var(--surface);">
               <tr>
                 <th style="width:36px;"></th>
-                <th>캠페인명</th><th>담당자</th><th>발송월</th>
-                <th>업체명</th><th>상품</th><th>매체</th>
-                <th class="td-r">공급가액(예상)</th>
+                <th>발송월</th><th>상품</th><th>캠페인명</th>
+                <th style="width:90px;text-align:center;">발행구분</th>
+                <th class="td-r">공급가액</th><th>담당자</th>
               </tr>
             </thead>
             <tbody id="tax-gen-tbody"></tbody>
@@ -2185,35 +2183,10 @@
         </div>
       </div>
 
-      <!-- STEP 2: 정보 입력 -->
+      <!-- STEP 2: 정보 입력 (업체별 그룹 카드) -->
       <div id="tax-gen-step2" style="display:none;">
-        <div class="modal-body" style="padding-bottom:0;">
-          <!-- 일괄 적용 -->
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;flex-wrap:wrap;">
-            <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">일괄 적용</span>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <label style="font-size:12px;color:var(--text2);">요청일자</label>
-              <input type="date" class="form-input" id="tax-gen-bulk-req" style="width:140px;font-size:12px;padding:4px 8px;">
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <label style="font-size:12px;color:var(--text2);">발행일자</label>
-              <input type="date" class="form-input" id="tax-gen-bulk-iss" style="width:140px;font-size:12px;padding:4px 8px;">
-            </div>
-            <button class="btn btn-outline btn-sm" onclick="taxGenApplyBulk()">전체 적용</button>
-          </div>
-        </div>
-        <div style="overflow-x:auto;max-height:380px;overflow-y:auto;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
-          <table class="data-table" style="font-size:12px;white-space:nowrap;min-width:760px;">
-            <thead style="position:sticky;top:0;z-index:1;background:var(--surface);">
-              <tr>
-                <th>캠페인명</th><th>업체명</th><th class="td-r">공급가액</th>
-                <th>요청일자 <span style="color:var(--red);">*</span></th>
-                <th>발행일자 <span style="color:var(--red);">*</span></th>
-                <th style="min-width:200px;">담당자 메일</th>
-              </tr>
-            </thead>
-            <tbody id="tax-gen-step2-tbody"></tbody>
-          </table>
+        <div style="max-height:480px;overflow-y:auto;padding:16px 20px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+          <div id="tax-gen-step2-container"></div>
         </div>
         <div class="modal-foot">
           <button class="btn btn-ghost" onclick="taxGenPrev()">← 이전</button>
@@ -2639,6 +2612,14 @@
               <option value="10일 입금">10일 입금</option>
               <option value="월 말 입금">월 말 입금</option>
             </select>
+          </div>
+          <div class="fg" style="max-width:130px;">
+            <label class="form-label">세금계산서 발행</label>
+            <div style="display:flex;align-items:center;gap:8px;height:34px;">
+              <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;">
+                <input type="checkbox" id="med-taxYn" checked> 발행
+              </label>
+            </div>
           </div>
         </div>
 

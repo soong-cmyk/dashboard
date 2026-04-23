@@ -139,6 +139,29 @@ tbody td{padding:12px 14px;white-space:nowrap;}
 .stl-inv-badge.done{background:rgba(47,158,68,.12);color:var(--green);border:1px solid rgba(47,158,68,.3);}
 .stl-inv-badge.none{background:var(--surface2);color:var(--text3);border:1px solid var(--border2);}
 .stl-inv-badge:hover{opacity:.8;}
+/* 세금계산서 카드형 */
+#tax-list{display:flex;flex-direction:column;gap:10px;}
+.tax-card{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface);}
+.tax-card-head{display:flex;align-items:center;gap:0;padding:0;background:var(--surface2);border-bottom:1px solid var(--border);}
+.tax-card-toggle{width:34px;min-width:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);font-size:11px;align-self:center;border-right:none;padding:0 6px;}
+.tax-card-toggle:hover{background:var(--border);color:var(--text1);}
+.tax-card-head-main{flex:1;display:flex;align-items:center;gap:12px;padding:10px 14px;flex-wrap:wrap;}
+.tax-card-company{font-size:15px;font-weight:700;color:var(--text1);width:150px;min-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tax-card-manager{font-size:12px;color:var(--text2);}
+.tax-card-actions{display:flex;align-items:center;gap:8px;padding:8px 12px;flex-shrink:0;}
+.tax-card-meta{display:flex;align-items:center;gap:0;padding:7px 14px 7px 48px;background:#fff;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:16px;font-size:12px;color:var(--text2);}
+.tax-card-meta-item{display:flex;align-items:center;gap:6px;}
+.tax-card-meta-label{color:var(--text3);font-size:11px;white-space:nowrap;}
+.tax-card-body{padding:0;}
+.tax-camp-table{width:100%;border-collapse:collapse;font-size:12px;}
+.tax-camp-table thead tr{background:#f8fafc;}
+.tax-camp-table th{padding:6px 10px;text-align:left;font-size:11px;font-weight:500;color:var(--text3);border-bottom:1px solid var(--border);white-space:nowrap;}
+.tax-camp-table th.td-r,.tax-camp-table td.td-r{text-align:right;}
+.tax-camp-table tbody tr:hover{background:#f5f7fb;}
+.tax-camp-table td{padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text1);white-space:nowrap;}
+.tax-camp-table tbody tr:last-child td{border-bottom:none;}
+.tax-camp-sum td{background:#f0f4f8;font-weight:700;border-top:1px solid var(--border2)!important;}
+.tax-card-empty{padding:40px;text-align:center;color:var(--text3);font-size:13px;}
 
 /* ── PAGINATION ── */
 .pagination{padding:13px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
