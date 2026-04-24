@@ -1296,7 +1296,7 @@
         </div>
 
         <!-- 보기 전환 + 필터 -->
-        <div class="filter-bar" style="margin-bottom:16px;">
+        <div class="filter-bar" id="stl-filter-bar" style="margin-bottom:16px;flex-wrap:wrap;">
           <span class="f-label" style="width:auto;">보기</span>
           <div
             style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px;gap:2px;">
@@ -1330,6 +1330,7 @@
             <option value="">광고주/대행사</option>
           </select>
           <div class="f-div"></div>
+          <div class="stl-filter-break"></div>
           <select class="f-sel" id="stl-fOrg" onchange="renderSettlement()" style="width:110px;">
             <option value="">본부/팀 전체</option>
           </select>
