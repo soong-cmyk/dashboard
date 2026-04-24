@@ -7403,35 +7403,53 @@ function taxUpdateVat() {
   if (vatEl && supply) vatEl.value = Math.round(supply * 1.1);
 }
 
+function _taxRegInitYearSel() {
+  const sel = document.getElementById('tax-r-year');
+  if (!sel || sel.options.length) return;
+  const cur = new Date().getFullYear();
+  for (let y = cur - 2; y <= cur + 1; y++) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y + '년';
+    sel.appendChild(o);
+  }
+}
+
 function openTaxReg(id) {
   const _el = k => document.getElementById(k);
+  _taxRegInitYearSel();
+  const now  = new Date();
   const isNew = id === null;
   _el('taxRegTitle').textContent = isNew ? '세금계산서 등록' : '세금계산서 수정';
   if (isNew) {
-    ['tax-edit-id','tax-edit-campaignId','tax-r-manager','tax-r-month',
-     'tax-r-issueDate','tax-r-payDue','tax-r-company',
-     'tax-r-content','tax-r-bizName','tax-r-contactEmail'].forEach(k => { if(_el(k)) _el(k).value = ''; });
+    ['tax-edit-id','tax-edit-campaignId','tax-r-manager',
+     'tax-r-reqDate','tax-r-issueDate','tax-r-payDue','tax-r-company',
+     'tax-r-content','tax-r-bizName','tax-r-contactEmail','tax-r-memo'].forEach(k => { if(_el(k)) _el(k).value = ''; });
     if (_el('tax-r-supplyAmt')) _el('tax-r-supplyAmt').value = '';
     if (_el('tax-r-vatAmt'))    _el('tax-r-vatAmt').value    = '';
-    if (_el('tax-r-paid'))      _el('tax-r-paid').checked    = false;
-    if (_el('tax-r-taxStatus')) _el('tax-r-taxStatus').checked = false;
+    if (_el('tax-r-taxType'))   _el('tax-r-taxType').value   = 'adv';
+    if (_el('tax-r-year'))      _el('tax-r-year').value      = now.getFullYear();
+    if (_el('tax-r-mon'))       _el('tax-r-mon').value       = now.getMonth() + 1;
+    if (_el('tax-r-manager') && currentUser) _el('tax-r-manager').value = currentUser.name;
   } else {
     const t = TAX_DATA.find(x => x.id === id);
     if (!t) return;
+    // 월 파싱: "2026년3월" → year=2026, mon=3
+    const mMatch = (t.month || '').match(/(\d{4})년(\d+)월/);
     _el('tax-edit-id').value           = t.id;
-    _el('tax-edit-campaignId').value   = t.campaignId || '';
-    _el('tax-r-manager').value         = t.manager     || '';
-    _el('tax-r-month').value           = t.month       || '';
-    _el('tax-r-issueDate').value       = t.issueDate   || '';
-    _el('tax-r-taxStatus').checked     = t.taxStatus === '완료';
-    _el('tax-r-payDue').value          = t.payDue      || '';
-    _el('tax-r-paid').checked          = t.paid === '완료';
-    _el('tax-r-company').value         = t.company     || '';
-    _el('tax-r-content').value         = t.content     || '';
-    _el('tax-r-bizName').value         = t.bizName     || '';
-    _el('tax-r-supplyAmt').value       = t.supplyAmt   || '';
-    _el('tax-r-vatAmt').value          = t.vatAmt      || '';
-    _el('tax-r-contactEmail').value    = t.contactEmail|| '';
+    _el('tax-edit-campaignId').value   = t.campaignId    || '';
+    _el('tax-r-taxType').value         = t.taxType        || 'adv';
+    if (mMatch) { _el('tax-r-year').value = mMatch[1]; _el('tax-r-mon').value = parseInt(mMatch[2]); }
+    _el('tax-r-reqDate').value         = t.reqDate        || '';
+    _el('tax-r-issueDate').value       = t.issueDate      || '';
+    _el('tax-r-payDue').value          = t.payDue         || '';
+    _el('tax-r-manager').value         = t.manager        || '';
+    _el('tax-r-company').value         = t.company        || '';
+    _el('tax-r-bizName').value         = t.bizName        || '';
+    _el('tax-r-content').value         = t.content        || '';
+    _el('tax-r-supplyAmt').value       = t.supplyAmt      || '';
+    _el('tax-r-vatAmt').value          = t.vatAmt         || '';
+    _el('tax-r-contactEmail').value    = t.contactEmail   || '';
+    _el('tax-r-memo').value            = t.memo           || '';
   }
   openModal('modalTaxReg');
 }
@@ -7443,23 +7461,29 @@ function saveTaxReg() {
   const isNew  = !editId;
   const newId  = isNew ? _taxNextId() : parseInt(editId);
   const existingT = isNew ? null : TAX_DATA.find(x => x.id === newId);
+  const year = _v('tax-r-year');
+  const mon  = _v('tax-r-mon');
+  const month = (year && mon) ? `${year}년${mon}월` : '';
   const t = {
     id:           newId,
     groupId:      existingT ? _taxGroupId(existingT) : newId,
     campaignId:   _v('tax-edit-campaignId') || null,
     createdBy:    existingT?.createdBy || currentUser?.name || '',
+    taxType:      _v('tax-r-taxType') || 'adv',
     manager:      _v('tax-r-manager'),
-    month:        _v('tax-r-month'),
+    month,
+    reqDate:      _v('tax-r-reqDate'),
     issueDate:    _v('tax-r-issueDate'),
-    taxStatus:    document.getElementById('tax-r-taxStatus')?.checked ? '완료' : '',
+    taxStatus:    existingT?.taxStatus || '',
     payDue:       _v('tax-r-payDue'),
-    paid:         document.getElementById('tax-r-paid')?.checked ? '완료' : '',
+    paid:         existingT?.paid || false,
     company:      _v('tax-r-company'),
     content:      _v('tax-r-content'),
     bizName:      _v('tax-r-bizName'),
     supplyAmt:    _n('tax-r-supplyAmt'),
     vatAmt:       _n('tax-r-vatAmt'),
-    contactEmail: _v('tax-r-contactEmail')
+    contactEmail: _v('tax-r-contactEmail'),
+    memo:         _v('tax-r-memo')
   };
   if (isNew) {
     TAX_DATA.push(t);
@@ -8100,6 +8124,13 @@ function _populateSalesSelects() {
     el.innerHTML = nameOpts;
     if (cur) el.value = cur;
   });
+  // 세금계산서 수동등록 담당자 (빈 옵션 포함)
+  const taxMgr = document.getElementById('tax-r-manager');
+  if (taxMgr) {
+    const cur = taxMgr.value;
+    taxMgr.innerHTML = '<option value="">담당자 선택</option>' + nameOpts;
+    if (cur) taxMgr.value = cur;
+  }
   // 필터용 (빈 옵션 포함)
   const fMgr = document.getElementById('fMgr');
   if (fMgr) {

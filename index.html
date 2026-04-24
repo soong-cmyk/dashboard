@@ -2062,38 +2062,62 @@
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
         <input type="hidden" id="tax-edit-id">
         <input type="hidden" id="tax-edit-campaignId">
+        <!-- 행 1: 발행구분 / 월별 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div style="display:flex;flex-direction:column;gap:4px;">
-            <label class="form-label">담당자</label>
-            <input class="form-input" id="tax-r-manager" placeholder="담당자명">
+            <label class="form-label">발행구분</label>
+            <select class="form-sel" id="tax-r-taxType">
+              <option value="adv">광고주</option>
+              <option value="media">매체</option>
+            </select>
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;">
             <label class="form-label">월별</label>
-            <input class="form-input" id="tax-r-month" placeholder="예: 2026년3월">
+            <div style="display:flex;gap:6px;">
+              <select class="form-sel" id="tax-r-year" style="flex:1;"></select>
+              <select class="form-sel" id="tax-r-mon" style="width:80px;">
+                <option value="1">1월</option><option value="2">2월</option><option value="3">3월</option>
+                <option value="4">4월</option><option value="5">5월</option><option value="6">6월</option>
+                <option value="7">7월</option><option value="8">8월</option><option value="9">9월</option>
+                <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <!-- 행 2: 발행요청일 / 발행일자 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label class="form-label">발행요청일</label>
+            <input class="form-input" type="date" id="tax-r-reqDate">
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;">
             <label class="form-label">발행일자</label>
             <input class="form-input" type="date" id="tax-r-issueDate">
           </div>
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            <label class="form-label">세발</label>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;">
-              <input type="checkbox" id="tax-r-taxStatus" style="width:16px;height:16px;">
-              <span style="font-size:13px;color:var(--text2);">완료</span>
-            </label>
-          </div>
+        </div>
+        <!-- 행 3: 입금예정일 / 담당자 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div style="display:flex;flex-direction:column;gap:4px;">
             <label class="form-label">입금예정일</label>
             <input class="form-input" type="date" id="tax-r-payDue">
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;">
-            <label class="form-label">업체명</label>
-            <input class="form-input" id="tax-r-company" placeholder="업체명">
+            <label class="form-label">담당자</label>
+            <select class="form-sel" id="tax-r-manager">
+              <option value="">담당자 선택</option>
+            </select>
           </div>
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            <label class="form-label">상호명</label>
+        </div>
+        <!-- 행 4: 업체명 / 상호명 한 줄 -->
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <label class="form-label">업체명 / 상호명</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <input class="form-input" id="tax-r-company" placeholder="업체명">
             <input class="form-input" id="tax-r-bizName" placeholder="법인 상호명">
           </div>
+        </div>
+        <!-- 행 5: 공급가액 / 부가세포함 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div style="display:flex;flex-direction:column;gap:4px;">
             <label class="form-label">공급가액</label>
             <input class="form-input" type="number" id="tax-r-supplyAmt" placeholder="0" oninput="taxUpdateVat()">
@@ -2102,21 +2126,21 @@
             <label class="form-label">부가세포함 <span style="font-size:11px;color:var(--text3);">(자동계산)</span></label>
             <input class="form-input" type="number" id="tax-r-vatAmt" placeholder="0">
           </div>
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            <label class="form-label">입금</label>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;">
-              <input type="checkbox" id="tax-r-paid" style="width:16px;height:16px;">
-              <span style="font-size:13px;color:var(--text2);">완료</span>
-            </label>
-          </div>
         </div>
+        <!-- 내용 -->
         <div style="display:flex;flex-direction:column;gap:4px;">
           <label class="form-label">내용 <span style="font-size:11px;color:var(--text3);">집행월_광고주명_매체명_광고형태</span></label>
           <input class="form-input" id="tax-r-content" placeholder="예: 3월 LMS 광고비_SKT 1차">
         </div>
+        <!-- 담당자 메일 -->
         <div style="display:flex;flex-direction:column;gap:4px;">
-          <label class="form-label">담당자 메일</label>
+          <label class="form-label">담당자 이름/이메일</label>
           <input class="form-input" id="tax-r-contactEmail" placeholder="예: 홍길동대리 hong@example.com">
+        </div>
+        <!-- 메모 -->
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <label class="form-label">메모</label>
+          <input class="form-input" id="tax-r-memo" placeholder="메모">
         </div>
       </div>
       <div class="modal-foot">
