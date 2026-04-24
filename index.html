@@ -554,7 +554,7 @@
               <div class="card-body">
                 <div class="input-status" id="perfStatus">
                   <div class="ist-item">
-                    <div class="s-dot dot-pend"></div><span class="s-lbl">실발송수량</span><span
+                    <div class="s-dot dot-pend"></div><span class="s-lbl" id="perfActualLbl">실발송수량</span><span
                       class="s-val f-pending">미입력</span>
                   </div>
                   <div class="ist-item">
@@ -665,10 +665,11 @@
                 <span class="f-label" style="margin-left:12px;">서비스수량</span><span class="f-val f-mono"
                   id="dSvc">—</span>
               </div>
-              <div class="field"><span class="f-label">실발송수량</span><span class="f-val f-pending" id="dActual">— 2차 입력
+              <div class="field" id="dFieldActual"><span class="f-label" id="dActualLbl">실발송수량</span><span class="f-val f-pending" id="dActual">— 2차 입력
                   대기</span></div>
               <div class="field"><span class="f-label">정산수량</span><span class="f-val f-pending" id="dBill">—</span>
               </div>
+              <div class="field" id="dCpaBillBaseField" style="display:none;"><span class="f-label">정산기준</span><span class="f-val" id="dCpaBillBase">—</span></div>
               <div class="field" id="dCpaFeeYnField" style="display:none;"><span class="f-label">대행수수료</span><span class="f-val" id="dCpaFeeYn">—</span></div>
               <div style="flex:1;min-height:14px;"></div>
               <div class="amount-flow">
@@ -980,8 +981,9 @@
             <div class="card-head"><span class="card-icon">📊</span><span class="card-title">수량 / 단가 (CPA)</span></div>
             <div class="card-body">
               <div class="form-grid">
-                <div class="fg"><label class="form-label">정산수량 <span class="req">*</span></label>
-                  <input type="number" class="form-input" id="e_cpa_qty" placeholder="0" oninput="calcCPAEdit()">
+                <div class="fg"><label class="form-label">정산수량 (DB등록수)</label>
+                  <input type="number" class="form-input auto" id="e_cpa_qty" readonly placeholder="성과입력 후 자동반영">
+                  <span class="form-hint">성과입력 시 DB등록수와 자동 동기화</span>
                 </div>
                 <div class="fg"><label class="form-label">정산기준</label>
                   <select class="form-sel" id="e_cpa_billbase">
@@ -1012,6 +1014,10 @@
                 <div class="fg"><label class="form-label">매입단가 (원)</label>
                   <input type="number" class="form-input auto" id="e_cpa_buyUnit" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPAEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPAEdit();}">
                   <span class="form-hint">정산단가 × (1 − 수수료율) (직접 입력 시 고정)</span>
+                </div>
+                <div class="fg"><label class="form-label">매입액 (원)</label>
+                  <input type="number" class="form-input auto" id="e_cpa_buyAmt" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPAEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPAEdit();}">
+                  <span class="form-hint">매입단가 × 정산수량 (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">매출수익</label>
                   <input type="number" class="form-input auto" id="e_cpa_rev" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPAEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPAEdit();}">
@@ -2396,9 +2402,6 @@
             </div>
             <!-- CPA 전용 -->
             <div id="r_qty_cpa" style="display:none;" class="form-grid">
-              <div class="fg"><label class="form-label">정산수량</label>
-                <input type="number" class="form-input" id="r_cpa_qty" placeholder="0" oninput="calcCPA()">
-              </div>
               <div class="fg"><label class="form-label">정산기준</label>
                 <select class="form-sel" id="r_cpa_billbase">
                   <option value="신청수">신청수</option>
@@ -2416,8 +2419,8 @@
                 </select>
               </div>
               <div class="fg"><label class="form-label">광고비</label>
-                <input class="form-input auto" id="r_cpa_adcost" readonly placeholder="자동계산">
-                <span class="form-hint">정산수량 × 정산단가</span>
+                <input type="number" class="form-input auto" id="r_cpa_adcost" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPA()" onblur="if(!this.value){delete this.dataset.manual;calcCPA();}">
+                <span class="form-hint">DB등록수 × 정산단가 (직접 입력 시 고정)</span>
               </div>
               <div class="fg"><label class="form-label">실청구</label>
                 <input class="form-input auto" id="r_cpa_bill" readonly placeholder="자동계산">
@@ -2426,19 +2429,23 @@
                 <input type="number" class="form-input" id="r_cpa_comm" placeholder="0" oninput="calcCPA()">
               </div>
               <div class="fg"><label class="form-label">매입단가 (원)</label>
-                <input class="form-input auto" id="r_cpa_buyUnit" readonly placeholder="자동계산">
-                <span class="form-hint">정산단가 × (1 − 수수료율)</span>
+                <input type="number" class="form-input auto" id="r_cpa_buyUnit" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPA()" onblur="if(!this.value){delete this.dataset.manual;calcCPA();}">
+                <span class="form-hint">정산단가 × (1 − 수수료율) (직접 입력 시 고정)</span>
+              </div>
+              <div class="fg"><label class="form-label">매입액 (원)</label>
+                <input type="number" class="form-input auto" id="r_cpa_buyAmt" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPA()" onblur="if(!this.value){delete this.dataset.manual;calcCPA();}">
+                <span class="form-hint">매입단가 × DB등록수 (직접 입력 시 고정)</span>
               </div>
               <div class="fg"><label class="form-label">매출수익</label>
-                <input class="form-input auto" id="r_cpa_rev" readonly placeholder="자동계산">
-                <span class="form-hint">광고비 × 수수료율</span>
+                <input type="number" class="form-input auto" id="r_cpa_rev" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPA()" onblur="if(!this.value){delete this.dataset.manual;calcCPA();}">
+                <span class="form-hint">광고비 × 수수료율 (직접 입력 시 고정)</span>
               </div>
               <div class="fg"><label class="form-label">대행 (%)</label>
                 <input type="number" class="form-input" id="r_cpa_agrate" placeholder="0" oninput="calcCPA()">
               </div>
               <div class="fg full"><label class="form-label">이익</label>
-                <input class="form-input auto" id="r_cpa_profit" readonly placeholder="자동계산">
-                <span class="form-hint">매출수익 − 대행료</span>
+                <input type="number" class="form-input auto" id="r_cpa_profit" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPA()" onblur="if(!this.value){delete this.dataset.manual;calcCPA();}">
+                <span class="form-hint">매출수익 − 대행료 (직접 입력 시 고정)</span>
               </div>
             </div>
             <!-- 일반 상품 -->
@@ -2722,7 +2729,7 @@
       <div class="modal-body">
         <!-- 일반 캠페인 -->
         <div id="perf-normal" class="form-grid" style="grid-template-columns:1fr 1fr;">
-          <div class="fg full"><label class="form-label">실발송수량</label><input type="number" class="form-input"
+          <div class="fg full"><label class="form-label" id="p_actualLbl">실발송수량</label><input type="number" class="form-input"
               id="p_actual" placeholder="0" oninput="calcCTR(); calcDBR()"></div>
           <div class="fg"><label class="form-label">클릭수</label><input type="number" class="form-input" id="p_click"
               placeholder="0" oninput="calcCTR()"></div>
@@ -3522,8 +3529,8 @@
       <button class="drp-preset" data-preset="lastweek">지난 주</button>
       <button class="drp-preset" data-preset="last7">최근 7일</button>
       <div style="height:1px;background:var(--border);margin:4px 0;"></div>
-      <button class="drp-preset" data-preset="thismonth">이번 달</button>
       <button class="drp-preset" data-preset="lastmonth">지난 달</button>
+      <button class="drp-preset" data-preset="thismonth">이번 달</button>
       <button class="drp-preset" data-preset="nextmonth">다음 달</button>
       <button class="drp-preset" data-preset="last30">최근 30일</button>
       <div style="height:1px;background:var(--border);margin:4px 0;"></div>
