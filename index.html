@@ -2156,11 +2156,18 @@
             <input class="form-input" id="tax-gen-fSearch" placeholder="캠페인명/ID 검색" oninput="taxGenRenderList()" style="width:160px;">
             <span id="tax-gen-count" style="font-size:12px;color:var(--text3);margin-left:4px;"></span>
           </div>
-          <!-- 전체선택 + 실시간 합계 -->
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-              <input type="checkbox" id="tax-gen-chk-all" onchange="taxGenToggleAll(this)"> 전체 선택
-            </label>
+          <!-- 전체선택 + 일괄설정 + 실시간 합계 -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                <input type="checkbox" id="tax-gen-chk-all" onchange="taxGenToggleAll(this)"> 전체 선택
+              </label>
+              <div style="display:flex;align-items:center;gap:6px;padding-left:12px;border-left:1px solid var(--border);">
+                <span style="font-size:11px;color:var(--text3);white-space:nowrap;">일괄 설정</span>
+                <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 10px;" onclick="taxGenBulkType('adv')">광고주</button>
+                <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 10px;" onclick="taxGenBulkType('media')">매체</button>
+              </div>
+            </div>
             <span id="tax-gen-total" style="font-size:12px;color:var(--text2);padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;">선택 합계 <b>0</b>원</span>
           </div>
         </div>

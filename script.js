@@ -7582,6 +7582,17 @@ function taxGenToggleAll(chk) {
   });
 }
 
+// 체크된 행에 발행구분 일괄 적용
+function taxGenBulkType(type) {
+  document.querySelectorAll('.tax-gen-chk:checked').forEach(chk => {
+    const sel = chk.closest('tr')?.querySelector('.tax-gen-type');
+    if (!sel || sel.disabled) return;
+    // 해당 옵션이 존재하는 경우에만 적용
+    if ([...sel.options].some(o => o.value === type)) sel.value = type;
+  });
+  taxGenUpdateTotal();
+}
+
 function taxGenUpdateTotal() {
   let total = 0;
   document.querySelectorAll('.tax-gen-chk:checked').forEach(chk => {
