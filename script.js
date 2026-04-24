@@ -3713,6 +3713,13 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // ESC로 모든 모달 닫기 (배경 클릭으로는 닫히지 않음)
 document.addEventListener('keydown', e => {
+  // 라이트박스가 열려있으면 방향키 / ESC 처리
+  const lb = document.getElementById('modalLightbox');
+  if (lb && lb.style.display === 'flex') {
+    if (e.key === 'ArrowRight') { lightboxNav(1);  return; }
+    if (e.key === 'ArrowLeft')  { lightboxNav(-1); return; }
+    if (e.key === 'Escape')     { closeLightbox(); return; }
+  }
   if (e.key !== 'Escape') return;
   // 캠페인 수정 화면이 활성 중이면 ESC 무시
   if (document.getElementById('screen-edit')?.classList.contains('active')) return;
@@ -4301,10 +4308,45 @@ function _renderInvInImgList() {
   if (!list) return;
   list.innerHTML = _invoiceInPendingImgs.map((src, i) => `
     <div style="position:relative;display:inline-block;">
-      <img src="${src}" style="width:90px;height:72px;object-fit:cover;border-radius:5px;border:1px solid var(--border);">
+      <img src="${src}" onclick="openLightbox(${i})" style="width:90px;height:72px;object-fit:cover;border-radius:5px;border:1px solid var(--border);cursor:zoom-in;">
       <button onclick="invInRemoveImg(${i})" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#e53;color:#fff;border:none;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;">✕</button>
     </div>`).join('');
   if (st) st.textContent = _invoiceInPendingImgs.length ? `✓ ${_invoiceInPendingImgs.length}장 첨부됨` : '';
+}
+
+// ── 이미지 라이트박스 ──
+let _lbImgs = [];
+let _lbIdx  = 0;
+
+function openLightbox(idx) {
+  _lbImgs = [..._invoiceInPendingImgs];
+  _lbIdx  = idx;
+  _lbRender();
+  const el = document.getElementById('modalLightbox');
+  if (el) { el.style.display = 'flex'; }
+}
+
+function closeLightbox() {
+  const el = document.getElementById('modalLightbox');
+  if (el) el.style.display = 'none';
+  _lbImgs = [];
+}
+
+function lightboxNav(dir) {
+  _lbIdx = (_lbIdx + dir + _lbImgs.length) % _lbImgs.length;
+  _lbRender();
+}
+
+function _lbRender() {
+  const img     = document.getElementById('lb-img');
+  const counter = document.getElementById('lb-counter');
+  const prev    = document.getElementById('lb-prev');
+  const next    = document.getElementById('lb-next');
+  if (img)     img.src = _lbImgs[_lbIdx] || '';
+  if (counter) counter.textContent = _lbImgs.length > 1 ? `${_lbIdx + 1} / ${_lbImgs.length}` : '';
+  const multi = _lbImgs.length > 1;
+  if (prev) prev.style.display = multi ? 'flex' : 'none';
+  if (next) next.style.display = multi ? 'flex' : 'none';
 }
 
 /** 이미지 삭제 */
