@@ -3407,9 +3407,12 @@
           <div id="invInPasteStatus" style="font-size:11px;color:var(--text3);margin-top:5px;"></div>
         </div>
       </div>
-      <div class="modal-foot">
+      <div class="modal-foot" style="justify-content:space-between;">
         <button class="btn btn-ghost" onclick="saveInvoiceInChoice('')">초기화</button>
-        <button class="btn btn-primary" onclick="saveInvoiceInChoice(_invoiceInPendingValue)">저장</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="closeModal('modalInvoiceIn')">닫기</button>
+          <button class="btn btn-primary" onclick="saveInvoiceInChoice(_invoiceInPendingValue)">저장</button>
+        </div>
       </div>
     </div>
   </div>
