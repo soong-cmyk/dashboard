@@ -8537,12 +8537,27 @@ function effRender() {
     document.getElementById('drp-cal-title-r').textContent = ry+'년 '+(rm+1)+'월';
     document.getElementById('drp-cal-l').innerHTML = _buildCal(ly, lm);
     document.getElementById('drp-cal-r').innerHTML = _buildCal(ry, rm);
-    document.querySelectorAll('.drp-day:not(.empty)').forEach(function(el) {
-      el.addEventListener('mouseenter', function() {
-        if (DRP.start && !DRP.end) { DRP.hover = _parse(el.dataset.date); _renderCals(); }
-      });
-    });
   }
+
+  // 이벤트 위임: popup 컨테이너 하나에 한 번만 등록, 재렌더 후에도 유지됨
+  (function() {
+    const popup = document.getElementById('drp-popup');
+    if (!popup) return;
+    popup.addEventListener('mouseover', function(e) {
+      const day = e.target.closest('.drp-day:not(.empty)');
+      if (!day || !DRP.start || DRP.end) return;
+      const ds = day.dataset.date;
+      if (DRP.hover && _ymd(DRP.hover) === ds) return; // 같은 날 중복 렌더 방지
+      DRP.hover = _parse(ds);
+      _renderCals();
+    });
+    popup.addEventListener('mouseleave', function() {
+      if (DRP.start && !DRP.end && DRP.hover) {
+        DRP.hover = null;
+        _renderCals();
+      }
+    });
+  })();
 
   function _buildCal(y, m) {
     const today = _sod(new Date());
