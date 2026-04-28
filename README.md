@@ -21,20 +21,22 @@ index.html 더블클릭 → 브라우저에서 열기
 
 ```
 dashboard/
-├── index.html   # 전체 화면 마크업 (로그인, 사이드바, 각 화면, 모달)
-├── script.js    # 데이터 초기값 및 모든 기능 로직
-├── style.css    # 전체 스타일
-├── report.js    # 광고주 리포트 전용 로직
-├── report.css   # 광고주 리포트 전용 스타일
+├── index.html            # 전체 화면 마크업 (로그인, 사이드바, 각 화면, 모달)
+├── script.js             # 데이터 초기값 및 모든 기능 로직
+├── style.css             # 전체 스타일
+├── report.js             # 광고주 리포트 전용 로직
+├── report.css            # 광고주 리포트 전용 스타일
+├── manual.html           # 실무자용 사용 설명서
+├── manager_manual.html   # 관리자(대표·이사·본부장)용 사용 설명서
 └── README.md
 ```
 
 ### index.html 구성
 - `<head>`: Firebase SDK(compat v10.12.0) 로드 + 인라인 초기화 스크립트로 `window._db` 설정
 - `#screen-login`: 로그인 화면
-- `#topbar`: 상단 메뉴바 (Firebase 동기화 버튼, 관리자 전용)
-- `#sidebar`: 좌측 네비게이션 (`nav-*` 클래스 항목)
-- `#screen-{name}`: 각 화면 컨테이너 (dashboard / calendar / campaigns / detail / edit / monthly / settlement / media / sellers / users / pipeline / **adreport**)
+- `#topbar`: 상단 메뉴바
+- `#sidebar`: 좌측 네비게이션 (`nav-*` 클래스 항목) + 사용자 정보 + 알림 벨 버튼
+- `#screen-{name}`: 각 화면 컨테이너 (dashboard / calendar / campaigns / detail / edit / monthly / settlement / tax / media / sellers / users / pipeline / adreport)
 - 모달 (`modal*`): 화면 내 팝업 레이어
 
 ### script.js 구성 (블록 순서)
@@ -54,39 +56,27 @@ dashboard/
 14. 매체 관리 함수
 15. 매출처 관리 함수
 16. 정산 함수
-17. 파이프라인 함수
-18. Firebase CRUD 함수 (`_fb*`)
-19. 시작 시 Firebase 로드 호출
-
-### report.js 구성 (광고주 리포트 전용)
-- `initAdReport()` — 화면 초기화, 광고주 콤보 populate, 기간 기본값(이번 달), 체크박스 기본값
-- `_rptPopulateSeller()` — SELLER_DATA 전체를 광고주 드롭다운에 반영 (Firebase 로드 후 재호출)
-- `rptOnSellerChange()` / `rptOnBrandChange()` / `rptOnDateChange()` — 필터 연동 콤보 갱신
-- `generateReport()` — 선택된 필터로 리포트 렌더링 오케스트레이션
-- `_rptFilterCampaigns()` — seller + brand + 기간으로 캠페인 필터 (매체 무관)
-- `_rptCalcKPI()` — 발송건수·수량·클릭수·CTR(가중평균)·DB·광고비·CPM 계산
-- `_rptRenderHeader()` / `_rptRenderKPI()` / `_rptRenderMoM()` — 헤더·KPI카드·전월대비 렌더
-- `_rptRenderBenchmark()` — 카테고리별 CTR 퍼센타일 벤치마크
-- `_rptRenderInsight()` — CTR 등급·매체별 분석·규칙 기반 제안 생성
-- `_rptRenderTable()` — 캠페인 목록 테이블
-- `_rptRenderCreatives()` — 소재·타겟 아코디언 (날짜·태그 상시 표시, 발송문구 토글)
-- `rptToggleCost()` / `rptToggleBenchmark()` — 광고비·벤치마크 공개 여부 토글
-- `openReportForCampaign(campaignId)` — 캠페인 상세에서 리포트 화면으로 바로 이동
+17. 세금계산서 함수
+18. 파이프라인 함수
+19. 알림 함수 (`_notifBody`, `_fbSaveNotification`, `_fbWatchNotifications`, `openNotifModal`)
+20. Firebase CRUD 함수 (`_fb*`)
+21. 시작 시 Firebase 실시간 구독 호출
 
 ---
 
 ## 로그인 계정
 
-| 아이디 | 이름 | 본부 | 팀 | 관리자 |
-|--------|------|------|----|--------|
-| `admin` | 관리자 | — | — | ✅ |
-| `younghyun` | 김영현 | 1본부 | 1팀 | — |
-| `seungmi` | 이승미 | 1본부 | 2팀 | — |
-| `yoonhee` | 이윤희 | 1본부 | 3팀 | — |
-| `minho` | 박민호 | 2본부 | 1팀 | — |
+| 아이디 | 이름 | 본부 | 팀 | 직급 | 관리자 |
+|--------|------|------|----|------|--------|
+| `admin` | 관리자 | — | — | — | ✅ |
+| `wonjoon` | 최원준 | — | — | 대표이사 | ✅ |
+| `younghyun` | 김영현 | 1본부 | 1팀 | 일반 | — |
+| `seungmi` | 이승미 | 1본부 | 2팀 | 일반 | — |
+| `yoonhee` | 이윤희 | 1본부 | 3팀 | 일반 | — |
+| `minho` | 박민호 | 2본부 | 1팀 | 일반 | — |
 
 > 초기 비밀번호: 모든 계정 `1234`
-> 세션은 `sessionStorage`의 `cu` 키에 `{id}` 형태로 저장됩니다.
+> 세션은 `localStorage`의 `cu` 키에 사용자 객체로 저장됩니다.
 
 ---
 
@@ -116,19 +106,22 @@ dashboard/
 | `sellers` | `s.company` (슬래시→언더스코어) | 매출처(광고주/대행사) |
 | `media` | `m.company` (슬래시→언더스코어) | 매체사 |
 | `users` | `u.id` (로그인 아이디) | 사용자 계정 |
-| `tax` | `t.id` (숫자) | 세금계산서 발행요청 |
+| `taxInvoices` | `t.id` (숫자) | 세금계산서 발행요청 |
+| `notifications` | `notif_[timestamp]_[random]` | 사용자 알림 |
 | `settings/pipeline_targets` | 단일 문서 | 파이프라인 월별 목표 |
+| `invoiceImages` | `campaignId` | 매입계산서 첨부 이미지 |
 
-### 시작 시 로드 순서 (script.js 하단)
+### 시작 시 실시간 구독 순서 (script.js 하단)
 ```
-_fbLoadCampaigns()   → DATA[]
-_fbLoadPipeline()    → PIPELINE_DATA[]
-_fbLoadPipelineTargets() → PIPELINE_BUDGET_DATA
-_fbLoadSellers()     → SELLER_DATA[]
-_fbLoadMedia()       → MEDIA_DATA[]
-_fbLoadUsers()       → USERS[]
+_fbWatchCampaigns()         → DATA[]           (onSnapshot)
+_fbWatchPipeline()          → PIPELINE_DATA[]  (onSnapshot)
+_fbLoadPipelineTargets()    → PIPELINE_BUDGET_DATA
+_fbWatchSellers()           → SELLER_DATA[]    (onSnapshot)
+_fbWatchMedia()             → MEDIA_DATA[]     (onSnapshot)
+_fbWatchUsers()             → USERS[]          (onSnapshot)
+_fbWatchTax()               → TAX_DATA[]       (onSnapshot)
+_fbWatchNotifications()     → NOTIFICATIONS[]  (onSnapshot, 로그인 사용자 본인 알림만)
 ```
-> 각 컬렉션이 비어있으면 코드 내 초기 데이터를 Firestore에 업로드합니다.
 
 ---
 
@@ -141,43 +134,93 @@ _fbLoadUsers()       → USERS[]
 | `id` | string | `C-YYYY-NNNN` 형식 |
 | `promo` | string | 광고목적/프로모션 테마 |
 | `regDate` | string | 등록일시 (`YYYY-MM-DD HH:mm`) |
-| `cat` | string | 카테고리 (분양/교육/뷰티/수송/금융/병의원/기타) |
+| `cat` | string | 카테고리 |
 | `date` | string | 발송 예약일시 |
 | `media` | string | 매체사명 |
-| `product` | string | SMS / MMS / LMS |
+| `product` | string | SMS / MMS / LMS / DA / CPA / 퍼미션콜 |
 | `qty` | number | 발송 예약 수량 |
 | `svc` | number | 서비스 수량 |
 | `actual` | number | 실발송 수량 |
 | `clicks` | number | 클릭수 |
 | `ctr` | number | 클릭률(%) |
 | `db` | number | DB등록수 |
-| `dbr` | number | DB등록률(%) |
 | `status` | string | 부킹확정 / 테스트완료 / 성과입력대기 / 성과입력완료 |
 | `testOk` | boolean | 테스트 수신 확인 여부 |
 | `sent` | boolean | 실발송 확인 여부 |
-| `sales` | string | 영업 담당자 이름 |
 | `ops` | string | 운영 담당자 이름 |
 | `dept` | string | 담당 부서 (`1본부 1팀` 형식) |
 | `seller` | string | 매출처 회사명 |
 | `content` | string | 브랜드명 |
 | `adv` | string | 광고주명 |
-| `agency` | string | 대행사명 |
-| `contract` | string | 광고주 / 대행사 |
 | `sellUnit` | number | 매출 단가 (원/건) |
 | `buyUnit` | number | 매입 단가 (원/건) |
 | `disc` | number | 할인 금액 (원) |
 | `comm` | number | 수수료율(%) |
 | `agrate` | number | 대행수수료율(%) |
-| `target` | string | 타겟 조건 (자유 텍스트) |
-| `msg` | string | 발송 문구 |
+| `target` | string | 타겟 조건 |
+| `msg` | string | 발송 문구 (검수전) |
+| `msgFinal` | string | 발송 문구 (검수완료) |
 | `note` | string | 특기사항 |
-| `invoiceOut` | string | 매출 세금계산서 번호 |
-| `invoiceIn` | string | 매입 세금계산서 번호 |
+| `invoiceOut` | boolean | 매출 세금계산서 발행 여부 |
+| `invoiceIn` | string | 매입 세금계산서 상태 |
 | `payIn` | boolean | 입금 완료 여부 |
-| `payOut` | boolean | 지급 완료 여부 |
 | `regUser` | string | 등록한 사용자 id |
+| `daAdcost` | number | DA 광고비 |
+| `pcAdvUnit` | number | 퍼미션콜 광고주 단가 |
+| `pcOhcCost` | number | 퍼미션콜 OHC 비용 |
+| `pcAgree` | number | 퍼미션콜 동의건수 |
+| `pcInflow` | number | 퍼미션콜 유입수 |
 
 > 캠페인명은 저장 필드 없이 `_cName(c)` 함수로 실시간 계산: **브랜드_매체** 형식
+
+### 세금계산서 (`TAX_DATA` → `taxInvoices`)
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `id` | number | 고유 ID |
+| `groupId` | number | 같은 발행요청 묶음 ID (`T-XXX` 표시 기준) |
+| `taxType` | string | `adv`(광고주) / `media`(매체) |
+| `company` | string | 발행 대상 업체명 |
+| `bizName` | string | 법인 상호명 |
+| `campaignId` | string | 연결된 캠페인 ID |
+| `month` | string | 발송월 (`YYYY년M월`) |
+| `content` | string | 세금계산서 내용 |
+| `supplyAmt` | number | 공급가액 |
+| `vatAmt` | number | 부가세포함 금액 |
+| `reqDate` | string | 발행요청일 (`YYYY-MM-DD`) |
+| `issueDate` | string | 발행일 |
+| `payDue` | string | 입금예정일 |
+| `taxStatus` | string | `''`(미발행) / `완료`(발행완료) |
+| `paid` | string | `''`(미처리) / `완료`(입금완료) |
+| `unpaid` | number | 미수 금액 |
+| `contactEmail` | string | 담당자 이름/이메일 |
+| `memo` | string | 메모 |
+| `createdBy` | string | 등록자 이름 |
+| `manager` | string | 담당자 이름 |
+
+> 그룹번호: `_taxGroupLabel(gid)` → `T-001` 형식으로 카드에 표시
+
+### 알림 (`NOTIFICATIONS` → `notifications`)
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `id` | string | `notif_[timestamp]_[random]` |
+| `toUserId` | string | 수신자 user ID |
+| `fromUserName` | string | 발생시킨 사람 이름 |
+| `type` | string | `tax_issue` / `tax_issue_cancel` / `tax_payment` / `tax_payment_cancel` / `tax_new` |
+| `body` | string | 알림 본문 텍스트 |
+| `createdAt` | string | ISO 8601 생성일시 |
+| `read` | boolean | 읽음 여부 |
+
+**알림 발생 조건:**
+
+| 타입 | 트리거 | 수신자 |
+|------|--------|--------|
+| `tax_issue` | 세금계산서 세발 완료 처리 | 요청 담당자 |
+| `tax_issue_cancel` | 세발 완료 취소 | 요청 담당자 |
+| `tax_payment` | 입금 완료 처리 | 요청 담당자 |
+| `tax_payment_cancel` | 입금 완료 취소 | 요청 담당자 |
+| `tax_new` | 세금계산서 신규 등록 | `wonjoon` 고정 |
 
 ### 파이프라인 (`PIPELINE_DATA` → `pipeline`)
 
@@ -192,12 +235,11 @@ _fbLoadUsers()       → USERS[]
 | `seller` | string | 매출처 회사명 |
 | `brand` | string | 브랜드명 |
 | `media` | string | 예상 매체 |
-| `product` | string | SMS / MMS / LMS |
+| `product` | string | SMS / MMS / LMS 등 |
 | `estQty` | number | 예상 수량 |
-| `estAmt` | number | 예상 금액 (직접 입력 시; 없으면 qty×단가 자동 계산) |
+| `estAmt` | number | 예상 금액 (직접 입력 시) |
 | `memo` | string | 메모 |
-| `tags` | string[] | 태그 목록 (업셀링/신규/재계약 등) |
-| `linkedCampaignId` | string | 업셀링 연결 캠페인 ID |
+| `tags` | string[] | 태그 목록 |
 | `archived` | boolean | 아카이브 여부 |
 | `convertedCampaignId` | string | 전환된 캠페인 ID |
 | `createdAt` | string | 생성일시 |
@@ -207,7 +249,8 @@ _fbLoadUsers()       → USERS[]
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `company` | string | 회사명 (문서 키) |
-| `type` | string | 광고주 / 대행사 |
+| `type` | string | 광고주 / 대행사 / 랩사 |
+| `agrate` | number | 대행료율% (대행사·랩사) |
 | `brands` | object[] | `[{name, cat}]` — 하위 브랜드 목록 |
 
 ### 매체사 (`MEDIA_DATA` → `media`)
@@ -216,10 +259,10 @@ _fbLoadUsers()       → USERS[]
 |------|------|------|
 | `company` | string | 매체사명 (문서 키) |
 | `unit` | number | 기본 단가 (원/건) |
-| `comm` | number | 수수료율(%) |
+| `active` | boolean | 활성 여부 |
 | `contact` | string | 담당자 |
-| `phone` | string | 연락처 |
-| `email` | string | 이메일 |
+| `tel` | string | 연락처 |
+| `payDay` | string | 지급일 (선입금 여부 포함) |
 
 ### 사용자 (`USERS` → `users`)
 
@@ -230,43 +273,9 @@ _fbLoadUsers()       → USERS[]
 | `name` | string | 이름 |
 | `bonbu` | string | 본부 |
 | `dept` | string | 팀 |
+| `rank` | string | 일반 / 본부장 / 이사 / 대표이사 |
 | `isAdmin` | boolean | 관리자 여부 |
-| `perms` | object | `{sales: bool, ops: bool}` |
-
-### 세금계산서 (`TAX_DATA` → `tax`)
-
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `id` | number | 고유 ID |
-| `groupId` | number | 같은 발행요청 묶음 ID |
-| `taxType` | string | `adv`(광고주) / `media`(매체) |
-| `company` | string | 발행 대상 업체명 |
-| `campaignId` | string | 연결된 캠페인 ID |
-| `month` | string | 발송월 (`YYYY년M월`) |
-| `content` | string | 상품명 |
-| `supplyAmt` | number | 공급가액 |
-| `reqDate` | string | 발행요청일 (`YYYY-MM-DD`) |
-| `issueDate` | string | 발행일 |
-| `payDue` | string | 입금예정일 |
-| `taxStatus` | string | `''`(미발행) / `완료`(발행완료) |
-| `paid` | boolean | 입금 완료 여부 |
-| `contactEmail` | string | 담당자 이름/이메일 |
-| `memo` | string | 메모 |
-| `createdBy` | string | 등록자 이름 |
-| `createdAt` | string | 등록일시 |
-
-### 수정 이력 (`history`)
-
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `id` | string | 타임스탬프 기반 고유 ID |
-| `campaignId` | string | 연결된 캠페인 ID |
-| `when` | string | 수정일시 (`YYYY-MM-DD HH:mm`) |
-| `who` | string | 수정자 이름 |
-| `type` | string | `edit` / `test` / `send` / `2nd` / `del` |
-| `field` | string | 변경된 필드명 |
-| `before` | string | 변경 전 값 |
-| `after` | string | 변경 후 값 |
+| `perms` | object | `{ops: bool}` |
 
 ---
 
@@ -276,12 +285,12 @@ _fbLoadUsers()       → USERS[]
 부킹확정 → 테스트완료 → 성과입력대기 → 성과입력완료
 ```
 
-| 단계 | 설명 | 관련 함수 |
-|------|------|-----------|
-| 부킹확정 | 캠페인 등록, 수량/금액 입력 | `submitReg()` |
-| 테스트완료 | 테스트 수신 확인 | `confirmTest()`, `detailClickTest()` |
-| 성과입력대기 | 실발송 수량 입력, 발송 확인 | `confirmSend()`, `detailClickSend()` |
-| 성과입력완료 | 클릭수·클릭률·DB등록수 집계 | `submit2nd()` |
+| 단계 | 설명 |
+|------|------|
+| 부킹확정 | 캠페인 등록, 수량/금액 입력 |
+| 테스트완료 | 테스트 수신 확인 |
+| 성과입력대기 | 발송 완료 후 성과 입력 대기 (DA·CPA) |
+| 성과입력완료 | 성과 확정 → 정산 집계 대상 |
 
 ---
 
@@ -291,117 +300,57 @@ _fbLoadUsers()       → USERS[]
 MAKEUP → POTENTIAL → COMMITMENT → ACTUAL
 ```
 
-| 단계 | 설명 |
-|------|------|
-| MAKEUP | 초기 접촉·제안 |
-| POTENTIAL | 가능성 있는 딜 |
-| COMMITMENT | 확정 예정 |
-| ACTUAL | 실제 확정 → 캠페인 전환 가능 |
-
 > ACTUAL 단계에서 `convertToCampaign(id)` 호출 시 캠페인 등록 폼이 자동 채워집니다.
-> 전환 완료 후 파이프라인 카드는 `archived=true`, `convertedCampaignId` 기록됩니다.
 
 ---
 
 ## 화면별 기능
 
 ### 대시보드 (`renderDashboard`)
-- 올해 진행 캠페인 수 / 이번 달 예정 캠페인 수 / 실발송 합계 통계 카드
-- 파이프라인 총 건수 / 예상 파이프라인 매출 / 확정예정(COMMITMENT+ACTUAL) 건수
-- 나의 캠페인 / 브레인큐브 전체 단계별 현황 (`renderDashboard`)
+- 이번 달 캠페인 수 / 성과입력완료 수 / 총 매출액·이익 통계 카드 (월 필터)
+- 나의 캠페인 / 전체 단계별 현황
 
 ### 캘린더 (`renderCalendar`)
-- 월 / 주 / 일 뷰 전환 (`setCalView`)
-- 카테고리·매체사·광고주·담당자 필터 (`_populateCalFilters`)
-- 일정 클릭 시 캠페인 기본정보 팝업 (`openCalPreview`)
+- 월 / 주 / 일 뷰 전환, 카테고리·담당자 필터
+- 날짜 클릭 시 해당 날짜로 캠페인 등록 폼 바로 열기
 
 ### 캠페인 목록 (`renderTable`)
-- 카테고리·상품·매체사·담당자·조회기간 등 다중 필터 (`applyFilter`)
-- 기본 조회기간: 현재 월 1일~말일
-- 엑셀 다운로드 (`downloadCampaignsExcel`, SheetJS 사용)
-- 캠페인 신규 등록 모달 (`openRegModal`, `submitReg`)
+- 다중 필터 (카테고리·상품·매체사·담당자·본부/팀·날짜범위·단계·검색어)
+- 엑셀 다운로드 — 현재 필터 기준 (SheetJS)
 
 ### 캠페인 상세 (`openDetail`)
-- 기본정보 / 수량·금액 / 성과 조회 (2열 레이아웃)
-- 타겟 조건·발송 문구·특기사항 수정 (`openEditTarget`, `openEditNote`)
-- 테스트 수신 확인 / 발송 최종 확인 (`detailClickTest`, `detailClickSend`)
-- 성과 입력/수정 (`open2ndModal`, `submit2nd`)
-  - 정산수량 = 실발송수량 − 서비스수량
-  - 클릭률 = 클릭수 ÷ 실발송수량 × 100
-  - DB등록률 = DB등록수 ÷ 실발송수량 × 100
-- 수정 이력 조회 (`openHistory`) — Firebase에서 로드, 날짜→시간+담당자 2단계 그룹핑
-- 캠페인 삭제 (`confirmDel`)
-- **[📄 리포트] 버튼** — `openReportForCampaign(id)` 호출, 광고주 리포트 화면으로 바로 이동
-- detail-top 영역: 스크롤 시 상단 고정 (sticky)
-
-### 광고주 리포트 (`initAdReport`, `generateReport`)
-- 광고주·브랜드·기간 필터로 복수 캠페인 묶음 또는 단건 리포트 생성
-- **A. 헤더**: 광고주명·기간·생성일시
-- **B. KPI 카드**: 총 발송건수·발송수량·클릭수·CTR·DB수·광고비·CPM
-- **C. 전월 대비**: 단일 월→달력 직전 달, 복수 기간→직전 동일 일수 자동 비교
-- **D. 캠페인 목록**: 매체·수량·클릭수·CTR·DB·광고비 컬럼 테이블
-- **E. 소재 & 타겟**: 날짜·캠페인명·매체·타겟태그 상시 표시 / 발송문구 토글(기본 접힘)
-- **F. 카테고리 벤치마크**: 동일 카테고리 캠페인 대비 CTR 퍼센타일 위치
-- **G. 인사이트 & 제안**: CTR 등급·매체별 효율 분석·다음 캠페인 제안 자동 생성
-- 공개 여부 체크박스 2개 (화면+PDF 동시 제어)
-  - **광고비 공개** (기본 체크): 언체크 시 광고비·CPM 컬럼 숨김
-  - **카테고리 벤치마크 공개** (기본 체크): 언체크 시 벤치마크 섹션 전체 숨김
-- **PDF 출력**: `window.print()` + `@media print` — 사이드바·필터·액션바 자동 숨김
-
-### 캠페인 수정 (`openEdit`, `submitEdit`)
-- 모든 필드 수정 가능 (관리자 또는 담당자)
-- 변경된 필드만 이력 기록 (`_log`)
-- 수정 중 topbar 숨김, detail-top 상단 고정
-
-### 영업 파이프라인 (`renderPipeline`, `renderPipelineStats`)
-- **칸반 탭**: 4단계 컬럼, 카드별 예상금액·태그 표시
-  - 예상금액: `estAmt` 직접 입력 우선, 없으면 `estQty × 매체 기본단가`
-  - 아카이브 토글 (`togglePipelineArchive`)
-  - 카드 등록/수정/아카이브 (`openPipelineModal`, `savePipelineCard`, `archivePipelineCard`)
-  - ACTUAL 카드: [캠페인 전환] 버튼 (`convertToCampaign`)
-- **통계 탭**: 본부/팀별 월별 목표·현황·달성률 표
-  - 목표 셀 수정: 관리자만 가능, blur/Enter 시 자동 저장 (`editPipelineCell`)
-  - 현황 집계: `_pipelineEstAmt()` 기준
-
-### 월별 발송량 (`renderMonthly`)
-- 매체사별 / 광고주별 / 대행사별 / 캠페인별 탭
-- 연도·월·카테고리·매체사 필터
-- 총 매출액·매입액·매출이익 집계
-- 엑셀 다운로드
+- 기본정보 / 수량·금액 / 성과 / 타겟&문구 / 특기사항
+- 발송문구: 검수전 / 검수완료 탭 구분. DA·CPA·퍼미션콜은 미표시
+- 성과 입력, 수정 이력 조회, 복사 등록
 
 ### 정산 (`renderSettlement`)
-- 캠페인·매체·광고주·대행사별 뷰 전환
-- 매출액 / 매입액 / 대행수수료 / 매출이익 자동 계산 (`_stlAmt`)
-- 상단 카드: 총 매출액·매입액·매출이익 합산, **이익율(%)** = 매출이익 ÷ 매출액 × 100
-- 입금·지급 상태 토글 (`toggleSettlePay`)
+- 보기: 매출처별 / 매체사별 / 캠페인별 / 퍼미션콜
+- 필터: 연/월, 성과입력완료만·전체, 상품·카테고리·매체사·매출처·담당자·본부/팀·검색어
+- 엑셀 다운로드: 정산내역(ExcelJS) / 광고비 지급요청서(매체사별 시트, 퍼미션콜→디앤유+OHC 분리)
 
 ### 세금계산서 (`renderTaxList`)
-- 발행요청 카드 목록 (업체명·발행구분별 그룹)
-- **[캠페인에서 가져오기]**: 정산완료 캠페인 중 미발행 항목 불러오기 (2-step 모달)
-  - Step 1: 발송월·상품·담당자 필터, 광고주/매체 발행구분 선택, 공급가액 실시간 합계
-  - Step 2: 발행요청일·발행일·입금예정일·담당자 이메일·메모 입력
-- 발행구분: **광고주(`adv`)** / **매체(`media`)** — 캠페인당 각각 독립 발행 가능
-- 세발(발행 완료) / 입금 상태 토글 → 정산탭 계산서·입금 필드와 동기화 (광고주 타입만)
-- 카드 수정: 수정 버튼 클릭 시 Step 2 모달로 기존 데이터 불러와 편집
-- 메모: 카드 하단 말줄임 표시 + 호버 버블 / 클릭 시 sticky 버블(✕ 닫기)
-- 상단 통계 카드: 전체 건수·미발행 건수·공급가액 합계·부가세포함 합계·미수 합계
+- 그룹번호 `T-XXX` 표시 (groupId 기반)
+- **불러오기**: 정산완료 캠페인 중 미발행 항목 2-step 모달로 등록
+- **수동등록**: 직접 입력
+- 세발(발행완료) / 입금 상태 토글 → 정산탭 동기화
+- 수정·삭제: 관리자 또는 작성자 본인만 표시
+- 세발 체크 권한: `wonjoon`, `yoonhee`, `admin`
+- 입금 체크 권한: `wonjoon`, `admin`
 
-### 매체 관리 (`renderMediaList`)
-- 매체사 목록 조회·검색
-- 단가·수수료·담당자 정보 등록 및 수정 (`saveMedia`)
-- Firebase 실시간 저장 (`_fbSaveMedia`)
+### 알림 (`openNotifModal`)
+- 사이드바 사용자 영역 🔔 벨 버튼 (읽지 않은 수 뱃지)
+- 세금계산서 세발·입금 완료/취소 시 담당자 알림
+- 세금계산서 신규 등록 시 `wonjoon`에게 알림
+- Firestore `onSnapshot` 실시간 수신, 모달 열면 전체 읽음 처리
 
-### 매출처 관리 (`renderSellerList`)
-- 광고주 / 대행사 구분 등록
-- 브랜드(하위 상품) 카테고리별 관리 (`saveSeller`)
-- Firebase 실시간 저장 (`_fbSaveSeller`)
+### 광고주 리포트 (`generateReport`)
+- 광고주·브랜드·기간 필터, KPI카드·전월대비·벤치마크·인사이트·소재 분석
+- PDF 출력 지원
 
-### 사용자 관리 (`_renderUserMgmtList`)
-- 사용자 목록 및 권한(영업·운영) 설정 (`togglePerm`)
-- 본부/팀 소속 수정 (`saveUserEdit`)
-- 비밀번호 초기화 (`confirmResetPw`)
-- 신규 사용자 등록 (`submitUserReg`)
-- 모든 변경사항 Firebase 자동 저장 (`_fbSaveUser`)
+### 사용 설명서
+- `manual.html`: 실무자용 (캠페인 등록·성과입력·세금계산서 요청 등)
+- `manager_manual.html`: 관리자용 (정산 확인·지급요청서·세금계산서 발행 처리 등)
+- 로그인 직급(본부장·이사·대표이사)에 따라 자동으로 해당 설명서 오픈
 
 ---
 
@@ -410,12 +359,10 @@ MAKEUP → POTENTIAL → COMMITMENT → ACTUAL
 | 함수 | 설명 |
 |------|------|
 | `_cName(c)` | 캠페인명 생성: `브랜드_매체` |
-| `_stlAmt(c)` | 정산 금액 계산 (실발송수량 기준) |
-| `_pipelineEstAmt(p)` | 파이프라인 예상금액 (`estAmt` 우선, 없으면 `estQty × 단가`) |
+| `_stlAmt(c)` | 정산 금액 계산 (상품별 분기) |
+| `_taxGroupLabel(gid)` | 세금계산서 그룹번호: `T-001` 형식 |
+| `_notifBody(type, company, content, count, gid)` | 알림 본문 텍스트 생성 |
 | `calcReg()` / `calcEdit()` | 등록/수정 폼 금액 자동 계산 |
-| `calcCTR()` | 클릭률 = 클릭수 ÷ 실발송수량 × 100 |
-| `calcDBR()` | DB등록률 = DB등록수 ÷ 실발송수량 × 100 |
-| `_calcPipeAmt()` | 파이프라인 모달 예상금액 자동 계산 |
 
 ---
 
@@ -423,49 +370,25 @@ MAKEUP → POTENTIAL → COMMITMENT → ACTUAL
 
 | 함수 | 동작 |
 |------|------|
-| `_fbLoadCampaigns()` | campaigns 컬렉션 로드 → `DATA[]` |
-| `_fbSaveCampaign(c)` | 캠페인 1건 저장 |
+| `_fbWatchCampaigns()` | campaigns 실시간 구독 → `DATA[]` |
+| `_fbSaveCampaign(c)` | 캠페인 저장 |
 | `_fbDeleteCampaign(id)` | 캠페인 삭제 |
-| `_fbLoadPipeline()` | pipeline 컬렉션 로드 → `PIPELINE_DATA[]` |
+| `_fbWatchPipeline()` | pipeline 실시간 구독 → `PIPELINE_DATA[]` |
 | `_fbSavePipeline(p)` | 파이프라인 카드 저장 |
-| `_fbDeletePipeline(id)` | 파이프라인 카드 삭제 |
-| `_fbLoadPipelineTargets()` | settings/pipeline_targets 로드 |
-| `_fbSavePipelineTargets()` | settings/pipeline_targets 저장 |
-| `_fbLoadSellers()` | sellers 컬렉션 로드 → `SELLER_DATA[]` |
+| `_fbWatchSellers()` | sellers 실시간 구독 → `SELLER_DATA[]` |
 | `_fbSaveSeller(s)` | 매출처 저장 |
-| `_fbDeleteSeller(company)` | 매출처 삭제 |
-| `_fbLoadMedia()` | media 컬렉션 로드 → `MEDIA_DATA[]` |
+| `_fbWatchMedia()` | media 실시간 구독 → `MEDIA_DATA[]` |
 | `_fbSaveMedia(m)` | 매체사 저장 |
-| `_fbDeleteMedia(company)` | 매체사 삭제 |
-| `_fbLoadUsers()` | users 컬렉션 로드 → `USERS[]` |
+| `_fbWatchUsers()` | users 실시간 구독 → `USERS[]` |
 | `_fbSaveUser(u)` | 사용자 저장 |
+| `_fbWatchTax()` | taxInvoices 실시간 구독 → `TAX_DATA[]` |
+| `_fbSaveTax(t)` | 세금계산서 저장 |
+| `_fbDeleteTax(id)` | 세금계산서 삭제 |
+| `_fbWatchNotifications()` | notifications 실시간 구독 → `NOTIFICATIONS[]` |
+| `_fbSaveNotification(toUserId, type, body)` | 알림 저장 |
 | `_fbSaveHistory(entry)` | 수정 이력 저장 |
 | `_fbLoadHistory(campaignId)` | 특정 캠페인 이력 로드 |
-| `fbSyncAll()` | 전체 수동 동기화 (관리자 전용) |
 
 ---
 
-## 카테고리 색상 (`CAT_COLOR`)
-
-| 카테고리 | 색상 |
-|----------|------|
-| 분양 | `#8fd3a0` |
-| 교육 | `#91c7f5` |
-| 뷰티 | `#fcc2d7` |
-| 수송 | `#ffc078` |
-| 금융 | `#a9e4ef` |
-| 병의원 | `#ff8787` |
-| 기타 | `#d4c5f9` |
-
----
-
-## 향후 개발 예정
-
-- [ ] 서버 인증 (현재 클라이언트 sessionStorage 방식)
-- [ ] 권한별 메뉴 노출 제어
-- [ ] 매체별·대행사별 단가 데이터 정비 (LMS/MMS 수수료 구분)
-- [ ] 타겟 태그 정형화 → 타겟별 효율 통계 분석
-
----
-
-*BRAINCUBE Ad Operation Dashboard — v1.4*
+*BRAINCUBE Ad Operation Dashboard — v2.0*

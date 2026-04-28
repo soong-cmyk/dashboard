@@ -188,6 +188,8 @@ const ORG_STRUCTURE = [
   { bonbu:'3본부', teams:['1팀'] },
 ];
 let currentUser = null;
+let NOTIFICATIONS = [];
+let _notifUnsub = null;
 
 function hasPerm(perm) {
   if (!currentUser) return false;
@@ -234,6 +236,7 @@ async function login() {
   currentUser = user;
   localStorage.setItem('cu', JSON.stringify(user));
   _updateUserUI();
+  _fbWatchNotifications();
   // 로그인 전에 detail URL로 접근했던 경우 복원
   const afterHash = sessionStorage.getItem('_afterLoginHash');
   if (afterHash) {
@@ -252,6 +255,8 @@ async function login() {
   goScreen('dashboard');
 }
 function logout() {
+  if (_notifUnsub) { _notifUnsub(); _notifUnsub = null; }
+  NOTIFICATIONS.length = 0;
   currentUser = null;
   localStorage.removeItem('cu');
   goScreen('login');
@@ -906,6 +911,8 @@ function openDetail(idx, skipPush) {
   targetEl.innerHTML = tags.length ? tags.map(t=>`<span class="tag">${t}</span>`).join('') : '<span style="color:var(--text3);font-size:12px;">—</span>';
   const dtargetEl = document.getElementById('dDtarget');
   if (dtargetEl) { const dtags = (c.dtarget||'').split('\n').map(t=>t.trim()).filter(Boolean); dtargetEl.innerHTML = dtags.length ? dtags.map(t=>`<span class="tag">${t}</span>`).join('') : '<span style="color:var(--text3);font-size:12px;">—</span>'; }
+  const dMsgSection = document.getElementById('dMsgSection');
+  if (dMsgSection) dMsgSection.style.display = isCPADetail ? 'none' : '';
   document.getElementById('dMsg').innerHTML      = _linkify(c.msg || '');
   document.getElementById('dMsgFinal').innerHTML = c.msgFinal ? _linkify(c.msgFinal) : '<span style="color:var(--text3);font-size:12px;">아직 검수완료된 문구가 없습니다.</span>';
   // 탭 초기화 — 항상 검수전 탭으로 시작
@@ -2325,8 +2332,8 @@ function submitReg() {
     seller:   document.getElementById('r_seller').value,
     content:  document.getElementById('r_content').value || document.getElementById('r_content_text').value,
     adv:      document.getElementById('r_seller').value,
-    dept:     currentUser ? currentUser.dept : '영업 1팀',
     ops:      document.getElementById('r_ops').value,
+    dept:     _getDeptByName(document.getElementById('r_ops').value) || [currentUser?.bonbu, currentUser?.dept].filter(Boolean).join(' ') || '',
     sellUnit:  isCPA ? (+document.getElementById('r_cpa_unit').value || 0) : (+document.getElementById('r_sellUnit').value || 0),
     qty:       isCPA ? 0 : (+document.getElementById('r_sched').value || 0),
     svc:       isCPA ? 0 : (+document.getElementById('r_svc').value  || 0),
@@ -3993,10 +4000,12 @@ function downloadCampaignsExcel() {
   ];
   const rows = [headers, ...filtered.map(c => {
     const ctrVal = c.ctr != null ? (typeof c.ctr === 'string' ? parseFloat(c.ctr) : c.ctr) : '';
+    const opsUser = USERS.find(u => u.name === c.ops);
+    const deptDisplay = opsUser ? [opsUser.bonbu, opsUser.dept].filter(Boolean).join(' ') : c.dept;
     return [
       c.id, c.cat, _cName(c), c.media, c.product,
       c.seller || c.adv || '', c.content || '',
-      c.ops, c.dept, c.date,
+      c.ops, deptDisplay, c.date,
       c.qty || '', c.actual || '', c.clicks != null ? c.clicks : '', ctrVal,
       c.sellUnit || '', c.buyUnit || '', c.svc || '', c.disc || '', c.comm || '', c.agrate || '', c.status
     ];
@@ -4179,9 +4188,12 @@ async function downloadInvoiceExcel() {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Dashboard';
 
-  // 매체사별 그룹핑
+  // 퍼미션콜 항목은 별도 시트(디앤유/OHC)로 분리
+  const pcCamps = settled.filter(c => c.product === '퍼미션콜');
+
+  // 퍼미션콜 제외하고 매체사별 그룹핑
   const byMedia = {};
-  settled.forEach(c => {
+  settled.filter(c => c.product !== '퍼미션콜').forEach(c => {
     const key = c.media || '미지정';
     if (!byMedia[key]) byMedia[key] = [];
     byMedia[key].push(c);
@@ -4316,6 +4328,88 @@ async function downloadInvoiceExcel() {
         ws.addRow([]);
       }
     }
+  }
+
+  // 퍼미션콜 → 디앤유 / OHC 시트 2개 생성
+  if (pcCamps.length > 0) {
+    const PC_NUM_COLS = new Set([5, 6, 7, 8, 9]); // E(광고비) F(매입단가) G(매입액) H(VAT) I(합계)
+    const _buildPCSheet = (sheetName, billTo, getBuyAmt, buyUnit) => {
+      const ws = wb.addWorksheet(sheetName);
+      ws.columns = [
+        { width: 3  }, { width: 14 }, { width: 36 }, { width: 12 },
+        { width: 14 }, { width: 13 }, { width: 14 }, { width: 12 },
+        { width: 14 }, { width: 10 },
+      ];
+
+      // 1행: 제목
+      const titleRow = ws.addRow(['', '[퍼미션콜] 광고비 지급요청서']);
+      titleRow.getCell(2).font = { bold: true, size: 14, color: { argb: 'FF185FA5' } };
+
+      // 2행: 청구처
+      const subRow = ws.addRow(['', `청구처: ${billTo}`]);
+      subRow.getCell(2).font = { size: 11, color: { argb: 'FF555555' } };
+
+      // 3행: 헤더 (빈 행 없이 바로)
+      const hdrRow = ws.addRow(['', '광고기간', '캠페인명', '상품', '광고비', '매입단가(원)', '매입액(원)', 'VAT(원)', '합계(원)', '계산서']);
+      hdrRow.eachCell((cell, colNum) => {
+        if (colNum === 1) return;
+        cell.font = { bold: true, size: 11 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FF' } };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCCCCCC' } }, bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+          left: { style: 'thin', color: { argb: 'FFCCCCCC' } }, right: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+        };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+
+      // 데이터 행
+      let totalAdc = 0, totalBuy = 0;
+      pcCamps.forEach(c => {
+        const agree  = c.pcAgree   || 0;
+        const advU   = c.pcAdvUnit || 0;
+        const adcost = agree * advU;
+        const buyAmt = getBuyAmt(c);
+        const vat    = Math.round(buyAmt * 0.1);
+        const total  = buyAmt + vat;
+        totalAdc += adcost;
+        totalBuy += buyAmt;
+
+        const dataRow = ws.addRow([
+          '', (c.date || '').slice(0, 10), _cName(c), '퍼미션콜',
+          adcost || null, buyUnit || null, buyAmt, vat, total, '미처리',
+        ]);
+        dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          if (colNum === 1) return;
+          if (PC_NUM_COLS.has(colNum)) {
+            cell.numFmt = '#,##0';
+            cell.alignment = { horizontal: 'right' };
+          }
+          cell.border = {
+            top: { style: 'hair', color: { argb: 'FFDDDDDD' } }, bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+            left: { style: 'hair', color: { argb: 'FFDDDDDD' } }, right: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+          };
+        });
+      });
+
+      // 합계 행
+      const totalVat   = Math.round(totalBuy * 0.1);
+      const totalTotal = totalBuy + totalVat;
+      const totalRow = ws.addRow([
+        '', '합계', '', '', totalAdc || null, '', totalBuy, totalVat, totalTotal, '',
+      ]);
+      totalRow.eachCell((cell, colNum) => {
+        if (colNum === 1) return;
+        cell.font = { bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFBE6' } };
+        if (PC_NUM_COLS.has(colNum)) {
+          cell.numFmt = '#,##0';
+          cell.alignment = { horizontal: 'right' };
+        }
+      });
+    };
+
+    _buildPCSheet('디앤유', '디앤유', c => (c.pcAgree || 0) * 5500, 5500);
+    _buildPCSheet('OHC', 'OHC', c => c.pcOhcCost || 0, null);
   }
 
   // 버퍼 → Blob → 다운로드
@@ -7071,6 +7165,9 @@ document.addEventListener('click', e => {
 function _taxNextGroupId() {
   return TAX_DATA.reduce((max, t) => Math.max(max, t.groupId || 0), 0) + 1;
 }
+function _taxGroupLabel(gid) {
+  return `T-${String(gid).padStart(3, '0')}`;
+}
 function _taxGroupId(t) {
   // 하위호환: groupId 없는 기존 항목은 id를 groupId로 사용
   return t.groupId != null ? t.groupId : t.id;
@@ -7215,7 +7312,9 @@ function renderTaxList() {
     const isDone      = rep.taxStatus === '완료';
     const isPaid      = rep.paid === '완료';
     const isCollapsed = _taxCollapsed.has(gid);
-    const canDelete   = !!(currentUser?.isAdmin || currentUser?.name === rep.createdBy);
+    const canDelete   = !!(currentUser?.isAdmin || currentUser?.name === (rep.createdBy || rep.manager));
+    const canStatus   = ['wonjoon','yoonhee','admin'].includes(currentUser?.id);
+    const canPaid     = ['wonjoon','admin'].includes(currentUser?.id);
     const supplySum   = items.reduce((s, t) => s + (t.supplyAmt || 0), 0);
     const vatSum      = items.reduce((s, t) => s + (t.vatAmt    || 0), 0);
     const unpaidVal   = rep.unpaid != null ? rep.unpaid : null;
@@ -7296,26 +7395,27 @@ function renderTaxList() {
         <div class="tax-card-head">
           <div class="tax-card-toggle" onclick="taxToggleCollapse(${gid})">${isCollapsed ? '▶' : '▼'}</div>
           <div class="tax-card-head-main">
+            <span style="font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-light);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0;">${_taxGroupLabel(gid)}</span>
             <span class="tax-card-company">${_escHtml(rep.company||'(업체명 없음)')}</span>
             <span style="font-size:12px;color:var(--text2);white-space:nowrap;min-width:240px;">공급가 <b>${supplySum.toLocaleString()}</b> · 부가세포함 <b>${vatSum.toLocaleString()}</b></span>
             <div style="display:flex;align-items:center;gap:6px;">
               <span style="font-size:11px;color:var(--text3);">세발</span>
               <span style="display:inline-flex;align-items:center;justify-content:center;width:52px;">
                 ${isDone
-                  ? `<span class="stl-inv-badge done" onclick="taxGroupToggleStatus(${gid})">✓ 완료</span>`
-                  : `<div class="chk" onclick="taxGroupToggleStatus(${gid})" style="margin:0;"></div>`}
+                  ? `<span class="stl-inv-badge done" ${canStatus ? `onclick="taxGroupToggleStatus(${gid})"` : `style="cursor:default;"`}>✓ 완료</span>`
+                  : `<div class="chk" style="margin:0;${canStatus ? '' : 'opacity:0.35;cursor:not-allowed;pointer-events:none;'}" ${canStatus ? `onclick="taxGroupToggleStatus(${gid})"` : ''}></div>`}
               </span>
               <span style="font-size:11px;color:var(--text3);margin-left:4px;">입금</span>
               <span style="display:inline-flex;align-items:center;justify-content:center;width:52px;">
                 ${isPaid
-                  ? `<span class="stl-inv-badge done" onclick="taxGroupTogglePaid(${gid})">✓ 완료</span>`
-                  : `<div class="chk" onclick="taxGroupTogglePaid(${gid})" style="margin:0;"></div>`}
+                  ? `<span class="stl-inv-badge done" ${canPaid ? `onclick="taxGroupTogglePaid(${gid})"` : `style="cursor:default;"`}>✓ 완료</span>`
+                  : `<div class="chk" style="margin:0;${canPaid ? '' : 'opacity:0.35;cursor:not-allowed;pointer-events:none;'}" ${canPaid ? `onclick="taxGroupTogglePaid(${gid})"` : ''}></div>`}
               </span>
             </div>
             ${datePart}
             <div style="flex:1;"></div>
             ${(rep.createdBy||rep.manager) ? `<span class="tax-card-manager">요청자: ${_escHtml(rep.createdBy||rep.manager)}</span>` : ''}
-            <button class="btn btn-ghost btn-sm" onclick="taxEditGroup(${gid})">수정</button>
+            ${canDelete ? `<button class="btn btn-ghost btn-sm" onclick="taxEditGroup(${gid})">수정</button>` : ''}
             ${canDelete ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent;" onclick="deleteGroup(${gid})">삭제</button>` : ''}
           </div>
         </div>
@@ -7406,6 +7506,7 @@ async function taxPurgeAll() {
 
 // ── 그룹 단위 토글/저장 ──
 async function taxGroupToggleStatus(gid) {
+  if (!['wonjoon','yoonhee','admin'].includes(currentUser?.id)) { toast('세발 처리 권한이 없습니다.', 'err'); return; }
   const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
   if (!items.length) return;
   const isDone = items[0].taxStatus === '완료';
@@ -7424,10 +7525,19 @@ async function taxGroupToggleStatus(gid) {
       }
     }
   }
+  // 완료/취소 시 담당자에게 알림
+  const rep1 = items[0];
+  const toUser1 = USERS.find(u => u.name === (rep1.createdBy || rep1.manager));
+  if (toUser1 && toUser1.id !== currentUser?.id) {
+    const type = isDone ? 'tax_issue_cancel' : 'tax_issue';
+    const body = _notifBody(type, rep1.company || '', '', undefined, gid);
+    _fbSaveNotification(toUser1.id, type, body);
+  }
   renderTaxList();
 }
 
 async function taxGroupTogglePaid(gid) {
+  if (!['wonjoon','admin'].includes(currentUser?.id)) { toast('입금 처리 권한이 없습니다.', 'err'); return; }
   const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
   if (!items.length) return;
   const isPaid = items[0].paid === '완료';
@@ -7446,6 +7556,14 @@ async function taxGroupTogglePaid(gid) {
         _stlCellUpdate(t.campaignId, 'payIn');
       }
     }
+  }
+  // 완료/취소 시 담당자에게 알림
+  const rep2 = items[0];
+  const toUser2 = USERS.find(u => u.name === (rep2.createdBy || rep2.manager));
+  if (toUser2 && toUser2.id !== currentUser?.id) {
+    const type = isPaid ? 'tax_payment_cancel' : 'tax_payment';
+    const body = _notifBody(type, rep2.company || '', '', undefined, gid);
+    _fbSaveNotification(toUser2.id, type, body);
   }
   renderTaxList();
 }
@@ -7613,6 +7731,11 @@ function saveTaxReg() {
     if (idx !== -1) TAX_DATA[idx] = t; else TAX_DATA.push(t);
   }
   _fbSaveTax(t);
+  // 신규 등록 시 wonjoon에게 알림 (본인이 wonjoon이 아닌 경우만)
+  if (isNew && currentUser?.id !== 'wonjoon') {
+    const body = _notifBody('tax_new', t.company || '', '', 1, t.groupId);
+    _fbSaveNotification('wonjoon', 'tax_new', body);
+  }
   closeModal('modalTaxReg');
   renderTaxList();
 }
@@ -7966,6 +8089,7 @@ async function confirmTaxAutoGen() {
   const commonReq = document.getElementById('tax-gen-common-req')?.value || '';
   if (!commonReq) { alert('발행요청일자를 입력해주세요.'); return; }
 
+  const _savedItems = []; // 알림용 추적
   const cards = [...document.querySelectorAll('.tax-gen-group-card')];
 
   for (const card of cards) {
@@ -8021,9 +8145,18 @@ async function confirmTaxAutoGen() {
 
       TAX_DATA.push(t);
       await _fbSaveTax(t);
+      _savedItems.push(t);
     }
   }
 
+  // 불러오기 완료 후 wonjoon에게 알림 1개 (본인이 wonjoon이 아닌 경우만)
+  if (_savedItems.length > 0 && currentUser?.id !== 'wonjoon') {
+    const companies = [...new Set(_savedItems.map(t => t.company).filter(Boolean))];
+    const companyStr = companies.length === 1 ? companies[0] : (companies[0] || '');
+    const firstGid = _savedItems[0]?.groupId;
+    const body = _notifBody('tax_new', companyStr, '', _savedItems.length, firstGid);
+    if (body) _fbSaveNotification('wonjoon', 'tax_new', body);
+  }
   closeModal('modalTaxAutoGen');
   const _now = new Date();
   const elY = document.getElementById('tax-year');
@@ -8031,6 +8164,95 @@ async function confirmTaxAutoGen() {
   if (elY) elY.value = String(_now.getFullYear());
   if (elM) elM.value = String(_now.getMonth() + 1).padStart(2, '0');
   renderTaxList();
+}
+
+// ══════════════════════════════════════════
+// 알림 (NOTIFICATIONS)
+// ══════════════════════════════════════════
+
+function _notifBody(type, company, content, count, gid) {
+  const label = gid ? `[${_taxGroupLabel(gid)}] ` : '';
+  const subject = content ? `${company} / ${content}` : company;
+  if (type === 'tax_issue')          return `${label}${subject}에 대한 세금계산서 발행이 완료되었습니다.`;
+  if (type === 'tax_issue_cancel')   return `${label}${subject}에 대한 세금계산서 발행 완료가 취소되었습니다.`;
+  if (type === 'tax_payment')        return `${label}${subject}에 대한 입금이 완료되었습니다.`;
+  if (type === 'tax_payment_cancel') return `${label}${subject}에 대한 입금 완료가 취소되었습니다.`;
+  if (type === 'tax_new') {
+    const name = currentUser?.name || '';
+    return count > 1
+      ? `${label}${name}님이 ${company} 세금계산서 ${count}건 발행을 요청했습니다.`
+      : `${label}${name}님이 ${company} 세금계산서 발행을 요청했습니다.`;
+  }
+  return '';
+}
+
+async function _fbSaveNotification(toUserId, type, body) {
+  if (!window._db || !toUserId) return;
+  const id = 'notif_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+  const notif = { id, toUserId, type, body, createdAt: new Date().toISOString(), read: false };
+  try { await window._db.collection('notifications').doc(id).set(notif); }
+  catch(e) { console.error('[FB] 알림 저장 실패:', e); }
+}
+
+async function notifMarkAllRead() {
+  if (!window._db) return;
+  const unread = NOTIFICATIONS.filter(n => !n.read);
+  for (const n of unread) {
+    try { await window._db.collection('notifications').doc(n.id).update({ read: true }); }
+    catch(e) {}
+  }
+}
+
+function _updateNotifBadge() {
+  const cnt = NOTIFICATIONS.filter(n => !n.read).length;
+  const badge = document.getElementById('notif-badge');
+  if (!badge) return;
+  if (cnt > 0) { badge.style.display = ''; badge.textContent = cnt > 99 ? '99+' : cnt; }
+  else { badge.style.display = 'none'; }
+}
+
+function _renderNotifList() {
+  const el = document.getElementById('notif-list');
+  if (!el) return;
+  if (!NOTIFICATIONS.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:40px 0;">알림이 없습니다.</div>';
+    return;
+  }
+  el.innerHTML = NOTIFICATIONS.map(n => {
+    const dt = n.createdAt ? new Date(n.createdAt) : null;
+    const timeStr = dt ? `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}` : '';
+    return `<div style="display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);${n.read ? '' : 'background:var(--primary-light);'}">
+      <div style="flex-shrink:0;margin-top:4px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:${n.read ? 'var(--border)' : 'var(--primary)'};"></div>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;color:var(--text1);line-height:1.5;">${_escHtml(n.body)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">${timeStr}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openNotifModal() {
+  _renderNotifList();
+  openModal('modalNotif');
+  // 모달 열면 모두 읽음
+  const unread = NOTIFICATIONS.filter(n => !n.read);
+  if (unread.length) notifMarkAllRead();
+}
+
+function _fbWatchNotifications() {
+  if (!window._db || !currentUser) return;
+  if (_notifUnsub) { _notifUnsub(); _notifUnsub = null; }
+  _notifUnsub = window._db.collection('notifications')
+    .where('toUserId', '==', currentUser.id)
+    .onSnapshot(snap => {
+      NOTIFICATIONS.length = 0;
+      snap.forEach(d => NOTIFICATIONS.push(d.data()));
+      NOTIFICATIONS.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      _updateNotifBadge();
+      if (document.getElementById('modalNotif')?.classList.contains('active')) _renderNotifList();
+    }, e => console.error('[FB] 알림 구독 실패:', e));
 }
 
 // ══════════════════════════════════════════
@@ -8380,6 +8602,7 @@ _fbWatchSellers();
 _fbWatchMedia();
 _fbWatchUsers();
 _fbWatchTax();
+if (currentUser) _fbWatchNotifications();
 
 // 최원준 계정 최초 1회 자동 등록
 (async function() {

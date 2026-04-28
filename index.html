@@ -115,8 +115,20 @@
           <div class="user-name" id="sidebar-name">—</div>
           <div class="user-team" id="sidebar-team">—</div>
         </div>
+        <!-- 알림 벨 버튼 -->
+        <button id="btn-notif" onclick="event.stopPropagation();openNotifModal()"
+          style="margin-left:auto;position:relative;width:30px;height:30px;border:none;background:transparent;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text3);flex-shrink:0;transition:background 0.15s;"
+          onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='transparent'">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span id="notif-badge" style="display:none;position:absolute;top:2px;right:2px;min-width:16px;height:16px;background:#ef4444;color:#fff;border-radius:8px;font-size:10px;font-weight:700;line-height:16px;text-align:center;padding:0 3px;"></span>
+        </button>
       </div>
-      <button class="btn btn-outline btn-sm" style="width:100%;justify-content:center;" onclick="logout()">로그아웃</button>
+      <div style="display:flex;gap:6px;width:100%;">
+        <button class="btn btn-outline btn-sm" style="flex:1;justify-content:center;" onclick="logout()">로그아웃</button>
+        <button class="btn btn-outline btn-sm" title="사용 설명서" onclick="window.open(currentUser&&['본부장','이사','대표이사'].includes(currentUser.rank)?'manager_manual.html':'manual.html','_blank')" style="width:32px;flex-shrink:0;padding:0;display:flex;align-items:center;justify-content:center;">?</button>
+      </div>
     </div>
   </aside>
 
@@ -131,7 +143,7 @@
       <div class="breadcrumb" id="breadcrumb"><span class="cur">대시보드</span></div>
       <div class="topbar-actions">
         <!-- <button class="btn btn-outline btn-sm">⬇ 내보내기</button> -->
-        <button class="btn btn-primary" id="btn-reg" onclick="openRegModal()">+ 캠페인 등록</button>
+<button class="btn btn-primary" id="btn-reg" onclick="openRegModal()">+ 캠페인 등록</button>
       </div>
     </header>
 
@@ -724,6 +736,7 @@
               <div id="dTarget" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px;"></div>
               <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;">디타겟 조건</div>
               <div id="dDtarget" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;"></div>
+              <div id="dMsgSection">
               <div style="display:flex;align-items:center;margin-bottom:8px;">
                 <div style="font-size:11px;font-weight:700;color:var(--text2);">발송 문구</div>
                 <div class="view-tabs" style="margin-left:auto;gap:0;">
@@ -735,6 +748,7 @@
               </div>
               <div class="memo-block" id="dMsg"></div>
               <div class="memo-block" id="dMsgFinal" style="display:none;border-left-color:var(--green);"></div>
+              </div>
             </div>
           </div>
           <div class="card">
@@ -3503,6 +3517,18 @@
   window._fbUpd = (ref, data) => ref.update(data);
   window._fbDel = (ref) => ref.delete();
 </script>
+
+<!-- 알림 모달 -->
+<div class="modal-overlay" id="modalNotif" style="z-index:300;">
+  <div class="modal" style="width:420px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;">
+    <div class="modal-head" style="flex-shrink:0;">
+      <span class="modal-title">알림</span>
+      <button class="btn btn-ghost btn-sm" id="notif-read-all" onclick="notifMarkAllRead()" style="font-size:12px;margin-right:8px;">모두 읽음</button>
+      <button class="modal-close" onclick="closeModal('modalNotif')">✕</button>
+    </div>
+    <div id="notif-list" style="overflow-y:auto;flex:1;padding:8px 0;"></div>
+  </div>
+</div>
 
 <!-- script.js 불러오기 -->
 <script src="script.js"></script>

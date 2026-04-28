@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사용 설명서 — 캠페인 대시보드</title>
+<style>
+  :root {
+    --primary: #185fa5;
+    --primary-light: #e8f1fb;
+    --green: #16a34a;
+    --green-light: #dcfce7;
+    --yellow: #b45309;
+    --yellow-light: #fef9c3;
+    --red: #dc2626;
+    --red-light: #fee2e2;
+    --text1: #1a1a2e;
+    --text2: #444466;
+    --text3: #888;
+    --border: #dde3f0;
+    --surface: #f8f9ff;
+    --surface2: #f0f3fa;
+    --white: #fff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    color: var(--text1);
+    background: var(--surface);
+    display: flex;
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  /* 사이드바 */
+  .sidebar {
+    width: 300px;
+    min-width: 300px;
+    background: var(--white);
+    border-right: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 0 0 32px;
+  }
+  .sidebar-logo {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: -0.3px;
+  }
+  .sidebar-logo span { font-size: 11px; font-weight: 400; color: var(--text3); display: block; margin-top: 2px; }
+  /* 역할 토글 */
+  .role-toggle { display: flex; padding: 10px 12px; gap: 6px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .role-btn {
+    flex: 1; padding: 6px 0; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+    text-align: center; text-decoration: none; color: var(--text3);
+    background: var(--white); transition: all 0.15s;
+  }
+  .role-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .role-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+  /* 사이드바 검색 */
+  .sidebar-search {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-search-wrap {
+    display: flex;
+    align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0 10px;
+    gap: 6px;
+    transition: border-color 0.15s;
+  }
+  .sidebar-search-wrap:focus-within {
+    border-color: var(--primary);
+    background: var(--white);
+  }
+  .sidebar-search-wrap svg { flex-shrink: 0; color: var(--text3); }
+  .sidebar-search-wrap input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    color: var(--text1);
+    padding: 7px 0;
+    outline: none;
+    min-width: 0;
+  }
+  .sidebar-search-wrap input::placeholder { color: var(--text3); }
+  .search-info {
+    font-size: 11px;
+    color: var(--text3);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .search-nav {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .search-nav button {
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text3);
+    padding: 0;
+    transition: background 0.12s, color 0.12s;
+  }
+  .search-nav button:hover { background: var(--surface2); color: var(--primary); }
+  .search-nav button:disabled { opacity: 0.3; cursor: default; }
+  .search-nav button:disabled:hover { background: transparent; color: var(--text3); }
+  /* 검색 하이라이트 */
+  mark.search-hl {
+    background: #fef08a;
+    color: var(--text1);
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+  mark.search-current {
+    background: #f97316;
+    color: #fff;
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+
+  .nav-section { padding: 16px 12px 4px; font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 0.8px; text-transform: uppercase; }
+  .nav-item {
+    display: block;
+    padding: 7px 16px;
+    font-size: 13px;
+    color: var(--text2);
+    text-decoration: none;
+    border-radius: 6px;
+    margin: 1px 8px;
+    transition: background 0.15s;
+  }
+  .nav-item:hover { background: var(--surface); color: var(--primary); }
+  .nav-item.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+  .nav-sub {
+    display: block;
+    padding: 5px 16px 5px 28px;
+    font-size: 12px;
+    color: var(--text3);
+    text-decoration: none;
+    border-radius: 6px;
+    margin: 1px 8px;
+    transition: background 0.15s;
+  }
+  .nav-sub:hover { background: var(--surface); color: var(--primary); }
+
+  /* 본문 */
+  .main {
+    flex: 1;
+    max-width: 860px;
+    padding: 48px 56px;
+    overflow-x: hidden;
+  }
+
+  /* 섹션 */
+  .section { margin-bottom: 72px; scroll-margin-top: 32px; }
+  .section-num {
+    display: inline-block;
+    background: var(--primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+  }
+  h1 { font-size: 26px; font-weight: 800; color: var(--text1); margin-bottom: 8px; line-height: 1.3; }
+  .section-desc { font-size: 14px; color: var(--text2); margin-bottom: 32px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+  h2 { font-size: 18px; font-weight: 700; color: var(--text1); margin: 36px 0 14px; }
+  h3 { font-size: 14px; font-weight: 700; color: var(--primary); margin: 24px 0 10px; }
+  p { margin-bottom: 12px; color: var(--text2); }
+
+  /* 표 */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 13px; }
+  th { background: var(--surface2); padding: 8px 12px; text-align: left; font-weight: 600; color: var(--text2); border: 1px solid var(--border); font-size: 12px; }
+  td { padding: 8px 12px; border: 1px solid var(--border); color: var(--text2); vertical-align: top; }
+  td strong { color: var(--text1); }
+  tr:hover td { background: #fafbff; }
+
+  /* 단계 */
+  .steps { list-style: none; margin: 12px 0; }
+  .steps li {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    align-items: flex-start;
+  }
+  .step-num {
+    min-width: 24px;
+    height: 24px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+  .step-content { flex: 1; color: var(--text2); }
+  .step-content strong { color: var(--text1); }
+
+  /* 칩/배지 */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    vertical-align: middle;
+  }
+  .badge-blue { background: var(--primary-light); color: var(--primary); }
+  .badge-green { background: var(--green-light); color: var(--green); }
+  .badge-yellow { background: var(--yellow-light); color: var(--yellow); }
+  .badge-red { background: var(--red-light); color: var(--red); }
+
+  /* 알림 박스 */
+  .box {
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .box-tip { background: var(--primary-light); border-left: 3px solid var(--primary); color: var(--text2); }
+  .box-tip::before { content: '💡 '; font-style: normal; }
+  .box-warn { background: var(--yellow-light); border-left: 3px solid #f59e0b; color: #78350f; }
+  .box-warn::before { content: '⚠️ '; font-style: normal; }
+  .box-ok { background: var(--green-light); border-left: 3px solid #22c55e; color: #14532d; }
+  .box-ok::before { content: '✅ '; font-style: normal; }
+
+  /* 플로우 다이어그램 */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+    padding: 16px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .flow-step {
+    background: var(--primary-light);
+    color: var(--primary);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .flow-step.done { background: var(--green-light); color: var(--green); }
+  .flow-arrow { color: var(--text3); font-size: 16px; }
+
+  /* 카드 그리드 */
+  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .card h4 { font-size: 13px; font-weight: 700; color: var(--text1); margin-bottom: 6px; }
+  .card p { font-size: 12px; margin: 0; }
+
+  /* 제품 탭 */
+  .product-section {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 16px 0;
+    overflow: hidden;
+  }
+  .product-header {
+    background: var(--surface2);
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text1);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .product-body { padding: 16px; }
+
+  /* 코드 스타일 */
+  code {
+    background: var(--surface2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 12px;
+    color: var(--primary);
+  }
+
+  /* FAQ */
+  .faq-item { border-bottom: 1px solid var(--border); padding: 18px 0; }
+  .faq-q { font-weight: 700; color: var(--text1); margin-bottom: 8px; display: flex; gap: 8px; }
+  .faq-q::before { content: 'Q.'; color: var(--primary); font-weight: 800; }
+  .faq-a { color: var(--text2); font-size: 13px; padding-left: 20px; }
+  .faq-a::before { content: 'A. '; color: var(--green); font-weight: 700; }
+
+  /* 상단 헤더 */
+  .doc-header {
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: none;
+  }
+
+  ul { padding-left: 20px; margin-bottom: 12px; }
+  ul li { color: var(--text2); margin-bottom: 4px; font-size: 13px; }
+
+  hr.section-divider { border: none; border-top: 2px solid var(--border); margin: 48px 0; }
+
+  @media print {
+    .sidebar { display: none; }
+    .main { max-width: 100%; padding: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 사이드바 -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    캠페인 대시보드
+    <span>실무자 사용 설명서</span>
+  </div>
+
+  <div class="role-toggle">
+    <a href="manual.html" class="role-btn active">실무자용</a>
+    <a href="manager_manual.html" class="role-btn">관리자용</a>
+  </div>
+
+  <div class="sidebar-search">
+    <div class="sidebar-search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input id="manual-search" type="text" placeholder="검색">
+      <span class="search-info" id="search-info"></span>
+      <div class="search-nav" id="search-nav" style="display:none;">
+        <button id="search-prev" title="이전 결과 (Shift+Enter)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+        <button id="search-next" title="다음 결과 (Enter)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-section">시작하기</div>
+  <a href="#start" class="nav-item">01 · 로그인 및 화면 구성</a>
+
+  <div class="nav-section">캠페인</div>
+  <a href="#register" class="nav-item">02 · 캠페인 등록</a>
+  <a href="#reg-common" class="nav-sub">공통 필드</a>
+  <a href="#reg-sms" class="nav-sub">SMS / LMS / MMS</a>
+  <a href="#reg-da" class="nav-sub">DA (디지털 광고)</a>
+  <a href="#reg-cpa" class="nav-sub">CPA</a>
+  <a href="#reg-pc" class="nav-sub">퍼미션콜</a>
+  <a href="#manage" class="nav-item">03 · 캠페인 관리</a>
+  <a href="#detail" class="nav-sub">상세보기</a>
+  <a href="#edit" class="nav-sub">수정하기</a>
+  <a href="#copy" class="nav-sub">캠페인 복사/등록</a>
+
+  <div class="nav-section">성과</div>
+  <a href="#perf" class="nav-item">04 · 성과 입력</a>
+  <a href="#perf-flow" class="nav-sub">단계 흐름</a>
+  <a href="#perf-input" class="nav-sub">수치 입력</a>
+  <a href="#perf-msg" class="nav-sub">발송문구 검수</a>
+
+  <div class="nav-section">정산</div>
+  <a href="#settlement" class="nav-item">05 · 정산 확인</a>
+  <a href="#stl-view" class="nav-sub">보기 탭</a>
+  <a href="#stl-filter" class="nav-sub">필터 활용</a>
+  <a href="#stl-download" class="nav-sub">엑셀 다운로드</a>
+
+  <div class="nav-section">기타</div>
+  <a href="#tax" class="nav-item">06 · 세금계산서 등록</a>
+  <a href="#tax-import" class="nav-sub">불러오기 (자동 생성)</a>
+  <a href="#tax-manual" class="nav-sub">수동 등록</a>
+  <a href="#faq" class="nav-item">07 · 자주 묻는 질문</a>
+</nav>
+
+<!-- 본문 -->
+<main class="main">
+
+  <!-- ───────────────────────────────── 01 시작하기 -->
+  <section class="section" id="start">
+    <div class="section-num">01</div>
+    <h1>로그인 및 화면 구성</h1>
+    <p class="section-desc">대시보드에 접속하는 방법과 기본 화면 구성을 설명합니다.</p>
+
+    <h2>로그인</h2>
+    <ol class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-content">브라우저에서 대시보드 주소로 접속합니다.</div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-content"><strong>아이디</strong>와 <strong>비밀번호</strong>를 입력하고 <code>로그인</code> 버튼을 클릭합니다.</div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-content">로그인 후 <strong>대시보드</strong> 화면으로 이동합니다.</div>
+      </li>
+    </ol>
+    <div class="box box-tip">비밀번호를 잊었다면 관리자에게 비밀번호 초기화를 요청하세요.</div>
+
+    <h2>화면 구성</h2>
+    <table>
+      <thead>
+        <tr><th style="width:140px;">메뉴</th><th>설명</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>대시보드</strong></td><td>이번 달 캠페인 현황, 성과 요약을 한눈에 봅니다.</td></tr>
+        <tr><td><strong>캘린더</strong></td><td>날짜별로 캠페인 일정을 확인합니다. 날짜 칸을 클릭하면 해당 날짜로 캠페인을 바로 등록할 수 있습니다.</td></tr>
+        <tr><td><strong>캠페인 목록</strong></td><td>전체 캠페인을 검색·필터링하고 관리합니다.</td></tr>
+        <tr><td><strong>정산</strong></td><td>성과 입력이 완료된 캠페인의 정산 금액을 확인하고 엑셀로 다운로드합니다.</td></tr>
+        <tr><td><strong>월별 발송량</strong></td><td>월별·매체별 발송 수량 통계를 확인합니다.</td></tr>
+        <tr><td><strong>세금계산서</strong></td><td>매출·매입 세금계산서 발행 현황을 관리합니다.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="box box-tip"><strong>캠페인 등록 버튼</strong>은 <strong>대시보드 · 캘린더 · 캠페인 목록</strong> 화면에서만 상단에 표시됩니다.</div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────── 02 캠페인 등록 -->
+  <section class="section" id="register">
+    <div class="section-num">02</div>
+    <h1>캠페인 등록</h1>
+    <p class="section-desc">새 캠페인을 등록하는 방법을 상품 유형별로 설명합니다.</p>
+
+    <h2>등록 시작하기</h2>
+    <ol class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-content">상단 오른쪽 <code>+ 캠페인 등록</code> 버튼을 클릭합니다.<br>
+        <small style="color:var(--text3);">캘린더에서 날짜 칸을 클릭해도 해당 날짜가 미리 입력된 상태로 등록 폼이 열립니다.</small></div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-content">등록 폼이 열리면 <strong>상품</strong>을 먼저 선택합니다. 상품에 따라 표시되는 필드가 달라집니다.</div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-content">필수 항목(<span style="color:#dc2626;">*</span>)을 모두 입력하고 <code>등록</code> 버튼을 클릭합니다.</div>
+      </li>
+    </ol>
+
+    <!-- 공통 필드 -->
+    <h2 id="reg-common">공통 필드 설명</h2>
+    <p>상품에 관계없이 모든 캠페인에 공통으로 입력하는 필드입니다.</p>
+    <table>
+      <thead><tr><th style="width:140px;">필드</th><th>설명</th><th style="width:80px;">필수</th></tr></thead>
+      <tbody>
+        <tr><td><strong>상품</strong></td><td>SMS / LMS / MMS / push / 카톡msg / DA / CPA / 퍼미션콜 중 선택. 선택 후 관련 필드가 자동으로 표시됩니다.</td><td>✅ 필수</td></tr>
+        <tr><td><strong>발송일시</strong></td><td>캠페인 발송 예정 날짜와 시간. LMS/MMS/push/카톡msg는 <strong>00:00 설정 불가</strong>(정확한 시간 필요).</td><td>✅ 필수</td></tr>
+        <tr><td><strong>광고주/대행사</strong></td><td>매출처를 선택합니다. 목록에 없으면 입력창 옆 <code>+</code> 버튼으로 추가합니다.</td><td>✅ 필수</td></tr>
+        <tr><td><strong>브랜드</strong></td><td>광고 브랜드 또는 광고 내용. 캠페인명 자동 생성에 사용됩니다.</td><td>✅ 필수</td></tr>
+        <tr><td><strong>매체사</strong></td><td>광고를 집행하는 매체사를 선택합니다.</td><td>✅ 필수</td></tr>
+        <tr><td><strong>광고목적</strong></td><td>이번 캠페인의 목적 또는 프로모션 테마를 자유롭게 입력합니다. (예: 여름 할인 이벤트)</td><td></td></tr>
+        <tr><td><strong>담당자</strong></td><td>이 캠페인을 담당하는 팀원을 선택합니다. 기본값은 현재 로그인 사용자입니다.</td><td></td></tr>
+        <tr><td><strong>타겟 조건</strong></td><td>발송 대상 타겟 조건을 입력합니다. 여러 조건은 줄바꿈으로 구분합니다.</td><td>✅ 필수</td></tr>
+        <tr><td><strong>발송문구</strong></td><td>실제 발송될 문자/메시지 내용입니다. DA·CPA·퍼미션콜은 입력 불필요.</td><td>상품에 따라</td></tr>
+        <tr><td><strong>특기사항</strong></td><td>QA 체크 사항, 주의사항 등 내부 메모를 입력합니다.</td><td></td></tr>
+      </tbody>
+    </table>
+
+    <div class="box box-tip"><strong>캠페인명</strong>은 직접 입력하는 것이 아닙니다. <strong>광고주 + 매체사</strong> 조합으로 자동 생성됩니다. (예: 캐츠잉글리시_KT)</div>
+
+    <!-- SMS/LMS/MMS -->
+    <div class="product-section" id="reg-sms">
+      <div class="product-header">
+        <span class="badge badge-blue">SMS / LMS / MMS / push / 카톡msg</span>
+        문자 발송 상품
+      </div>
+      <div class="product-body">
+        <h3>수량 및 단가 입력</h3>
+        <table>
+          <thead><tr><th style="width:140px;">필드</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td><strong>발송예약수량</strong></td><td>광고주에게 약속한 발송 예정 수량입니다.</td></tr>
+            <tr><td><strong>서비스수량</strong></td><td>무료로 추가 제공하는 수량입니다. <code>정산수량 = 예약 - 서비스</code>로 자동 계산됩니다.</td></tr>
+            <tr><td><strong>광고주 정산기준</strong></td><td>매출 정산 기준: <strong>실발송수량</strong>(발송 후 실제 수량) 또는 <strong>예약수량</strong></td></tr>
+            <tr><td><strong>매출단가</strong></td><td>광고주에게 청구하는 건당 단가(원)입니다.</td></tr>
+            <tr><td><strong>할인단가</strong></td><td>건당 할인 금액이 있을 경우 입력합니다. 광고비는 자동 계산됩니다.</td></tr>
+            <tr><td><strong>매체 정산기준</strong></td><td>매입 정산 기준: <strong>실발송수량</strong> 또는 <strong>예약수량</strong></td></tr>
+            <tr><td><strong>매입단가</strong></td><td>매체사에 지급하는 건당 단가(원)입니다.</td></tr>
+            <tr><td><strong>수수료율</strong></td><td>수수료율(%)을 입력하면 매출수익이 자동 계산됩니다.</td></tr>
+            <tr><td><strong>대행(%)</strong></td><td>대행료율(%)을 입력합니다.</td></tr>
+          </tbody>
+        </table>
+        <div class="box box-tip">광고비·매입액·매출수익·이익은 모두 자동으로 계산됩니다. 숫자를 직접 수정하려면 해당 필드를 클릭해 수기 입력 모드로 전환할 수 있습니다.</div>
+      </div>
+    </div>
+
+    <!-- DA -->
+    <div class="product-section" id="reg-da" style="margin-top:16px;">
+      <div class="product-header">
+        <span class="badge badge-green">DA</span>
+        디지털 광고 (배너·동영상 등)
+      </div>
+      <div class="product-body">
+        <h3>DA 전용 필드</h3>
+        <table>
+          <thead><tr><th style="width:140px;">필드</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td><strong>광고 기간</strong></td><td>DA는 발송일이 아닌 <strong>광고 시작일 ~ 종료일</strong>을 입력합니다.</td></tr>
+            <tr><td><strong>광고비(원)</strong></td><td>광고주에게 청구할 총 광고비를 직접 입력합니다.</td></tr>
+            <tr><td><strong>정산기준</strong></td><td>CPP / CPC / CPM 중 선택합니다.</td></tr>
+            <tr><td><strong>대행수수료 여부</strong></td><td>수수료 포함 / 별도 여부를 선택합니다.</td></tr>
+            <tr><td><strong>수수료율(%)</strong></td><td>대행 수수료율(%)을 입력합니다.</td></tr>
+            <tr><td><strong>매입단가(원)</strong></td><td>매체사에 지급하는 총 매입 금액입니다.</td></tr>
+            <tr><td><strong>소재 이미지</strong></td><td>배너 이미지 파일을 첨부합니다. 여러 장 업로드 가능합니다.</td></tr>
+          </tbody>
+        </table>
+        <div class="box box-tip">DA 캠페인은 <strong>발송문구 입력란이 없습니다.</strong> 소재 이미지로 대체됩니다.</div>
+      </div>
+    </div>
+
+    <!-- CPA -->
+    <div class="product-section" id="reg-cpa" style="margin-top:16px;">
+      <div class="product-header">
+        <span class="badge badge-yellow">CPA</span>
+        성과 기반 광고
+      </div>
+      <div class="product-body">
+        <h3>CPA 전용 필드</h3>
+        <table>
+          <thead><tr><th style="width:140px;">필드</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td><strong>정산기준</strong></td><td>신청수 / 로그인수 / 결제건수 중 선택합니다.</td></tr>
+            <tr><td><strong>정산단가(원)</strong></td><td>성과 1건당 광고주 청구 단가입니다.</td></tr>
+            <tr><td><strong>대행수수료 여부</strong></td><td>수수료 포함 / 별도 여부를 선택합니다.</td></tr>
+            <tr><td><strong>수수료율(%)</strong></td><td>수수료율(%)을 입력합니다.</td></tr>
+            <tr><td><strong>매입단가(원)</strong></td><td>자동 계산됩니다. 필요 시 직접 수정 가능합니다.</td></tr>
+          </tbody>
+        </table>
+        <div class="box box-tip">CPA 캠페인은 등록 시 수량을 0으로 시작합니다. <strong>성과 입력 단계</strong>에서 실적 건수를 입력합니다.</div>
+        <div class="box box-warn">CPA 캠페인은 <strong>발송문구 입력란이 없습니다.</strong></div>
+      </div>
+    </div>
+
+    <!-- 퍼미션콜 -->
+    <div class="product-section" id="reg-pc" style="margin-top:16px;">
+      <div class="product-header">
+        <span class="badge badge-red">퍼미션콜</span>
+        전화 동의 기반 광고
+      </div>
+      <div class="product-body">
+        <h3>퍼미션콜 전용 필드</h3>
+        <table>
+          <thead><tr><th style="width:140px;">필드</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td><strong>광고주단가 (원/동의건)</strong></td><td>동의 1건당 광고주 청구 단가입니다.</td></tr>
+            <tr><td><strong>OHC 비용</strong></td><td>OHC에 지급하는 총 비용입니다. 성과 입력 후 확정됩니다.</td></tr>
+          </tbody>
+        </table>
+        <div class="box box-tip">DNU 단가(5,500원/건)는 시스템에 고정되어 있어 별도 입력이 불필요합니다.</div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────── 03 캠페인 관리 -->
+  <section class="section" id="manage">
+    <div class="section-num">03</div>
+    <h1>캠페인 관리</h1>
+    <p class="section-desc">등록된 캠페인을 검색하고 수정하는 방법을 설명합니다.</p>
+
+    <h2>캠페인 찾기</h2>
+    <p>좌측 메뉴 <strong>캠페인 목록</strong>에서 전체 캠페인을 조회합니다. 상단 필터로 범위를 좁힐 수 있습니다.</p>
+    <table>
+      <thead><tr><th style="width:140px;">필터</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><strong>검색창</strong></td><td>캠페인명(광고주_매체)이나 캠페인 ID로 검색합니다.</td></tr>
+        <tr><td><strong>날짜 범위</strong></td><td>발송일 기준 시작일~종료일로 조회합니다.</td></tr>
+        <tr><td><strong>상품</strong></td><td>SMS / DA / CPA 등 상품 유형별로 필터링합니다.</td></tr>
+        <tr><td><strong>카테고리</strong></td><td>광고 카테고리별로 필터링합니다.</td></tr>
+        <tr><td><strong>매체사 / 매출처 / 담당자</strong></td><td>특정 매체·광고주·담당자의 캠페인만 봅니다.</td></tr>
+        <tr><td><strong>단계</strong></td><td>부킹확정 / 테스트완료 / 성과입력완료 등 진행 단계로 필터링합니다.</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 상세보기 -->
+    <h2 id="detail">상세보기</h2>
+    <p>목록에서 캠페인 행을 클릭하면 <strong>상세보기 화면</strong>이 열립니다.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <h4>📋 기본 정보</h4>
+        <p>캠페인명, 발송일시, 상품, 매출처, 매체사, 담당자 등 등록 시 입력한 정보를 보여줍니다.</p>
+      </div>
+      <div class="card">
+        <h4>📊 성과 (2차 입력)</h4>
+        <p>실발송수량, 클릭수, CTR 등 성과 데이터를 입력하고 확인합니다.</p>
+      </div>
+      <div class="card">
+        <h4>💰 수량 / 금액</h4>
+        <p>정산수량, 매출단가, 매입단가, 광고비, 이익 등 금액 정보를 보여줍니다.</p>
+      </div>
+      <div class="card">
+        <h4>🎯 타겟 & 문구</h4>
+        <p>타겟 조건, 디타겟 조건, 발송 문구(검수전/검수완료)를 관리합니다. DA·CPA는 발송문구 섹션이 표시되지 않습니다.</p>
+      </div>
+      <div class="card">
+        <h4>📝 특기사항</h4>
+        <p>내부 메모, QA 체크, 발송 완료 확인 여부를 기록합니다.</p>
+      </div>
+      <div class="card">
+        <h4>📅 수정 이력</h4>
+        <p>언제, 누가, 어떤 항목을 변경했는지 이력이 자동으로 기록됩니다.</p>
+      </div>
+    </div>
+
+    <!-- 수정 -->
+    <h2 id="edit">캠페인 수정하기</h2>
+    <ol class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-content">캠페인 상세보기 오른쪽 상단 <code>수정</code> 버튼을 클릭합니다.</div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-content">수정 화면에서 변경할 항목을 수정합니다. 등록 폼과 동일한 구조입니다.</div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-content"><code>저장</code> 버튼을 클릭합니다. 변경된 항목은 수정 이력에 자동 기록됩니다.</div>
+      </li>
+    </ol>
+    <div class="box box-warn">성과입력완료 단계 이후에도 수정이 가능하지만, 정산 관련 수치 변경은 신중하게 진행하세요.</div>
+
+    <!-- 복사 등록 -->
+    <h2 id="copy">복사 등록</h2>
+    <p>기존 캠페인과 동일한 조건으로 새 캠페인을 빠르게 등록할 때 사용합니다.</p>
+    <ol class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-content">복사할 캠페인의 <strong>상세보기</strong>를 엽니다.</div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-content">오른쪽 상단 <code>복사 등록</code> 버튼을 클릭합니다.</div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-content">기존 캠페인의 정보가 등록 폼에 자동으로 채워집니다. <strong>발송일시</strong>는 비어 있으므로 반드시 새로 입력합니다.</div>
+      </li>
+      <li>
+        <div class="step-num">4</div>
+        <div class="step-content">내용을 확인·수정 후 <code>등록</code> 버튼을 클릭합니다.</div>
+      </li>
+    </ol>
+    <div class="box box-warn">복사 등록 시 <strong>발송문구, 타겟 조건</strong>도 함께 복사됩니다. 내용이 다르면 반드시 수정 후 등록하세요.</div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────── 04 성과 입력 -->
+  <section class="section" id="perf">
+    <div class="section-num">04</div>
+    <h1>성과 입력</h1>
+    <p class="section-desc">캠페인 발송 이후 실적 데이터를 입력하는 방법을 설명합니다.</p>
+
+    <!-- 단계 흐름 -->
+    <h2 id="perf-flow">캠페인 진행 단계</h2>
+    <p>캠페인은 아래 4단계를 순서대로 거칩니다.</p>
+
+    <div class="flow">
+      <div class="flow-step done">부킹확정</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step done">테스트완료</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step done">성과입력대기</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step done">성과입력완료</div>
+    </div>
+
+    <table>
+      <thead><tr><th style="width:160px;">단계</th><th>의미</th><th style="width:160px;">다음 단계로 전환 방법</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>부킹확정</strong></td>
+          <td>캠페인 등록 직후 상태. 발송 전 준비 단계입니다.</td>
+          <td>상세보기 성과 카드에서 <code>테스트 수신 확인</code> 체크</td>
+        </tr>
+        <tr>
+          <td><strong>테스트완료</strong></td>
+          <td>테스트 발송이 완료된 상태입니다.</td>
+          <td>발송 후 성과 데이터 입력 시 자동 전환</td>
+        </tr>
+        <tr>
+          <td><strong>성과입력대기</strong></td>
+          <td>DA / CPA 등 성과 측정 완료 전 상태입니다.</td>
+          <td>성과 수치 입력 및 저장</td>
+        </tr>
+        <tr>
+          <td><strong>성과입력완료</strong></td>
+          <td>모든 성과 데이터가 입력된 최종 상태입니다. 정산 탭에 집계됩니다.</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="box box-ok"><strong>성과입력완료</strong> 상태가 되어야 <strong>정산 탭</strong>에서 해당 캠페인의 금액이 집계됩니다.</div>
+
+    <!-- 성과 수치 입력 -->
+    <h2 id="perf-input">성과 수치 입력</h2>
+    <ol class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-content">캠페인 <strong>상세보기</strong>를 엽니다.</div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-content">성과 카드 오른쪽 <code>✏ 입력</code> 버튼을 클릭합니다.</div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-content">아래 표를 참고해 수치를 입력합니다.</div>
+      </li>
+    </ol>
+
+    <h3>일반 캠페인 (SMS / LMS / MMS / push / 카톡msg)</h3>
+    <table>
+      <thead><tr><th style="width:140px;">필드</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><strong>실발송수량</strong></td><td>실제로 발송된 수량입니다. 정산 금액 계산의 기준이 됩니다.</td></tr>
+        <tr><td><strong>클릭수</strong></td><td>수신자가 링크를 클릭한 횟수입니다.</td></tr>
+        <tr><td><strong>클릭률(CTR)</strong></td><td>클릭수 ÷ 실발송수량으로 자동 계산됩니다.</td></tr>
+        <tr><td><strong>DB등록수</strong></td><td>CPA 연계 캠페인의 경우 DB 수집 건수를 입력합니다.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>DA 캠페인</h3>
+    <table>
+      <thead><tr><th style="width:140px;">필드</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><strong>노출수</strong></td><td>광고가 노출된 총 횟수입니다.</td></tr>
+        <tr><td><strong>클릭수</strong></td><td>광고를 클릭한 횟수입니다.</td></tr>
+        <tr><td><strong>전환수</strong></td><td>광고를 통해 전환(구매·신청 등)한 횟수입니다.</td></tr>
+        <tr><td><strong>광고 매출(원)</strong></td><td>광고를 통해 발생한 총 매출액입니다.</td></tr>
+        <tr><td><strong>CTR / CPA / ROAS</strong></td><td>자동 계산됩니다.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>CPA 캠페인</h3>
+    <table>
+      <thead><tr><th style="width:140px;">필드</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><strong>DB등록수</strong></td><td>실제 성과 건수(신청수·로그인수·결제건수)입니다. 정산의 기준이 됩니다.</td></tr>
+        <tr><td><strong>클릭수</strong></td><td>광고 클릭 횟수입니다.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>퍼미션콜 캠페인</h3>
+    <table>
+      <thead><tr><th style="width:140px;">필드</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><strong>매체 유입수(신청자)</strong></td><td>매체를 통해 유입된 신청자 수입니다.</td></tr>
+        <tr><td><strong>동의건수</strong></td><td>실제로 동의한 건수입니다. 광고비 계산의 기준이 됩니다.</td></tr>
+        <tr><td><strong>OHC 비용</strong></td><td>OHC에 지급할 총 비용을 입력합니다.</td></tr>
+        <tr><td><strong>전환율·광고비·수익</strong></td><td>자동 계산됩니다.</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 발송문구 검수 -->
+    <h2 id="perf-msg">발송문구 입력 및 검수 처리</h2>
+    <p>캠페인 상세보기의 <strong>타겟 & 문구</strong> 카드에서 발송문구를 관리합니다. (SMS/LMS/MMS/push/카톡msg 전용)</p>
+
+    <ol class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-content">타겟 & 문구 카드 오른쪽 <code>✏ 수정</code> 버튼을 클릭합니다.</div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-content"><strong>발송문구</strong> 입력란에 최종 문구를 입력합니다.</div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-content">광고주 또는 매체사로부터 문구 검수가 완료되면 <code>검수 완료 문구로 저장</code> 체크박스를 활성화하고 저장합니다.</div>
+      </li>
+    </ol>
+
+    <p>상세보기 문구 카드에는 <code>검수전</code>과 <code>검수완료</code> 탭이 있어 두 버전을 구분하여 확인할 수 있습니다.</p>
+    <div class="box box-tip"><strong>검수완료 문구</strong>가 있으면 검수완료 탭이 우선 표시됩니다. 아직 검수 전이라면 검수전 탭을 확인하세요.</div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────── 05 정산 -->
+  <section class="section" id="settlement">
+    <div class="section-num">05</div>
+    <h1>정산 확인</h1>
+    <p class="section-desc">성과입력완료된 캠페인의 정산 금액을 확인하고 엑셀로 다운로드하는 방법을 설명합니다.</p>
+
+    <div class="box box-ok">정산 탭은 <strong>성과입력완료</strong> 상태인 캠페인만 기본으로 집계합니다. (상단 범위 필터로 전체 보기 가능)</div>
+
+    <h2>상단 요약 카드</h2>
+    <table>
+      <thead><tr><th style="width:140px;">항목</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><strong>정산 대상 건수</strong></td><td>현재 필터 조건에 해당하는 캠페인 수</td></tr>
+        <tr><td><strong>총 매출액</strong></td><td>광고주에게 청구한 광고비 합계</td></tr>
+        <tr><td><strong>총 매입액</strong></td><td>매체사에 지급하는 비용 합계</td></tr>
+        <tr><td><strong>총 매출이익 / 이익률</strong></td><td>매출 - 매입 - 대행료</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 보기 탭 -->
+    <h2 id="stl-view">보기 탭</h2>
+    <p>데이터를 어떤 기준으로 그룹화해서 볼지 선택합니다. 다운로드 결과에는 영향을 주지 않습니다.</p>
+    <table>
+      <thead><tr><th style="width:120px;">탭</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><strong>매출처별</strong></td><td>광고주/대행사별로 묶어서 소계를 보여줍니다. (기본값)</td></tr>
+        <tr><td><strong>매체사별</strong></td><td>매체사별로 묶어 매체사당 총 매입액을 파악합니다.</td></tr>
+        <tr><td><strong>캠페인별</strong></td><td>개별 캠페인 단위로 상세 수치를 봅니다.</td></tr>
+        <tr><td><strong>퍼미션콜</strong></td><td>퍼미션콜 상품의 OHC·DNU 비용 등 전용 정산 화면을 봅니다.</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 필터 -->
+    <h2 id="stl-filter">필터 활용</h2>
+    <p>다운로드 데이터는 화면에 적용된 모든 필터를 그대로 반영합니다. <strong>화면에 보이는 데이터 = 다운로드 데이터</strong>입니다.</p>
+    <table>
+      <thead><tr><th style="width:160px;">필터</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><strong>연도 / 월</strong></td><td>발송일 기준 연도와 월로 조회합니다.</td></tr>
+        <tr><td><strong>성과입력완료만 / 전체</strong></td><td>정산 완료 건만 볼지, 전체 캠페인을 볼지 선택합니다.</td></tr>
+        <tr><td><strong>상품 / 카테고리</strong></td><td>특정 상품이나 카테고리만 조회합니다.</td></tr>
+        <tr><td><strong>매체사 / 매출처 / 담당자</strong></td><td>특정 매체·광고주·담당자 기준으로 좁혀 봅니다.</td></tr>
+        <tr><td><strong>본부/팀</strong></td><td>조직 단위로 필터링합니다.</td></tr>
+        <tr><td><strong>검색어</strong></td><td>캠페인명 또는 캠페인 ID로 검색합니다.</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 다운로드 -->
+    <h2 id="stl-download">엑셀 다운로드</h2>
+    <p>정산 탭 오른쪽 상단 <code>⬇ 다운로드</code> 버튼을 클릭하면 두 가지 파일을 받을 수 있습니다.</p>
+    <table>
+      <thead><tr><th style="width:180px;">파일</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>정산내역 엑셀</strong></td>
+          <td>현재 필터 기준의 캠페인별 정산 수치 (매출·매입·이익 등)가 담긴 엑셀 파일입니다.</td>
+        </tr>
+        <tr>
+          <td><strong>광고비 지급요청서</strong></td>
+          <td>매체사별 시트로 구성된 지급 요청 엑셀입니다. 퍼미션콜은 <strong>디앤유</strong>와 <strong>OHC</strong> 시트로 분리되어 생성됩니다.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="box box-tip">다운로드 전 필터를 원하는 조건으로 설정한 뒤 받으세요. 예: 이번 달 특정 매체사만 → 연·월 + 매체사 필터 적용 후 다운로드.</div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────── 06 세금계산서 -->
+  <section class="section" id="tax">
+    <div class="section-num">06</div>
+    <h1>세금계산서 등록</h1>
+    <p class="section-desc">좌측 메뉴 <strong>세금계산서</strong>에서 매출·매입 세금계산서 발행 요청을 등록합니다. 등록 후 관리자가 발행 처리합니다.</p>
+
+    <div class="box box-tip">세금계산서 등록은 <strong>발행 요청</strong>입니다. 실제 발행 완료 처리는 관리자가 확인 후 진행합니다.</div>
+
+    <!-- 불러오기 -->
+    <h2 id="tax-import">불러오기 — 캠페인에서 자동 생성</h2>
+    <p>정산이 완료된 캠페인 데이터를 바탕으로 세금계산서 항목을 자동으로 만드는 방법입니다. 수기 입력 오류를 줄일 수 있어 권장합니다.</p>
+    <ol class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-content">세금계산서 탭 상단 <code>불러오기</code> 버튼을 클릭합니다.</div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-content">캠페인 선택 화면에서 계산서를 발행할 <strong>캠페인을 체크</strong>합니다. 성과입력완료 상태의 캠페인만 목록에 표시됩니다.</div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-content"><strong>발행구분</strong>을 설정합니다. 항목별로 <code>광고주</code> (매출 계산서) 또는 <code>매체</code> (매입 계산서)를 선택합니다. 상단 <code>일괄 설정</code> 버튼으로 전체 일괄 변경도 가능합니다.</div>
+      </li>
+      <li>
+        <div class="step-num">4</div>
+        <div class="step-content">공급가액·부가세·내용 등이 캠페인 데이터에서 자동으로 채워집니다. 내용을 확인한 후 <code>등록</code> 버튼을 클릭합니다.</div>
+      </li>
+    </ol>
+    <div class="box box-warn">이미 세금계산서가 등록된 캠페인은 중복 등록되지 않도록 주의하세요.</div>
+
+    <!-- 수동 등록 -->
+    <h2 id="tax-manual">수동 등록</h2>
+    <p>캠페인 데이터와 별개로 직접 세금계산서 정보를 입력할 때 사용합니다.</p>
+    <ol class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-content">세금계산서 탭 상단 <code>+ 수동 등록</code> 버튼을 클릭합니다.</div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-content">아래 필드를 입력합니다.</div>
+      </li>
+    </ol>
+    <table>
+      <thead><tr><th style="width:140px;">필드</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><strong>발행구분</strong></td><td><code>광고주</code> — 광고주에게 발행하는 매출 계산서<br><code>매체</code> — 매체사로부터 수취하는 매입 계산서</td></tr>
+        <tr><td><strong>월별</strong></td><td>해당 계산서의 귀속 연도·월 선택</td></tr>
+        <tr><td><strong>발행요청일</strong></td><td>관리자에게 발행을 요청하는 날짜 (오늘 날짜)</td></tr>
+        <tr><td><strong>발행일자</strong></td><td>실제 세금계산서 발행 예정일 (알고 있는 경우 입력)</td></tr>
+        <tr><td><strong>입금예정일</strong></td><td>광고주로부터 입금 예정인 날짜 (매출 계산서의 경우)</td></tr>
+        <tr><td><strong>담당자</strong></td><td>이 건을 담당하는 팀원 선택</td></tr>
+        <tr><td><strong>업체명 / 상호명</strong></td><td>계산서 발행 대상 회사명 및 법인 상호명</td></tr>
+        <tr><td><strong>공급가액</strong></td><td>VAT 제외 금액. 부가세(10%)는 자동 계산됩니다.</td></tr>
+        <tr><td><strong>내용</strong></td><td>계산서 적요란에 들어갈 내용. 형식 예시: <code>3월 LMS 광고비_SKT 1차</code></td></tr>
+        <tr><td><strong>담당자 이메일</strong></td><td>계산서 수신 담당자의 이름과 이메일 주소</td></tr>
+        <tr><td><strong>메모</strong></td><td>내부 참고용 메모</td></tr>
+      </tbody>
+    </table>
+    <div class="box box-tip">내용 필드는 <strong>집행월_광고주명_매체명_광고형태</strong> 형식을 권장합니다. 관리자가 내용을 보고 발행 처리를 합니다.</div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────── 07 FAQ -->
+  <section class="section" id="faq">
+    <div class="section-num">06</div>
+    <h1>자주 묻는 질문</h1>
+    <p class="section-desc">실무 중 자주 발생하는 질문과 답변입니다.</p>
+
+    <div class="faq-item">
+      <div class="faq-q">캠페인명을 직접 입력하고 싶은데 어디서 하나요?</div>
+      <div class="faq-a">캠페인명은 <strong>광고주 + 매체사</strong> 조합으로 자동 생성되며 직접 입력하는 칸이 아닙니다. 별도 프로모션 테마가 있다면 <strong>광고목적</strong> 필드에 입력하세요.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">등록 후 발송일시를 바꾸고 싶어요.</div>
+      <div class="faq-a">상세보기 → <code>수정</code> 버튼을 클릭한 뒤 발송일시를 변경하고 저장하면 됩니다.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">실발송수량을 잘못 입력했어요.</div>
+      <div class="faq-a">상세보기 성과 카드에서 다시 <code>✏ 입력</code> 버튼을 눌러 수정할 수 있습니다. 수정 이력이 자동 기록됩니다.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">정산 탭에 캠페인이 보이지 않아요.</div>
+      <div class="faq-a">정산 탭은 기본적으로 <strong>성과입력완료</strong> 상태인 캠페인만 표시합니다. 해당 캠페인이 성과입력완료 상태인지 확인하고, 상단 범위 필터가 <strong>'전체 캠페인'</strong>으로 설정되어 있는지도 확인해 보세요. 또한 연도·월 필터가 해당 캠페인의 발송일과 맞는지 확인하세요.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">같은 조건으로 캠페인을 여러 개 등록해야 해요.</div>
+      <div class="faq-a">기존 캠페인 상세보기에서 <code>복사 등록</code> 버튼을 이용하면 모든 정보가 자동으로 채워진 등록 폼이 열립니다. 발송일시만 새로 입력하면 됩니다.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">광고비 지급요청서 다운로드 시 퍼미션콜 데이터는 어디서 확인하나요?</div>
+      <div class="faq-a">퍼미션콜 항목은 <strong>디앤유</strong>와 <strong>OHC</strong> 시트 2개로 분리 생성됩니다. 디앤유 시트에는 DNU 비용, OHC 시트에는 OHC 비용이 표기됩니다.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">DA 캠페인에 발송문구를 입력하는 란이 없어요.</div>
+      <div class="faq-a">DA 캠페인은 문자 발송이 아닌 배너·동영상 소재를 사용하므로 발송문구 입력란이 없습니다. 대신 등록 시 <strong>소재 이미지</strong>를 첨부하세요.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">LMS 등록 시 시간 00:00으로 설정이 안 됩니다.</div>
+      <div class="faq-a">LMS / MMS / push / 카톡msg 상품은 발송 시간이 필수이기 때문에 00:00 설정이 차단되어 있습니다. 실제 발송 예정 시간을 정확히 입력해 주세요.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">캠페인을 삭제하고 싶어요.</div>
+      <div class="faq-a">캠페인 상세보기 우측 상단 <code>삭제</code> 버튼을 통해 삭제할 수 있습니다. 단, <strong>삭제는 되돌릴 수 없으므로</strong> 신중하게 진행하세요. 삭제 권한이 없다면 관리자에게 문의하세요.</div>
+    </div>
+  </section>
+
+  <div style="margin-top:48px; padding-top:24px; border-top:1px solid var(--border); color:var(--text3); font-size:12px; text-align:center;">
+    캠페인 대시보드 실무자 사용 설명서 · 문의: 시스템 관리자
+  </div>
+
+</main>
+
+<script>
+  /* ── 검색 기능 ── */
+  const searchInput = document.getElementById('manual-search');
+  const searchInfo  = document.getElementById('search-info');
+  const searchNav   = document.getElementById('search-nav');
+  const btnPrev     = document.getElementById('search-prev');
+  const btnNext     = document.getElementById('search-next');
+  const mainEl      = document.querySelector('.main');
+  let highlights = [];
+  let currentMatch = -1;
+
+  function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  function syncNavButtons() {
+    const has = highlights.length > 0;
+    searchNav.style.display = has ? 'flex' : 'none';
+    btnPrev.disabled = !has || highlights.length <= 1;
+    btnNext.disabled = !has || highlights.length <= 1;
+  }
+
+  function clearHighlights() {
+    mainEl.querySelectorAll('mark.search-hl').forEach(mark => {
+      mark.parentNode.replaceChild(document.createTextNode(mark.textContent), mark);
+    });
+    mainEl.normalize();
+    highlights = [];
+    currentMatch = -1;
+    searchInfo.textContent = '';
+    syncNavButtons();
+  }
+
+  function doSearch(query) {
+    clearHighlights();
+    if (!query || query.trim().length < 1) return;
+    const re = new RegExp(escapeRe(query.trim()), 'gi');
+    const walker = document.createTreeWalker(mainEl, NodeFilter.SHOW_TEXT, {
+      acceptNode: n => {
+        const tag = n.parentNode.tagName;
+        return (tag === 'SCRIPT' || tag === 'STYLE') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const textNodes = [];
+    let n;
+    while ((n = walker.nextNode())) { if (re.test(n.textContent)) textNodes.push(n); re.lastIndex = 0; }
+
+    textNodes.forEach(tn => {
+      const frag = document.createDocumentFragment();
+      let last = 0;
+      let m;
+      re.lastIndex = 0;
+      while ((m = re.exec(tn.textContent)) !== null) {
+        if (m.index > last) frag.appendChild(document.createTextNode(tn.textContent.slice(last, m.index)));
+        const mark = document.createElement('mark');
+        mark.className = 'search-hl';
+        mark.textContent = m[0];
+        frag.appendChild(mark);
+        highlights.push(mark);
+        last = m.index + m[0].length;
+      }
+      if (last < tn.textContent.length) frag.appendChild(document.createTextNode(tn.textContent.slice(last)));
+      tn.parentNode.replaceChild(frag, tn);
+    });
+
+    if (highlights.length > 0) { goToMatch(0); }
+    else { searchInfo.textContent = '결과 없음'; syncNavButtons(); }
+  }
+
+  function goToMatch(idx) {
+    highlights.forEach((h, i) => h.classList.toggle('search-current', i === idx));
+    currentMatch = idx;
+    searchInfo.textContent = `${idx + 1} / ${highlights.length}`;
+    highlights[idx]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    syncNavButtons();
+  }
+
+  searchInput.addEventListener('input', () => doSearch(searchInput.value));
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && highlights.length > 0) {
+      e.preventDefault();
+      goToMatch(e.shiftKey
+        ? (currentMatch - 1 + highlights.length) % highlights.length
+        : (currentMatch + 1) % highlights.length);
+    }
+    if (e.key === 'Escape') { searchInput.value = ''; clearHighlights(); }
+  });
+  btnPrev.addEventListener('click', () => {
+    if (highlights.length === 0) return;
+    goToMatch((currentMatch - 1 + highlights.length) % highlights.length);
+  });
+  btnNext.addEventListener('click', () => {
+    if (highlights.length === 0) return;
+    goToMatch((currentMatch + 1) % highlights.length);
+  });
+
+  /* ── 사이드바 active ── */
+  const navLinks = [...document.querySelectorAll('.nav-item, .nav-sub')];
+  const targets = navLinks
+    .map(a => document.getElementById((a.getAttribute('href') || '').slice(1)))
+    .filter(Boolean);
+
+  function updateActive() {
+    const scrollY = window.scrollY || document.documentElement.scrollTop;
+
+    // offsetTop 기준으로 현재 스크롤 위치에서 가장 마지막으로 지난 타겟
+    let current = targets[0];
+    targets.forEach(el => {
+      if (el.offsetTop - 130 <= scrollY) current = el;
+    });
+
+    const currentId = current?.id || '';
+    const sectionId = current?.closest('section')?.id || '';
+
+    navLinks.forEach(a => {
+      const href = (a.getAttribute('href') || '').slice(1);
+      // 현재 항목 또는 현재 항목의 부모 섹션이면 active
+      a.classList.toggle('active', href === currentId || href === sectionId);
+    });
+  }
+
+  window.addEventListener('scroll', updateActive, { passive: true });
+  updateActive();
+</script>
+</body>
+</html>
