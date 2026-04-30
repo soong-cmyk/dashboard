@@ -519,6 +519,7 @@ const FIELD_LABELS = {
   note:'특기사항', testOk:'테스트수신', sent:'성과입력대기',
   actual:'실발송수량', clicks:'클릭수', ctr:'클릭률', db:'DB등록수', dbr:'DB등록률',
   invoiceOut:'매출계산서발행', payIn:'입금', invoiceIn:'매입계산서발행', payOut:'지급',
+  confirmAdv:'담당자확인(광고주)', confirmMedia:'담당자확인(매체)',
 };
 
 function _nowStr() {
@@ -5974,6 +5975,12 @@ function _stlCellUpdate(campaignId, field) {
         td.innerHTML = `<div class="chk" style="${sm?'width:18px;height:18px;':''}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${campaignId}')"></div>`;
     } else if (field === 'payIn' && c.payIn && c.payInDate) {
       td.innerHTML = `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${campaignId}','payIn')">${c.payInDate}</span>`;
+    } else if (field === 'confirmAdv' || field === 'confirmMedia') {
+      const val = c[field];
+      const sz  = sm ? 'width:18px;height:18px;' : '';
+      td.innerHTML = val
+        ? `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleStlConfirm('${campaignId}','${field}')">${val}</span>`
+        : `<div class="chk" style="${sz}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleStlConfirm('${campaignId}','${field}')"></div>`;
     } else {
       const on  = !!c[field];
       const sz  = sm ? 'width:18px;height:18px;font-size:10px;' : '';
@@ -6189,6 +6196,18 @@ async function _applyTaxPaid(gid, on, date) {
     _fbSaveNotification(toUser.id, type, body);
   }
   renderTaxList();
+}
+
+/** 담당자 확인 토글 */
+function toggleStlConfirm(campaignId, field) {
+  const c = DATA.find(d => d.id === campaignId);
+  if (!c) return;
+  const before = c[field];
+  c[field] = before ? null : (currentUser?.name || '?');
+  _log(campaignId, 'check', field, before || '미확인', c[field] || '미확인');
+  _fbSaveCampaign(c);
+  _stlSaveScroll();
+  _stlCellUpdate(campaignId, field);
 }
 
 /** 정산 체크박스 토글 (입금/지급/매출계산서) */
@@ -6438,6 +6457,7 @@ function renderStlCampaignView(data, container) {
     const has    = _stlHas(c);
     const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
     const chk = (field) => { if (field === 'payIn' && c.payIn && c.payInDate) return `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','payIn')">${c.payInDate}</span>`; const dis = !_stlCanEdit(field)?'opacity:0.35;cursor:not-allowed;pointer-events:none;':''; return `<div class="chk ${c[field]?'on':''}" style="${dis}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`; };
+    const conf = (field) => { const val = c[field]; if (val) return `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleStlConfirm('${c.id}','${field}')">${val}</span>`; return `<div class="chk" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleStlConfirm('${c.id}','${field}')"></div>`; };
 
     return `<tr data-stlcamp="${c.id}" style="cursor:pointer;" onclick="openCalPreview(DATA.findIndex(d=>d.id==='${c.id}'))">
       <td class="td-dim stl-s1" style="background:${bg0};">${_escHtml(c.cat)}</td>
@@ -6464,6 +6484,8 @@ function renderStlCampaignView(data, container) {
       <td style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_payIn">${chk('payIn')}</td>
       <td class="grp-status2" style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_invoiceIn">${invInCell(c)}</td>
       <td style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_payOut">${chk('payOut')}</td>
+      <td class="grp-confirm" style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_confirmAdv">${conf('confirmAdv')}</td>
+      <td style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_confirmMedia">${conf('confirmMedia')}</td>
     </tr>`;
   }).join('');
 
@@ -6500,6 +6522,8 @@ function renderStlCampaignView(data, container) {
         <th style="text-align:center;">입금</th>
         <th class="grp-status2" style="text-align:center;">매입계산서</th>
         <th style="text-align:center;">지급</th>
+        <th class="grp-confirm" style="text-align:center;">광고주</th>
+        <th style="text-align:center;">매체</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -6548,6 +6572,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
     const subRows = camps.map(c => {
       const a      = _stlAmt(c);
       const chk = (field) => { if (field === 'payIn' && c.payIn && c.payInDate) return `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','payIn')">${c.payInDate}</span>`; const dis = !_stlCanEdit(field)?'opacity:0.35;cursor:not-allowed;pointer-events:none;':''; return `<div class="chk ${c[field]?'on':''}" style="width:18px;height:18px;font-size:10px;${dis}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`; };
+      const conf = (field) => { const val = c[field]; if (val) return `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleStlConfirm('${c.id}','${field}')">${val}</span>`; return `<div class="chk" style="width:18px;height:18px;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleStlConfirm('${c.id}','${field}')"></div>`; };
       const invInCellSub = () => {
         const v = c.invoiceIn || '';
         if (v === '발행완료')    return `<span class="stl-inv-badge done"   onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')">✓ 발행완료</span>`;
@@ -6583,6 +6608,8 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
         <td style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_payIn" data-stlsmall="1">${chk('payIn')}</td>
         <td class="grp-status2" style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_invoiceIn" data-stlsmall="1">${invInCellSub()}</td>
         <td style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_payOut" data-stlsmall="1">${chk('payOut')}</td>
+        <td class="grp-confirm" style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_confirmAdv" data-stlsmall="1">${conf('confirmAdv')}</td>
+        <td style="text-align:center;" onclick="event.stopPropagation()" data-stlcell="${c.id}_confirmMedia" data-stlsmall="1">${conf('confirmMedia')}</td>
       </tr>`;
     }).join('');
 
@@ -6608,6 +6635,8 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
       <td style="text-align:center;" data-stlbadge="payIn">${cntBadge(payInDone, n)}</td>
       <td class="grp-status2" style="text-align:center;" data-stlbadge="invoiceIn">${cntBadge(invInDone, n)}</td>
       <td style="text-align:center;" data-stlbadge="payOut">${cntBadge(payOutDone, n)}</td>
+      <td class="grp-confirm" style="text-align:center;" data-stlbadge="confirmAdv">${cntBadge(camps.filter(x=>!!x.confirmAdv).length, n)}</td>
+      <td style="text-align:center;" data-stlbadge="confirmMedia">${cntBadge(camps.filter(x=>!!x.confirmMedia).length, n)}</td>
     </tr>${subRows}`;
   }).join('');
 
@@ -6619,6 +6648,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
         <th colspan="7" class="grp-head grp-purchase">매입</th>
         <th colspan="4" class="grp-head grp-pnl">손익</th>
         <th colspan="4" class="grp-head grp-status">정산</th>
+        <th colspan="2" class="grp-head grp-confirm">담당자 확인</th>
       </tr>
       <tr>
         <th colspan="3" class="stl-sc3" style="background:var(--surface2);">캠페인 상세</th>
@@ -6643,6 +6673,8 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
         <th style="text-align:center;">입금</th>
         <th class="grp-status2" style="text-align:center;">매입계산서</th>
         <th style="text-align:center;">지급</th>
+        <th class="grp-confirm" style="text-align:center;">광고주</th>
+        <th style="text-align:center;">매체</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>

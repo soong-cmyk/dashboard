@@ -302,6 +302,8 @@ td.grp-purchase{border-left:2px solid #f3f0ff;}
 td.grp-pnl{border-left:2px solid var(--green-bg);}
 td.grp-status{border-left:2px solid var(--yellow-bg);}
 td.grp-status2{border-left:2px solid var(--green-bg);}
+.grp-confirm{border-left:2px solid var(--orange);}
+td.grp-confirm{border-left:2px solid var(--orange-bg);}
 .stl-inv-btn{font-size:11px !important;padding:3px 8px !important;min-width:90px;font-family:'Noto Sans KR',monospace;}
 
 /* ── MODAL ── */
