@@ -529,8 +529,8 @@
               <div class="step">성과입력완료</div>
             </div>
             <button class="btn btn-ghost btn-sm" onclick="openHistory()">⏱ 이력</button>
-            <button class="btn btn-ghost btn-sm" id="btn-detail-rpt"
-              onclick="openReportForCampaign(DATA[currentDetailIdx]?.id)">📄 리포트</button>
+            <!-- <button class="btn btn-ghost btn-sm" id="btn-detail-rpt"
+              onclick="openReportForCampaign(DATA[currentDetailIdx]?.id)">📄 리포트</button> -->
             <button class="btn btn-ghost btn-sm" id="btn-detail-copy" onclick="openCopyCampaign()">📋 복사 등록</button>
             <button class="btn btn-ghost btn-sm" id="btn-detail-edit" onclick="openEdit()">✏ 수정</button>
           </div>
@@ -2052,11 +2052,21 @@
           <button class="btn btn-primary btn-sm" onclick="openTaxAutoGen()">+ 캠페인에서 가져오기</button>
         </div>
         <!-- 요약 카드 -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;">
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:16px;">
           <div class="stat-card"><div class="stat-label">건수</div><div class="stat-val" id="tax-cnt">—</div><div class="stat-sub" id="tax-cnt-sub">—</div></div>
           <div class="stat-card"><div class="stat-label">공급가액 합계</div><div class="stat-val" id="tax-supply">—</div></div>
           <div class="stat-card"><div class="stat-label">부가세포함 합계</div><div class="stat-val" id="tax-vat">—</div></div>
           <div class="stat-card"><div class="stat-label">미수 합계</div><div class="stat-val" id="tax-unpaid" style="color:var(--red);">—</div></div>
+          <div class="stat-card c-red" id="tax-card-unissued" onclick="setTaxQuickFilter('unissued')" style="cursor:pointer;">
+            <div class="stat-label">세발 미완료</div>
+            <div class="stat-val" id="tax-unissued-cnt" style="color:var(--red);font-size:20px;font-weight:700;">—</div>
+            <div class="stat-sub" id="tax-unissued-sub">클릭하여 필터</div>
+          </div>
+          <div class="stat-card c-red" id="tax-card-unpaid" onclick="setTaxQuickFilter('unpaid')" style="cursor:pointer;">
+            <div class="stat-label">입금 미완료</div>
+            <div class="stat-val" id="tax-unpaid-cnt" style="color:var(--red);font-size:20px;font-weight:700;">—</div>
+            <div class="stat-sub" id="tax-unpaid-sub">클릭하여 필터</div>
+          </div>
         </div>
         <!-- 카드 목록 -->
         <div id="tax-list"></div>
@@ -3527,6 +3537,16 @@
       <button class="modal-close" onclick="closeModal('modalNotif')">✕</button>
     </div>
     <div id="notif-list" style="overflow-y:auto;flex:1;padding:8px 0;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalLoginHistory" style="z-index:400;">
+  <div class="modal" style="width:520px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;">
+    <div class="modal-head" style="flex-shrink:0;">
+      <span class="modal-title">로그인 기록</span>
+      <button class="modal-close" onclick="closeModal('modalLoginHistory')">✕</button>
+    </div>
+    <div id="login-history-list" style="overflow-y:auto;flex:1;padding:4px 0;"></div>
   </div>
 </div>
 

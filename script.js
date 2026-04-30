@@ -235,6 +235,13 @@ async function login() {
   if (errEl) errEl.style.display = 'none';
   currentUser = user;
   localStorage.setItem('cu', JSON.stringify(user));
+  if (window._db) {
+    window._db.collection('loginHistory').add({
+      userId: user.id, name: user.name,
+      dept: [user.bonbu, user.dept].filter(Boolean).join(' ') || '',
+      loginAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(() => {});
+  }
   _updateUserUI();
   _fbWatchNotifications();
   // 로그인 전에 detail URL로 접근했던 경우 복원
@@ -260,6 +267,31 @@ function logout() {
   currentUser = null;
   localStorage.removeItem('cu');
   goScreen('login');
+}
+async function openLoginHistory() {
+  if (!currentUser?.isAdmin) return;
+  const el = document.getElementById('login-history-list');
+  if (el) el.innerHTML = '<div style="padding:20px;color:var(--text3);text-align:center;">불러오는 중...</div>';
+  openModal('modalLoginHistory');
+  try {
+    const snap = await window._db.collection('loginHistory').orderBy('loginAt', 'desc').limit(300).get();
+    if (!el) return;
+    if (snap.empty) { el.innerHTML = '<div style="padding:20px;color:var(--text3);text-align:center;">기록 없음</div>'; return; }
+    el.innerHTML = snap.docs.map(d => {
+      const r = d.data();
+      const dt = r.loginAt?.toDate ? r.loginAt.toDate() : new Date(0);
+      const pad = n => String(n).padStart(2, '0');
+      const dtStr = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+      return `<div style="display:flex;gap:16px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:13px;align-items:center;">
+        <span style="color:var(--text3);min-width:150px;font-family:monospace;">${dtStr}</span>
+        <span style="font-weight:600;min-width:56px;">${r.name}</span>
+        <span style="color:var(--text3);font-size:12px;">${r.dept || ''}</span>
+        <span style="margin-left:auto;color:var(--text3);font-size:12px;">로그인</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    if (el) el.innerHTML = '<div style="padding:20px;color:var(--danger);">불러오기 실패</div>';
+  }
 }
 function _updateUserUI() {
   if (!currentUser) return;
@@ -341,7 +373,7 @@ function openUserMgmt() {
 function _renderUserMgmtList() {
   const tb = document.getElementById('users-tbody');
   if (!tb) return;
-  const list = USERS.filter(u => !u.isAdmin).sort((a, b) => {
+  const list = USERS.filter(u => !u.isAdmin && u.id !== 'user').sort((a, b) => {
     if (a.id === 'wonjoon') return -1;
     if (b.id === 'wonjoon') return 1;
     const bonbuIdx = u => { const i = ORG_STRUCTURE.findIndex(o => o.bonbu === u.bonbu); return i < 0 ? 99 : i; };
@@ -3494,10 +3526,11 @@ function _updateCalMeta() {
     return true;
   });
 
-  const totalQty = visible.reduce((s, c) => s + (c.qty || 0), 0);
+  const totalQty = visible.reduce((s, c) => s + (c.actual || c.qty || 0), 0);
   const totalAdc = visible.reduce((s, c) => {
+    if (c.product === 'DA') return s + (c.daAdcost || 0);
     const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0) - (c.svc||0) : (c.actual ? c.actual - (c.svc||0) : (c.qty||0) - (c.svc||0));
-    return s + base * (c.sellUnit || 0);
+    return s + (c.adcostFixed || base * (c.sellUnit || 0));
   }, 0);
   const qtyEl = document.getElementById('calMetaQty');
   const cntEl = document.getElementById('calMetaCnt');
@@ -3820,6 +3853,12 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // ESC로 모든 모달 닫기 (배경 클릭으로는 닫히지 않음)
 document.addEventListener('keydown', e => {
+  // 로그인 기록 (admin 전용 비밀 단축키)
+  if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+    e.preventDefault();
+    openLoginHistory();
+    return;
+  }
   // 라이트박스가 열려있으면 방향키 / ESC 처리
   const lb = document.getElementById('modalLightbox');
   if (lb && lb.style.display === 'flex') {
@@ -3861,13 +3900,17 @@ function _renderMiniList(campaigns, listElId) {
     const idx = DATA.indexOf(c);
     const color = CAT_COLOR[_getCat(c)] || '#9da3bc';
     const dateStr = _formatDate(c.date);
+    // 모바일용 짧은 날짜: MM-DD HH:mm
+    const dateShort = (c.date || '').length >= 10
+      ? c.date.slice(5, 10) + (c.date.length > 10 ? ' ' + c.date.slice(11, 16) : '')
+      : dateStr;
     return `<div class="mini-item" onclick="openCalPreview(${idx})">
     <div class="mini-dot" style="background:${color};"></div>
-    <span style="font-size:11px;font-weight:600;color:${color};flex-shrink:0;min-width:32px;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escHtml(_getCat(c))}</span>
-    <span class="mini-date" style="min-width:90px;flex-shrink:0;">${dateStr}</span>
-    <span class="mini-name">${_cName(c)}</span>
+    <span class="mini-cat" style="color:${color};">${_escHtml(_getCat(c))}</span>
+    <span class="mini-date"><span class="mini-date-full">${dateStr}</span><span class="mini-date-short">${dateShort}</span></span>
+    <span class="mini-name">${_escHtml(_cName(c))}</span>
     <span class="badge b-${c.status}">${c.status}</span>
-    ${c.ops ? `<span style="color:var(--text3);font-size:12px;flex-shrink:0;">${c.ops}</span>` : ''}
+    ${c.ops ? `<span class="mini-ops">${_escHtml(c.ops)}</span>` : ''}
     </div>`;
   }).join('');
 }
@@ -3917,11 +3960,19 @@ function renderDashboard() {
 
   const statData = DATA.filter(c => (c.date || '').startsWith(prefix));
   const campCnt  = statData.length;
-  const sentQty  = statData.filter(c => c.sent).reduce((s, c) => s + (c.qty || 0), 0);
+  const sentQty  = statData.filter(c => c.sent).reduce((s, c) => s + (c.actual || c.qty || 0), 0);
   const totalQty = statData.reduce((s, c) => s + (c.qty || 0), 0);
   const statAdc  = statData.reduce((s, c) => {
-    const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
-    return s + base * (c.sellUnit||0);
+    let adc = 0;
+    if (c.product === 'DA') {
+      adc = c.daAdcost || 0;
+    } else if (c.product === 'CPA') {
+      adc = c.adcostFixed || (c.db || c.qty || 0) * (c.sellUnit || 0);
+    } else {
+      const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
+      adc = c.adcostFixed || base * (c.sellUnit || 0);
+    }
+    return s + adc;
   }, 0);
 
   const lbl = selMonth ? `${+selMonth}월` : `${thisYear}년`;
@@ -4123,7 +4174,7 @@ async function downloadSettlementExcel() {
   settled.forEach(c => {
     const a      = _stlAmt(c);
     const has    = _stlHas(c);
-    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
+    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
     const r  = v => has    ? v : null;
     const rb = v => hasBuy ? v : null;
     const buyQty = a.buyActual ?? a.actual ?? 0;
@@ -4252,7 +4303,7 @@ async function downloadInvoiceExcel() {
     camps.forEach(c => {
       const a = _stlAmt(c);
       const has = _stlHas(c);
-      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
+      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
       const adcost = has ? (a.amt ?? a.adc) : null;
       const buyAmt = hasBuy ? a.buyAmt : null;
       const buyVat = hasBuy ? a.buyVat : null;
@@ -4608,8 +4659,11 @@ function renderMonthly() {
   const totalQty    = src.reduce((s,c) => s+(c.qty||0), 0);
   const totalActual = src.reduce((s,c) => s+(c.actual||0), 0);
   const totalAdc    = src.reduce((s,c) => {
+    if (c.product === 'DA') return s + (c.daAdcost || 0);
+    if (c.product === 'CPA') return s + (c.adcostFixed || (c.db || c.qty || 0) * (c.sellUnit || 0));
+    if (c.product === '퍼미션콜') return s + (c.pcAgree || 0) * (c.pcAdvUnit || 0);
     const base = (c.sellBillBase||c.billBase||'actual')==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
-    return s + base*(c.sellUnit||0);
+    return s + (c.adcostFixed || base*(c.sellUnit||0));
   }, 0);
   const fmtAdc = v => v >= 100000000 ? (v/100000000).toFixed(2).replace(/\.?0+$/,'')+'억원' : (v/10000).toFixed(2).replace(/\.?0+$/,'')+'만원';
   document.getElementById('mly-stats').innerHTML = [
@@ -6128,7 +6182,7 @@ function renderSettlement() {
   settled.forEach(c => {
     const a      = _stlAmt(c);
     const has    = _stlHas(c);
-    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
+    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
     if (has)    totalAdc += (a.amt ?? a.adc);
     if (hasBuy) totalBuy += a.buyAmt;
     if (has)    totalPrf += a.prf;
@@ -6277,7 +6331,7 @@ function renderStlCampaignView(data, container) {
     const a      = _stlAmt(c);
     const isDA   = c.product === 'DA';
     const has    = _stlHas(c);
-    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
+    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
     const chk = (field) => `<div class="chk ${c[field]?'on':''}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`;
 
     return `<tr data-stlcamp="${c.id}" style="cursor:pointer;" onclick="openCalPreview(DATA.findIndex(d=>d.id==='${c.id}'))">
@@ -6398,7 +6452,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
 
       const isDA   = c.product === 'DA';
       const has    = _stlHas(c);
-      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed);
+      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
       return `<tr data-stlcamp="${c.id}" style="font-size:12px;cursor:pointer;" onclick="openCalPreview(DATA.findIndex(d=>d.id==='${c.id}'))">
         <td class="td-dim stl-s1" style="background:${bgSb};padding-left:20px;">${_escHtml(c.cat)}</td>
         <td class="stl-s2" style="background:${bgSb};color:var(--text2);">${_escHtml(_cCompany(c))}</td>
@@ -7200,6 +7254,7 @@ function _taxCampaignPending(c) {
 
 // ── 세금계산서 필터/렌더 ──
 function resetTaxFilter() {
+  _taxQuickFilter = null;
   const now = new Date();
   const el = id => document.getElementById(id);
   if (el('tax-year'))     el('tax-year').value     = String(now.getFullYear());
@@ -7232,6 +7287,12 @@ function _taxPopulateSellerFilter() {
 
 // 접힌 그룹 ID 목록
 const _taxCollapsed = new Set(); // 명시적으로 접힌 그룹 (기본: 열림)
+let _taxQuickFilter = null; // 'unissued' | 'unpaid' | null
+
+function setTaxQuickFilter(type) {
+  _taxQuickFilter = _taxQuickFilter === type ? null : type;
+  renderTaxList();
+}
 
 function renderTaxList() {
   const purgeBtn = document.getElementById('btn-tax-purge');
@@ -7270,36 +7331,51 @@ function renderTaxList() {
     return maxB - maxA;
   });
 
-  // 요약 통계
+  // 퀵필터 카운트 (필터 적용 전 전체 기준)
+  const unissuedCnt = groups.filter(([, items]) => items[0].taxStatus !== '완료').length;
+  const unpaidCnt   = groups.filter(([, items]) => items[0].paid !== '완료').length;
+
+  // 퀵필터 적용
+  const displayGroups = _taxQuickFilter === 'unissued'
+    ? groups.filter(([, items]) => items[0].taxStatus !== '완료')
+    : _taxQuickFilter === 'unpaid'
+    ? groups.filter(([, items]) => items[0].paid !== '완료')
+    : groups;
+
+  // 요약 통계 (표시되는 그룹 기준)
   let totalSupply = 0, totalVat = 0, totalUnpaid = 0;
-  filtered.forEach(t => {
-    totalSupply += t.supplyAmt || 0;
-    totalVat    += t.vatAmt    || 0;
-  });
-  // 미수: 그룹별 대표값 합산 (중복 방지)
-  groups.forEach(([, items]) => {
-    const rep = items[0];
-    totalUnpaid += rep.unpaid || 0;
+  displayGroups.forEach(([, items]) => {
+    items.forEach(t => {
+      totalSupply += t.supplyAmt || 0;
+      totalVat    += t.vatAmt    || 0;
+    });
+    totalUnpaid += items[0].unpaid || 0;
   });
 
   const _v = n => n ? n.toLocaleString() : '—';
   const _el = id => document.getElementById(id);
-  const issuedCnt = groups.filter(([, items]) => items[0].taxStatus === '완료').length;
+  const issuedCnt = displayGroups.filter(([, items]) => items[0].taxStatus === '완료').length;
   const totalByMonth = DATA.filter(c => {
     if (!c.date) return false;
     if (year  && !c.date.startsWith(year))        return false;
     if (month && c.date.slice(5, 7) !== month)    return false;
     return true;
   }).length;
-  if (_el('tax-cnt'))     _el('tax-cnt').textContent     = groups.length + '건';
+  if (_el('tax-cnt'))     _el('tax-cnt').textContent     = displayGroups.length + '건';
   if (_el('tax-cnt-sub')) _el('tax-cnt-sub').textContent = `발행 ${issuedCnt}건 / 전체 ${totalByMonth}건`;
   if (_el('tax-supply')) _el('tax-supply').textContent = _v(totalSupply);
   if (_el('tax-vat'))    _el('tax-vat').textContent    = _v(totalVat);
   if (_el('tax-unpaid')) _el('tax-unpaid').textContent = totalUnpaid ? totalUnpaid.toLocaleString() : '—';
 
+  // 퀵필터 카드 업데이트
+  if (_el('tax-unissued-cnt')) _el('tax-unissued-cnt').textContent = unissuedCnt + '건';
+  if (_el('tax-unpaid-cnt'))   _el('tax-unpaid-cnt').textContent   = unpaidCnt   + '건';
+  _el('tax-card-unissued')?.classList.toggle('tax-qf-active', _taxQuickFilter === 'unissued');
+  _el('tax-card-unpaid')?.classList.toggle('tax-qf-active', _taxQuickFilter === 'unpaid');
+
   const listEl = document.getElementById('tax-list');
   if (!listEl) return;
-  if (!groups.length) {
+  if (!displayGroups.length) {
     listEl.innerHTML = `<div class="tax-card-empty">해당 조건의 세금계산서가 없습니다.</div>`;
     return;
   }
@@ -7307,7 +7383,7 @@ function renderTaxList() {
   const _dateDisp = v => v ? v.replace(/-/g, '.').slice(2) : '—'; // 2026-04-22 → 26.04.22
 
   const cards = [];
-  groups.forEach(([gid, items]) => {
+  displayGroups.forEach(([gid, items]) => {
     const rep = items[0];
     const isDone      = rep.taxStatus === '완료';
     const isPaid      = rep.paid === '완료';
@@ -7519,7 +7595,9 @@ async function taxGroupToggleStatus(gid) {
     if (t.campaignId && (t.taxType === 'adv' || !t.taxType)) {
       const c = DATA.find(d => d.id === t.campaignId);
       if (c && !!c.invoiceOut !== !isDone) {
+        const prevOut = c.invoiceOut;
         c.invoiceOut = !isDone;
+        _log(t.campaignId, 'check', 'invoiceOut', prevOut ? '발행' : '미발행', c.invoiceOut ? '발행' : '미발행');
         _fbSaveCampaign(c);
         _stlCellUpdate(t.campaignId, 'invoiceOut');
       }
@@ -7551,7 +7629,9 @@ async function taxGroupTogglePaid(gid) {
     if (t.campaignId && (t.taxType === 'adv' || !t.taxType)) {
       const c = DATA.find(d => d.id === t.campaignId);
       if (c && !!c.payIn !== !isPaid) {
+        const prevIn = c.payIn;
         c.payIn = !isPaid;
+        _log(t.campaignId, 'check', 'payIn', prevIn ? '완료' : '미완료', c.payIn ? '완료' : '미완료');
         _fbSaveCampaign(c);
         _stlCellUpdate(t.campaignId, 'payIn');
       }
@@ -8453,7 +8533,7 @@ function _populateMediaSelects() {
 function _populateSalesSelects() {
   const RANK_ORDER = ['이사','본부장','팀장','일반'];
   const salesUsers = USERS
-    .filter(u => !u.isAdmin)
+    .filter(u => !u.isAdmin && u.id !== 'user')
     .sort((a, b) => {
       const ri = u => { const i = RANK_ORDER.indexOf(u.rank||'일반'); return i<0?99:i; };
       return ri(a) - ri(b) || (a.name||'').localeCompare(b.name||'', 'ko');
