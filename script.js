@@ -5972,6 +5972,8 @@ function _stlCellUpdate(campaignId, field) {
         td.innerHTML = `<span class="stl-inv-badge none" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${campaignId}')">불필요</span>`;
       else
         td.innerHTML = `<div class="chk" style="${sm?'width:18px;height:18px;':''}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${campaignId}')"></div>`;
+    } else if (field === 'payIn' && c.payIn && c.payInDate) {
+      td.innerHTML = `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${campaignId}','payIn')">${c.payInDate}</span>`;
     } else {
       const on  = !!c[field];
       const sz  = sm ? 'width:18px;height:18px;font-size:10px;' : '';
@@ -6096,8 +6098,93 @@ function saveInvoiceInChoice(value) {
 function _stlCanEdit(field) {
   const id = currentUser?.id;
   if (field === 'invoiceOut' || field === 'invoiceIn') return ['wonjoon','yoonhee','admin'].includes(id);
-  if (field === 'payIn'      || field === 'payOut')    return ['wonjoon','admin'].includes(id);
+  if (field === 'payOut') return id === 'wonjoon';
+  if (field === 'payIn')  return true; // 전체 사용자
   return false;
+}
+
+// ── 입금날짜 모달 ──
+let _payInDateCtx = null; // { type:'settle'|'tax', campaignId?, gid? }
+
+function openPayInDateModal(ctx) {
+  _payInDateCtx = ctx;
+  const el = document.getElementById('payInDateInput');
+  if (el) el.value = new Date().toISOString().slice(0, 10);
+  openModal('modalPayInDate');
+  setTimeout(() => el?.focus(), 100);
+}
+
+async function confirmPayInDate() {
+  const date = document.getElementById('payInDateInput')?.value;
+  if (!date) { alert('입금날짜를 입력해주세요.'); return; }
+  closeModal('modalPayInDate');
+  if (_payInDateCtx?.type === 'settle') {
+    await _applyPayIn(_payInDateCtx.campaignId, true, date);
+  } else if (_payInDateCtx?.type === 'tax') {
+    await _applyTaxPaid(_payInDateCtx.gid, true, date);
+  } else if (_payInDateCtx?.type === 'taxgen') {
+    const card = _payInDateCtx.card;
+    if (card) card.dataset.payInDate = date;
+  }
+  _payInDateCtx = null;
+}
+
+async function _applyPayIn(campaignId, on, date) {
+  const c = DATA.find(d => d.id === campaignId);
+  if (!c) return;
+  const before = c.payIn;
+  c.payIn = on;
+  c.payInDate = on ? date : null;
+  _log(campaignId, 'check', 'payIn', before ? '완료' : '미완료', on ? '완료' : '미완료');
+  _fbSaveCampaign(c);
+  _stlSaveScroll();
+  _stlCellUpdate(campaignId, 'payIn');
+  // 세금계산서 탭 동기화
+  const t = TAX_DATA.find(x => x.campaignId === campaignId && (x.taxType === 'adv' || !x.taxType))
+         || TAX_DATA.find(x => x.campaignId === campaignId);
+  if (t) {
+    const gid = _taxGroupId(t);
+    const newVal = on ? '완료' : '';
+    for (const tx of TAX_DATA.filter(x => _taxGroupId(x) === gid)) {
+      tx.paid = newVal;
+      tx.payInDate = on ? date : null;
+      if (on) tx.unpaid = 0;
+      await _fbSaveTax(tx);
+    }
+  }
+}
+
+async function _applyTaxPaid(gid, on, date) {
+  const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
+  if (!items.length) return;
+  const newVal = on ? '완료' : '';
+  for (const t of items) {
+    t.paid = newVal;
+    t.payInDate = on ? date : null;
+    if (on) t.unpaid = 0;
+    await _fbSaveTax(t);
+    // 정산 탭 동기화
+    if (t.campaignId && (t.taxType === 'adv' || !t.taxType)) {
+      const c = DATA.find(d => d.id === t.campaignId);
+      if (c) {
+        const prevIn = c.payIn;
+        c.payIn = on;
+        c.payInDate = on ? date : null;
+        _log(t.campaignId, 'check', 'payIn', prevIn ? '완료' : '미완료', on ? '완료' : '미완료');
+        _fbSaveCampaign(c);
+        _stlCellUpdate(t.campaignId, 'payIn');
+      }
+    }
+  }
+  // 담당자 알림
+  const rep = items[0];
+  const toUser = USERS.find(u => u.name === (rep.createdBy || rep.manager));
+  if (toUser && toUser.id !== currentUser?.id) {
+    const type = on ? 'tax_payment' : 'tax_payment_cancel';
+    const body = _notifBody(type, rep.company || '', '', undefined, gid);
+    _fbSaveNotification(toUser.id, type, body);
+  }
+  renderTaxList();
 }
 
 /** 정산 체크박스 토글 (입금/지급/매출계산서) */
@@ -6106,11 +6193,20 @@ function toggleSettlePay(campaignId, field) {
   const c = DATA.find(d => d.id === campaignId);
   if (!c) return;
 
+  // 입금: 체크 ON → 날짜 모달, OFF → 즉시 해제
+  if (field === 'payIn') {
+    if (c.payIn) {
+      _applyPayIn(campaignId, false, null);
+    } else {
+      openPayInDateModal({ type: 'settle', campaignId });
+    }
+    return;
+  }
+
   const isInvoice = field === 'invoiceOut' || field === 'invoiceIn';
   const before = c[field];
   c[field] = !c[field];
 
-  // 이력 기록
   const beforeLabel = isInvoice ? (before ? '발행' : '미발행') : (before ? '완료' : '미완료');
   const afterLabel  = isInvoice ? (c[field] ? '발행' : '미발행') : (c[field] ? '완료' : '미완료');
   _log(campaignId, 'check', field, beforeLabel, afterLabel);
@@ -6118,20 +6214,15 @@ function toggleSettlePay(campaignId, field) {
   _stlSaveScroll();
   _stlCellUpdate(campaignId, field);
 
-  // 세금계산서 탭 동기화 (invoiceOut ↔ taxStatus, payIn ↔ paid, 광고주 타입 우선)
-  const taxField = field === 'invoiceOut' ? 'taxStatus' : field === 'payIn' ? 'paid' : null;
-  if (taxField) {
+  // 세금계산서 탭 동기화 (invoiceOut ↔ taxStatus)
+  if (field === 'invoiceOut') {
     const t = TAX_DATA.find(x => x.campaignId === campaignId && (x.taxType === 'adv' || !x.taxType))
            || TAX_DATA.find(x => x.campaignId === campaignId);
     if (t) {
       const newVal = c[field] ? '완료' : '';
       const gid = _taxGroupId(t);
-      // 같은 그룹의 모든 항목 동기화
       TAX_DATA.filter(x => _taxGroupId(x) === gid).forEach(x => {
-        if (x[taxField] !== newVal) {
-          x[taxField] = newVal;
-          _fbSaveTax(x);
-        }
+        if (x.taxStatus !== newVal) { x.taxStatus = newVal; _fbSaveTax(x); }
       });
     }
   }
@@ -6342,7 +6433,7 @@ function renderStlCampaignView(data, container) {
     const isDA   = c.product === 'DA';
     const has    = _stlHas(c);
     const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
-    const chk = (field) => { const dis = !_stlCanEdit(field)?'opacity:0.35;cursor:not-allowed;pointer-events:none;':''; return `<div class="chk ${c[field]?'on':''}" style="${dis}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`; };
+    const chk = (field) => { if (field === 'payIn' && c.payIn && c.payInDate) return `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','payIn')">${c.payInDate}</span>`; const dis = !_stlCanEdit(field)?'opacity:0.35;cursor:not-allowed;pointer-events:none;':''; return `<div class="chk ${c[field]?'on':''}" style="${dis}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`; };
 
     return `<tr data-stlcamp="${c.id}" style="cursor:pointer;" onclick="openCalPreview(DATA.findIndex(d=>d.id==='${c.id}'))">
       <td class="td-dim stl-s1" style="background:${bg0};">${_escHtml(c.cat)}</td>
@@ -6452,7 +6543,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
 
     const subRows = camps.map(c => {
       const a      = _stlAmt(c);
-      const chk = (field) => { const dis = !_stlCanEdit(field)?'opacity:0.35;cursor:not-allowed;pointer-events:none;':''; return `<div class="chk ${c[field]?'on':''}" style="width:18px;height:18px;font-size:10px;${dis}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`; };
+      const chk = (field) => { if (field === 'payIn' && c.payIn && c.payInDate) return `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','payIn')">${c.payInDate}</span>`; const dis = !_stlCanEdit(field)?'opacity:0.35;cursor:not-allowed;pointer-events:none;':''; return `<div class="chk ${c[field]?'on':''}" style="width:18px;height:18px;font-size:10px;${dis}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`; };
       const invInCellSub = () => {
         const v = c.invoiceIn || '';
         if (v === '발행완료')    return `<span class="stl-inv-badge done"   onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')">✓ 발행완료</span>`;
@@ -7402,7 +7493,7 @@ function renderTaxList() {
     const isCollapsed = _taxCollapsed.has(gid);
     const canDelete   = !!(currentUser?.isAdmin || currentUser?.name === (rep.createdBy || rep.manager));
     const canStatus   = ['wonjoon','yoonhee','admin'].includes(currentUser?.id);
-    const canPaid     = ['wonjoon','admin'].includes(currentUser?.id);
+    const canPaid     = true; // 전체 사용자
     const supplySum   = items.reduce((s, t) => s + (t.supplyAmt || 0), 0);
     const vatSum      = items.reduce((s, t) => s + (t.vatAmt    || 0), 0);
     const unpaidVal   = rep.unpaid != null ? rep.unpaid : null;
@@ -7494,10 +7585,12 @@ function renderTaxList() {
                   : `<div class="chk" style="margin:0;${canStatus ? '' : 'opacity:0.35;cursor:not-allowed;pointer-events:none;'}" ${canStatus ? `onclick="taxGroupToggleStatus(${gid})"` : ''}></div>`}
               </span>
               <span style="font-size:11px;color:var(--text3);margin-left:4px;">입금</span>
-              <span style="display:inline-flex;align-items:center;justify-content:center;width:52px;">
-                ${isPaid
-                  ? `<span class="stl-inv-badge done" ${canPaid ? `onclick="taxGroupTogglePaid(${gid})"` : `style="cursor:default;"`}>✓ 완료</span>`
-                  : `<div class="chk" style="margin:0;${canPaid ? '' : 'opacity:0.35;cursor:not-allowed;pointer-events:none;'}" ${canPaid ? `onclick="taxGroupTogglePaid(${gid})"` : ''}></div>`}
+              <span style="display:inline-flex;align-items:center;justify-content:center;min-width:52px;">
+                ${isPaid && rep.payInDate
+                  ? `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onclick="taxGroupTogglePaid(${gid})">${rep.payInDate}</span>`
+                  : isPaid
+                  ? `<span class="stl-inv-badge done" onclick="taxGroupTogglePaid(${gid})">✓ 완료</span>`
+                  : `<div class="chk" style="margin:0;" onclick="taxGroupTogglePaid(${gid})"></div>`}
               </span>
             </div>
             ${datePart}
@@ -7626,38 +7719,16 @@ async function taxGroupToggleStatus(gid) {
   renderTaxList();
 }
 
-async function taxGroupTogglePaid(gid) {
-  if (!['wonjoon','admin'].includes(currentUser?.id)) { toast('입금 처리 권한이 없습니다.', 'err'); return; }
+function taxGroupTogglePaid(gid) {
   const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
   if (!items.length) return;
   const isPaid = items[0].paid === '완료';
-  if (!confirm(isPaid ? '입금 완료를 취소하시겠습니까?' : '입금 완료 처리하시겠습니까?')) return;
-  const newPaid = isPaid ? '' : '완료';
-  for (const t of items) {
-    t.paid = newPaid;
-    if (!isPaid) t.unpaid = 0;
-    await _fbSaveTax(t);
-    // 정산 탭 payIn 동기화 (광고주 타입만)
-    if (t.campaignId && (t.taxType === 'adv' || !t.taxType)) {
-      const c = DATA.find(d => d.id === t.campaignId);
-      if (c && !!c.payIn !== !isPaid) {
-        const prevIn = c.payIn;
-        c.payIn = !isPaid;
-        _log(t.campaignId, 'check', 'payIn', prevIn ? '완료' : '미완료', c.payIn ? '완료' : '미완료');
-        _fbSaveCampaign(c);
-        _stlCellUpdate(t.campaignId, 'payIn');
-      }
-    }
+  if (isPaid) {
+    if (!confirm('입금 완료를 취소하시겠습니까?')) return;
+    _applyTaxPaid(gid, false, null);
+  } else {
+    openPayInDateModal({ type: 'tax', gid });
   }
-  // 완료/취소 시 담당자에게 알림
-  const rep2 = items[0];
-  const toUser2 = USERS.find(u => u.name === (rep2.createdBy || rep2.manager));
-  if (toUser2 && toUser2.id !== currentUser?.id) {
-    const type = isPaid ? 'tax_payment_cancel' : 'tax_payment';
-    const body = _notifBody(type, rep2.company || '', '', undefined, gid);
-    _fbSaveNotification(toUser2.id, type, body);
-  }
-  renderTaxList();
 }
 
 async function taxGroupSaveField(gid, field, value) {
@@ -8007,11 +8078,11 @@ function taxGenNext() {
       const typeLabel = taxType==='adv' ? '광고주' : '매체';
       const campaignRows = campaigns.map(c => {
         const supply = _stlAmt(c).adc||0;
-        return `<tr data-cid="${c.id}" data-taxtype="${taxType}" class="tax-gen-camp-row">
+        return `<tr data-cid="${c.id}" data-taxtype="${taxType}" data-supply="${supply}" class="tax-gen-camp-row">
           <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_taxMonthLabel(c)}</td>
           <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_escHtml(c.product||'—')}</td>
           <td style="font-size:12px;font-weight:600;padding:5px 4px;">${_escHtml(_cName(c))}</td>
-          <td class="td-r" style="font-size:12px;padding:5px 4px;">${supply ? supply.toLocaleString() : '—'}</td>
+          <td class="td-r tax-gen-supply-cell" style="font-size:12px;padding:5px 4px;cursor:pointer;text-decoration:underline dotted;" title="클릭하여 수정" onclick="taxGenEditSupply(this)">${supply ? supply.toLocaleString() : '—'}</td>
           <td style="padding:5px 4px;"><input type="text" class="form-input tax-gen-email" placeholder="이름, email@domain.com" style="font-size:12px;padding:3px 6px;width:100%;min-width:180px;"></td>
           <td style="padding:5px 4px;"><input type="text" class="form-input tax-gen-memo" placeholder="메모" style="font-size:12px;padding:3px 6px;width:100%;min-width:120px;"></td>
         </tr>`;
@@ -8021,6 +8092,9 @@ function taxGenNext() {
           <span style="font-weight:700;font-size:14px;">${_escHtml(company)}</span>
           <span style="font-size:11px;color:var(--primary,#1a73e8);background:rgba(26,115,232,.1);padding:2px 8px;border-radius:20px;font-weight:600;">${typeLabel}</span>
           <span style="font-size:12px;color:var(--text2);">캠페인 ${campaigns.length}건 · 공급가액 합계 ${supplyTotal.toLocaleString()}원</span>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;margin-left:auto;">
+            <input type="checkbox" class="tax-gen-paid-chk" onchange="taxGenPaidChkChange(this,${gi})"> 입금완료
+          </label>
         </div>
         <div style="padding:10px 14px;">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
@@ -8028,7 +8102,7 @@ function taxGenNext() {
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">발행일자</label>
               <input type="date" class="form-input tax-gen-iss" style="font-size:12px;padding:4px 6px;width:100%;" value="${prevMonthEndStr}">
             </div>
-            <div>
+            <div class="tax-gen-paydue-wrap">
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">입금예정일</label>
               <input type="date" class="form-input tax-gen-paydue" style="font-size:12px;padding:4px 6px;width:100%;">
             </div>
@@ -8079,6 +8153,46 @@ function _taxSetStep2Footer(mode) {
       <button class="btn btn-ghost" onclick="taxGenPrev()">← 이전</button>
       <button class="btn btn-primary" onclick="confirmTaxAutoGen()">등록</button>`;
   }
+}
+
+// 입금완료 체크박스 토글 → 입금예정일 비활성화 + 날짜 모달
+function taxGenPaidChkChange(chkEl, gi) {
+  const card = chkEl.closest('.tax-gen-group-card');
+  if (!card) return;
+  const payDueWrap = card.querySelector('.tax-gen-paydue-wrap');
+  const payDueInput = card.querySelector('.tax-gen-paydue');
+  if (chkEl.checked) {
+    if (payDueWrap) payDueWrap.style.opacity = '0.4';
+    if (payDueInput) payDueInput.disabled = true;
+    openPayInDateModal({ type: 'taxgen', card });
+  } else {
+    if (payDueWrap) payDueWrap.style.opacity = '';
+    if (payDueInput) payDueInput.disabled = false;
+    card.dataset.payInDate = '';
+  }
+}
+
+// 공급가액 인라인 수정
+function taxGenEditSupply(td) {
+  if (td.querySelector('input')) return;
+  const tr = td.closest('tr');
+  const cur = parseInt((td.textContent||'').replace(/,/g,'')) || 0;
+  const memoTd = tr.querySelector('.form-input.tax-gen-memo');
+  td.innerHTML = `<input type="number" class="form-input" style="font-size:12px;padding:2px 4px;width:90px;text-align:right;" value="${cur}">`;
+  const inp = td.querySelector('input');
+  inp.focus(); inp.select();
+  const done = () => {
+    const newVal = parseInt(inp.value) || 0;
+    tr.dataset.supply = newVal;
+    td.textContent = newVal ? newVal.toLocaleString() : '—';
+    if (newVal !== cur && memoTd && !memoTd.value.trim()) {
+      memoTd.style.border = '1.5px solid var(--red)';
+      memoTd.placeholder = '금액 변경 시 메모 필수';
+      memoTd.focus();
+    }
+  };
+  inp.addEventListener('blur', done);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); if (e.key === 'Escape') { td.textContent = cur ? cur.toLocaleString() : '—'; } });
 }
 
 function taxEditGroup(gid) {
@@ -8185,10 +8299,22 @@ async function confirmTaxAutoGen() {
   const cards = [...document.querySelectorAll('.tax-gen-group-card')];
 
   for (const card of cards) {
-    const issDate  = card.querySelector('.tax-gen-iss')?.value    || '';
-    const payDue   = card.querySelector('.tax-gen-paydue')?.value || '';
-    const campRows = [...card.querySelectorAll('.tax-gen-camp-row')];
+    const issDate    = card.querySelector('.tax-gen-iss')?.value    || '';
+    const payDue     = card.querySelector('.tax-gen-paydue')?.value || '';
+    const paidChk    = card.querySelector('.tax-gen-paid-chk')?.checked || false;
+    const payInDate  = card.dataset.payInDate || null;
+    const campRows   = [...card.querySelectorAll('.tax-gen-camp-row')];
     if (!campRows.length) continue;
+
+    // 공급가액 수정 시 메모 검증
+    for (const tr of campRows) {
+      const origSupply = _stlAmt(DATA.find(x => x.id === tr.dataset.cid) || {}).adc || 0;
+      const newSupply  = parseInt(tr.dataset.supply) || origSupply;
+      if (newSupply !== origSupply) {
+        const memo = tr.querySelector('.tax-gen-memo')?.value.trim() || '';
+        if (!memo) { alert('공급가액을 수정한 경우 메모를 입력해주세요.'); return; }
+      }
+    }
 
     const groupId = _taxNextGroupId();
 
@@ -8202,7 +8328,8 @@ async function confirmTaxAutoGen() {
       const existing = TAX_DATA.find(t => t.campaignId===cid && t.taxType===taxType);
       if (existing && existing.taxStatus==='완료') continue;
 
-      const supply  = _stlAmt(c).adc || 0;
+      const origSupply = _stlAmt(c).adc || 0;
+      const supply  = parseInt(tr.dataset.supply) || origSupply;
       const email   = tr.querySelector('.tax-gen-email')?.value.trim() || '';
       const memo    = tr.querySelector('.tax-gen-memo')?.value.trim()  || '';
       const company = taxType==='adv' ? (c.seller||c.adv||'') : (c.media||'');
@@ -8218,9 +8345,10 @@ async function confirmTaxAutoGen() {
         reqDate:      commonReq,
         issueDate:    issDate,
         taxStatus:    '',
-        payDue:       payDue,
-        paid:         null,
-        unpaid:       null,
+        payDue:       paidChk ? '' : payDue,
+        paid:         paidChk ? '완료' : null,
+        payInDate:    paidChk ? (payInDate || null) : null,
+        unpaid:       paidChk ? 0 : null,
         company:      company,
         content:      _taxContentAuto(c),
         bizName:      company,
