@@ -7963,7 +7963,7 @@ function taxGenRenderList() {
     return;
   }
   tbody.innerHTML = filtered.map(c => {
-    const supply    = _stlAmt(c).adc || 0;
+    const supply    = _stlAmt(c).amt || 0;
     const mediaRec  = MEDIA_DATA.find(m => m.company === c.media);
     const mediaNoTax = mediaRec && mediaRec.taxYn === false;
 
@@ -8074,10 +8074,10 @@ function taxGenNext() {
 
     let gi = 0;
     byGroup.forEach(({company, taxType, campaigns}) => {
-      const supplyTotal = campaigns.reduce((s,c) => s + (_stlAmt(c).adc||0), 0);
+      const supplyTotal = campaigns.reduce((s,c) => s + (_stlAmt(c).amt||0), 0);
       const typeLabel = taxType==='adv' ? '광고주' : '매체';
       const campaignRows = campaigns.map(c => {
-        const supply = _stlAmt(c).adc||0;
+        const supply = _stlAmt(c).amt||0;
         return `<tr data-cid="${c.id}" data-taxtype="${taxType}" data-supply="${supply}" class="tax-gen-camp-row">
           <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_taxMonthLabel(c)}</td>
           <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_escHtml(c.product||'—')}</td>
@@ -8328,7 +8328,7 @@ async function confirmTaxAutoGen() {
       const existing = TAX_DATA.find(t => t.campaignId===cid && t.taxType===taxType);
       if (existing && existing.taxStatus==='완료') continue;
 
-      const origSupply = _stlAmt(c).adc || 0;
+      const origSupply = _stlAmt(c).amt || 0;
       const supply  = parseInt(tr.dataset.supply) || origSupply;
       const email   = tr.querySelector('.tax-gen-email')?.value.trim() || '';
       const memo    = tr.querySelector('.tax-gen-memo')?.value.trim()  || '';
