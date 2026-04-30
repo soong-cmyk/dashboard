@@ -7350,7 +7350,8 @@ function renderTaxList() {
       totalSupply += t.supplyAmt || 0;
       totalVat    += t.vatAmt    || 0;
     });
-    totalUnpaid += items[0].unpaid || 0;
+    if (items[0].taxStatus === '완료' && items[0].paid !== '완료')
+      items.forEach(t => { totalUnpaid += t.vatAmt || 0; });
   });
 
   const _v = n => n ? n.toLocaleString() : '—';
