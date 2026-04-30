@@ -7291,7 +7291,7 @@ function _taxPopulateSellerFilter() {
 const _taxCollapsed = new Set(); // 명시적으로 접힌 그룹 (기본: 열림)
 
 function setTaxQuickFilter(type) {
-  _taxQuickFilter = _taxQuickFilter === type ? null : type;
+  _taxQuickFilter = (type === null || _taxQuickFilter === type) ? null : type;
   renderTaxList();
 }
 
