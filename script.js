@@ -7253,7 +7253,7 @@ function _taxCampaignPending(c) {
 }
 
 // ── 세금계산서 필터/렌더 ──
-let _taxQuickFilter = null; // 'unissued' | 'unpaid' | null
+var _taxQuickFilter = null; // 'unissued' | 'unpaid' | null
 
 function resetTaxFilter() {
   _taxQuickFilter = null;
