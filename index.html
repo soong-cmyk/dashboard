@@ -2052,10 +2052,13 @@
           <button class="btn btn-primary btn-sm" onclick="openTaxAutoGen()">+ 캠페인에서 가져오기</button>
         </div>
         <!-- 요약 카드 -->
-        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:16px;">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px;">
           <div class="stat-card"><div class="stat-label">건수</div><div class="stat-val" id="tax-cnt">—</div><div class="stat-sub" id="tax-cnt-sub">—</div></div>
-          <div class="stat-card"><div class="stat-label">공급가액 합계</div><div class="stat-val" id="tax-supply">—</div></div>
-          <div class="stat-card"><div class="stat-label">부가세포함 합계</div><div class="stat-val" id="tax-vat">—</div></div>
+          <div class="stat-card">
+            <div class="stat-label">공급가액 합계</div>
+            <div class="stat-val" id="tax-supply">—</div>
+            <div class="stat-sub">VAT포함 <span id="tax-vat" style="font-weight:600;color:var(--text);">—</span></div>
+          </div>
           <div class="stat-card"><div class="stat-label">미수 합계</div><div class="stat-val" id="tax-unpaid" style="color:var(--red);">—</div></div>
           <div class="stat-card c-red" id="tax-card-unissued" onclick="setTaxQuickFilter('unissued')" style="cursor:pointer;">
             <div class="stat-label">세발 미완료</div>

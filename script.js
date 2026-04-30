@@ -7253,6 +7253,8 @@ function _taxCampaignPending(c) {
 }
 
 // ── 세금계산서 필터/렌더 ──
+let _taxQuickFilter = null; // 'unissued' | 'unpaid' | null
+
 function resetTaxFilter() {
   _taxQuickFilter = null;
   const now = new Date();
@@ -7287,7 +7289,6 @@ function _taxPopulateSellerFilter() {
 
 // 접힌 그룹 ID 목록
 const _taxCollapsed = new Set(); // 명시적으로 접힌 그룹 (기본: 열림)
-let _taxQuickFilter = null; // 'unissued' | 'unpaid' | null
 
 function setTaxQuickFilter(type) {
   _taxQuickFilter = _taxQuickFilter === type ? null : type;
