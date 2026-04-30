@@ -6124,7 +6124,11 @@ async function confirmPayInDate() {
     await _applyTaxPaid(_payInDateCtx.gid, true, date);
   } else if (_payInDateCtx?.type === 'taxgen') {
     const card = _payInDateCtx.card;
-    if (card) card.dataset.payInDate = date;
+    if (card) {
+      card.dataset.payInDate = date;
+      const label = card.querySelector('.tax-gen-paid-label');
+      if (label) label.textContent = '입금완료 ' + date;
+    }
   }
   _payInDateCtx = null;
 }
@@ -8091,10 +8095,11 @@ function taxGenNext() {
         <div style="background:var(--surface2);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <span style="font-weight:700;font-size:14px;">${_escHtml(company)}</span>
           <span style="font-size:11px;color:var(--primary,#1a73e8);background:rgba(26,115,232,.1);padding:2px 8px;border-radius:20px;font-weight:600;">${typeLabel}</span>
-          <span style="font-size:12px;color:var(--text2);">캠페인 ${campaigns.length}건 · 공급가액 합계 ${supplyTotal.toLocaleString()}원</span>
-          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;margin-left:auto;">
-            <input type="checkbox" class="tax-gen-paid-chk" onchange="taxGenPaidChkChange(this,${gi})"> 입금완료
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+            <input type="checkbox" class="tax-gen-paid-chk" onchange="taxGenPaidChkChange(this,${gi})">
+            <span class="tax-gen-paid-label">입금완료</span>
           </label>
+          <span style="font-size:12px;color:var(--text2);">캠페인 ${campaigns.length}건 · 공급가액 합계 ${supplyTotal.toLocaleString()}원</span>
         </div>
         <div style="padding:10px 14px;">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
@@ -8169,6 +8174,8 @@ function taxGenPaidChkChange(chkEl, gi) {
     if (payDueWrap) payDueWrap.style.opacity = '';
     if (payDueInput) payDueInput.disabled = false;
     card.dataset.payInDate = '';
+    const label = card.querySelector('.tax-gen-paid-label');
+    if (label) label.textContent = '입금완료';
   }
 }
 
