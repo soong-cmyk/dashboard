@@ -5973,9 +5973,10 @@ function _stlCellUpdate(campaignId, field) {
       else
         td.innerHTML = `<div class="chk" style="${sm?'width:18px;height:18px;':''}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${campaignId}')"></div>`;
     } else {
-      const on = !!c[field];
-      const sz = sm ? 'width:18px;height:18px;font-size:10px;' : '';
-      td.innerHTML = `<div class="chk${on?' on':''}" style="${sz}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${campaignId}','${field}')">${on?'✓':''}</div>`;
+      const on  = !!c[field];
+      const sz  = sm ? 'width:18px;height:18px;font-size:10px;' : '';
+      const dis = !_stlCanEdit(field) ? 'opacity:0.35;cursor:not-allowed;pointer-events:none;' : '';
+      td.innerHTML = `<div class="chk${on?' on':''}" style="${sz}${dis}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${campaignId}','${field}')">${on?'✓':''}</div>`;
     }
   }
 
@@ -6091,8 +6092,17 @@ function saveInvoiceInChoice(value) {
   _stlCellUpdate(_invoiceInCampaignId, 'invoiceIn');
 }
 
+/** 정산/세금계산서 체크박스 편집 권한 */
+function _stlCanEdit(field) {
+  const id = currentUser?.id;
+  if (field === 'invoiceOut' || field === 'invoiceIn') return ['wonjoon','yoonhee','admin'].includes(id);
+  if (field === 'payIn'      || field === 'payOut')    return ['wonjoon','admin'].includes(id);
+  return false;
+}
+
 /** 정산 체크박스 토글 (입금/지급/매출계산서) */
 function toggleSettlePay(campaignId, field) {
+  if (!_stlCanEdit(field)) return;
   const c = DATA.find(d => d.id === campaignId);
   if (!c) return;
 
@@ -6332,7 +6342,7 @@ function renderStlCampaignView(data, container) {
     const isDA   = c.product === 'DA';
     const has    = _stlHas(c);
     const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
-    const chk = (field) => `<div class="chk ${c[field]?'on':''}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`;
+    const chk = (field) => { const dis = !_stlCanEdit(field)?'opacity:0.35;cursor:not-allowed;pointer-events:none;':''; return `<div class="chk ${c[field]?'on':''}" style="${dis}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`; };
 
     return `<tr data-stlcamp="${c.id}" style="cursor:pointer;" onclick="openCalPreview(DATA.findIndex(d=>d.id==='${c.id}'))">
       <td class="td-dim stl-s1" style="background:${bg0};">${_escHtml(c.cat)}</td>
@@ -6442,7 +6452,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
 
     const subRows = camps.map(c => {
       const a      = _stlAmt(c);
-      const chk = (field) => `<div class="chk ${c[field]?'on':''}" style="width:18px;height:18px;font-size:10px;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`;
+      const chk = (field) => { const dis = !_stlCanEdit(field)?'opacity:0.35;cursor:not-allowed;pointer-events:none;':''; return `<div class="chk ${c[field]?'on':''}" style="width:18px;height:18px;font-size:10px;${dis}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`; };
       const invInCellSub = () => {
         const v = c.invoiceIn || '';
         if (v === '발행완료')    return `<span class="stl-inv-badge done"   onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')">✓ 발행완료</span>`;
