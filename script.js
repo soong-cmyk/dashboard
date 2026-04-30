@@ -8125,12 +8125,12 @@ function taxGenNext() {
       }).join('');
       cards.push(`<div class="tax-gen-group-card" data-gi="${gi}" style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;">
         <div style="background:var(--surface2);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <span style="font-weight:700;font-size:14px;">${_escHtml(company)}</span>
-          <span style="font-size:11px;color:var(--primary,#1a73e8);background:rgba(26,115,232,.1);padding:2px 8px;border-radius:20px;font-weight:600;">${typeLabel}</span>
           <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
             <input type="checkbox" class="tax-gen-paid-chk" onchange="taxGenPaidChkChange(this,${gi})">
             <span class="tax-gen-paid-label">입금완료</span>
           </label>
+          <span style="font-weight:700;font-size:14px;">${_escHtml(company)}</span>
+          <span style="font-size:11px;color:var(--primary,#1a73e8);background:rgba(26,115,232,.1);padding:2px 8px;border-radius:20px;font-weight:600;">${typeLabel}</span>
           <span style="font-size:12px;color:var(--text2);">캠페인 ${campaigns.length}건 · 공급가액 합계 ${supplyTotal.toLocaleString()}원</span>
         </div>
         <div style="padding:10px 14px;">
