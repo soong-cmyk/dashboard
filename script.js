@@ -6136,6 +6136,15 @@ async function confirmPayInDate() {
       const label = card.querySelector('.tax-gen-paid-label');
       if (label) label.textContent = '입금완료 ' + date;
     }
+  } else if (_payInDateCtx?.type === 'taxmanual') {
+    const label = document.getElementById('tax-r-paid-label');
+    if (label) label.textContent = '입금완료 ' + date;
+    const hidden = document.getElementById('tax-r-payin-date');
+    if (hidden) hidden.value = date;
+    const wrap = document.getElementById('tax-r-paydue-wrap');
+    if (wrap) wrap.style.opacity = '0.4';
+    const payDue = document.getElementById('tax-r-payDue');
+    if (payDue) payDue.disabled = true;
   }
   _payInDateCtx = null;
 }
@@ -7834,105 +7843,177 @@ function taxInlineEdit(td, id, field) {
   });
 }
 
-// ── 등록/수정 모달 ──
-function taxUpdateVat() {
-  const supply = parseFloat(document.getElementById('tax-r-supplyAmt')?.value) || 0;
-  const vatEl = document.getElementById('tax-r-vatAmt');
-  if (vatEl && supply) vatEl.value = Math.round(supply * 1.1);
-}
-
-function _taxRegInitYearSel() {
-  const sel = document.getElementById('tax-r-year');
-  if (!sel || sel.options.length) return;
-  const cur = new Date().getFullYear();
-  for (let y = cur - 2; y <= cur + 1; y++) {
-    const o = document.createElement('option');
-    o.value = y; o.textContent = y + '년';
-    sel.appendChild(o);
-  }
-}
-
-function openTaxReg(id) {
-  const _el = k => document.getElementById(k);
-  _taxRegInitYearSel();
-  const now  = new Date();
-  const isNew = id === null;
-  _el('taxRegTitle').textContent = isNew ? '세금계산서 등록' : '세금계산서 수정';
+// ── 수동 등록/수정 모달 ──
+function openTaxReg(gid) {
+  const now = new Date();
+  const isNew = gid === null;
+  document.getElementById('tax-edit-gid').value   = gid != null ? gid : '';
+  document.getElementById('tax-r-reqDate').value  = isNew ? now.toISOString().slice(0, 10) : '';
+  document.getElementById('tax-r-company').value  = '';
+  document.getElementById('tax-r-bizName').value  = '';
+  document.getElementById('tax-r-taxType').value  = 'adv';
+  document.getElementById('tax-r-issueDate').value = '';
+  document.getElementById('tax-r-payDue').value   = '';
+  document.getElementById('tax-r-payin-date').value = '';
+  document.getElementById('tax-r-rows').innerHTML = '';
+  const paidChk   = document.getElementById('tax-r-paid');
+  const paidLabel = document.getElementById('tax-r-paid-label');
+  const payDueWrap = document.getElementById('tax-r-paydue-wrap');
+  const payDueInput = document.getElementById('tax-r-payDue');
+  if (paidChk)   { paidChk.checked = false; }
+  if (paidLabel) { paidLabel.textContent = '입금완료'; }
+  if (payDueWrap)  payDueWrap.style.opacity = '';
+  if (payDueInput) payDueInput.disabled = false;
+  const mgr = document.getElementById('tax-r-manager');
+  if (mgr) mgr.value = '';
+  document.getElementById('taxRegTitle').textContent = isNew ? '세금계산서 등록' : '세금계산서 수정';
   if (isNew) {
-    ['tax-edit-id','tax-edit-campaignId','tax-r-manager',
-     'tax-r-reqDate','tax-r-issueDate','tax-r-payDue','tax-r-company',
-     'tax-r-content','tax-r-bizName','tax-r-contactEmail','tax-r-memo'].forEach(k => { if(_el(k)) _el(k).value = ''; });
-    if (_el('tax-r-supplyAmt')) _el('tax-r-supplyAmt').value = '';
-    if (_el('tax-r-vatAmt'))    _el('tax-r-vatAmt').value    = '';
-    if (_el('tax-r-taxType'))   _el('tax-r-taxType').value   = 'adv';
-    if (_el('tax-r-year'))      _el('tax-r-year').value      = now.getFullYear();
-    if (_el('tax-r-mon'))       _el('tax-r-mon').value       = now.getMonth() + 1;
-    if (_el('tax-r-manager') && currentUser) _el('tax-r-manager').value = currentUser.name;
+    if (mgr && currentUser) mgr.value = currentUser.name;
+    taxManualAddRow();
   } else {
-    const t = TAX_DATA.find(x => x.id === id);
-    if (!t) return;
-    // 월 파싱: "2026년3월" → year=2026, mon=3
-    const mMatch = (t.month || '').match(/(\d{4})년(\d+)월/);
-    _el('tax-edit-id').value           = t.id;
-    _el('tax-edit-campaignId').value   = t.campaignId    || '';
-    _el('tax-r-taxType').value         = t.taxType        || 'adv';
-    if (mMatch) { _el('tax-r-year').value = mMatch[1]; _el('tax-r-mon').value = parseInt(mMatch[2]); }
-    _el('tax-r-reqDate').value         = t.reqDate        || '';
-    _el('tax-r-issueDate').value       = t.issueDate      || '';
-    _el('tax-r-payDue').value          = t.payDue         || '';
-    _el('tax-r-manager').value         = t.manager        || '';
-    _el('tax-r-company').value         = t.company        || '';
-    _el('tax-r-bizName').value         = t.bizName        || '';
-    _el('tax-r-content').value         = t.content        || '';
-    _el('tax-r-supplyAmt').value       = t.supplyAmt      || '';
-    _el('tax-r-vatAmt').value          = t.vatAmt         || '';
-    _el('tax-r-contactEmail').value    = t.contactEmail   || '';
-    _el('tax-r-memo').value            = t.memo           || '';
+    const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
+    if (!items.length) return;
+    const rep = items[0];
+    document.getElementById('tax-r-reqDate').value   = rep.reqDate   || '';
+    document.getElementById('tax-r-company').value   = rep.company   || '';
+    document.getElementById('tax-r-bizName').value   = rep.bizName   || '';
+    document.getElementById('tax-r-taxType').value   = rep.taxType   || 'adv';
+    document.getElementById('tax-r-issueDate').value = rep.issueDate || '';
+    if (rep.paid === '완료') {
+      paidChk.checked = true;
+      paidLabel.textContent = '입금완료' + (rep.payInDate ? ' ' + rep.payInDate : '');
+      document.getElementById('tax-r-payin-date').value = rep.payInDate || '';
+      if (payDueWrap)  payDueWrap.style.opacity = '0.4';
+      if (payDueInput) payDueInput.disabled = true;
+    } else {
+      document.getElementById('tax-r-payDue').value = rep.payDue || '';
+    }
+    if (mgr) mgr.value = rep.manager || '';
+    items.forEach(t => taxManualAddRow(t));
   }
+  taxManualCalcTotal();
   openModal('modalTaxReg');
 }
 
-function saveTaxReg() {
-  const _v  = id => (document.getElementById(id)?.value || '').trim();
-  const _n  = id => parseFloat(document.getElementById(id)?.value) || 0;
-  const editId = _v('tax-edit-id');
-  const isNew  = !editId;
-  const newId  = isNew ? _taxNextId() : parseInt(editId);
-  const existingT = isNew ? null : TAX_DATA.find(x => x.id === newId);
-  const year = _v('tax-r-year');
-  const mon  = _v('tax-r-mon');
-  const month = (year && mon) ? `${year}년${mon}월` : '';
-  const t = {
-    id:           newId,
-    groupId:      existingT ? _taxGroupId(existingT) : newId,
-    campaignId:   _v('tax-edit-campaignId') || null,
-    createdBy:    existingT?.createdBy || currentUser?.name || '',
-    taxType:      _v('tax-r-taxType') || 'adv',
-    manager:      _v('tax-r-manager'),
-    month,
-    reqDate:      _v('tax-r-reqDate'),
-    issueDate:    _v('tax-r-issueDate'),
-    taxStatus:    existingT?.taxStatus || '',
-    payDue:       _v('tax-r-payDue'),
-    paid:         existingT?.paid || false,
-    company:      _v('tax-r-company'),
-    content:      _v('tax-r-content'),
-    bizName:      _v('tax-r-bizName'),
-    supplyAmt:    _n('tax-r-supplyAmt'),
-    vatAmt:       _n('tax-r-vatAmt'),
-    contactEmail: _v('tax-r-contactEmail'),
-    memo:         _v('tax-r-memo')
-  };
-  if (isNew) {
-    TAX_DATA.push(t);
+function taxManualAddRow(rowData) {
+  const tbody = document.getElementById('tax-r-rows');
+  if (!tbody) return;
+  const now = new Date();
+  const year = rowData?.year || (rowData?.month ? parseInt((rowData.month.match(/(\d{4})년/) || [])[1]) : now.getFullYear());
+  const mon  = rowData?.mon  || (rowData?.month ? parseInt((rowData.month.match(/(\d+)월/)   || [])[1]) : now.getMonth() + 1);
+  const curY = now.getFullYear();
+  const yearOpts = [curY - 2, curY - 1, curY, curY + 1].map(y =>
+    `<option value="${y}" ${y === year ? 'selected' : ''}>${y}년</option>`).join('');
+  const monOpts = Array.from({length: 12}, (_, i) => {
+    const m = i + 1;
+    return `<option value="${m}" ${m === mon ? 'selected' : ''}>${m}월</option>`;
+  }).join('');
+  const tr = document.createElement('tr');
+  tr.className = 'tax-r-row';
+  if (rowData?.id) tr.dataset.tid = rowData.id;
+  tr.innerHTML = `
+    <td style="padding:4px 4px;">
+      <div style="display:flex;gap:3px;">
+        <select class="form-sel tax-r-row-year" style="width:68px;font-size:12px;padding:3px 4px;">${yearOpts}</select>
+        <select class="form-sel tax-r-row-mon"  style="width:54px;font-size:12px;padding:3px 4px;">${monOpts}</select>
+      </div>
+    </td>
+    <td style="padding:4px 4px;"><input type="text" class="form-input tax-r-row-content" placeholder="내용" value="${_escHtml(rowData?.content || '')}" style="font-size:12px;padding:3px 6px;width:100%;"></td>
+    <td style="padding:4px 4px;"><input type="number" class="form-input tax-r-row-supply" placeholder="0" value="${rowData?.supplyAmt || ''}" oninput="taxManualCalcTotal()" style="font-size:12px;padding:3px 6px;text-align:right;width:100%;"></td>
+    <td style="padding:4px 4px;"><input type="text" class="form-input tax-r-row-email" placeholder="이름, email@domain.com" value="${_escHtml(rowData?.contactEmail || '')}" style="font-size:12px;padding:3px 6px;width:100%;min-width:160px;"></td>
+    <td style="padding:4px 4px;"><input type="text" class="form-input tax-r-row-memo" placeholder="메모" value="${_escHtml(rowData?.memo || '')}" style="font-size:12px;padding:3px 6px;width:100%;"></td>
+    <td style="padding:4px 2px;text-align:center;"><button class="btn btn-ghost btn-sm" style="color:var(--red);border:none;font-size:14px;padding:2px 6px;line-height:1;" onclick="taxManualRemoveRow(this)">×</button></td>`;
+  tbody.appendChild(tr);
+  taxManualCalcTotal();
+}
+
+function taxManualRemoveRow(btn) {
+  btn.closest('.tax-r-row')?.remove();
+  taxManualCalcTotal();
+}
+
+function taxManualCalcTotal() {
+  let total = 0;
+  document.querySelectorAll('#tax-r-rows .tax-r-row').forEach(tr => {
+    total += parseFloat(tr.querySelector('.tax-r-row-supply')?.value) || 0;
+  });
+  const supplyEl = document.getElementById('tax-r-supply-total');
+  const vatEl    = document.getElementById('tax-r-vat-total');
+  if (supplyEl) supplyEl.textContent = total.toLocaleString();
+  if (vatEl)    vatEl.textContent    = Math.round(total * 1.1).toLocaleString();
+}
+
+function taxManualPaidChange(chk) {
+  if (chk.checked) {
+    openPayInDateModal({ type: 'taxmanual' });
   } else {
-    const idx = TAX_DATA.findIndex(x => x.id === t.id);
-    if (idx !== -1) TAX_DATA[idx] = t; else TAX_DATA.push(t);
+    const label = document.getElementById('tax-r-paid-label');
+    if (label) label.textContent = '입금완료';
+    const hidden = document.getElementById('tax-r-payin-date');
+    if (hidden) hidden.value = '';
+    const wrap = document.getElementById('tax-r-paydue-wrap');
+    if (wrap) wrap.style.opacity = '';
+    const payDue = document.getElementById('tax-r-payDue');
+    if (payDue) { payDue.disabled = false; payDue.value = ''; }
   }
-  _fbSaveTax(t);
-  // 신규 등록 시 wonjoon에게 알림 (본인이 wonjoon이 아닌 경우만)
+}
+
+async function saveTaxReg() {
+  const _v = id => (document.getElementById(id)?.value || '').trim();
+  const reqDate   = _v('tax-r-reqDate');
+  const company   = _v('tax-r-company');
+  const bizName   = _v('tax-r-bizName');
+  const taxType   = _v('tax-r-taxType') || 'adv';
+  const issueDate = _v('tax-r-issueDate');
+  const payDue    = _v('tax-r-payDue');
+  const manager   = _v('tax-r-manager');
+  const paidChk   = document.getElementById('tax-r-paid')?.checked || false;
+  const payInDate = _v('tax-r-payin-date') || null;
+  const editGid   = parseInt(_v('tax-edit-gid')) || null;
+  const isNew     = !editGid;
+  if (!company) { alert('업체명을 입력해주세요.'); return; }
+  const rows = [...document.querySelectorAll('#tax-r-rows .tax-r-row')];
+  if (!rows.length) { alert('항목을 하나 이상 입력해주세요.'); return; }
+  const groupId   = isNew ? _taxNextGroupId() : editGid;
+  const createdBy = isNew ? (currentUser?.name || '') :
+    (TAX_DATA.find(t => _taxGroupId(t) === editGid)?.createdBy || currentUser?.name || '');
+  const taxStatus = isNew ? '' :
+    (TAX_DATA.find(t => _taxGroupId(t) === editGid)?.taxStatus || '');
+  // 수정 시 기존 항목 삭제
+  if (!isNew) {
+    const existing = TAX_DATA.filter(t => _taxGroupId(t) === editGid);
+    for (const t of existing) {
+      TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1);
+      await _fbDeleteTax(t.id);
+    }
+  }
+  let nextId = _taxNextId();
+  const saved = [];
+  for (const tr of rows) {
+    const y = tr.querySelector('.tax-r-row-year')?.value || '';
+    const m = tr.querySelector('.tax-r-row-mon')?.value  || '';
+    const month   = (y && m) ? `${y}년${parseInt(m)}월` : '';
+    const content = (tr.querySelector('.tax-r-row-content')?.value || '').trim();
+    const supply  = parseFloat(tr.querySelector('.tax-r-row-supply')?.value) || 0;
+    const email   = (tr.querySelector('.tax-r-row-email')?.value || '').trim();
+    const memo    = (tr.querySelector('.tax-r-row-memo')?.value  || '').trim();
+    const t = {
+      id: nextId++, groupId, campaignId: null, createdBy, taxType, manager, month,
+      reqDate, issueDate, taxStatus,
+      payDue:    paidChk ? '' : payDue,
+      paid:      paidChk ? '완료' : null,
+      payInDate: paidChk ? payInDate : null,
+      unpaid:    paidChk ? 0 : null,
+      company, bizName, content,
+      supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
+      contactEmail: email, memo
+    };
+    TAX_DATA.push(t);
+    await _fbSaveTax(t);
+    saved.push(t);
+  }
   if (isNew && currentUser?.id !== 'wonjoon') {
-    const body = _notifBody('tax_new', t.company || '', '', 1, t.groupId);
+    const body = _notifBody('tax_new', company, '', saved.length, groupId);
     _fbSaveNotification('wonjoon', 'tax_new', body);
   }
   closeModal('modalTaxReg');
@@ -8125,13 +8206,13 @@ function taxGenNext() {
       }).join('');
       cards.push(`<div class="tax-gen-group-card" data-gi="${gi}" style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;">
         <div style="background:var(--surface2);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
-            <input type="checkbox" class="tax-gen-paid-chk" onchange="taxGenPaidChkChange(this,${gi})">
-            <span class="tax-gen-paid-label">입금완료</span>
-          </label>
           <span style="font-weight:700;font-size:14px;">${_escHtml(company)}</span>
           <span style="font-size:11px;color:var(--primary,#1a73e8);background:rgba(26,115,232,.1);padding:2px 8px;border-radius:20px;font-weight:600;">${typeLabel}</span>
           <span style="font-size:12px;color:var(--text2);">캠페인 ${campaigns.length}건 · 공급가액 합계 ${supplyTotal.toLocaleString()}원</span>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+            <span style="color:var(--text3);font-weight:700;"> | </span><input type="checkbox" class="tax-gen-paid-chk" onchange="taxGenPaidChkChange(this,${gi})">
+            <span class="tax-gen-paid-label">입금완료</span>
+          </label>
         </div>
         <div style="padding:10px 14px;">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
@@ -8235,9 +8316,11 @@ function taxGenEditSupply(td) {
 }
 
 function taxEditGroup(gid) {
-  _taxEditGid = gid;
   const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
   if (!items.length) return;
+  // 수동 등록 그룹(campaignId 없음)은 수동 등록 모달로 라우팅
+  if (items.every(t => !t.campaignId)) { openTaxReg(gid); return; }
+  _taxEditGid = gid;
   const rep = items[0];
 
   const container = document.getElementById('tax-gen-step2-container');
@@ -8347,7 +8430,7 @@ async function confirmTaxAutoGen() {
 
     // 공급가액 수정 시 메모 검증
     for (const tr of campRows) {
-      const origSupply = _stlAmt(DATA.find(x => x.id === tr.dataset.cid) || {}).adc || 0;
+      const origSupply = _stlAmt(DATA.find(x => x.id === tr.dataset.cid) || {}).amt || 0;
       const newSupply  = parseInt(tr.dataset.supply) || origSupply;
       if (newSupply !== origSupply) {
         const memo = tr.querySelector('.tax-gen-memo')?.value.trim() || '';
