@@ -1199,7 +1199,9 @@ function openDetail(idx, skipPush) {
     const finalSales = c.cpsFinalSales || 0;
     const totalComm  = c.cpsTotalComm  || 0;
     const mediaComm  = c.cpsMediaComm  || 0;
+    const cpsRate    = MEDIA_DATA.find(m => m.company === c.media)?.cpsRate || 0;
     const bcProfit   = totalComm - mediaComm;
+    const bcRate     = cpsRate ? (3.4 - cpsRate).toFixed(2) + '%' : '—';
     const commRate1  = finalSales > 0 ? (totalComm / finalSales * 100).toFixed(2) + '%' : '—';
     const commRate2  = finalSales > 0 ? (mediaComm / finalSales * 100).toFixed(2) + '%' : '—';
     const prfRate    = finalSales > 0 ? (bcProfit  / finalSales * 100).toFixed(2) + '%' : '—';
@@ -1208,8 +1210,10 @@ function openDetail(idx, skipPush) {
     setText('dCpsFinalSales', finalSales ? finalSales.toLocaleString() + '원' : nd);
     setText('dCpsTotalComm',  totalComm  ? totalComm.toLocaleString()  + '원' : nd);
     setText('dCpsCommRate1',  commRate1);
+    setText('dCpsMediaRate',  cpsRate ? cpsRate + '%' : nd);
     setText('dCpsMediaComm',  mediaComm  ? mediaComm.toLocaleString()  + '원' : nd);
     setText('dCpsCommRate2',  commRate2);
+    setText('dCpsBcRate',     bcRate);
     setText('dCpsBcProfit',   bcProfit   ? bcProfit.toLocaleString()   + '원' : nd);
     setText('dCpsPrfRate',    prfRate);
   }
