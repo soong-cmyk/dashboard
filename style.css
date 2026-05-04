@@ -20,6 +20,7 @@
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
 ::-webkit-scrollbar-thumb:hover{background:var(--text3);}
 *{scrollbar-width:thin;scrollbar-color:var(--border2) transparent;}
+#stl-fake-scroll{scrollbar-width:auto;}
 body{font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden;font-feature-settings:'kern' 1;-webkit-font-smoothing:antialiased;}
 
 /* ── SIDEBAR ── */
