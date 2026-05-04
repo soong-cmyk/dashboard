@@ -2149,13 +2149,14 @@ function calcCPS() {
   const cpsRate    = MEDIA_DATA.find(m => m.company === mediaName)?.cpsRate || 0;
   const commRate1  = finalSales > 0 ? (totalComm / finalSales * 100) : 0;
   const commRate2  = finalSales > 0 ? (mediaComm / finalSales * 100) : 0;
+  const bcRate     = 3.4 - cpsRate;
   const bcProfit   = totalComm - mediaComm;
   const profitRate = finalSales > 0 ? (bcProfit / finalSales * 100) : 0;
   const _set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
   _set('r_cps_media_rate',  cpsRate ? cpsRate + '%' : '');
   _set('r_cps_comm_rate1',  finalSales > 0 ? commRate1.toFixed(2) + '%' : '');
   _set('r_cps_comm_rate2',  finalSales > 0 ? commRate2.toFixed(2) + '%' : '');
-  _set('r_cps_bc_rate',     finalSales > 0 ? (commRate1 - commRate2).toFixed(2) + '%' : '');
+  _set('r_cps_bc_rate',     cpsRate ? bcRate.toFixed(2) + '%' : '');
   _set('r_cps_bc_profit',   bcProfit ? bcProfit.toLocaleString() + '원' : '');
   _set('r_cps_profit_rate', finalSales > 0 ? profitRate.toFixed(2) + '%' : '');
 }
@@ -2168,13 +2169,14 @@ function calcCPSEdit() {
   const cpsRate    = MEDIA_DATA.find(m => m.company === mediaName)?.cpsRate || 0;
   const commRate1  = finalSales > 0 ? (totalComm / finalSales * 100) : 0;
   const commRate2  = finalSales > 0 ? (mediaComm / finalSales * 100) : 0;
+  const bcRate     = 3.4 - cpsRate;
   const bcProfit   = totalComm - mediaComm;
   const profitRate = finalSales > 0 ? (bcProfit / finalSales * 100) : 0;
   const _set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
   _set('e_cps_media_rate',  cpsRate ? cpsRate + '%' : '');
   _set('e_cps_comm_rate1',  finalSales > 0 ? commRate1.toFixed(2) + '%' : '');
   _set('e_cps_comm_rate2',  finalSales > 0 ? commRate2.toFixed(2) + '%' : '');
-  _set('e_cps_bc_rate',     finalSales > 0 ? (commRate1 - commRate2).toFixed(2) + '%' : '');
+  _set('e_cps_bc_rate',     cpsRate ? bcRate.toFixed(2) + '%' : '');
   _set('e_cps_bc_profit',   bcProfit ? bcProfit.toLocaleString() + '원' : '');
   _set('e_cps_profit_rate', finalSales > 0 ? profitRate.toFixed(2) + '%' : '');
 }
