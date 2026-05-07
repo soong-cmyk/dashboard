@@ -7745,15 +7745,10 @@ function renderTaxList() {
 
   const _v = n => n ? n.toLocaleString() : '—';
   const _el = id => document.getElementById(id);
-  const issuedCnt = displayGroups.filter(([, items]) => items[0].taxStatus === '완료').length;
-  const totalByMonth = DATA.filter(c => {
-    if (!c.date) return false;
-    if (year  && !c.date.startsWith(year))        return false;
-    if (month && c.date.slice(5, 7) !== month)    return false;
-    return true;
-  }).length;
+  const issuedCnt  = displayGroups.filter(([, items]) => items[0].taxStatus === '완료').length;
+  const totalGroups = new Set(TAX_DATA.map(t => _taxGroupId(t))).size;
   if (_el('tax-cnt'))     _el('tax-cnt').textContent     = displayGroups.length + '건';
-  if (_el('tax-cnt-sub')) _el('tax-cnt-sub').textContent = `발행 ${issuedCnt}건 / 전체 ${totalByMonth}건`;
+  if (_el('tax-cnt-sub')) _el('tax-cnt-sub').textContent = `발행 ${issuedCnt}건 / 전체 ${totalGroups}건`;
   if (_el('tax-supply')) _el('tax-supply').textContent = _v(totalSupply);
   if (_el('tax-vat'))    _el('tax-vat').textContent    = _v(totalVat);
   if (_el('tax-unpaid')) _el('tax-unpaid').textContent = totalUnpaid ? totalUnpaid.toLocaleString() : '—';
