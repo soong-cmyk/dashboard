@@ -68,6 +68,7 @@
   .sidebar-search {
     padding: 12px 14px;
     border-bottom: 1px solid var(--border);
+    position: relative;
   }
   .sidebar-search-wrap {
     display: flex;
@@ -95,47 +96,32 @@
     min-width: 0;
   }
   .sidebar-search-wrap input::placeholder { color: var(--text3); }
-  .search-info {
-    font-size: 11px;
-    color: var(--text3);
-    white-space: nowrap;
-    flex-shrink: 0;
+  /* 검색 드롭다운 */
+  .search-dropdown {
+    position: fixed;
+    width: 272px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.14);
+    max-height: 420px;
+    overflow-y: auto;
+    z-index: 200;
+    margin-top: 4px;
   }
-  .search-nav {
-    display: flex;
-    gap: 2px;
-    flex-shrink: 0;
-  }
-  .search-nav button {
-    width: 22px;
-    height: 22px;
-    border: none;
-    background: transparent;
-    border-radius: 4px;
+  .search-card {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text3);
-    padding: 0;
-    transition: background 0.12s, color 0.12s;
+    transition: background 0.1s;
   }
-  .search-nav button:hover { background: var(--surface2); color: var(--primary); }
-  .search-nav button:disabled { opacity: 0.3; cursor: default; }
-  .search-nav button:disabled:hover { background: transparent; color: var(--text3); }
-  /* 검색 하이라이트 */
-  mark.search-hl {
-    background: #fef08a;
-    color: var(--text1);
-    border-radius: 2px;
-    padding: 0 1px;
-  }
-  mark.search-current {
-    background: #f97316;
-    color: #fff;
-    border-radius: 2px;
-    padding: 0 1px;
-  }
+  .search-card:last-child { border-bottom: none; }
+  .search-card:hover, .search-card.s-active { background: var(--primary-light); }
+  .search-card-section { font-size: 10px; color: var(--text3); margin-bottom: 2px; letter-spacing: 0.3px; }
+  .search-card-heading { font-size: 13px; font-weight: 600; color: var(--text1); margin-bottom: 4px; }
+  .search-card-excerpt { font-size: 12px; color: var(--text2); line-height: 1.5; }
+  .search-no-result { padding: 20px; text-align: center; color: var(--text3); font-size: 13px; }
+  mark.search-hl { background: #fef08a; color: var(--text1); border-radius: 2px; padding: 0 1px; }
 
   .nav-section { padding: 16px 12px 4px; font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 0.8px; text-transform: uppercase; }
   .nav-item {
@@ -365,102 +351,53 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
       </svg>
-      <input id="manual-search" type="text" placeholder="검색">
-      <span class="search-info" id="search-info"></span>
-      <div class="search-nav" id="search-nav" style="display:none;">
-        <button id="search-prev" title="이전 결과 (Shift+Enter)">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-        </button>
-        <button id="search-next" title="다음 결과 (Enter)">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-      </div>
+      <input id="manual-search" type="text" placeholder="검색" autocomplete="off">
+      <button id="search-clear" style="display:none;background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;padding:0;line-height:1;flex-shrink:0;">✕</button>
     </div>
+    <div id="search-dropdown" class="search-dropdown" style="display:none;"></div>
   </div>
 
-  <div class="nav-section">시작하기</div>
-  <a href="#start" class="nav-item">01 · 로그인 및 화면 구성</a>
-
   <div class="nav-section">캠페인</div>
-  <a href="#register" class="nav-item">02 · 캠페인 등록</a>
+  <a href="#register" class="nav-item">01 · 캠페인 등록</a>
   <a href="#reg-common" class="nav-sub">공통 필드</a>
   <a href="#reg-sms" class="nav-sub">SMS / LMS / MMS</a>
-  <a href="#reg-da" class="nav-sub">DA (디지털 광고)</a>
+  <a href="#reg-da" class="nav-sub">DA </a>
   <a href="#reg-cpa" class="nav-sub">CPA</a>
   <a href="#reg-pc" class="nav-sub">퍼미션콜</a>
-  <a href="#manage" class="nav-item">03 · 캠페인 관리</a>
+  <a href="#manage" class="nav-item">02 · 캠페인 관리</a>
   <a href="#detail" class="nav-sub">상세보기</a>
   <a href="#edit" class="nav-sub">수정하기</a>
   <a href="#copy" class="nav-sub">캠페인 복사/등록</a>
 
   <div class="nav-section">성과</div>
-  <a href="#perf" class="nav-item">04 · 성과 입력</a>
+  <a href="#perf" class="nav-item">03 · 성과 입력</a>
   <a href="#perf-flow" class="nav-sub">단계 흐름</a>
   <a href="#perf-input" class="nav-sub">수치 입력</a>
   <a href="#perf-msg" class="nav-sub">발송문구 검수</a>
 
   <div class="nav-section">정산</div>
-  <a href="#settlement" class="nav-item">05 · 정산 확인</a>
+  <a href="#settlement" class="nav-item">04 · 정산 확인</a>
   <a href="#stl-view" class="nav-sub">보기 탭</a>
   <a href="#stl-filter" class="nav-sub">필터 활용</a>
   <a href="#stl-download" class="nav-sub">엑셀 다운로드</a>
 
   <div class="nav-section">기타</div>
-  <a href="#tax" class="nav-item">06 · 세금계산서 등록</a>
+  <a href="#tax" class="nav-item">05 · 세금계산서 등록(발행요청)</a>
   <a href="#tax-import" class="nav-sub">불러오기 (자동 생성)</a>
   <a href="#tax-manual" class="nav-sub">수동 등록</a>
-  <a href="#faq" class="nav-item">07 · 자주 묻는 질문</a>
+  <a href="#media" class="nav-item">06 · 매체사 관리</a>
+  <a href="#media-payday" class="nav-sub">광고비 지급일자</a>
+  <a href="#media-tax" class="nav-sub">세금계산서 수취 여부</a>
+  <a href="#seller" class="nav-item">07 · 매출처 관리</a>
+  <a href="#faq" class="nav-item">08 · 자주 묻는 질문</a>
 </nav>
 
 <!-- 본문 -->
 <main class="main">
 
-  <!-- ───────────────────────────────── 01 시작하기 -->
-  <section class="section" id="start">
-    <div class="section-num">01</div>
-    <h1>로그인 및 화면 구성</h1>
-    <p class="section-desc">대시보드에 접속하는 방법과 기본 화면 구성을 설명합니다.</p>
-
-    <h2>로그인</h2>
-    <ol class="steps">
-      <li>
-        <div class="step-num">1</div>
-        <div class="step-content">브라우저에서 대시보드 주소로 접속합니다.</div>
-      </li>
-      <li>
-        <div class="step-num">2</div>
-        <div class="step-content"><strong>아이디</strong>와 <strong>비밀번호</strong>를 입력하고 <code>로그인</code> 버튼을 클릭합니다.</div>
-      </li>
-      <li>
-        <div class="step-num">3</div>
-        <div class="step-content">로그인 후 <strong>대시보드</strong> 화면으로 이동합니다.</div>
-      </li>
-    </ol>
-    <div class="box box-tip">비밀번호를 잊었다면 관리자에게 비밀번호 초기화를 요청하세요.</div>
-
-    <h2>화면 구성</h2>
-    <table>
-      <thead>
-        <tr><th style="width:140px;">메뉴</th><th>설명</th></tr>
-      </thead>
-      <tbody>
-        <tr><td><strong>대시보드</strong></td><td>이번 달 캠페인 현황, 성과 요약을 한눈에 봅니다.</td></tr>
-        <tr><td><strong>캘린더</strong></td><td>날짜별로 캠페인 일정을 확인합니다. 날짜 칸을 클릭하면 해당 날짜로 캠페인을 바로 등록할 수 있습니다.</td></tr>
-        <tr><td><strong>캠페인 목록</strong></td><td>전체 캠페인을 검색·필터링하고 관리합니다.</td></tr>
-        <tr><td><strong>정산</strong></td><td>성과 입력이 완료된 캠페인의 정산 금액을 확인하고 엑셀로 다운로드합니다.</td></tr>
-        <tr><td><strong>월별 발송량</strong></td><td>월별·매체별 발송 수량 통계를 확인합니다.</td></tr>
-        <tr><td><strong>세금계산서</strong></td><td>매출·매입 세금계산서 발행 현황을 관리합니다.</td></tr>
-      </tbody>
-    </table>
-
-    <div class="box box-tip"><strong>캠페인 등록 버튼</strong>은 <strong>대시보드 · 캘린더 · 캠페인 목록</strong> 화면에서만 상단에 표시됩니다.</div>
-  </section>
-
-  <hr class="section-divider">
-
-  <!-- ───────────────────────────────── 02 캠페인 등록 -->
+  <!-- ───────────────────────────────── 01 캠페인 등록 -->
   <section class="section" id="register">
-    <div class="section-num">02</div>
+    <div class="section-num">01</div>
     <h1>캠페인 등록</h1>
     <p class="section-desc">새 캠페인을 등록하는 방법을 상품 유형별로 설명합니다.</p>
 
@@ -532,7 +469,7 @@
     <div class="product-section" id="reg-da" style="margin-top:16px;">
       <div class="product-header">
         <span class="badge badge-green">DA</span>
-        디지털 광고 (배너·동영상 등)
+        디스플레이 광고
       </div>
       <div class="product-body">
         <h3>DA 전용 필드</h3>
@@ -597,9 +534,9 @@
 
   <hr class="section-divider">
 
-  <!-- ───────────────────────────────── 03 캠페인 관리 -->
+  <!-- ───────────────────────────────── 02 캠페인 관리 -->
   <section class="section" id="manage">
-    <div class="section-num">03</div>
+    <div class="section-num">02</div>
     <h1>캠페인 관리</h1>
     <p class="section-desc">등록된 캠페인을 검색하고 수정하는 방법을 설명합니다.</p>
 
@@ -692,9 +629,9 @@
 
   <hr class="section-divider">
 
-  <!-- ───────────────────────────────── 04 성과 입력 -->
+  <!-- ───────────────────────────────── 03 성과 입력 -->
   <section class="section" id="perf">
-    <div class="section-num">04</div>
+    <div class="section-num">03</div>
     <h1>성과 입력</h1>
     <p class="section-desc">캠페인 발송 이후 실적 데이터를 입력하는 방법을 설명합니다.</p>
 
@@ -825,9 +762,9 @@
 
   <hr class="section-divider">
 
-  <!-- ───────────────────────────────── 05 정산 -->
+  <!-- ───────────────────────────────── 04 정산 -->
   <section class="section" id="settlement">
-    <div class="section-num">05</div>
+    <div class="section-num">04</div>
     <h1>정산 확인</h1>
     <p class="section-desc">성과입력완료된 캠페인의 정산 금액을 확인하고 엑셀로 다운로드하는 방법을 설명합니다.</p>
 
@@ -893,17 +830,17 @@
 
   <hr class="section-divider">
 
-  <!-- ───────────────────────────────── 06 세금계산서 -->
+  <!-- ───────────────────────────────── 05 세금계산서 -->
   <section class="section" id="tax">
-    <div class="section-num">06</div>
-    <h1>세금계산서 등록</h1>
+    <div class="section-num">05</div>
+    <h1>세금계산서 등록(발행 요청)</h1>
     <p class="section-desc">좌측 메뉴 <strong>세금계산서</strong>에서 매출·매입 세금계산서 발행 요청을 등록합니다. 등록 후 관리자가 발행 처리합니다.</p>
 
     <div class="box box-tip">세금계산서 등록은 <strong>발행 요청</strong>입니다. 실제 발행 완료 처리는 관리자가 확인 후 진행합니다.</div>
 
     <!-- 불러오기 -->
-    <h2 id="tax-import">불러오기 — 캠페인에서 자동 생성</h2>
-    <p>정산이 완료된 캠페인 데이터를 바탕으로 세금계산서 항목을 자동으로 만드는 방법입니다. 수기 입력 오류를 줄일 수 있어 권장합니다.</p>
+    <h2 id="tax-import">불러오기</h2>
+    <p>정산이 완료된 캠페인 데이터를 바탕으로 세금계산서 항목을 만드는 방법입니다.</p>
     <ol class="steps">
       <li>
         <div class="step-num">1</div>
@@ -911,7 +848,7 @@
       </li>
       <li>
         <div class="step-num">2</div>
-        <div class="step-content">캠페인 선택 화면에서 계산서를 발행할 <strong>캠페인을 체크</strong>합니다. 성과입력완료 상태의 캠페인만 목록에 표시됩니다.</div>
+        <div class="step-content">캠페인 선택 화면(STEP 1)에서 계산서를 발행할 <strong>캠페인을 체크</strong>합니다. 성과입력완료 상태의 캠페인만 목록에 표시됩니다.</div>
       </li>
       <li>
         <div class="step-num">3</div>
@@ -919,10 +856,30 @@
       </li>
       <li>
         <div class="step-num">4</div>
-        <div class="step-content">공급가액·부가세·내용 등이 캠페인 데이터에서 자동으로 채워집니다. 내용을 확인한 후 <code>등록</code> 버튼을 클릭합니다.</div>
+        <div class="step-content">다음(STEP 2)으로 이동하면 업체별 카드가 표시됩니다. 각 카드는 두 영역으로 구성됩니다.
+          <br><br>
+          <strong>① 수동 입력 항목</strong> — 계산서에 실제로 기재할 품목을 직접 입력합니다.
+          <table style="margin-top:8px;">
+            <thead><tr><th style="width:130px;">필드</th><th>설명</th></tr></thead>
+            <tbody>
+              <tr><td><strong>월별</strong></td><td>귀속 연도·월 (자동 입력, 수정 가능)</td></tr>
+              <tr><td><strong>품목</strong></td><td>계산서 적요란에 기재할 내용. 예: <code>3월 LMS 광고비_SKT</code></td></tr>
+              <tr><td><strong>공급가액</strong></td><td>불러온 캠페인의 합산 금액이 자동 입력됩니다. 숫자 클릭 시 직접 수정할 수 있습니다.</td></tr>
+              <tr><td><strong>이메일</strong></td><td>계산서 수신 담당자 이메일</td></tr>
+              <tr><td><strong>메모</strong></td><td>내부 참고용 메모</td></tr>
+            </tbody>
+          </table>
+          <div class="box box-tip" style="margin-top:8px;">행 추가 버튼으로 품목을 여러 건 등록할 수 있습니다.</div>
+          <br>
+          <strong>② 불러온 캠페인 목록</strong> — 참조 캠페인 정보입니다. 공급가액은 자동 계산되며 수정할 수 없습니다.
+        </div>
+      </li>
+      <li>
+        <div class="step-num">5</div>
+        <div class="step-content">내용을 확인한 후 <code>등록</code> 버튼을 클릭합니다.</div>
       </li>
     </ol>
-    <div class="box box-warn">이미 세금계산서가 등록된 캠페인은 중복 등록되지 않도록 주의하세요.</div>
+    <div class="box box-warn">세금계산서 등록이 완료된 캠페인은 '불러오기' 목록에서 사라집니다.</div>
 
     <!-- 수동 등록 -->
     <h2 id="tax-manual">수동 등록</h2>
@@ -948,19 +905,100 @@
         <tr><td><strong>담당자</strong></td><td>이 건을 담당하는 팀원 선택</td></tr>
         <tr><td><strong>업체명 / 상호명</strong></td><td>계산서 발행 대상 회사명 및 법인 상호명</td></tr>
         <tr><td><strong>공급가액</strong></td><td>VAT 제외 금액. 부가세(10%)는 자동 계산됩니다.</td></tr>
-        <tr><td><strong>내용</strong></td><td>계산서 적요란에 들어갈 내용. 형식 예시: <code>3월 LMS 광고비_SKT 1차</code></td></tr>
+        <tr><td><strong>품목</strong></td><td>계산서 적요란에 들어갈 내용. 형식 예시: <code>3월 LMS 광고비_SKT 1차</code></td></tr>
         <tr><td><strong>담당자 이메일</strong></td><td>계산서 수신 담당자의 이름과 이메일 주소</td></tr>
         <tr><td><strong>메모</strong></td><td>내부 참고용 메모</td></tr>
       </tbody>
     </table>
-    <div class="box box-tip">내용 필드는 <strong>집행월_광고주명_매체명_광고형태</strong> 형식을 권장합니다. 관리자가 내용을 보고 발행 처리를 합니다.</div>
+    <div class="box box-tip">품목 필드는 <strong>집행월_광고주명_매체명_광고형태</strong> 형식을 권장합니다. 관리자가 품목을 보고 발행 처리를 합니다.</div>
+
+    <h2>세금계산서 권한 안내</h2>
+    <table>
+      <thead><tr><th style="width:180px;">기능</th><th>가능 대상</th></tr></thead>
+      <tbody>
+        <tr><td><strong>등록 (불러오기·수동)</strong></td><td>모든 실무자</td></tr>
+        <tr><td><strong>수정 · 삭제</strong></td><td>작성자 본인 또는 관리자. 본인이 등록하지 않은 항목은 수정·삭제 버튼이 표시되지 않습니다.</td></tr>
+        <tr><td><strong>세발 체크</strong></td><td>권한이 있는 담당자만 가능. 권한이 없으면 체크박스가 흐리게 표시되며 클릭이 되지 않습니다.</td></tr>
+        <tr><td><strong>입금 체크</strong></td><td>권한이 있는 담당자만 가능. 동일하게 비활성 표시됩니다.</td></tr>
+      </tbody>
+    </table>
+    <div class="box box-tip">각 세금계산서 카드 상단에는 <strong>T-001</strong> 형식의 고유 번호가 표시됩니다. 문의하거나 확인이 필요할 때 이 번호를 활용하세요.</div>
   </section>
 
   <hr class="section-divider">
 
-  <!-- ───────────────────────────────── 07 FAQ -->
-  <section class="section" id="faq">
+  <!-- ───────────────────────────────── 06 매체사 관리 -->
+  <section class="section" id="media">
     <div class="section-num">06</div>
+    <h1>매체사 관리</h1>
+    <p>캠페인 등록 시 선택하는 매체 목록의 소스입니다. 좌측 메뉴 <strong>매체 관리</strong>에서 확인·등록·수정할 수 있습니다.</p>
+
+    <h2>목록 화면</h2>
+    <p>등록된 매체사 전체를 테이블로 표시합니다. 각 행을 클릭하면 상세보기로 이동하며, 좌측 토글로 <strong>활성/비활성</strong>을 전환할 수 있습니다. 비활성 매체사는 캠페인 등록 콤보박스에 표시되지 않습니다.</p>
+
+    <h2>등록 필드</h2>
+    <table>
+      <thead><tr><th style="width:160px;">필드</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><strong>매체명</strong></td><td>매체사 고유 이름. 캠페인 등록 시 표시되는 이름</td></tr>
+        <tr><td><strong>매입처 (청구)</strong></td><td>실제 세금계산서 청구 대상 회사명 (매체명과 다를 경우 별도 입력)</td></tr>
+        <tr><td><strong>단가 (원/건)</strong></td><td>기본 발송 단가</td></tr>
+        <tr><td><strong>담당자 · 연락처</strong></td><td>매체사 담당자 정보</td></tr>
+        <tr><td><strong>수수료1 / 수수료2</strong></td><td>기준% · 요청% · 조정%(실사용값) · 조정사유 · 비고. 단가 체계가 두 종류인 경우 수수료2에 추가 입력</td></tr>
+        <tr><td><strong>예외사항</strong></td><td>특정 광고주 대상 수수료 예외 적용 시 대상명과 조정값 기재</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="media-payday">광고비 지급일자</h2>
+    <p>매체에 광고비를 지급하는 기준일을 입력합니다 (예: <code>익월 15일</code>, <code>익월 말일</code>).</p>
+    <div class="box box-warn">
+      <strong>선입금</strong>으로 설정하면 <strong>정산 탭 → 지급요청서 엑셀 다운로드</strong> 시 해당 매체의 시트가 생성되지 않습니다.<br>
+      선입금 매체는 별도 프로세스로 처리하므로 지급요청서 대상에서 자동 제외됩니다.
+    </div>
+
+    <h2 id="media-tax">세금계산서 수취 여부</h2>
+    <p>매체사로부터 세금계산서를 수취하는지 여부를 체크박스로 설정합니다.</p>
+    <table>
+      <thead><tr><th style="width:120px;">설정값</th><th>동작</th></tr></thead>
+      <tbody>
+        <tr><td><strong>체크 (기본값)</strong></td><td>세금계산서 탭에서 해당 매체 건이 정상 표시되고, 발행 체크 관리 대상에 포함</td></tr>
+        <tr><td><strong>체크 해제</strong></td><td>세금계산서 탭에 해당 매체 건이 표시되지 않음. 세금계산서를 발행하지 않는 매체사에 설정</td></tr>
+      </tbody>
+    </table>
+    <div class="box box-tip">매체사 등록 후 캠페인을 등록해야 해당 매체가 정산·세금계산서 탭에 반영됩니다. 이미 등록된 캠페인은 설정 변경 즉시 적용됩니다.</div>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────── 07 매출처 관리 -->
+  <section class="section" id="seller">
+    <div class="section-num">07</div>
+    <h1>매출처 관리</h1>
+    <p>캠페인에서 선택하는 광고주·대행사·랩사 목록의 소스입니다. 좌측 메뉴 <strong>매출처 관리</strong>에서 확인·등록·수정할 수 있습니다.</p>
+
+    <h2>구분 체계</h2>
+    <table>
+      <thead><tr><th style="width:100px;">구분</th><th>설명</th><th>추가 필드</th></tr></thead>
+      <tbody>
+        <tr><td><strong>광고주</strong></td><td>직접 광고를 집행하는 브랜드 또는 기업</td><td>—</td></tr>
+        <tr><td><strong>대행사</strong></td><td>광고주를 대신해 매체를 구매하는 에이전시</td><td>대행수수료율(%)</td></tr>
+        <tr><td><strong>랩사</strong></td><td>대행사와 유사하나 독립적인 운영 구조를 가진 회사</td><td>대행수수료율(%)</td></tr>
+      </tbody>
+    </table>
+
+    <h2>브랜드 등록</h2>
+    <p>각 매출처 아래에 브랜드를 여러 개 등록할 수 있습니다. 브랜드명과 카테고리(예: <code>금융</code>, <code>통신</code>)를 함께 입력합니다.</p>
+    <div class="box box-tip">캠페인 등록 시 매출처를 선택하면 해당 매출처 소속 브랜드 목록이 자동으로 필터링됩니다. 브랜드가 없으면 직접 텍스트 입력도 가능합니다.</div>
+
+    <h2>대행수수료율</h2>
+    <p>대행사·랩사에 설정된 수수료율(%)은 캠페인 등록 시 <strong>정산 필드의 대행수수료</strong>에 자동으로 채워집니다. 캠페인별로 개별 조정이 가능합니다.</p>
+  </section>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────── 08 FAQ -->
+  <section class="section" id="faq">
+    <div class="section-num">08</div>
     <h1>자주 묻는 질문</h1>
     <p class="section-desc">실무 중 자주 발생하는 질문과 답변입니다.</p>
 
@@ -1011,104 +1049,124 @@
   </section>
 
   <div style="margin-top:48px; padding-top:24px; border-top:1px solid var(--border); color:var(--text3); font-size:12px; text-align:center;">
-    캠페인 대시보드 실무자 사용 설명서 · 문의: 시스템 관리자
+    캠페인 대시보드 실무자 사용 설명서 · 문의: 광고3본부 황순근책임
   </div>
 
 </main>
 
 <script>
-  /* ── 검색 기능 ── */
-  const searchInput = document.getElementById('manual-search');
-  const searchInfo  = document.getElementById('search-info');
-  const searchNav   = document.getElementById('search-nav');
-  const btnPrev     = document.getElementById('search-prev');
-  const btnNext     = document.getElementById('search-next');
-  const mainEl      = document.querySelector('.main');
-  let highlights = [];
-  let currentMatch = -1;
+  /* ── 카드형 검색 ── */
+  const searchInput    = document.getElementById('manual-search');
+  const searchDropdown = document.getElementById('search-dropdown');
+  const searchClear    = document.getElementById('search-clear');
+  let _searchResults = [];
+  let _activeCard = -1;
 
   function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
-  function syncNavButtons() {
-    const has = highlights.length > 0;
-    searchNav.style.display = has ? 'flex' : 'none';
-    btnPrev.disabled = !has || highlights.length <= 1;
-    btnNext.disabled = !has || highlights.length <= 1;
-  }
-
-  function clearHighlights() {
-    mainEl.querySelectorAll('mark.search-hl').forEach(mark => {
-      mark.parentNode.replaceChild(document.createTextNode(mark.textContent), mark);
-    });
-    mainEl.normalize();
-    highlights = [];
-    currentMatch = -1;
-    searchInfo.textContent = '';
-    syncNavButtons();
-  }
-
-  function doSearch(query) {
-    clearHighlights();
-    if (!query || query.trim().length < 1) return;
-    const re = new RegExp(escapeRe(query.trim()), 'gi');
-    const walker = document.createTreeWalker(mainEl, NodeFilter.SHOW_TEXT, {
-      acceptNode: n => {
-        const tag = n.parentNode.tagName;
-        return (tag === 'SCRIPT' || tag === 'STYLE') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+  let _searchIndex = [];
+  function buildIndex() {
+    _searchIndex = [];
+    document.querySelectorAll('.section').forEach(section => {
+      const numEl  = section.querySelector('.section-num');
+      const h1El   = section.querySelector('h1');
+      const sNum   = numEl?.textContent.trim() || '';
+      const sTitle = h1El?.textContent.trim() || '';
+      if (h1El) {
+        _searchIndex.push({ sNum, sTitle, heading: sTitle, el: h1El,
+          text: section.textContent.replace(/\s+/g, ' ').trim() });
       }
+      section.querySelectorAll('h2').forEach(h2 => {
+        let text = h2.textContent + ' ';
+        let nx = h2.nextElementSibling;
+        while (nx && nx.tagName !== 'H2') { text += nx.textContent + ' '; nx = nx.nextElementSibling; }
+        _searchIndex.push({ sNum, sTitle, heading: h2.textContent.trim(), el: h2,
+          text: text.replace(/\s+/g, ' ').trim() });
+      });
     });
-    const textNodes = [];
-    let n;
-    while ((n = walker.nextNode())) { if (re.test(n.textContent)) textNodes.push(n); re.lastIndex = 0; }
-
-    textNodes.forEach(tn => {
-      const frag = document.createDocumentFragment();
-      let last = 0;
-      let m;
-      re.lastIndex = 0;
-      while ((m = re.exec(tn.textContent)) !== null) {
-        if (m.index > last) frag.appendChild(document.createTextNode(tn.textContent.slice(last, m.index)));
-        const mark = document.createElement('mark');
-        mark.className = 'search-hl';
-        mark.textContent = m[0];
-        frag.appendChild(mark);
-        highlights.push(mark);
-        last = m.index + m[0].length;
-      }
-      if (last < tn.textContent.length) frag.appendChild(document.createTextNode(tn.textContent.slice(last)));
-      tn.parentNode.replaceChild(frag, tn);
-    });
-
-    if (highlights.length > 0) { goToMatch(0); }
-    else { searchInfo.textContent = '결과 없음'; syncNavButtons(); }
   }
 
-  function goToMatch(idx) {
-    highlights.forEach((h, i) => h.classList.toggle('search-current', i === idx));
-    currentMatch = idx;
-    searchInfo.textContent = `${idx + 1} / ${highlights.length}`;
-    highlights[idx]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    syncNavButtons();
+  function getExcerpt(text, q) {
+    const idx = text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx === -1) return text.slice(0, 80) + (text.length > 80 ? '…' : '');
+    const s = Math.max(0, idx - 20), e = Math.min(text.length, idx + q.length + 60);
+    let ex = (s > 0 ? '…' : '') + text.slice(s, e) + (e < text.length ? '…' : '');
+    return ex.replace(new RegExp(escapeRe(q), 'gi'), m => `<mark class="search-hl">${m}</mark>`);
   }
 
-  searchInput.addEventListener('input', () => doSearch(searchInput.value));
-  searchInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && highlights.length > 0) {
-      e.preventDefault();
-      goToMatch(e.shiftKey
-        ? (currentMatch - 1 + highlights.length) % highlights.length
-        : (currentMatch + 1) % highlights.length);
+  function positionDropdown() {
+    const wrap = document.querySelector('.sidebar-search-wrap');
+    const rect = wrap.getBoundingClientRect();
+    searchDropdown.style.top  = (rect.bottom + 4) + 'px';
+    searchDropdown.style.left = rect.left + 'px';
+    searchDropdown.style.width = rect.width + 'px';
+  }
+
+  function renderDropdown(q) {
+    if (!q.trim()) { searchDropdown.style.display = 'none'; return; }
+    const ql = q.trim().toLowerCase();
+    _searchResults = _searchIndex.filter(r =>
+      r.text.toLowerCase().includes(ql) || r.heading.toLowerCase().includes(ql)
+    ).slice(0, 10);
+    if (_searchResults.length === 0) {
+      searchDropdown.innerHTML = '<div class="search-no-result">결과 없음</div>';
+    } else {
+      searchDropdown.innerHTML = _searchResults.map((r, i) =>
+        `<div class="search-card" data-i="${i}">
+          <div class="search-card-section">${r.sNum ? r.sNum + ' · ' : ''}${r.sTitle}</div>
+          <div class="search-card-heading">${r.heading}</div>
+          <div class="search-card-excerpt">${getExcerpt(r.text, q.trim())}</div>
+        </div>`
+      ).join('');
+      searchDropdown.querySelectorAll('.search-card').forEach(card => {
+        card.addEventListener('mousedown', e => { e.preventDefault(); jumpTo(+card.dataset.i); });
+      });
     }
-    if (e.key === 'Escape') { searchInput.value = ''; clearHighlights(); }
+    positionDropdown();
+    searchDropdown.style.display = '';
+    _activeCard = -1;
+  }
+
+  function jumpTo(idx) {
+    const r = _searchResults[idx];
+    if (!r) return;
+    searchInput.value = '';
+    searchDropdown.style.display = 'none';
+    searchClear.style.display = 'none';
+    r.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value;
+    searchClear.style.display = q ? '' : 'none';
+    renderDropdown(q);
   });
-  btnPrev.addEventListener('click', () => {
-    if (highlights.length === 0) return;
-    goToMatch((currentMatch - 1 + highlights.length) % highlights.length);
+  searchInput.addEventListener('keydown', e => {
+    const cards = [...searchDropdown.querySelectorAll('.search-card')];
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _activeCard = Math.min(_activeCard + 1, cards.length - 1);
+      cards.forEach((c, i) => c.classList.toggle('s-active', i === _activeCard));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _activeCard = Math.max(_activeCard - 1, 0);
+      cards.forEach((c, i) => c.classList.toggle('s-active', i === _activeCard));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      jumpTo(_activeCard >= 0 ? _activeCard : 0);
+    } else if (e.key === 'Escape') {
+      searchInput.value = ''; searchDropdown.style.display = 'none'; searchClear.style.display = 'none';
+    }
   });
-  btnNext.addEventListener('click', () => {
-    if (highlights.length === 0) return;
-    goToMatch((currentMatch + 1) % highlights.length);
+  searchClear.addEventListener('click', () => {
+    searchInput.value = ''; searchDropdown.style.display = 'none'; searchClear.style.display = 'none'; searchInput.focus();
   });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.sidebar-search')) searchDropdown.style.display = 'none';
+  });
+  window.addEventListener('resize', () => { if (searchDropdown.style.display !== 'none') positionDropdown(); });
+
+  buildIndex();
 
   /* ── 사이드바 active ── */
   const navLinks = [...document.querySelectorAll('.nav-item, .nav-sub')];
