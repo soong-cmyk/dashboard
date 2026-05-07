@@ -9074,6 +9074,20 @@ async function _fbSaveNotification(toUserId, type, body) {
   catch(e) { console.error('[FB] 알림 저장 실패:', e); }
 }
 
+async function notifDeleteAll() {
+  if (!window._db) return;
+  if (!NOTIFICATIONS.length) return;
+  if (!confirm('모든 알림을 삭제하시겠습니까?')) return;
+  const toDelete = [...NOTIFICATIONS];
+  NOTIFICATIONS.length = 0;
+  _renderNotifList();
+  _updateNotifBadge();
+  for (const n of toDelete) {
+    try { await window._db.collection('notifications').doc(n.id).delete(); }
+    catch(e) {}
+  }
+}
+
 async function notifMarkAllRead() {
   if (!window._db) return;
   const unread = NOTIFICATIONS.filter(n => !n.read);
