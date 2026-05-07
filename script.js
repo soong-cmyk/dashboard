@@ -7885,7 +7885,7 @@ function renderTaxList() {
               </div>
               <span style="color:var(--border);">|</span>
               <span>요청일 <span style="color:var(--text1);">${rep.reqDate||'—'}</span></span>
-              <span>발행일 <span style="color:var(--text1);">${rep.issueDate||'—'}</span></span>
+              <span style="color:var(--border);">|</span>
               <span>입금예정 <span style="color:var(--text1);">${rep.payDue||'—'}</span></span>
               <div style="flex:1;"></div>
               ${refItems.length ? `<button class="btn btn-ghost btn-sm" onclick="taxToggleRef('${refItems.map(t=>t.id).join(',')}')">참조 캠페인 ${refItems.length}건 ▾</button>` : ''}
