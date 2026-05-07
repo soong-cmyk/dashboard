@@ -7733,12 +7733,14 @@ function renderTaxList() {
   // 요약 통계 (표시되는 그룹 기준)
   let totalSupply = 0, totalVat = 0, totalUnpaid = 0;
   displayGroups.forEach(([, items]) => {
-    items.forEach(t => {
+    const mainItems = items.filter(t => !t.isRef);
+    const calcItems = mainItems.length ? mainItems : items; // 카드 표시와 동일 기준
+    calcItems.forEach(t => {
       totalSupply += t.supplyAmt || 0;
       totalVat    += t.vatAmt    || 0;
     });
     if (items[0].taxStatus === '완료' && items[0].paid !== '완료')
-      items.forEach(t => { totalUnpaid += t.vatAmt || 0; });
+      calcItems.forEach(t => { totalUnpaid += t.vatAmt || 0; });
   });
 
   const _v = n => n ? n.toLocaleString() : '—';
