@@ -8787,6 +8787,9 @@ function taxEditGroup(gid) {
   if (!container) return;
 
   container.innerHTML = `
+    <div style="font-size:12px;color:var(--orange,#d97706);background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 14px;margin-bottom:12px;">
+      * 참조 캠페인을 수정하려면 삭제 후 새로 등록해주세요.
+    </div>
     <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;">
       <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">발행요청일자 (공통)</span>
       <input type="date" class="form-input" id="tax-gen-common-req" style="font-size:12px;padding:4px 8px;width:160px;" value="${rep.reqDate||''}">
