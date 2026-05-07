@@ -7664,7 +7664,6 @@ function resetTaxFilter() {
   if (el('tax-year'))     el('tax-year').value     = String(now.getFullYear());
   if (el('tax-month'))    el('tax-month').value     = String(now.getMonth() + 1).padStart(2, '0');
   if (el('tax-fManager')) el('tax-fManager').value  = '';
-  if (el('tax-fSeller'))  el('tax-fSeller').value   = '';
   if (el('tax-fCompany')) el('tax-fCompany').value  = '';
   _taxPopulateManagerFilter();
   renderTaxList();
@@ -7679,14 +7678,6 @@ function _taxPopulateManagerFilter() {
     names.map(n => `<option value="${n}" ${n===cur?'selected':''}>${n}</option>`).join('');
 }
 
-function _taxPopulateSellerFilter() {
-  const sel = document.getElementById('tax-fSeller');
-  if (!sel) return;
-  const cur = sel.value;
-  const sellers = [...new Set(TAX_DATA.map(t => t.seller || t.company).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
-  sel.innerHTML = '<option value="">매출처 전체</option>' +
-    sellers.map(s => `<option value="${s}" ${s===cur?'selected':''}>${s}</option>`).join('');
-}
 
 // 접힌 그룹 ID 목록
 const _taxCollapsed = new Set(); // 명시적으로 접힌 그룹 (기본: 열림)
@@ -7700,11 +7691,9 @@ function renderTaxList() {
   const purgeBtn = document.getElementById('btn-tax-purge');
   if (purgeBtn) purgeBtn.style.display = currentUser?.isAdmin ? '' : 'none';
   _taxPopulateManagerFilter();
-  _taxPopulateSellerFilter();
   const year    = document.getElementById('tax-year')?.value     || '';
   const month   = document.getElementById('tax-month')?.value    || '';
   const manager = document.getElementById('tax-fManager')?.value || '';
-  const seller  = document.getElementById('tax-fSeller')?.value  || '';
   const company = (document.getElementById('tax-fCompany')?.value || '').trim().toLowerCase();
 
   // 필터링
@@ -7712,7 +7701,6 @@ function renderTaxList() {
     if (year    && !(t.month || '').includes(year+'년')) return false;
     if (month   && !(t.month || '').includes(parseInt(month)+'월'))  return false;
     if (manager && t.createdBy !== manager) return false;
-    if (seller  && (t.seller || t.company) !== seller) return false;
     if (company && !(t.company||'').toLowerCase().includes(company) && !(t.bizName||'').toLowerCase().includes(company)) return false;
     return true;
   });
