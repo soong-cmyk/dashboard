@@ -703,7 +703,7 @@
             </div>
           </div>
 
-          <!-- CPS 전용 카드 -->
+          <!-- CPS 전용 카드 (CPS 비활성화)
           <div class="card" id="dCardCPS" style="align-self:stretch;display:none;flex-direction:column;">
             <div class="card-head"><span class="card-icon">🛒</span><span class="card-title">CPS 정산</span></div>
             <div class="card-body" style="flex:1;display:flex;flex-direction:column;gap:0;">
@@ -733,6 +733,7 @@
               <div style="text-align:right;font-size:12px;color:var(--text3);margin-top:4px;">수익률 <span id="dCpsPrfRate" style="font-weight:700;color:var(--text2);">—</span></div>
             </div>
           </div>
+          -->
 
           <!-- 퍼미션콜 전용 카드 (그리드 col 2 자리) -->
           <div class="card" id="dCardPC" style="align-self:stretch;display:none;flex-direction:column;">
@@ -1078,7 +1079,7 @@
               </div>
             </div>
           </div>
-          <!-- CPS 전용 수정 카드 -->
+          <!-- CPS 전용 수정 카드 (CPS 비활성화)
           <div class="card" id="e_card_cps" style="display:none;">
             <div class="card-head"><span class="card-icon">🛒</span><span class="card-title">CPS 정산</span></div>
             <div class="card-body">
@@ -1107,6 +1108,7 @@
               </div>
             </div>
           </div>
+          -->
           <div class="card" id="e_card_qty">
             <div class="card-head"><span class="card-icon">📦</span><span class="card-title">수량 / 금액</span></div>
             <div class="card-body">
@@ -1384,7 +1386,7 @@
             <div class="view-tab" id="stl-vt-media" onclick="stlSetView('media')">매체사별</div>
             <div class="view-tab" id="stl-vt-campaign" onclick="stlSetView('campaign')">캠페인별</div>
             <div class="view-tab" id="stl-vt-pc" onclick="stlSetView('pc')">퍼미션콜</div>
-            <div class="view-tab" id="stl-vt-cps" onclick="stlSetView('cps')">CPS</div>
+            <!-- CPS 비활성화: <div class="view-tab" id="stl-vt-cps" onclick="stlSetView('cps')">CPS</div> -->
           </div>
           <select class="f-sel" id="stl-fScope" onchange="renderSettlement()">
             <option value="settled">성과입력완료만</option>
@@ -1822,8 +1824,9 @@
         <div class="filter-bar" style="margin-bottom:14px;">
           <span class="f-label">검색</span>
           <input type="text" class="f-search" id="sellerQ" placeholder="광고주·대행사·랩사·브랜드명 통합 검색" style="width:260px;"
-            oninput="renderSellerList()">
-          <span class="f-reset" onclick="document.getElementById('sellerQ').value='';renderSellerList()">✕ 초기화</span>
+            onkeydown="if(event.key==='Enter')searchSeller()">
+          <button class="btn btn-primary btn-sm" onclick="searchSeller()">조회</button>
+          <button class="btn btn-outline btn-sm" onclick="resetSellerSearch()">초기화</button>
         </div>
 
         <!-- 통합 검색 결과 -->
@@ -2095,13 +2098,7 @@
             <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
           </select>
           <select class="form-sel" id="tax-fManager" onchange="renderTaxList()" style="width:110px;">
-            <option value="">담당자 전체</option>
-          </select>
-          <select class="form-sel" id="tax-fStatus" onchange="renderTaxList()" style="width:100px;">
-            <option value="">세발 전체</option>
-            <option value="완료">완료</option>
-            <option value="요청중">요청중</option>
-            <option value="대기">대기</option>
+            <option value="">요청자 전체</option>
           </select>
           <select class="form-sel" id="tax-fSeller" onchange="renderTaxList()" style="width:120px;">
             <option value="">매출처 전체</option>
@@ -2157,6 +2154,10 @@
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
         <input type="hidden" id="tax-edit-gid">
         <input type="hidden" id="tax-r-payin-date">
+        <!-- 수정 모드 안내 -->
+        <div id="tax-reg-edit-notice" style="display:none;font-size:12px;color:var(--orange,#d97706);background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 14px;">
+          * 참조 캠페인을 수정하려면 삭제 후 새로 등록해주세요.
+        </div>
         <!-- 발행요청일자 공통 -->
         <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 14px;">
           <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">발행요청일자</span>
@@ -2171,8 +2172,8 @@
               <input class="form-input" id="tax-r-company" placeholder="업체명" style="font-size:12px;padding:5px 8px;">
             </div>
             <div>
-              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">법인 상호명</label>
-              <input class="form-input" id="tax-r-bizName" placeholder="법인 상호명" style="font-size:12px;padding:5px 8px;">
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">법인 상호명(매입처명)</label>
+              <input class="form-input" id="tax-r-bizName" placeholder="법인 상호명(매입처명)" style="font-size:12px;padding:5px 8px;">
             </div>
             <div>
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">발행구분</label>
@@ -2210,8 +2211,8 @@
             <table style="width:100%;border-collapse:collapse;font-size:12px;">
               <thead>
                 <tr style="color:var(--text3);border-bottom:1px solid var(--border);">
-                  <th style="text-align:left;padding:5px 4px;font-weight:500;width:145px;">월별</th>
-                  <th style="text-align:left;padding:5px 4px;font-weight:500;">내용</th>
+                  <th style="text-align:left;padding:5px 4px;font-weight:500;width:145px;">집행월</th>
+                  <th style="text-align:left;padding:5px 4px;font-weight:500;">품목</th>
                   <th style="text-align:right;padding:5px 4px;font-weight:500;width:120px;">공급가액</th>
                   <th style="text-align:left;padding:5px 4px;font-weight:500;min-width:180px;">담당자 이름/이메일</th>
                   <th style="text-align:left;padding:5px 4px;font-weight:500;width:130px;">메모</th>
@@ -2284,7 +2285,7 @@
             <thead style="position:sticky;top:0;z-index:1;background:var(--surface);">
               <tr>
                 <th style="width:36px;"></th>
-                <th>발송월</th><th>상품</th><th>캠페인명</th>
+                <th>집행월</th><th>상품</th><th>캠페인명</th>
                 <th style="width:90px;text-align:center;">발행구분</th>
                 <th class="td-r">공급가액</th><th>담당자</th>
               </tr>
@@ -2525,7 +2526,7 @@
                 <span class="form-hint">매출수익 − 대행료 (직접 입력 시 고정)</span>
               </div>
             </div>
-            <!-- CPS 전용 -->
+            <!-- CPS 전용 (CPS 비활성화)
             <div id="r_qty_cps" class="form-grid" style="display:none;grid-template-columns:1fr 1fr 1fr;">
               <div class="form-section-lbl">광고주 × 브레인큐브</div>
               <div class="fg"><label class="form-label">최종정산매출 (원) <span class="req">*</span></label>
@@ -2555,6 +2556,7 @@
                 <input class="form-input auto" id="r_cps_profit_rate" readonly placeholder="자동계산">
                 <span class="form-hint">브레인큐브 수익 ÷ 최종정산매출</span></div>
             </div>
+            -->
             <!-- 일반 상품 -->
             <div id="r_qty_normal" class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
               <!-- 수량 -->
@@ -2708,10 +2710,11 @@
               id="med-tel" placeholder="02-0000-0000"></div>
         </div>
 
-        <!-- CPS 수수료율 -->
+        <!-- CPS 수수료율 (CPS 비활성화)
         <div style="display:flex;gap:10px;margin-top:4px;">
           <div class="fg" style="flex:1;"><label class="form-label">CPS 매체수수료율 (%)</label><input type="number" step="0.01" class="form-input" id="med-cpsRate" placeholder="0"><span class="form-hint">CPS 캠페인 매체 수수료율</span></div>
         </div>
+        -->
 
         <!-- 수수료1 -->
         <div class="rg-sec">수수료1 (브레인큐브 수수료)</div>
@@ -3618,10 +3621,11 @@
 
 <!-- 알림 모달 -->
 <div class="modal-overlay" id="modalNotif" style="z-index:300;">
-  <div class="modal" style="width:420px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;">
+  <div class="modal" style="width:500px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;">
     <div class="modal-head" style="flex-shrink:0;">
       <span class="modal-title">알림</span>
-      <button class="btn btn-ghost btn-sm" id="notif-read-all" onclick="notifMarkAllRead()" style="font-size:12px;margin-right:8px;">모두 읽음</button>
+      <button class="btn btn-ghost btn-sm" id="notif-read-all" onclick="notifMarkAllRead()" style="font-size:12px;margin-right:4px;">모두 읽음</button>
+      <button class="btn btn-ghost btn-sm" onclick="notifDeleteAll()" style="font-size:12px;color:var(--red);margin-right:8px;">모든 알림 삭제</button>
       <button class="modal-close" onclick="closeModal('modalNotif')">✕</button>
     </div>
     <div id="notif-list" style="overflow-y:auto;flex:1;padding:8px 0;"></div>

@@ -7664,7 +7664,6 @@ function resetTaxFilter() {
   if (el('tax-year'))     el('tax-year').value     = String(now.getFullYear());
   if (el('tax-month'))    el('tax-month').value     = String(now.getMonth() + 1).padStart(2, '0');
   if (el('tax-fManager')) el('tax-fManager').value  = '';
-  if (el('tax-fStatus'))  el('tax-fStatus').value   = '';
   if (el('tax-fSeller'))  el('tax-fSeller').value   = '';
   if (el('tax-fCompany')) el('tax-fCompany').value  = '';
   _taxPopulateManagerFilter();
@@ -7675,8 +7674,8 @@ function _taxPopulateManagerFilter() {
   const sel = document.getElementById('tax-fManager');
   if (!sel) return;
   const cur = sel.value;
-  const names = [...new Set(TAX_DATA.map(t => t.manager).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">담당자 전체</option>' +
+  const names = [...new Set(TAX_DATA.map(t => t.createdBy).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">요청자 전체</option>' +
     names.map(n => `<option value="${n}" ${n===cur?'selected':''}>${n}</option>`).join('');
 }
 
@@ -7705,7 +7704,6 @@ function renderTaxList() {
   const year    = document.getElementById('tax-year')?.value     || '';
   const month   = document.getElementById('tax-month')?.value    || '';
   const manager = document.getElementById('tax-fManager')?.value || '';
-  const status  = document.getElementById('tax-fStatus')?.value  || '';
   const seller  = document.getElementById('tax-fSeller')?.value  || '';
   const company = (document.getElementById('tax-fCompany')?.value || '').trim().toLowerCase();
 
@@ -7713,10 +7711,9 @@ function renderTaxList() {
   const filtered = TAX_DATA.filter(t => {
     if (year    && !(t.month || '').includes(year+'년')) return false;
     if (month   && !(t.month || '').includes(parseInt(month)+'월'))  return false;
-    if (manager && t.manager !== manager) return false;
-    if (status  && t.taxStatus !== status) return false;
+    if (manager && t.createdBy !== manager) return false;
     if (seller  && (t.seller || t.company) !== seller) return false;
-    if (company && !(t.company||'').toLowerCase().includes(company) && !(t.tradeShopName||'').toLowerCase().includes(company)) return false;
+    if (company && !(t.company||'').toLowerCase().includes(company) && !(t.bizName||'').toLowerCase().includes(company)) return false;
     return true;
   });
 
