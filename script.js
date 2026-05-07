@@ -7746,9 +7746,10 @@ function renderTaxList() {
   const _v = n => n ? n.toLocaleString() : '—';
   const _el = id => document.getElementById(id);
   const issuedCnt  = displayGroups.filter(([, items]) => items[0].taxStatus === '완료').length;
+  const paidCnt    = displayGroups.filter(([, items]) => items[0].paid === '완료').length;
   const totalGroups = new Set(TAX_DATA.map(t => _taxGroupId(t))).size;
-  if (_el('tax-cnt'))     _el('tax-cnt').textContent     = displayGroups.length + '건';
-  if (_el('tax-cnt-sub')) _el('tax-cnt-sub').textContent = `발행 ${issuedCnt}건 / 전체 ${totalGroups}건`;
+  if (_el('tax-cnt'))     _el('tax-cnt').innerHTML        = `${displayGroups.length}건 <span style="font-size:13px;font-weight:400;color:var(--text3);">/ 전체 ${totalGroups}건</span>`;
+  if (_el('tax-cnt-sub')) _el('tax-cnt-sub').textContent = `발행 ${issuedCnt}건 · 입금완료 ${paidCnt}건`;
   if (_el('tax-supply')) _el('tax-supply').textContent = _v(totalSupply);
   if (_el('tax-vat'))    _el('tax-vat').textContent    = _v(totalVat);
   if (_el('tax-unpaid')) _el('tax-unpaid').textContent = totalUnpaid ? totalUnpaid.toLocaleString() : '—';
