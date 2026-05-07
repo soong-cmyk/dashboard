@@ -7791,7 +7791,7 @@ function renderTaxList() {
       const mgr = t.manager || '—';
       const monthShort = (t.month || '').replace(/\d+년/, '');
       return `<tr>
-        <td style="padding:7px 10px 7px 10px;white-space:nowrap;">${monthShort||'—'}</td>
+        <td style="padding:7px 10px 7px 10px;white-space:nowrap;">${t.issueDate||'—'}</td>
         <td style="width:150px;min-width:150px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escHtml(t.bizName||'—')}</td>
         <td style="font-weight:500;">${_escHtml(campName)}</td>
         <td style="color:var(--text2);">${_escHtml(mgr)}</td>
@@ -7826,7 +7826,7 @@ function renderTaxList() {
         <table class="tax-camp-table">
           <thead>
             <tr>
-              <th style="padding:6px 10px;width:60px;min-width:60px;white-space:nowrap;">월</th>
+              <th style="padding:6px 10px;width:80px;min-width:80px;white-space:nowrap;">발행일</th>
               <th style="width:150px;min-width:150px;max-width:150px;">상호명</th>
               <th style="min-width:160px;">품목</th>
               <th>담당자</th>
@@ -7847,10 +7847,6 @@ function renderTaxList() {
         <span style="display:flex;align-items:center;gap:4px;">
           <span style="font-size:11px;color:var(--text3);white-space:nowrap;">요청일</span>
           <span style="font-size:12px;color:var(--text1);">${rep.reqDate||'—'}</span>
-        </span>
-        <span style="display:flex;align-items:center;gap:4px;">
-          <span style="font-size:11px;color:var(--text3);white-space:nowrap;">발행일</span>
-          <span style="font-size:12px;color:var(--text1);">${rep.issueDate||'—'}</span>
         </span>
         <span style="display:flex;align-items:center;gap:4px;">
           <span style="font-size:11px;color:var(--text3);white-space:nowrap;">입금예정</span>
