@@ -913,7 +913,7 @@ function openDetail(idx, skipPush) {
   const sellBillBase = c.sellBillBase || c.billBase || 'actual';
   const buyBillBase  = c.buyBillBase  || c.billBase || 'actual';
   const _billQty = (base) => base === 'sched' ? (qty - svc) : (actual ? (actual - svc) : (qty - svc));
-  const _baseLbl = (base) => base === 'sched' ? '예약수량 기준' : '실발송수량 기준';
+  const _baseLbl = (base) => base === 'sched' ? '발송예약수량 기준' : '실발송수량 기준';
   // CPA: DB등록수(c.db||c.qty) 기준, 일반: actual 기준
   const cpaBillQty = c.db || c.qty || 0;
   const adcBill  = isCPADetail ? cpaBillQty : _billQty(sellBillBase);
@@ -1985,8 +1985,8 @@ function autoCommEdit() {
   const m = MEDIA_DATA.find(x => x.company === media);
   if (media && m) {
     const comm = m.c1Adj !== '' && m.c1Adj != null ? m.c1Adj : (m.c1Base !== '' && m.c1Base != null ? m.c1Base : null);
-    if (m.unit != null && m.unit !== '') document.getElementById('e_sellUnit').value = m.unit;
-    if (comm != null) document.getElementById('e_comm').value = comm;
+    if (m.unit != null && m.unit !== '' && !document.getElementById('e_sellUnit').value) document.getElementById('e_sellUnit').value = m.unit;
+    if (comm != null && !document.getElementById('e_comm').value) document.getElementById('e_comm').value = comm;
   }
   calcEdit();
 }
@@ -3150,6 +3150,9 @@ function submitEdit() {
       c.dbr    = _epFlt('ep_dbr');
       // CPA: DB등록수 = 정산수량 자동 동기화
       if (c.product === 'CPA' && c.db != null) c.qty = c.db;
+      // 성과 입력 시 상태 자동 업데이트
+      const _hasPerfData = c.product === 'CPA' ? (c.db != null) : (c.actual != null);
+      if (_hasPerfData && c.status !== '성과입력완료') c.status = '성과입력완료';
     }
   }
 
@@ -5990,7 +5993,7 @@ function _stlAmt(c) {
   const buyU     = c.buyUnit  || Math.round(unit * (1 - (c.comm || 0) / 100));
   const sellBillBase = c.sellBillBase || c.billBase || 'actual';
   const buyBillBase  = c.buyBillBase  || c.billBase || 'actual';
-  const _stlBillQty = (base) => Math.max(0, (base === 'sched' ? qty : actual) - svc);
+  const _stlBillQty = (base) => Math.max(0, base === 'sched' ? qty : (actual - svc));
   const sellQty = _stlBillQty(sellBillBase);
   const buyQty  = _stlBillQty(buyBillBase);
   const disc    = c.disc || 0;
