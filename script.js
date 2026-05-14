@@ -4542,8 +4542,9 @@ async function downloadInvoiceExcel() {
     camps.forEach(c => {
       const a = _stlAmt(c);
       const has = _stlHas(c);
-      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
-      const adcost = has ? (a.amt ?? a.adc) : null;
+      const isCPS = c.product === 'CPS';
+      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm) || (isCPS && !!c.cpsMediaComm));
+      const adcost = has ? (isCPS ? a.adc : (a.amt ?? a.adc)) : null;
       const buyAmt = hasBuy ? a.buyAmt : null;
       const buyVat = hasBuy ? a.buyVat : null;
       if (adcost) totalAdc += adcost;
@@ -5215,9 +5216,10 @@ function renderMediaDetail() {
   if (cpsEl) {
     const hasCps = m.cpsRate || m.naverCpsRate;
     cpsEl.style.display = hasCps ? '' : 'none';
-    cpsEl.innerHTML = hasCps
-      ? `${m.cpsRate      ? `<div class="field"><span class="f-label">쿠팡 CPS 매체수수료율</span><span class="f-val f-mono">${m.cpsRate}%</span></div>` : ''}
-         ${m.naverCpsRate ? `<div class="field"><span class="f-label">네이버 CPS 매체수수료율</span><span class="f-val f-mono">${m.naverCpsRate}%</span></div>` : ''}`
+    const cpsBody = cpsEl.querySelector('.card-body');
+    if (cpsBody) cpsBody.innerHTML = hasCps
+      ? `${m.cpsRate      ? `<div class="field"><span class="f-label" style="width:160px;">쿠팡 CPS 매체수수료율</span><span class="f-val f-mono">${m.cpsRate}%</span></div>` : ''}
+         ${m.naverCpsRate ? `<div class="field"><span class="f-label" style="width:160px;">네이버 CPS 매체수수료율</span><span class="f-val f-mono">${m.naverCpsRate}%</span></div>` : ''}`
       : '';
   }
 }
@@ -6054,7 +6056,7 @@ function _stlAmt(c) {
     const mediaComm  = c.cpsMediaComm  || 0;
     const bcProfit   = totalComm - mediaComm;
     const prfRate    = finalSales > 0 ? (bcProfit / finalSales * 100) : 0;
-    return { actual: 0, qty: 0, eu: 0, adc: finalSales, amt: totalComm, adcVat: 0, buyAmt: mediaComm, buyVat: 0, stlRate: 0, agFee: 0, prf: bcProfit, prfRate };
+    return { actual: 0, qty: 0, eu: 0, adc: finalSales, amt: totalComm, adcVat: 0, buyAmt: mediaComm, buyVat: Math.round(mediaComm * 0.1), stlRate: 0, agFee: 0, prf: bcProfit, prfRate };
   }
   // CPA 캠페인: 실발송수량(actual) 기준, 미입력 시 정산수량(qty) 기준으로 폴백
   if (c.product === 'CPA') {
@@ -6751,7 +6753,17 @@ function renderStlCpsView(container) {
     const bcProfit   = totalComm - mediaComm;
     totFinal  += finalSales; totTotal += totalComm; totMedia += mediaComm; totProfit += bcProfit;
     const idx = DATA.indexOf(c);
-    return `<tr onclick="openDetail(${idx})" style="cursor:pointer;">
+    const invIn = c.invoiceIn || '';
+    const invInHtml = invIn === '발행완료'
+      ? `<span class="stl-inv-badge done" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')">✓ 발행완료</span>`
+      : invIn === '발행필요없음'
+      ? `<span class="stl-inv-badge none" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')">불필요</span>`
+      : `<div class="chk" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')"></div>`;
+    const canPayOut = _stlCanEdit('payOut');
+    const payOutHtml = c.payOut
+      ? `<div class="chk on" style="${canPayOut?'':'opacity:0.35;cursor:not-allowed;pointer-events:none;'}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','payOut')">✓</div>`
+      : `<div class="chk"    style="${canPayOut?'':'opacity:0.35;cursor:not-allowed;pointer-events:none;'}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','payOut')"></div>`;
+    return `<tr data-stlcamp="${c.id}" onclick="openDetail(${idx})" style="cursor:pointer;">
       <td>${_escHtml(_cName(c))}</td>
       <td>${fmtMonth(c.date)}</td>
       <td style="font-weight:700;color:var(--accent);">${c.stlMonth ? fmtMonth(c.stlMonth) : nd}</td>
@@ -6765,6 +6777,8 @@ function renderStlCpsView(container) {
       <td style="text-align:right;color:var(--text2);">${pct(mediaComm, finalSales)}</td>
       <td style="text-align:right;font-weight:700;color:${bcProfit >= 0 ? 'var(--green)' : 'var(--red)'};">${bcProfit ? fmt(bcProfit) + '원' : nd}</td>
       <td style="text-align:right;">${pct(bcProfit, finalSales)}</td>
+      <td data-stlcell="${c.id}_invoiceIn" style="text-align:center;">${invInHtml}</td>
+      <td data-stlcell="${c.id}_payOut"    style="text-align:center;">${payOutHtml}</td>
     </tr>`;
   }).join('');
 
@@ -6777,6 +6791,7 @@ function renderStlCpsView(container) {
           <th style="text-align:right;">총CPS수수료</th><th style="text-align:right;">실수수료율</th>
           <th style="text-align:right;">매체수수료</th><th style="text-align:right;">실매체수수료율</th>
           <th style="text-align:right;">BC수익</th><th style="text-align:right;">수익률</th>
+          <th style="text-align:center;">매입계산서</th><th style="text-align:center;">지급</th>
         </tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr style="font-weight:700;background:var(--surface2);">
@@ -6788,6 +6803,7 @@ function renderStlCpsView(container) {
           <td></td>
           <td style="text-align:right;color:${totProfit >= 0 ? 'var(--green)' : 'var(--red)'};">${totProfit ? fmt(totProfit) + '원' : '—'}</td>
           <td style="text-align:right;">${pct(totProfit, totFinal)}</td>
+          <td></td><td></td>
         </tr></tfoot>
       </table>
     </div>`;
