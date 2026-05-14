@@ -1217,14 +1217,17 @@ function openDetail(idx, skipPush) {
     const finalSales = c.cpsFinalSales || 0;
     const totalComm  = c.cpsTotalComm  || 0;
     const mediaComm  = c.cpsMediaComm  || 0;
-    const cpsRate    = MEDIA_DATA.find(m => m.company === c.media)?.cpsRate || 0;
+    const cpsRate    = _getCpsRate(c.media, c.seller || c.adv);
     const bcProfit   = totalComm - mediaComm;
     const bcRate     = cpsRate ? (3.4 - cpsRate).toFixed(2) + '%' : '—';
     const commRate1  = finalSales > 0 ? (totalComm / finalSales * 100).toFixed(2) + '%' : '—';
     const commRate2  = finalSales > 0 ? (mediaComm / finalSales * 100).toFixed(2) + '%' : '—';
     const prfRate    = finalSales > 0 ? (bcProfit  / finalSales * 100).toFixed(2) + '%' : '—';
     const nd = '—';
+    const fmtMonth = s => s ? s.replace('-', '년 ') + '월' : nd;
     const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setText('dCpsExecMonth', fmtMonth((c.date || '').slice(0, 7)));
+    setText('dCpsStlMonth',  fmtMonth(c.stlMonth));
     setText('dCpsFinalSales', finalSales ? finalSales.toLocaleString() + '원' : nd);
     setText('dCpsTotalComm',  totalComm  ? totalComm.toLocaleString()  + '원' : nd);
     setText('dCpsCommRate1',  commRate1);
@@ -2118,6 +2121,7 @@ function onEditProductChange() {
       document.getElementById('e_da_emonth').value = mo;
       document.getElementById('e_da_eday').value   = String(lastDay).padStart(2, '0');
     }
+    if (isCPS) _populateCpsMonthSelects('e');
   }
 }
 
@@ -2159,16 +2163,52 @@ function onRegProductChange() {
   const imgSec = document.getElementById('r_da_img_section');
   if (msgSec) msgSec.style.display = (isDA || isPC || isCPA || isCPS) ? 'none' : '';
   if (imgSec) imgSec.style.display = isDA ? '' : 'none';
-  if (isCPS) calcCPS();
+  if (isCPS) {
+    _populateCpsMonthSelects('r');
+    calcCPS();
+  }
 }
 
+
+function _populateCpsMonthSelects(prefix) {
+  const now = new Date();
+  const curY = now.getFullYear();
+  const curM = now.getMonth() + 1;
+  ['exec', 'stl'].forEach(type => {
+    const yEl = document.getElementById(`${prefix}_cps_${type}_year`);
+    const mEl = document.getElementById(`${prefix}_cps_${type}_month`);
+    if (yEl && !yEl.options.length) {
+      for (let y = curY - 1; y <= curY + 1; y++) {
+        const o = document.createElement('option'); o.value = String(y); o.textContent = y + '년';
+        yEl.appendChild(o);
+      }
+      yEl.value = String(curY);
+    }
+    if (mEl && !mEl.options.length) {
+      for (let m = 1; m <= 12; m++) {
+        const o = document.createElement('option'); o.value = String(m).padStart(2,'0'); o.textContent = m + '월';
+        mEl.appendChild(o);
+      }
+      mEl.value = String(curM).padStart(2,'0');
+    }
+  });
+}
+
+function _getCpsRate(mediaName, sellerName) {
+  const m = MEDIA_DATA.find(m => m.company === mediaName);
+  if (!m) return 0;
+  if (sellerName === '네이버') return m.naverCpsRate || 0;
+  if (sellerName === '쿠팡')   return m.cpsRate || 0;
+  return 0;
+}
 
 function calcCPS() {
   const finalSales = +document.getElementById('r_cps_final_sales')?.value || 0;
   const totalComm  = +document.getElementById('r_cps_total_comm')?.value  || 0;
   const mediaComm  = +document.getElementById('r_cps_media_comm')?.value  || 0;
   const mediaName  = document.getElementById('r_media')?.value || '';
-  const cpsRate    = MEDIA_DATA.find(m => m.company === mediaName)?.cpsRate || 0;
+  const sellerName = document.getElementById('r_seller')?.value || '';
+  const cpsRate    = _getCpsRate(mediaName, sellerName);
   const commRate1  = finalSales > 0 ? (totalComm / finalSales * 100) : 0;
   const commRate2  = finalSales > 0 ? (mediaComm / finalSales * 100) : 0;
   const bcRate     = 3.4 - cpsRate;
@@ -2188,7 +2228,8 @@ function calcCPSEdit() {
   const totalComm  = +document.getElementById('e_cps_total_comm')?.value  || 0;
   const mediaComm  = +document.getElementById('e_cps_media_comm')?.value  || 0;
   const mediaName  = document.getElementById('e_media')?.value || '';
-  const cpsRate    = MEDIA_DATA.find(m => m.company === mediaName)?.cpsRate || 0;
+  const sellerName = document.getElementById('e_seller')?.value || '';
+  const cpsRate    = _getCpsRate(mediaName, sellerName);
   const commRate1  = finalSales > 0 ? (totalComm / finalSales * 100) : 0;
   const commRate2  = finalSales > 0 ? (mediaComm / finalSales * 100) : 0;
   const bcRate     = 3.4 - cpsRate;
@@ -2448,8 +2489,11 @@ function submitReg() {
   const _rYear  = document.getElementById('r_da_year').value;
   const _rMonth = document.getElementById('r_da_month').value;
   const _rDay   = isDA ? (document.getElementById('r_da_day').value  || '01') : '01';
-  const dateVal = (isDA || isPC || isCPA || isCPS)
-    ? `${_rYear}-${_rMonth}-${_rDay} 00:00`
+  const _cpsExecYear  = document.getElementById('r_cps_exec_year')?.value  || _rYear;
+  const _cpsExecMonth = document.getElementById('r_cps_exec_month')?.value || _rMonth;
+  const dateVal = isDA ? `${_rYear}-${_rMonth}-${_rDay} 00:00`
+    : isCPS ? `${_cpsExecYear}-${_cpsExecMonth}-01 00:00`
+    : (isPC || isCPA) ? `${_rYear}-${_rMonth}-01 00:00`
     : _getDateTime('r');
   const now = new Date();
   const regDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -2511,6 +2555,7 @@ function submitReg() {
     cpsFinalSales: isCPS ? (+document.getElementById('r_cps_final_sales')?.value || 0) : 0,
     cpsTotalComm:  isCPS ? (+document.getElementById('r_cps_total_comm')?.value  || 0) : 0,
     cpsMediaComm:  isCPS ? (+document.getElementById('r_cps_media_comm')?.value  || 0) : 0,
+    stlMonth: isCPS ? (() => { const sy = document.getElementById('r_cps_stl_year')?.value; const sm = document.getElementById('r_cps_stl_month')?.value; return (sy && sm) ? `${sy}-${sm}` : ''; })() : '',
     target:   document.getElementById('r_target').value,
     dtarget:  document.getElementById('r_dtarget').value,
     msg:      document.getElementById('r_msg').value,
@@ -2589,7 +2634,8 @@ function resetRegForm() {
    'r_pc_adc','r_pc_ohc_cost','r_pc_dnu_cost','r_pc_profit','r_pc_prf_rate','r_pc_cvr']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   ['r_cps_final_sales','r_cps_total_comm','r_cps_media_comm',
-   'r_cps_comm_rate1','r_cps_comm_rate2','r_cps_media_rate','r_cps_bc_rate','r_cps_bc_profit','r_cps_profit_rate']
+   'r_cps_comm_rate1','r_cps_comm_rate2','r_cps_media_rate','r_cps_bc_rate','r_cps_bc_profit','r_cps_profit_rate',
+   'r_cps_exec_year','r_cps_exec_month','r_cps_stl_year','r_cps_stl_month']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   _daImagesBase64 = [];
   _daRenderGrid('r_da_preview_grid', _daImagesBase64);
@@ -2740,6 +2786,14 @@ function openCopyCampaign() {
     _set('r_cpa_comm',     c.comm      || '');
     _set('r_cpa_agrate',   c.agrate    || '');
   } else if (isCPS) {
+    _populateCpsMonthSelects('r');
+    // 집행월
+    const execParts = (c.date || '').split('-');
+    _set('r_cps_exec_year',  execParts[0] || '');
+    _set('r_cps_exec_month', execParts[1] || '');
+    // 정산월은 복사하지 않음 (새 캠페인이므로 새로 입력)
+    _set('r_cps_stl_year',  '');
+    _set('r_cps_stl_month', '');
     _set('r_cps_final_sales', c.cpsFinalSales || '');
     _set('r_cps_total_comm',  c.cpsTotalComm  || '');
     _set('r_cps_media_comm',  c.cpsMediaComm  || '');
@@ -2910,12 +2964,16 @@ function openEdit() {
     calcCPAEdit();
   }
   if (isEditCPS) {
+    _populateCpsMonthSelects('e');
     const dateParts = (c.date || '').split('-');
-    const eDAYear  = document.getElementById('e_da_year');
-    const eDAMonth = document.getElementById('e_da_month');
-    if (eDAYear  && dateParts[0]) eDAYear.value  = dateParts[0];
-    if (eDAMonth && dateParts[1]) eDAMonth.value = dateParts[1];
     const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+    // 집행월 (e_cps_exec_year/month)
+    setEl('e_cps_exec_year',  dateParts[0] || '');
+    setEl('e_cps_exec_month', dateParts[1] || '');
+    // 정산월 (e_cps_stl_year/month)
+    const stlParts = (c.stlMonth || '').split('-');
+    setEl('e_cps_stl_year',  stlParts[0] || '');
+    setEl('e_cps_stl_month', stlParts[1] || '');
     setEl('e_cps_final_sales', c.cpsFinalSales || '');
     setEl('e_cps_total_comm',  c.cpsTotalComm  || '');
     setEl('e_cps_media_comm',  c.cpsMediaComm  || '');
@@ -3113,9 +3171,12 @@ function submitEdit() {
     c.svc       = 0;
     c.disc      = 0;
   } else if (isEditCPS) {
-    const yr = document.getElementById('e_da_year').value;
-    const mo = document.getElementById('e_da_month').value;
-    c.date         = `${yr}-${mo}-01 00:00`;
+    const execYr = document.getElementById('e_cps_exec_year')?.value  || document.getElementById('e_da_year').value;
+    const execMo = document.getElementById('e_cps_exec_month')?.value || document.getElementById('e_da_month').value;
+    c.date          = `${execYr}-${execMo}-01 00:00`;
+    const stlYr = document.getElementById('e_cps_stl_year')?.value;
+    const stlMo = document.getElementById('e_cps_stl_month')?.value;
+    c.stlMonth      = (stlYr && stlMo) ? `${stlYr}-${stlMo}` : '';
     c.cpsFinalSales = +document.getElementById('e_cps_final_sales')?.value || 0;
     c.cpsTotalComm  = +document.getElementById('e_cps_total_comm')?.value  || 0;
     c.cpsMediaComm  = +document.getElementById('e_cps_media_comm')?.value  || 0;
@@ -5148,6 +5209,17 @@ function renderMediaDetail() {
     `<div class="field"><span class="f-label">대상</span><span class="f-val">${v(m.excTarget)}</span></div>
     <div class="field"><span class="f-label">조정</span><span class="f-val">${v(m.excAdj)}</span></div>
     <div class="field"><span class="f-label">광고비 지급일자</span><span class="f-val">${v(m.payDay)}</span></div>`;
+
+  // CPS 수수료율
+  const cpsEl = document.getElementById('med-detail-cps');
+  if (cpsEl) {
+    const hasCps = m.cpsRate || m.naverCpsRate;
+    cpsEl.style.display = hasCps ? '' : 'none';
+    cpsEl.innerHTML = hasCps
+      ? `${m.cpsRate      ? `<div class="field"><span class="f-label">쿠팡 CPS 매체수수료율</span><span class="f-val f-mono">${m.cpsRate}%</span></div>` : ''}
+         ${m.naverCpsRate ? `<div class="field"><span class="f-label">네이버 CPS 매체수수료율</span><span class="f-val f-mono">${m.naverCpsRate}%</span></div>` : ''}`
+      : '';
+  }
 }
 
 function openMediaModalFromDetail() {
@@ -5176,14 +5248,14 @@ function deleteMediaFromDetail() {
 function openMediaModal(idx) {
   mediaPendingCombo = null;
   mediaEditIdx = idx ?? null;
-  const d = {type:'매체사',company:'',invoiceTo:'',unit:'',contact:'',tel:'',c1Base:'',c1Req:'',c1Adj:'',c1Reason:'',note1:'',c2Base:'',c2Req:'',c2Adj:'',c2Reason:'',note2:'',excTarget:'',excAdj:'',createdAt:'',cpsRate:''};
+  const d = {type:'매체사',company:'',invoiceTo:'',unit:'',contact:'',tel:'',c1Base:'',c1Req:'',c1Adj:'',c1Reason:'',note1:'',c2Base:'',c2Req:'',c2Adj:'',c2Reason:'',note2:'',excTarget:'',excAdj:'',createdAt:'',cpsRate:'',naverCpsRate:''};
   const m = idx != null ? MEDIA_DATA[idx] : d;
   document.getElementById('med-title').textContent = idx != null ? '매체사 수정' : '매체사 등록';
   document.getElementById('med-del-btn').style.display = idx != null ? '' : 'none';
   document.getElementById('med-type').value = m.type || '매체사';
   medTypeChange();
-  const _medNumKeys = ['unit','c1Base','c1Req','c1Adj','c2Base','c2Req','c2Adj','cpsRate'];
-  ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay','createdAt','cpsRate']
+  const _medNumKeys = ['unit','c1Base','c1Req','c1Adj','c2Base','c2Req','c2Adj','cpsRate','naverCpsRate'];
+  ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay','createdAt','cpsRate','naverCpsRate']
     .forEach(k => { const el=document.getElementById('med-'+k); if(el) el.value = _medNumKeys.includes(k) ? (m[k] || '') : (m[k] ?? ''); });
   const taxYnEl = document.getElementById('med-taxYn');
   if (taxYnEl) taxYnEl.checked = m.taxYn !== false; // 기본값 true
@@ -5193,11 +5265,11 @@ function openMediaModal(idx) {
 function saveMedia() {
   const company = document.getElementById('med-company').value.trim();
   if (!company) { toast('⚠ 매체명을 입력해주세요','warn'); return; }
-  const keys = ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay','cpsRate'];
+  const keys = ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay','cpsRate','naverCpsRate'];
   const obj = { type: document.getElementById('med-type').value || '매체사' };
   keys.forEach(k => {
     const v = document.getElementById('med-'+k)?.value ?? '';
-    obj[k] = ['unit','c1Base','c1Req','c1Adj','c2Base','c2Req','c2Adj','cpsRate'].includes(k) ? (v===''?'':+v) : v;
+    obj[k] = ['unit','c1Base','c1Req','c1Adj','c2Base','c2Req','c2Adj','cpsRate','naverCpsRate'].includes(k) ? (v===''?'':+v) : v;
   });
   obj.taxYn = document.getElementById('med-taxYn')?.checked !== false;
   const today = new Date();
@@ -6655,8 +6727,9 @@ function renderStlCpsView(container) {
       if (bonbu && (!u || u.bonbu !== bonbu)) return false;
       if (team  && (!u || u.dept  !== team))  return false;
     }
-    if (selYear  && !c.date.startsWith(selYear))    return false;
-    if (selMonth && c.date.slice(5,7) !== selMonth) return false;
+    const filterDate = c.stlMonth || (c.date || '').slice(0, 7);
+    if (selYear  && !filterDate.startsWith(selYear))    return false;
+    if (selMonth && filterDate.slice(5, 7) !== selMonth) return false;
     return true;
   });
 
@@ -6681,6 +6754,7 @@ function renderStlCpsView(container) {
     return `<tr onclick="openDetail(${idx})" style="cursor:pointer;">
       <td>${_escHtml(_cName(c))}</td>
       <td>${fmtMonth(c.date)}</td>
+      <td style="font-weight:700;color:var(--accent);">${c.stlMonth ? fmtMonth(c.stlMonth) : nd}</td>
       <td>${_escHtml(c.seller || c.adv || '—')}</td>
       <td>${_escHtml(c.media || '—')}</td>
       <td>${_escHtml(c.ops || '—')}</td>
@@ -6698,7 +6772,7 @@ function renderStlCpsView(container) {
     <div class="settle-table-wrap">
       <table class="stl-table">
         <thead><tr>
-          <th>캠페인명</th><th>집행월</th><th>매출처</th><th>매체사</th><th>담당자</th>
+          <th>캠페인명</th><th>집행월</th><th>정산월</th><th>매출처</th><th>매체사</th><th>담당자</th>
           <th style="text-align:right;">최종정산매출</th>
           <th style="text-align:right;">총CPS수수료</th><th style="text-align:right;">실수수료율</th>
           <th style="text-align:right;">매체수수료</th><th style="text-align:right;">실매체수수료율</th>
@@ -6706,7 +6780,7 @@ function renderStlCpsView(container) {
         </tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr style="font-weight:700;background:var(--surface2);">
-          <td colspan="5" style="text-align:right;color:var(--text2);height:44px;padding:10px 12px;">합계</td>
+          <td colspan="6" style="text-align:right;color:var(--text2);height:44px;padding:10px 12px;">합계</td>
           <td style="text-align:right;">${totFinal ? fmt(totFinal) + '원' : '—'}</td>
           <td style="text-align:right;">${totTotal ? fmt(totTotal) + '원' : '—'}</td>
           <td></td>

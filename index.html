@@ -725,6 +725,13 @@
           <div class="card" id="dCardCPS" style="align-self:stretch;display:none;flex-direction:column;">
             <div class="card-head"><span class="card-icon">🛒</span><span class="card-title">CPS 정산</span></div>
             <div class="card-body" style="flex:1;display:flex;flex-direction:column;gap:0;">
+              <div class="field" style="gap:0;">
+                <span class="f-label">집행월</span><span class="f-val f-mono" id="dCpsExecMonth">—</span>
+              </div>
+              <div class="field" style="gap:0;border-bottom:none;">
+                <span class="f-label">정산월</span><span class="f-val f-mono" id="dCpsStlMonth" style="font-weight:700;color:var(--accent);">—</span>
+              </div>
+              <div style="height:8px;"></div>
               <div class="amount-flow">
                 <div class="a-row result"><span class="a-lbl" style="color:var(--accent);font-weight:700;">최종정산매출</span><span class="a-val f-mono" id="dCpsFinalSales" style="font-size:16px;color:var(--accent);font-weight:700;">—</span></div>
               </div>
@@ -1101,7 +1108,18 @@
             <div class="card-head"><span class="card-icon">🛒</span><span class="card-title">CPS 정산</span></div>
             <div class="card-body">
               <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
-                <div class="form-section-lbl">광고주 × 브레인큐브</div>
+                <div class="form-section-lbl" style="grid-column:1/-1;">집행월 / 정산월</div>
+                <div class="fg"><label class="form-label">집행월</label>
+                  <div class="d-row" style="gap:4px;">
+                    <select class="form-input" id="e_cps_exec_year" style="width:80px;"></select>
+                    <select class="form-input" id="e_cps_exec_month" style="width:64px;"></select>
+                  </div></div>
+                <div class="fg"><label class="form-label">정산월 <span class="req">*</span></label>
+                  <div class="d-row" style="gap:4px;">
+                    <select class="form-input" id="e_cps_stl_year" style="width:80px;"></select>
+                    <select class="form-input" id="e_cps_stl_month" style="width:64px;"></select>
+                  </div></div>
+                <div class="form-section-lbl" style="grid-column:1/-1;">광고주 × 브레인큐브</div>
                 <div class="fg"><label class="form-label">최종정산매출 (원) <span class="req">*</span></label>
                   <input type="number" class="form-input" id="e_cps_final_sales" placeholder="0" oninput="calcCPSEdit()"></div>
                 <div class="fg"><label class="form-label">총CPS수수료 (원)</label>
@@ -1833,6 +1851,10 @@
             <div class="card-head"><span class="card-icon">⚠️</span><span class="card-title">예외사항</span></div>
             <div class="card-body" id="med-detail-exc"></div>
           </div>
+          <div class="card" id="med-detail-cps" style="display:none;">
+            <div class="card-head"><span class="card-icon">🛒</span><span class="card-title">CPS 수수료율</span></div>
+            <div class="card-body"></div>
+          </div>
         </div>
       </div>
 
@@ -2545,7 +2567,20 @@
             </div>
             <!-- CPS 전용 -->
             <div id="r_qty_cps" class="form-grid" style="display:none;grid-template-columns:1fr 1fr 1fr;">
-              <div class="form-section-lbl">광고주 × 브레인큐브</div>
+              <div class="form-section-lbl" style="grid-column:1/-1;">집행월 / 정산월</div>
+              <div class="fg"><label class="form-label">집행월</label>
+                <div class="d-row" style="gap:4px;">
+                  <select class="form-input" id="r_cps_exec_year" style="width:80px;"></select>
+                  <select class="form-input" id="r_cps_exec_month" style="width:64px;"></select>
+                </div>
+                <span class="form-hint">광고 운영 월</span></div>
+              <div class="fg"><label class="form-label">정산월 <span class="req">*</span></label>
+                <div class="d-row" style="gap:4px;">
+                  <select class="form-input" id="r_cps_stl_year" style="width:80px;"></select>
+                  <select class="form-input" id="r_cps_stl_month" style="width:64px;"></select>
+                </div>
+                <span class="form-hint">매체 정산 기준 월</span></div>
+              <div class="form-section-lbl" style="grid-column:1/-1;">광고주 × 브레인큐브</div>
               <div class="fg"><label class="form-label">최종정산매출 (원) <span class="req">*</span></label>
                 <input type="number" class="form-input" id="r_cps_final_sales" placeholder="0" oninput="calcCPS()"></div>
               <div class="fg"><label class="form-label">총CPS수수료 (원)</label>
@@ -2732,7 +2767,8 @@
         </div>
 
         <div style="display:flex;gap:10px;margin-top:4px;">
-          <div class="fg" style="flex:1;"><label class="form-label">CPS 매체수수료율 (%)</label><input type="number" step="0.01" class="form-input" id="med-cpsRate" placeholder="0"><span class="form-hint">CPS 캠페인 매체 수수료율</span></div>
+          <div class="fg" style="flex:1;"><label class="form-label">쿠팡 CPS 매체수수료율 (%)</label><input type="number" step="0.01" class="form-input" id="med-cpsRate" placeholder="0"><span class="form-hint">광고주=쿠팡인 CPS 캠페인에 적용</span></div>
+          <div class="fg" style="flex:1;"><label class="form-label">네이버 CPS 매체수수료율 (%)</label><input type="number" step="0.01" class="form-input" id="med-naverCpsRate" placeholder="0"><span class="form-hint">광고주=네이버인 CPS 캠페인에 적용</span></div>
         </div>
 
         <!-- 수수료1 -->
