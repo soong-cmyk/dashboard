@@ -4318,8 +4318,9 @@ function _getStlFilteredData() {
   const selMonth = document.getElementById('stl-month')?.value   || '';
   return DATA.filter(c => {
     if (scope === 'settled') {
-      if      (c.product === 'DA')  { if (!c.daAdcost)              return false; }
-      else if (c.product === 'CPA') { if (!c.db && !c.qty)            return false; }
+      if      (c.product === 'DA')  { if (!c.daAdcost)           return false; }
+      else if (c.product === 'CPA') { if (!c.db && !c.qty)       return false; }
+      else if (c.product === 'CPS') { if (!c.cpsFinalSales)      return false; }
       else if (c.status !== '성과입력완료') return false;
     }
     if (prod  && c.product !== prod) return false;
@@ -4332,8 +4333,9 @@ function _getStlFilteredData() {
       if (bonbu && (!u || u.bonbu !== bonbu)) return false;
       if (team  && (!u || u.dept  !== team))  return false;
     }
-    if (selYear  && !c.date.startsWith(selYear))    return false;
-    if (selMonth && c.date.slice(5,7) !== selMonth) return false;
+    const filterDate = c.product === 'CPS' ? (c.stlMonth || (c.date || '').slice(0, 7)) : (c.date || '');
+    if (selYear  && !filterDate.startsWith(selYear))    return false;
+    if (selMonth && filterDate.slice(5, 7) !== selMonth) return false;
     if (fQ && !_cName(c).toLowerCase().includes(fQ) && !(c.id||'').toLowerCase().includes(fQ)) return false;
     return true;
   });
@@ -6552,8 +6554,9 @@ function renderSettlement() {
   const selMonth = document.getElementById('stl-month')?.value  || '';
   const settled = DATA.filter(c => {
     if (scope === 'settled') {
-      if      (c.product === 'DA')  { if (!c.daAdcost)        return false; }
-      else if (c.product === 'CPA') { if (!c.db && !c.qty)     return false; }
+      if      (c.product === 'DA')  { if (!c.daAdcost)           return false; }
+      else if (c.product === 'CPA') { if (!c.db && !c.qty)       return false; }
+      else if (c.product === 'CPS') { if (!c.cpsFinalSales)      return false; }
       else if (c.status !== '성과입력완료') return false;
     }
     if (prod  && c.product !== prod) return false;
@@ -6566,8 +6569,9 @@ function renderSettlement() {
       if (bonbu && (!u || u.bonbu !== bonbu)) return false;
       if (team  && (!u || u.dept  !== team))  return false;
     }
-    if (selYear  && !c.date.startsWith(selYear))    return false;
-    if (selMonth && c.date.slice(5,7) !== selMonth) return false;
+    const filterDate = c.product === 'CPS' ? (c.stlMonth || (c.date || '').slice(0, 7)) : (c.date || '');
+    if (selYear  && !filterDate.startsWith(selYear))    return false;
+    if (selMonth && filterDate.slice(5, 7) !== selMonth) return false;
     if (fQ && !_cName(c).toLowerCase().includes(fQ) && !(c.id||'').toLowerCase().includes(fQ)) return false;
     return true;
   });
