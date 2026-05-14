@@ -6620,7 +6620,7 @@ function renderSettlement() {
   settled.forEach(c => {
     const a      = _stlAmt(c);
     const has    = _stlHas(c);
-    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
+    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm) || (c.product === 'CPS' && !!c.cpsMediaComm));
     if (has)    totalAdc += (a.amt ?? a.adc);
     if (hasBuy) totalBuy += a.buyAmt;
     if (has)    totalPrf += a.prf;
