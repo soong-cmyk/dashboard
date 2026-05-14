@@ -1120,22 +1120,25 @@
                     <select class="form-input" id="e_cps_stl_month" style="width:64px;"></select>
                   </div></div>
                 <div class="form-section-lbl" style="grid-column:1/-1;">광고주 × 브레인큐브</div>
-                <div class="fg"><label class="form-label">최종정산매출 (원) <span class="req">*</span></label>
+                <div class="fg"><label class="form-label"><span id="e_cps_final_sales_lbl">최종정산매출</span> (원) <span class="req">*</span></label>
                   <input type="number" class="form-input" id="e_cps_final_sales" placeholder="0" oninput="calcCPSEdit()"></div>
                 <div class="fg"><label class="form-label">총CPS수수료 (원)</label>
-                  <input type="number" class="form-input" id="e_cps_total_comm" placeholder="0" oninput="calcCPSEdit()"></div>
+                  <input type="number" class="form-input" id="e_cps_total_comm" placeholder="0" oninput="calcCPSEdit()">
+                  <span class="form-hint" id="e_cps_total_comm_hint">직접 입력</span></div>
                 <div class="fg"><label class="form-label">실수수료율</label>
                   <input class="form-input auto" id="e_cps_comm_rate1" readonly placeholder="자동계산"></div>
                 <div class="form-section-lbl">브레인큐브 × 매체사</div>
                 <div class="fg"><label class="form-label">매체수수료율 (%)</label>
                   <input class="form-input auto" id="e_cps_media_rate" readonly placeholder="매체사 선택 후 조회"></div>
                 <div class="fg"><label class="form-label">매체수수료 (원)</label>
-                  <input type="number" class="form-input" id="e_cps_media_comm" placeholder="0" oninput="calcCPSEdit()"></div>
+                  <input type="number" class="form-input" id="e_cps_media_comm" placeholder="0" oninput="calcCPSEdit()">
+                  <span class="form-hint" id="e_cps_media_comm_hint">직접 입력</span></div>
                 <div class="fg"><label class="form-label">실매체수수료율</label>
                   <input class="form-input auto" id="e_cps_comm_rate2" readonly placeholder="자동계산"></div>
                 <div class="form-section-lbl">브레인큐브 수익</div>
                 <div class="fg"><label class="form-label">브레인큐브 수수료율</label>
-                  <input class="form-input auto" id="e_cps_bc_rate" readonly placeholder="자동계산"></div>
+                  <input class="form-input auto" id="e_cps_bc_rate" readonly placeholder="자동계산">
+                  <span class="form-hint" id="e_cps_bc_rate_hint">3.4% − 매체수수료율</span></div>
                 <div class="fg"><label class="form-label">브레인큐브 수익 (원)</label>
                   <input class="form-input auto" id="e_cps_bc_profit" readonly placeholder="자동계산"></div>
                 <div class="fg"><label class="form-label">수익률</label>
@@ -2581,26 +2584,28 @@
                 </div>
                 <span class="form-hint">매체 정산 기준 월</span></div>
               <div class="form-section-lbl" style="grid-column:1/-1;">광고주 × 브레인큐브</div>
-              <div class="fg"><label class="form-label">최종정산매출 (원) <span class="req">*</span></label>
+              <div class="fg"><label class="form-label"><span id="r_cps_final_sales_lbl">최종정산매출</span> (원) <span class="req">*</span></label>
                 <input type="number" class="form-input" id="r_cps_final_sales" placeholder="0" oninput="calcCPS()"></div>
               <div class="fg"><label class="form-label">총CPS수수료 (원)</label>
-                <input type="number" class="form-input" id="r_cps_total_comm" placeholder="0" oninput="calcCPS()"></div>
+                <input type="number" class="form-input" id="r_cps_total_comm" placeholder="0" oninput="calcCPS()">
+                <span class="form-hint" id="r_cps_total_comm_hint">직접 입력</span></div>
               <div class="fg"><label class="form-label">실수수료율</label>
                 <input class="form-input auto" id="r_cps_comm_rate1" readonly placeholder="자동계산">
-                <span class="form-hint">총수수료 ÷ 최종정산매출</span></div>
+                <span class="form-hint">총수수료 ÷ 총액</span></div>
               <div class="form-section-lbl">브레인큐브 × 매체사</div>
               <div class="fg"><label class="form-label">매체수수료율 (%)</label>
                 <input class="form-input auto" id="r_cps_media_rate" readonly placeholder="매체사 선택 후 조회">
                 <span class="form-hint">매체사 등록 기준</span></div>
               <div class="fg"><label class="form-label">매체수수료 (원)</label>
-                <input type="number" class="form-input" id="r_cps_media_comm" placeholder="0" oninput="calcCPS()"></div>
+                <input type="number" class="form-input" id="r_cps_media_comm" placeholder="0" oninput="calcCPS()">
+                <span class="form-hint" id="r_cps_media_comm_hint">직접 입력</span></div>
               <div class="fg"><label class="form-label">실매체수수료율</label>
                 <input class="form-input auto" id="r_cps_comm_rate2" readonly placeholder="자동계산">
-                <span class="form-hint">매체수수료 ÷ 최종정산매출</span></div>
+                <span class="form-hint">매체수수료 ÷ 총액</span></div>
               <div class="form-section-lbl">브레인큐브 수익</div>
               <div class="fg"><label class="form-label">브레인큐브수수료율</label>
                 <input class="form-input auto" id="r_cps_bc_rate" readonly placeholder="자동계산">
-                <span class="form-hint">3.4% − 매체수수료율</span></div>
+                <span class="form-hint" id="r_cps_bc_rate_hint">3.4% − 매체수수료율</span></div>
               <div class="fg"><label class="form-label">브레인큐브 수익 (원)</label>
                 <input class="form-input auto" id="r_cps_bc_profit" readonly placeholder="자동계산">
                 <span class="form-hint">총CPS수수료 − 매체수수료</span></div>

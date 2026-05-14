@@ -2202,47 +2202,62 @@ function _getCpsRate(mediaName, sellerName) {
   return 0;
 }
 
-function calcCPS() {
-  const finalSales = +document.getElementById('r_cps_final_sales')?.value || 0;
-  const totalComm  = +document.getElementById('r_cps_total_comm')?.value  || 0;
-  const mediaComm  = +document.getElementById('r_cps_media_comm')?.value  || 0;
-  const mediaName  = document.getElementById('r_media')?.value || '';
-  const sellerName = document.getElementById('r_seller')?.value || '';
+function _calcCPSCore(prefix) {
+  const finalSales = +document.getElementById(`${prefix}_cps_final_sales`)?.value || 0;
+  const mediaName  = document.getElementById(`${prefix === 'r' ? 'r' : 'e'}_media`)?.value || '';
+  const sellerName = document.getElementById(`${prefix === 'r' ? 'r' : 'e'}_seller`)?.value || '';
+  const isNaver    = sellerName === '네이버';
   const cpsRate    = _getCpsRate(mediaName, sellerName);
+
+  const tcEl = document.getElementById(`${prefix}_cps_total_comm`);
+  const mcEl = document.getElementById(`${prefix}_cps_media_comm`);
+
+  let totalComm, mediaComm;
+  if (isNaver) {
+    totalComm = finalSales ? Math.round(finalSales * 0.018) : 0;
+    mediaComm = finalSales ? Math.round(finalSales * cpsRate / 100) : 0;
+    if (tcEl) { tcEl.value = totalComm || ''; tcEl.readOnly = true; tcEl.classList.add('auto'); }
+    if (mcEl) { mcEl.value = mediaComm || ''; mcEl.readOnly = true; mcEl.classList.add('auto'); }
+    const lblEl = document.getElementById(`${prefix}_cps_final_sales_lbl`);
+    if (lblEl) lblEl.textContent = '유효결제금액';
+    const tcHint = document.getElementById(`${prefix}_cps_total_comm_hint`);
+    if (tcHint) tcHint.textContent = '유효결제금액 × 1.8%';
+    const mcHint = document.getElementById(`${prefix}_cps_media_comm_hint`);
+    if (mcHint) mcHint.textContent = `유효결제금액 × ${cpsRate}%`;
+    const bcHint = document.getElementById(`${prefix}_cps_bc_rate_hint`);
+    if (bcHint) bcHint.textContent = '1.8% − 매체수수료율';
+  } else {
+    if (tcEl) { tcEl.readOnly = false; tcEl.classList.remove('auto'); }
+    if (mcEl) { mcEl.readOnly = false; mcEl.classList.remove('auto'); }
+    totalComm = +tcEl?.value || 0;
+    mediaComm = +mcEl?.value || 0;
+    const lblEl = document.getElementById(`${prefix}_cps_final_sales_lbl`);
+    if (lblEl) lblEl.textContent = '최종정산매출';
+    const tcHint = document.getElementById(`${prefix}_cps_total_comm_hint`);
+    if (tcHint) tcHint.textContent = '직접 입력';
+    const mcHint = document.getElementById(`${prefix}_cps_media_comm_hint`);
+    if (mcHint) mcHint.textContent = '직접 입력';
+    const bcHint = document.getElementById(`${prefix}_cps_bc_rate_hint`);
+    if (bcHint) bcHint.textContent = '3.4% − 매체수수료율';
+  }
+
   const commRate1  = finalSales > 0 ? (totalComm / finalSales * 100) : 0;
   const commRate2  = finalSales > 0 ? (mediaComm / finalSales * 100) : 0;
-  const bcRate     = 3.4 - cpsRate;
+  const bcRateVal  = isNaver ? (1.8 - cpsRate) : (3.4 - cpsRate);
   const bcProfit   = totalComm - mediaComm;
   const profitRate = finalSales > 0 ? (bcProfit / finalSales * 100) : 0;
+
   const _set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-  _set('r_cps_media_rate',  cpsRate ? cpsRate + '%' : '');
-  _set('r_cps_comm_rate1',  finalSales > 0 ? commRate1.toFixed(2) + '%' : '');
-  _set('r_cps_comm_rate2',  finalSales > 0 ? commRate2.toFixed(2) + '%' : '');
-  _set('r_cps_bc_rate',     cpsRate ? bcRate.toFixed(2) + '%' : '');
-  _set('r_cps_bc_profit',   bcProfit ? bcProfit.toLocaleString() + '원' : '');
-  _set('r_cps_profit_rate', finalSales > 0 ? profitRate.toFixed(2) + '%' : '');
+  _set(`${prefix}_cps_media_rate`,  cpsRate ? cpsRate + '%' : '');
+  _set(`${prefix}_cps_comm_rate1`,  finalSales > 0 ? commRate1.toFixed(2) + '%' : '');
+  _set(`${prefix}_cps_comm_rate2`,  finalSales > 0 ? commRate2.toFixed(2) + '%' : '');
+  _set(`${prefix}_cps_bc_rate`,     cpsRate ? bcRateVal.toFixed(2) + '%' : '');
+  _set(`${prefix}_cps_bc_profit`,   bcProfit ? bcProfit.toLocaleString() + '원' : '');
+  _set(`${prefix}_cps_profit_rate`, finalSales > 0 ? profitRate.toFixed(2) + '%' : '');
 }
 
-function calcCPSEdit() {
-  const finalSales = +document.getElementById('e_cps_final_sales')?.value || 0;
-  const totalComm  = +document.getElementById('e_cps_total_comm')?.value  || 0;
-  const mediaComm  = +document.getElementById('e_cps_media_comm')?.value  || 0;
-  const mediaName  = document.getElementById('e_media')?.value || '';
-  const sellerName = document.getElementById('e_seller')?.value || '';
-  const cpsRate    = _getCpsRate(mediaName, sellerName);
-  const commRate1  = finalSales > 0 ? (totalComm / finalSales * 100) : 0;
-  const commRate2  = finalSales > 0 ? (mediaComm / finalSales * 100) : 0;
-  const bcRate     = 3.4 - cpsRate;
-  const bcProfit   = totalComm - mediaComm;
-  const profitRate = finalSales > 0 ? (bcProfit / finalSales * 100) : 0;
-  const _set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-  _set('e_cps_media_rate',  cpsRate ? cpsRate + '%' : '');
-  _set('e_cps_comm_rate1',  finalSales > 0 ? commRate1.toFixed(2) + '%' : '');
-  _set('e_cps_comm_rate2',  finalSales > 0 ? commRate2.toFixed(2) + '%' : '');
-  _set('e_cps_bc_rate',     cpsRate ? bcRate.toFixed(2) + '%' : '');
-  _set('e_cps_bc_profit',   bcProfit ? bcProfit.toLocaleString() + '원' : '');
-  _set('e_cps_profit_rate', finalSales > 0 ? profitRate.toFixed(2) + '%' : '');
-}
+function calcCPS()     { _calcCPSCore('r'); }
+function calcCPSEdit() { _calcCPSCore('e'); }
 
 function calcPC(prefix) {
   const p = prefix || 'r';
@@ -2637,6 +2652,9 @@ function resetRegForm() {
    'r_cps_comm_rate1','r_cps_comm_rate2','r_cps_media_rate','r_cps_bc_rate','r_cps_bc_profit','r_cps_profit_rate',
    'r_cps_exec_year','r_cps_exec_month','r_cps_stl_year','r_cps_stl_month']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['r_cps_total_comm','r_cps_media_comm'].forEach(id => {
+    const el = document.getElementById(id); if (el) { el.readOnly = false; el.classList.remove('auto'); }
+  });
   _daImagesBase64 = [];
   _daRenderGrid('r_da_preview_grid', _daImagesBase64);
   onRegProductChange();
@@ -6794,7 +6812,7 @@ function renderStlCpsView(container) {
           <th style="text-align:right;">최종정산매출</th>
           <th style="text-align:right;">총CPS수수료</th><th style="text-align:right;">실수수료율</th>
           <th style="text-align:right;">매체수수료</th><th style="text-align:right;">실매체수수료율</th>
-          <th style="text-align:right;">BC수익</th><th style="text-align:right;">수익률</th>
+          <th style="text-align:right;">브레인큐브 수익</th><th style="text-align:right;">수익률</th>
           <th style="text-align:center;">매입계산서</th><th style="text-align:center;">지급</th>
         </tr></thead>
         <tbody>${rows}</tbody>
