@@ -672,38 +672,56 @@
           <div class="card" id="dCardQty" style="align-self:stretch;display:flex;flex-direction:column;">
             <div class="card-head"><span class="card-icon">📦</span><span class="card-title">수량 / 금액</span></div>
             <div class="card-body" style="flex:1;display:flex;flex-direction:column;">
+
+              <!-- 공유 수량 행 -->
               <div class="field" id="dFieldQtySvc" style="gap:0;">
                 <span class="f-label">발송예약수량</span><span class="f-val f-mono" id="dQty">—</span>
-                <span class="f-label" style="margin-left:12px;">서비스수량</span><span class="f-val f-mono"
-                  id="dSvc">—</span>
+                <span class="f-label" style="margin-left:12px;">서비스수량</span><span class="f-val f-mono" id="dSvc">—</span>
               </div>
-              <div class="field" id="dFieldActual"><span class="f-label" id="dActualLbl">실발송수량</span><span class="f-val f-pending" id="dActual">— 2차 입력
-                  대기</span></div>
-              <div class="field"><span class="f-label">정산수량</span><span class="f-val f-pending" id="dBill">—</span>
-              </div>
+              <div class="field" id="dFieldActual" style="border-bottom:none;"><span class="f-label" id="dActualLbl">실발송수량</span><span class="f-val f-pending" id="dActual">— 2차 입력 대기</span></div>
               <div class="field" id="dCpaBillBaseField" style="display:none;"><span class="f-label">정산기준</span><span class="f-val" id="dCpaBillBase">—</span></div>
               <div class="field" id="dCpaFeeYnField" style="display:none;"><span class="f-label">대행수수료</span><span class="f-val" id="dCpaFeeYn">—</span></div>
-              <div style="flex:1;min-height:14px;"></div>
-              <div class="amount-flow">
-                <div class="a-row"><span class="a-lbl">매출단가</span><span class="a-val" id="dSellUnit">—</span></div>
-                <div class="a-row op"><span class="a-lbl">– 할인단가</span><span class="a-val" id="dDisc">—</span></div>
-                <div class="a-row"><span class="a-lbl">매입단가</span><span class="a-val" id="dBuyUnit">—</span></div>
-                <div class="a-row"><span class="a-lbl">매입액 <span style="font-size:10px;font-weight:400;color:var(--text3);" id="dBuyBillBaseLbl"></span></span><span class="a-val" id="dBuyAmt">—</span></div>
-                <div class="a-row result"><span class="a-lbl">광고비 <span style="font-size:10px;font-weight:400;color:var(--text3);" id="dSellBillBaseLbl"></span></span><span class="a-val" id="dAdcost">—</span></div>
-                <div class="a-row result"><span class="a-lbl">실청구 <span style="font-size:10px;font-weight:400;color:var(--text3);">정산수량 × 할인단가</span></span><span class="a-val" id="dAmt">—</span></div>
+
+              <!-- 매출 | 매입 2컬럼 -->
+              <div id="dQtySplit" style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border);margin-top:8px;">
+                <!-- 매출 -->
+                <div style="padding:10px 10px 8px 0;border-right:1px solid var(--border);">
+                  <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;">매출</div>
+                  <div class="amount-flow">
+                    <div class="a-row"><span class="a-lbl">정산기준</span><span class="a-val" id="dSellBillBaseVal">—</span></div>
+                    <div class="a-row"><span class="a-lbl">정산수량</span><span class="a-val f-mono" id="dSellBillQty">—</span></div>
+                    <div class="a-row"><span class="a-lbl">매출단가</span><span class="a-val" id="dSellUnit">—</span></div>
+                    <div class="a-row op"><span class="a-lbl">– 할인단가</span><span class="a-val" id="dDisc">—</span></div>
+                    <div class="a-row result"><span class="a-lbl">광고비 <span style="font-size:10px;font-weight:400;color:var(--text3);" id="dSellBillBaseLbl"></span></span><span class="a-val" id="dAdcost">—</span></div>
+                    <div class="a-row result"><span class="a-lbl">실청구 <span style="font-size:10px;font-weight:400;color:var(--text3);">정산수량 × 할인단가</span></span><span class="a-val" id="dAmt">—</span></div>
+                  </div>
+                </div>
+                <!-- 매입 -->
+                <div style="padding:10px 0 8px 10px;">
+                  <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;">매입</div>
+                  <div class="amount-flow">
+                    <div class="a-row"><span class="a-lbl">정산기준</span><span class="a-val" id="dBuyBillBaseVal">—</span></div>
+                    <div class="a-row"><span class="a-lbl">정산수량</span><span class="a-val f-mono" id="dBuyBillQty">—</span></div>
+                    <div class="a-row"><span class="a-lbl">매입단가</span><span class="a-val" id="dBuyUnit">—</span></div>
+                    <div class="a-row result"><span class="a-lbl">매입액 <span style="font-size:10px;font-weight:400;color:var(--text3);" id="dBuyBillBaseLbl"></span></span><span class="a-val" id="dBuyAmt">—</span></div>
+                  </div>
+                </div>
               </div>
-              <div class="amount-flow">
-                <div class="a-row"><span class="a-lbl">수수료율</span><span class="a-val" id="dComm">15%</span></div>
-                <div class="a-row result"><span class="a-lbl">매출액</span><span class="a-val" id="dRev">—</span></div>
-                <div class="a-row op"><span class="a-lbl" id="dAgrateLbl">– 대행료 (5%)</span><span class="a-val"
-                    id="dAgfee">—</span></div>
+
+              <!-- 손익 -->
+              <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;">
+                <div class="amount-flow">
+                  <div class="a-row"><span class="a-lbl">수수료율</span><span class="a-val" id="dComm">—</span></div>
+                  <div class="a-row result"><span class="a-lbl">매출수익</span><span class="a-val" id="dRev">—</span></div>
+                  <div class="a-row op"><span class="a-lbl" id="dAgrateLbl">– 대행료</span><span class="a-val" id="dAgfee">—</span></div>
+                </div>
+                <div class="profit-box"><span class="profit-lbl">💰 이익</span><span class="profit-amt" id="dProfit">—</span></div>
               </div>
-              <div class="profit-box"><span class="profit-lbl">💰 이익</span><span class="profit-amt"
-                  id="dProfit">—</span></div>
+
             </div>
           </div>
 
-          <!-- CPS 전용 카드 (CPS 비활성화)
+          <!-- CPS 전용 카드 -->
           <div class="card" id="dCardCPS" style="align-self:stretch;display:none;flex-direction:column;">
             <div class="card-head"><span class="card-icon">🛒</span><span class="card-title">CPS 정산</span></div>
             <div class="card-body" style="flex:1;display:flex;flex-direction:column;gap:0;">
@@ -733,7 +751,6 @@
               <div style="text-align:right;font-size:12px;color:var(--text3);margin-top:4px;">수익률 <span id="dCpsPrfRate" style="font-weight:700;color:var(--text2);">—</span></div>
             </div>
           </div>
-          -->
 
           <!-- 퍼미션콜 전용 카드 (그리드 col 2 자리) -->
           <div class="card" id="dCardPC" style="align-self:stretch;display:none;flex-direction:column;">
@@ -1079,7 +1096,7 @@
               </div>
             </div>
           </div>
-          <!-- CPS 전용 수정 카드 (CPS 비활성화)
+          <!-- CPS 전용 수정 카드 -->
           <div class="card" id="e_card_cps" style="display:none;">
             <div class="card-head"><span class="card-icon">🛒</span><span class="card-title">CPS 정산</span></div>
             <div class="card-body">
@@ -1108,7 +1125,6 @@
               </div>
             </div>
           </div>
-          -->
           <div class="card" id="e_card_qty">
             <div class="card-head"><span class="card-icon">📦</span><span class="card-title">수량 / 금액</span></div>
             <div class="card-body">
@@ -1120,9 +1136,11 @@
                 <div class="fg"><label class="form-label">서비스수량</label>
                   <input type="number" class="form-input" id="e_svc" placeholder="0" oninput="calcEdit()">
                 </div>
-                <div class="fg"><label class="form-label">정산수량</label>
-                  <input class="form-input auto" id="e_bill" readonly placeholder="자동계산">
-                  <span class="form-hint">발송수량 − 서비스수량</span>
+                <div class="fg"><label class="form-label">서비스적용</label>
+                  <div style="display:flex;gap:16px;align-items:center;padding:6px 0;">
+                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;"><input type="checkbox" id="e_svcApplyAdv" onchange="calcEdit()"> 광고주</label>
+                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;"><input type="checkbox" id="e_svcApplyMedia" onchange="calcEdit()"> 매체</label>
+                  </div>
                 </div>
 
                 <!-- 광고주 섹션 구분선 -->
@@ -1133,6 +1151,7 @@
                     <option value="actual">실발송수량 기준</option>
                     <option value="sched">발송예약수량 기준</option>
                   </select>
+                  <span class="form-hint" id="e_sellBillQtyHint">정산수량: —</span>
                 </div>
                 <div class="fg"><label class="form-label">매출단가 (원)</label>
                   <input type="number" class="form-input" id="e_sellUnit" placeholder="0" oninput="calcEdit()">
@@ -1163,6 +1182,7 @@
                     <option value="actual">실발송수량 기준</option>
                     <option value="sched">발송예약수량 기준</option>
                   </select>
+                  <span class="form-hint" id="e_buyBillQtyHint">정산수량: —</span>
                 </div>
                 <div class="fg"><label class="form-label">매입단가 (원)</label>
                   <input type="number" step="0.1" class="form-input" id="e_buyUnit" placeholder="자동계산"
@@ -1386,7 +1406,7 @@
             <div class="view-tab" id="stl-vt-media" onclick="stlSetView('media')">매체사별</div>
             <div class="view-tab" id="stl-vt-campaign" onclick="stlSetView('campaign')">캠페인별</div>
             <div class="view-tab" id="stl-vt-pc" onclick="stlSetView('pc')">퍼미션콜</div>
-            <!-- CPS 비활성화: <div class="view-tab" id="stl-vt-cps" onclick="stlSetView('cps')">CPS</div> -->
+            <div class="view-tab" id="stl-vt-cps" onclick="stlSetView('cps')">CPS</div>
           </div>
           <select class="f-sel" id="stl-fScope" onchange="renderSettlement()">
             <option value="settled">성과입력완료만</option>
@@ -2523,7 +2543,7 @@
                 <span class="form-hint">매출수익 − 대행료 (직접 입력 시 고정)</span>
               </div>
             </div>
-            <!-- CPS 전용 (CPS 비활성화)
+            <!-- CPS 전용 -->
             <div id="r_qty_cps" class="form-grid" style="display:none;grid-template-columns:1fr 1fr 1fr;">
               <div class="form-section-lbl">광고주 × 브레인큐브</div>
               <div class="fg"><label class="form-label">최종정산매출 (원) <span class="req">*</span></label>
@@ -2553,7 +2573,6 @@
                 <input class="form-input auto" id="r_cps_profit_rate" readonly placeholder="자동계산">
                 <span class="form-hint">브레인큐브 수익 ÷ 최종정산매출</span></div>
             </div>
-            -->
             <!-- 일반 상품 -->
             <div id="r_qty_normal" class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
               <!-- 수량 -->
@@ -2561,9 +2580,12 @@
                 <input type="number" class="form-input" id="r_sched" placeholder="0" oninput="calcReg()"></div>
               <div class="fg"><label class="form-label">서비스수량</label>
                 <input type="number" class="form-input" id="r_svc" placeholder="0" oninput="calcReg()"></div>
-              <div class="fg"><label class="form-label">정산수량</label>
-                <input class="form-input auto" id="r_bill" readonly placeholder="자동계산">
-                <span class="form-hint">발송수량 − 서비스수량</span></div>
+              <div class="fg"><label class="form-label">서비스적용</label>
+                <div style="display:flex;gap:16px;align-items:center;padding:6px 0;">
+                  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;"><input type="checkbox" id="r_svcApplyAdv" onchange="calcReg()"> 광고주</label>
+                  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;"><input type="checkbox" id="r_svcApplyMedia" onchange="calcReg()"> 매체</label>
+                </div>
+              </div>
 
               <!-- 광고주 -->
               <div class="form-section-lbl">광고주 (매출)</div>
@@ -2572,6 +2594,7 @@
                   <option value="actual">실발송수량 기준</option>
                   <option value="sched">발송예약수량 기준</option>
                 </select>
+                <span class="form-hint" id="r_sellBillQtyHint">정산수량: —</span>
               </div>
               <div class="fg"><label class="form-label">매출단가 (원)</label>
                 <input type="number" class="form-input" id="r_sellUnit" placeholder="0" oninput="calcReg()"></div>
@@ -2596,6 +2619,7 @@
                   <option value="actual">실발송수량 기준</option>
                   <option value="sched">발송예약수량 기준</option>
                 </select>
+                <span class="form-hint" id="r_buyBillQtyHint">정산수량: —</span>
               </div>
               <div class="fg"><label class="form-label">매입단가 (원)</label>
                 <input type="number" step="0.1" class="form-input" id="r_buyUnit" placeholder="자동계산"
@@ -2707,11 +2731,9 @@
               id="med-tel" placeholder="02-0000-0000"></div>
         </div>
 
-        <!-- CPS 수수료율 (CPS 비활성화)
         <div style="display:flex;gap:10px;margin-top:4px;">
           <div class="fg" style="flex:1;"><label class="form-label">CPS 매체수수료율 (%)</label><input type="number" step="0.01" class="form-input" id="med-cpsRate" placeholder="0"><span class="form-hint">CPS 캠페인 매체 수수료율</span></div>
         </div>
-        -->
 
         <!-- 수수료1 -->
         <div class="rg-sec">수수료1 (브레인큐브 수수료)</div>
