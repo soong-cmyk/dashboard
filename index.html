@@ -871,6 +871,20 @@
                     <option value="">선택</option>
                   </select>
                 </div>
+                <div class="fg" id="e_cps_exec_wrap" style="display:none;"><label class="form-label">집행월</label>
+                  <div style="display:flex;gap:4px;">
+                    <select class="form-sel" id="e_cps_exec_year" style="width:80px;"></select>
+                    <select class="form-sel" id="e_cps_exec_month" style="width:72px;"></select>
+                  </div>
+                  <span class="form-hint">광고 운영 월</span>
+                </div>
+                <div class="fg" id="e_cps_stl_wrap" style="display:none;"><label class="form-label">정산월 <span class="req">*</span></label>
+                  <div style="display:flex;gap:4px;">
+                    <select class="form-sel" id="e_cps_stl_year" style="width:80px;"></select>
+                    <select class="form-sel" id="e_cps_stl_month" style="width:72px;"></select>
+                  </div>
+                  <span class="form-hint">매체 정산 기준 월</span>
+                </div>
                 <div class="fg full" id="e_date_normal"><label class="form-label">발송일시</label>
                   <div style="display:flex;gap:6px;align-items:center;">
                     <input type="date" class="form-input" id="e_date" style="width:140px;">
@@ -1108,17 +1122,6 @@
             <div class="card-head"><span class="card-icon">🛒</span><span class="card-title">CPS 정산</span></div>
             <div class="card-body">
               <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
-                <div class="form-section-lbl" style="grid-column:1/-1;">집행월 / 정산월</div>
-                <div class="fg"><label class="form-label">집행월</label>
-                  <div class="d-row" style="gap:4px;">
-                    <select class="form-input" id="e_cps_exec_year" style="width:80px;"></select>
-                    <select class="form-input" id="e_cps_exec_month" style="width:64px;"></select>
-                  </div></div>
-                <div class="fg"><label class="form-label">정산월 <span class="req">*</span></label>
-                  <div class="d-row" style="gap:4px;">
-                    <select class="form-input" id="e_cps_stl_year" style="width:80px;"></select>
-                    <select class="form-input" id="e_cps_stl_month" style="width:64px;"></select>
-                  </div></div>
                 <div class="form-section-lbl" style="grid-column:1/-1;">광고주 × 브레인큐브</div>
                 <div class="fg"><label class="form-label"><span id="e_cps_final_sales_lbl">최종정산매출</span> (원) <span class="req">*</span></label>
                   <input type="number" class="form-input" id="e_cps_final_sales" placeholder="0" oninput="calcCPSEdit()"></div>
@@ -2374,7 +2377,21 @@
                   id="r_product" onchange="onRegProductChange()">
                   <option value="">선택</option>
                 </select></div>
-              <div class="fg full"><label class="form-label">발송일시 <span class="req">*</span></label>
+              <div class="fg" id="r_cps_exec_wrap" style="display:none;"><label class="form-label">집행월</label>
+                <div style="display:flex;gap:4px;">
+                  <select class="form-sel" id="r_cps_exec_year" style="width:80px;"></select>
+                  <select class="form-sel" id="r_cps_exec_month" style="width:72px;"></select>
+                </div>
+                <span class="form-hint">광고 운영 월</span>
+              </div>
+              <div class="fg" id="r_cps_stl_wrap" style="display:none;"><label class="form-label">정산월 <span class="req">*</span></label>
+                <div style="display:flex;gap:4px;">
+                  <select class="form-sel" id="r_cps_stl_year" style="width:80px;"></select>
+                  <select class="form-sel" id="r_cps_stl_month" style="width:72px;"></select>
+                </div>
+                <span class="form-hint">매체 정산 기준 월</span>
+              </div>
+              <div class="fg full" id="r_date_wrap"><label class="form-label">발송일시 <span class="req">*</span></label>
                 <div id="r_date_normal" style="display:flex;gap:6px;align-items:center;">
                   <input type="date" class="form-input" id="r_date" style="width:140px;">
                   <select class="form-sel" id="r_hour" style="width:64px;">
@@ -2570,19 +2587,6 @@
             </div>
             <!-- CPS 전용 -->
             <div id="r_qty_cps" class="form-grid" style="display:none;grid-template-columns:1fr 1fr 1fr;">
-              <div class="form-section-lbl" style="grid-column:1/-1;">집행월 / 정산월</div>
-              <div class="fg"><label class="form-label">집행월</label>
-                <div class="d-row" style="gap:4px;">
-                  <select class="form-input" id="r_cps_exec_year" style="width:80px;"></select>
-                  <select class="form-input" id="r_cps_exec_month" style="width:64px;"></select>
-                </div>
-                <span class="form-hint">광고 운영 월</span></div>
-              <div class="fg"><label class="form-label">정산월 <span class="req">*</span></label>
-                <div class="d-row" style="gap:4px;">
-                  <select class="form-input" id="r_cps_stl_year" style="width:80px;"></select>
-                  <select class="form-input" id="r_cps_stl_month" style="width:64px;"></select>
-                </div>
-                <span class="form-hint">매체 정산 기준 월</span></div>
               <div class="form-section-lbl" style="grid-column:1/-1;">광고주 × 브레인큐브</div>
               <div class="fg"><label class="form-label"><span id="r_cps_final_sales_lbl">최종정산매출</span> (원) <span class="req">*</span></label>
                 <input type="number" class="form-input" id="r_cps_final_sales" placeholder="0" oninput="calcCPS()"></div>

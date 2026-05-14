@@ -2081,10 +2081,12 @@ function onEditProductChange() {
   const isPC  = prod === '퍼미션콜';
   const isCPA = prod === 'CPA';
   const isCPS = prod === 'CPS';
-  const useMonthPicker = isDA || isPC || isCPA || isCPS;
+  const useMonthPicker = isDA || isPC || isCPA;
 
-  document.getElementById('e_date_normal').style.display    = useMonthPicker ? 'none' : '';
-  document.getElementById('e_date_da').style.display        = useMonthPicker ? '' : 'none';
+  document.getElementById('e_cps_exec_wrap').style.display  = isCPS ? '' : 'none';
+  document.getElementById('e_cps_stl_wrap').style.display   = isCPS ? '' : 'none';
+  document.getElementById('e_date_normal').style.display    = isCPS ? 'none' : (useMonthPicker ? 'none' : '');
+  document.getElementById('e_date_da').style.display        = isCPS ? 'none' : (useMonthPicker ? '' : 'none');
   document.getElementById('e_card_qty').style.display       = (isDA || isPC || isCPA || isCPS) ? 'none' : '';
   document.getElementById('e_card_da_adcost').style.display = isDA  ? '' : 'none';
 
@@ -2114,15 +2116,15 @@ function onEditProductChange() {
     const mo  = String(now.getMonth() + 1).padStart(2, '0');
     document.getElementById('e_da_year').value  = yr;
     document.getElementById('e_da_month').value = mo;
-    if (isDA || isCPA || isCPS) {
+    if (isDA || isCPA) {
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       document.getElementById('e_da_day').value    = '01';
       document.getElementById('e_da_eyear').value  = yr;
       document.getElementById('e_da_emonth').value = mo;
       document.getElementById('e_da_eday').value   = String(lastDay).padStart(2, '0');
     }
-    if (isCPS) _populateCpsMonthSelects('e');
   }
+  if (isCPS) _populateCpsMonthSelects('e');
 }
 
 function onRegProductChange() {
@@ -2131,21 +2133,27 @@ function onRegProductChange() {
   const isPC  = prod === '퍼미션콜';
   const isCPA = prod === 'CPA';
   const isCPS = prod === 'CPS';
-  const useMonthPicker = isDA || isPC || isCPA || isCPS;
-  document.getElementById('r_date_normal').style.display = useMonthPicker ? 'none' : 'flex';
-  document.getElementById('r_date_da').style.display     = useMonthPicker ? 'flex' : 'none';
-  if (useMonthPicker) {
-    const now = new Date();
-    const yr  = String(now.getFullYear());
-    const mo  = String(now.getMonth() + 1).padStart(2, '0');
-    document.getElementById('r_da_year').value  = yr;
-    document.getElementById('r_da_month').value = mo;
-    if (isDA || isCPA || isCPS) {
-      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-      document.getElementById('r_da_day').value    = '01';
-      document.getElementById('r_da_eyear').value  = yr;
-      document.getElementById('r_da_emonth').value = mo;
-      document.getElementById('r_da_eday').value   = String(lastDay).padStart(2, '0');
+  const useMonthPicker = isDA || isPC || isCPA;
+  const dateWrap = document.getElementById('r_date_wrap');
+  if (dateWrap) dateWrap.style.display = isCPS ? 'none' : '';
+  document.getElementById('r_cps_exec_wrap').style.display = isCPS ? '' : 'none';
+  document.getElementById('r_cps_stl_wrap').style.display  = isCPS ? '' : 'none';
+  if (!isCPS) {
+    document.getElementById('r_date_normal').style.display = useMonthPicker ? 'none' : 'flex';
+    document.getElementById('r_date_da').style.display     = useMonthPicker ? 'flex' : 'none';
+    if (useMonthPicker) {
+      const now = new Date();
+      const yr  = String(now.getFullYear());
+      const mo  = String(now.getMonth() + 1).padStart(2, '0');
+      document.getElementById('r_da_year').value  = yr;
+      document.getElementById('r_da_month').value = mo;
+      if (isDA || isCPA) {
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        document.getElementById('r_da_day').value    = '01';
+        document.getElementById('r_da_eyear').value  = yr;
+        document.getElementById('r_da_emonth').value = mo;
+        document.getElementById('r_da_eday').value   = String(lastDay).padStart(2, '0');
+      }
     }
   }
   document.getElementById('r_qty_normal').style.display  = (isDA || isPC || isCPA || isCPS) ? 'none' : '';
@@ -2164,6 +2172,9 @@ function onRegProductChange() {
   if (msgSec) msgSec.style.display = (isDA || isPC || isCPA || isCPS) ? 'none' : '';
   if (imgSec) imgSec.style.display = isDA ? '' : 'none';
   if (isCPS) {
+    const now = new Date();
+    document.getElementById('r_da_year').value  = String(now.getFullYear());
+    document.getElementById('r_da_month').value = String(now.getMonth() + 1).padStart(2, '0');
     _populateCpsMonthSelects('r');
     calcCPS();
   }
