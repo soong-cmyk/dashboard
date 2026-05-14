@@ -2114,7 +2114,7 @@ function onEditProductChange() {
     const mo  = String(now.getMonth() + 1).padStart(2, '0');
     document.getElementById('e_da_year').value  = yr;
     document.getElementById('e_da_month').value = mo;
-    if (isDA) {
+    if (isDA || isCPA || isCPS) {
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       document.getElementById('e_da_day').value    = '01';
       document.getElementById('e_da_eyear').value  = yr;
@@ -2140,7 +2140,7 @@ function onRegProductChange() {
     const mo  = String(now.getMonth() + 1).padStart(2, '0');
     document.getElementById('r_da_year').value  = yr;
     document.getElementById('r_da_month').value = mo;
-    if (isDA) {
+    if (isDA || isCPA || isCPS) {
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       document.getElementById('r_da_day').value    = '01';
       document.getElementById('r_da_eyear').value  = yr;
