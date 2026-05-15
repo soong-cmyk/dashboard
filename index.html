@@ -520,8 +520,8 @@
         <div class="detail-top">
           <div style="display:flex;align-items:center;gap:8px;">
             <button class="back-btn" onclick="goDetailBack()">←</button>
-            <span class="detail-id" id="dId">C-2026-0047</span>
-            <h1 class="detail-name" id="dName">여름할인이벤트_SKT비즈챗</h1>
+            <span class="detail-id" id="dId"></span>
+            <h1 class="detail-name" id="dName"></h1>
             <button class="btn btn-danger btn-sm" id="btn-detail-del" onclick="openDelModal()">🗑 삭제</button>
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-left:auto;">
@@ -839,7 +839,7 @@
       <div class="screen" id="screen-edit">
         <div class="detail-top">
           <button class="back-btn" onclick="cancelEdit()">←</button>
-          <span class="detail-id" id="eId">C-2026-0047</span>
+          <span class="detail-id" id="eId"></span>
           <h1 class="detail-name" style="font-size:17px;">캠페인 수정</h1>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-outline btn-sm" onclick="cancelEdit()">취소</button>
@@ -852,7 +852,7 @@
           <div class="card-body" style="display:flex;gap:48px;padding:14px 20px;align-items:center;">
             <div style="display:flex;flex-direction:column;gap:3px;">
               <span style="font-size:11.5px;color:var(--text2);font-weight:600;">캠페인 번호</span>
-              <span class="f-mono" id="eId2" style="font-size:13px;color:var(--text3);">C-2026-0047</span>
+              <span class="f-mono" id="eId2" style="font-size:13px;color:var(--text3);"></span>
             </div>
             <div style="display:flex;flex-direction:column;gap:3px;">
               <span style="font-size:11.5px;color:var(--text2);font-weight:600;">작성자</span>
@@ -3276,7 +3276,7 @@
       <div class="modal-body">
         <div class="confirm-info" style="border-color:#ffc9c9;background:var(--red-bg);">
           <div class="ci-lbl" style="color:var(--red);">삭제 대상</div>
-          <div class="ci-val" id="delName">여름할인이벤트_SKT비즈챗</div>
+          <div class="ci-val" id="delName"></div>
         </div>
         <p style="font-size:13px;color:var(--text2);line-height:1.6;">삭제한 캠페인은 복구할 수 없습니다. 정말 삭제하시겠습니까?</p>
       </div>
