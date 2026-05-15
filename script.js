@@ -3699,6 +3699,7 @@ function openCalPreview(idx) {
   }
   document.getElementById('cp-ops').textContent      = c.ops || '—';
   document.getElementById('cp-status').innerHTML     = `<span class="badge b-${c.status}">${c.status}</span>`;
+  document.getElementById('cp-id').textContent       = c.id || '—';
   document.getElementById('cp-detail-btn').onclick   = () => { closeModal('modalCalPreview'); openDetail(idx); };
   openModal('modalCalPreview');
 }
