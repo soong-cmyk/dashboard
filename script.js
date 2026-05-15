@@ -1223,8 +1223,9 @@ function openDetail(idx, skipPush) {
     const totalComm  = c.cpsTotalComm  || 0;
     const mediaComm  = c.cpsMediaComm  || 0;
     const cpsRate    = _getCpsRate(c.media, c.seller || c.adv);
+    const isNaver    = (c.seller || c.adv) === '네이버';
     const bcProfit   = totalComm - mediaComm;
-    const bcRate     = cpsRate ? (3.4 - cpsRate).toFixed(2) + '%' : '—';
+    const bcRate     = (isNaver && cpsRate) ? (1.8 - cpsRate).toFixed(2) + '%' : '—';
     const commRate1  = finalSales > 0 ? (totalComm / finalSales * 100).toFixed(2) + '%' : '—';
     const commRate2  = finalSales > 0 ? (mediaComm / finalSales * 100).toFixed(2) + '%' : '—';
     const prfRate    = finalSales > 0 ? (bcProfit  / finalSales * 100).toFixed(2) + '%' : '—';
