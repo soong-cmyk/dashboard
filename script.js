@@ -4660,17 +4660,33 @@ async function downloadInvoiceExcel() {
         const ext = imgData.startsWith('data:image/png') ? 'png' : 'jpeg';
         const base64 = imgData.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
 
+        // 원본 이미지 크기 측정
+        const imgEl = new Image();
+        imgEl.src = imgData;
+        await new Promise(r => { imgEl.onload = r; imgEl.onerror = r; });
+        let pw = imgEl.naturalWidth  || 800;
+        let ph = imgEl.naturalHeight || 600;
+
+        // B~J 열 너비(≈950px) 초과 시 비율 유지하며 축소
+        const MAX_W_PX = 950;
+        if (pw > MAX_W_PX) { ph = Math.round(ph * MAX_W_PX / pw); pw = MAX_W_PX; }
+
+        const EMU = 9525; // 1px = 9525 EMU
         const imgId = wb.addImage({ base64, extension: ext });
         const anchorRow = ws.rowCount;
 
         ws.addImage(imgId, {
-          tl: { col: 1, row: anchorRow },        // B열(0-based=1)부터
-          br: { col: 9, row: anchorRow + 20 },   // J열(0-based=9)까지
+          tl: { col: 1, row: anchorRow },
+          ext: { width: pw * EMU, height: ph * EMU },
           editAs: 'oneCell',
         });
 
-        for (let i = 0; i < 20; i++) ws.addRow([]);
-        ws.addRow([]);
+        // 이미지 높이만큼 빈 행 추가 (Excel 기본 행 높이 ≈ 20px)
+        const rowsNeeded = Math.ceil(ph / 20) + 1;
+        for (let i = 0; i < rowsNeeded; i++) ws.addRow([]);
+
+        // 이미지 간 간격 5행
+        for (let i = 0; i < 5; i++) ws.addRow([]);
       }
     }
   }
