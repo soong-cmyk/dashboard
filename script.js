@@ -773,6 +773,11 @@ function goScreen(name, skipPush) {
     else renderCalendar();
   }
   if (name === 'campaigns') {
+    const fOrgEl = document.getElementById('fOrg');
+    if (fOrgEl && !fOrgEl.dataset.init) {
+      fOrgEl.innerHTML = '<option value="">본부/팀 전체</option>' + _buildOrgSelectHTML();
+      fOrgEl.dataset.init = '1';
+    }
     if (skipPush) {
       _restoreFilterState('campaigns');
     } else {
@@ -1385,6 +1390,7 @@ function applyFilter() {
   const q      = document.getElementById('fQ').value.toLowerCase();
   const from   = document.getElementById('fFrom')?.value || '';
   const to     = document.getElementById('fTo')?.value   || '';
+  const { bonbu, team } = _parseOrgFilter(document.getElementById('fOrg')?.value || '');
   filtered = DATA.filter(c => {
     if (activeStatus !== 'all' && c.status !== activeStatus) return false;
     if (cat    && _getCat(c) !== cat)   return false;
@@ -1392,6 +1398,11 @@ function applyFilter() {
     if (media  && c.media   !== media)  return false;
     if (mgr    && c.ops     !== mgr)    return false;
     if (adv && (c.seller || c.adv) !== adv) return false;
+    if (bonbu || team) {
+      const u = USERS.find(u => u.name === c.ops);
+      if (bonbu && (!u || u.bonbu !== bonbu)) return false;
+      if (team  && (!u || u.dept  !== team))  return false;
+    }
     if (q && !_cName(c).toLowerCase().includes(q) && !(c.id||'').toString().toLowerCase().includes(q)) return false;
     const dateStr = (c.date || '').slice(0, 10);
     if (from && dateStr < from) return false;
@@ -1419,6 +1430,7 @@ function _saveFilterState(screen) {
       fMedia: document.getElementById('fMedia')?.value || '',
       fMgr:   document.getElementById('fMgr')?.value   || '',
       fAdv:   document.getElementById('fAdv')?.value   || '',
+      fOrg:   document.getElementById('fOrg')?.value   || '',
       fQ:     document.getElementById('fQ')?.value     || '',
       fFrom:  document.getElementById('fFrom')?.value  || '',
       fTo:    document.getElementById('fTo')?.value    || '',
@@ -1453,7 +1465,7 @@ function _restoreFilterState(screen) {
     const raw = sessionStorage.getItem('filterState_campaigns');
     if (!raw) { resetFilter(); _populateAdvFilter(); return; }
     const s = JSON.parse(raw);
-    ['fCat','fProd','fMedia','fMgr','fAdv','fQ','fFrom','fTo'].forEach(id => {
+    ['fCat','fProd','fMedia','fMgr','fAdv','fOrg','fQ','fFrom','fTo'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = s[id] || '';
     });
@@ -1490,7 +1502,7 @@ function _restoreFilterState(screen) {
 }
 
 function resetFilter() {
-  ['fCat','fProd','fMedia','fMgr','fAdv'].forEach(id => { const el = document.getElementById(id); if (el) el.value=''; });
+  ['fCat','fProd','fMedia','fMgr','fAdv','fOrg'].forEach(id => { const el = document.getElementById(id); if (el) el.value=''; });
   document.getElementById('fQ').value='';
   const now = new Date();
   document.getElementById('fFrom').value = _dateKey(new Date(now.getFullYear(), now.getMonth(), 1));
