@@ -4664,12 +4664,15 @@ async function downloadInvoiceExcel() {
         const imgEl = new Image();
         imgEl.src = imgData;
         await new Promise(r => { imgEl.onload = r; imgEl.onerror = r; });
-        let pw = imgEl.naturalWidth  || 800;
-        let ph = imgEl.naturalHeight || 600;
+        const ow = imgEl.naturalWidth  || 800;
+        const oh = imgEl.naturalHeight || 600;
 
-        // B~J 열 너비(≈950px) 초과 시 비율 유지하며 축소
+        // 최대 25행(500px) × 950px 박스 안에 비율 유지하며 축소
+        const MAX_H_PX = 25 * 20; // 500px
         const MAX_W_PX = 950;
-        if (pw > MAX_W_PX) { ph = Math.round(ph * MAX_W_PX / pw); pw = MAX_W_PX; }
+        const scale = Math.min(MAX_W_PX / ow, MAX_H_PX / oh, 1);
+        const pw = Math.round(ow * scale);
+        const ph = Math.round(oh * scale);
 
         const EMU = 9525; // 1px = 9525 EMU
         const imgId = wb.addImage({ base64, extension: ext });
