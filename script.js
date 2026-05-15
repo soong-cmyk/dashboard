@@ -4674,13 +4674,13 @@ async function downloadInvoiceExcel() {
         const pw = Math.round(ow * scale);
         const ph = Math.round(oh * scale);
 
-        const EMU = 9525; // 1px = 9525 EMU
+        // ExcelJS ext는 픽셀 단위를 직접 받음 (내부적으로 EMU 변환 처리)
         const imgId = wb.addImage({ base64, extension: ext });
         const anchorRow = ws.rowCount;
 
         ws.addImage(imgId, {
           tl: { col: 1, row: anchorRow },
-          ext: { width: pw * EMU, height: ph * EMU },
+          ext: { width: pw, height: ph },
           editAs: 'oneCell',
         });
 
