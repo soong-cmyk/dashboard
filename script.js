@@ -2272,7 +2272,7 @@ function _calcCPSCore(prefix, fromFinalSales = false) {
   const mcHint = document.getElementById(`${p}_cps_media_comm_hint`);
   if (mcHint) mcHint.textContent = isNaver ? `유효결제금액 × ${cpsRate}%` : '직접 입력';
   const bcHint = document.getElementById(`${p}_cps_bc_rate_hint`);
-  if (bcHint) bcHint.textContent = isNaver ? '1.8% − 매체수수료율' : '3.4% − 매체수수료율';
+  if (bcHint) bcHint.textContent = isNaver ? '1.8% − 매체수수료율' : '총수수료 − 매체수수료';
 
   const commRate1  = finalSales > 0 ? (totalComm / finalSales * 100) : 0;
   const commRate2  = finalSales > 0 ? (mediaComm / finalSales * 100) : 0;
