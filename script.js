@@ -4656,7 +4656,8 @@ async function downloadInvoiceExcel() {
       const labelRow = ws.addRow(['', `▼ ${_cName(c)}`]);
       labelRow.getCell(2).font = { italic: false, color: { argb: 'FF333333' }, size: 10 };
 
-      for (const imgData of imgs) {
+      for (let j = 0; j < imgs.length; j++) {
+        const imgData = imgs[j];
         const ext = imgData.startsWith('data:image/png') ? 'png' : 'jpeg';
         const base64 = imgData.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
 
@@ -4688,8 +4689,9 @@ async function downloadInvoiceExcel() {
         const rowsNeeded = Math.ceil(ph / 20) + 1;
         for (let i = 0; i < rowsNeeded; i++) ws.addRow([]);
 
-        // 이미지 간 간격 5행
-        for (let i = 0; i < 5; i++) ws.addRow([]);
+        // 마지막 이미지면 캠페인 간 간격 5행, 아니면 이미지 간 간격 3행
+        const gapRows = j === imgs.length - 1 ? 5 : 3;
+        for (let i = 0; i < gapRows; i++) ws.addRow([]);
       }
     }
   }
