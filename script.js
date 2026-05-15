@@ -2572,18 +2572,18 @@ function submitReg() {
                      : (isCPA ? (document.getElementById('r_cpa_buyUnit')?.dataset.manual ? (+document.getElementById('r_cpa_buyUnit').value || 0) : Math.round((+document.getElementById('r_cpa_unit').value || 0) * (1 - (+document.getElementById('r_cpa_comm')?.value || 0) / 100)))
                               : (isCPS ? 0 : (+document.getElementById('r_buyUnit').value || 0))),
     adcostFixed:  isCPA
-      ? (document.getElementById('r_cpa_adcost')?.dataset.manual ? +document.getElementById('r_cpa_adcost').value : null)
-      : (!isDA && !isPC && !isCPS && document.getElementById('r_adcost')?.dataset.manual ? +document.getElementById('r_adcost').value : null),
-    amtFixed:     (!isDA && !isPC && !isCPA && !isCPS && document.getElementById('r_amt')?.dataset.manual)     ? +document.getElementById('r_amt').value     : null,
+      ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_cpa_adcost')))
+      : (!isDA && !isPC && !isCPS ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_adcost'))) : null),
+    amtFixed:     (!isDA && !isPC && !isCPA && !isCPS) ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_amt')))    : null,
     buyAmtFixed:  isCPA
-      ? (document.getElementById('r_cpa_buyAmt')?.dataset.manual ? +document.getElementById('r_cpa_buyAmt').value : null)
-      : (!isDA && !isPC && !isCPS && document.getElementById('r_buyAmt')?.dataset.manual ? +document.getElementById('r_buyAmt').value : null),
+      ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_cpa_buyAmt')))
+      : (!isDA && !isPC && !isCPS ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_buyAmt'))) : null),
     revFixed:     isCPA
-      ? (document.getElementById('r_cpa_rev')?.dataset.manual ? +document.getElementById('r_cpa_rev').value : null)
-      : (!isDA && !isPC && !isCPS && document.getElementById('r_rev')?.dataset.manual ? +document.getElementById('r_rev').value : null),
+      ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_cpa_rev')))
+      : (!isDA && !isPC && !isCPS ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_rev')))    : null),
     profitFixed:  isCPA
-      ? (document.getElementById('r_cpa_profit')?.dataset.manual ? +document.getElementById('r_cpa_profit').value : null)
-      : (!isDA && !isPC && !isCPS && document.getElementById('r_profit')?.dataset.manual ? +document.getElementById('r_profit').value : null),
+      ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_cpa_profit')))
+      : (!isDA && !isPC && !isCPS ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_profit'))) : null),
     svcApplyAdv:   (!isDA && !isPC && !isCPA && !isCPS) ? (document.getElementById('r_svcApplyAdv')?.checked   ?? true)  : true,
     svcApplyMedia: (!isDA && !isPC && !isCPA && !isCPS) ? (document.getElementById('r_svcApplyMedia')?.checked ?? false) : false,
     agrate:    isDA  ? (+document.getElementById('r_da_agrate')?.value || 0) : (isCPA ? (+document.getElementById('r_cpa_agrate')?.value || 0) : (isCPS ? 0 : (+document.getElementById('r_agrate').value || 0))),
@@ -2792,11 +2792,11 @@ function openCopyCampaign() {
   _set('r_comm',    c.comm     || '');
   _set('r_agrate',  c.agrate   || '');
 
-  // 고정값 (manual)
+  // 고정값 (manual) — 0은 미입력으로 취급 (구 데이터 호환)
   const _setManual = (id, val) => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (val != null) { el.value = val; el.dataset.manual = '1'; }
+    if (val) { el.value = val; el.dataset.manual = '1'; }
     else { el.value = ''; delete el.dataset.manual; }
   };
   _setManual('r_adcost', c.adcostFixed ?? null);
@@ -2893,7 +2893,7 @@ function openEdit() {
   const _restoreManual = (id, val) => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (val != null) { el.value = val; el.dataset.manual = '1'; }
+    if (val) { el.value = val; el.dataset.manual = '1'; }
     else { el.value = ''; delete el.dataset.manual; }
   };
   const eBuyUnitEl = document.getElementById('e_buyUnit');
@@ -3255,11 +3255,12 @@ function submitEdit() {
     const eBuyAmtEl2 = document.getElementById('e_buyAmt');
     const eRevEl2    = document.getElementById('e_rev');
     const ePrfEl2    = document.getElementById('e_profit');
-    c.adcostFixed  = eAdcEl2?.dataset.manual    ? +eAdcEl2.value    : null;
-    c.amtFixed     = eAmtEl2?.dataset.manual    ? +eAmtEl2.value    : null;
-    c.buyAmtFixed  = eBuyAmtEl2?.dataset.manual ? +eBuyAmtEl2.value : null;
-    c.revFixed     = eRevEl2?.dataset.manual    ? +eRevEl2.value    : null;
-    c.profitFixed  = ePrfEl2?.dataset.manual    ? +ePrfEl2.value    : null;
+    const _fixedVal = (el) => (el?.dataset.manual && +el.value) ? +el.value : null;
+    c.adcostFixed  = _fixedVal(eAdcEl2);
+    c.amtFixed     = _fixedVal(eAmtEl2);
+    c.buyAmtFixed  = _fixedVal(eBuyAmtEl2);
+    c.revFixed     = _fixedVal(eRevEl2);
+    c.profitFixed  = _fixedVal(ePrfEl2);
   }
 
   // 2차 성과 저장 (PC / CPS 제외)
@@ -6903,8 +6904,9 @@ function renderStlCampaignView(data, container) {
   const rows = data.map(c => {
     const a      = _stlAmt(c);
     const isDA   = c.product === 'DA';
+    const isCPS  = c.product === 'CPS';
     const has    = _stlHas(c);
-    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
+    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (isDA && !!c.comm) || (isCPS && !!c.cpsMediaComm));
     const chk = (field) => { if (field === 'payIn' && c.payIn && c.payInDate) return `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','payIn')">${c.payInDate}</span>`; const dis = !_stlCanEdit(field)?'opacity:0.35;cursor:not-allowed;pointer-events:none;':''; return `<div class="chk ${c[field]?'on':''}" style="${dis}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','${field}')">${c[field]?'✓':''}</div>`; };
     const conf = (field) => { const val = c[field]; if (val) return `<span class="stl-inv-badge done" style="font-size:10px;white-space:nowrap;cursor:pointer;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleStlConfirm('${c.id}','${field}')">${val}</span>`; return `<div class="chk" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleStlConfirm('${c.id}','${field}')"></div>`; };
 
@@ -6921,8 +6923,8 @@ function renderStlCampaignView(data, container) {
       <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
       <td class="td-dim grp-purchase">${_escHtml(c.media)}</td>
       <td class="td-dim">${_escHtml(MEDIA_DATA.find(x=>x.company===c.media)?.invoiceTo||'—')}</td>
-      <td class="td-num td-r">${hasBuy && !isDA ? fmt(c.buyUnit) : nd}</td>
-      <td class="td-num td-r">${has && !isDA ? fmt(a.buyActual ?? a.actual) : nd}</td>
+      <td class="td-num td-r">${hasBuy && !isDA && !isCPS ? fmt(c.buyUnit) : nd}</td>
+      <td class="td-num td-r">${has && !isDA && !isCPS ? fmt(a.buyActual ?? a.actual) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${hasBuy ? fmt(a.buyAmt) : nd}</td>
       <td class="td-num td-r" style="color:var(--text2);">${hasBuy ? fmt(a.buyAmt + a.buyVat) : nd}</td>
       <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
@@ -7033,22 +7035,23 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
       };
 
       const isDA   = c.product === 'DA';
+      const isCPS  = c.product === 'CPS';
       const has    = _stlHas(c);
-      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
+      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (isDA && !!c.comm) || (isCPS && !!c.cpsMediaComm));
       return `<tr data-stlcamp="${c.id}" style="font-size:12px;cursor:pointer;" onclick="openCalPreview(DATA.findIndex(d=>d.id==='${c.id}'))">
         <td class="td-dim stl-s1" style="background:${bgSb};padding-left:20px;">${_escHtml(c.cat)}</td>
         <td class="stl-s2" style="background:${bgSb};color:var(--text2);">${_escHtml(_cCompany(c))}</td>
         <td class="stl-s3" style="background:${bgSb};cursor:default;" onmousemove="showMemoBubbleAtMouse(event,'${_escHtml(_cName(c))}')" onmouseleave="hideMemoBubble()">${_escHtml(_cName(c))}<div style="font-size:11px;font-weight:400;color:var(--text3);margin-top:2px;">${(c.date||'').slice(0,10)}</div></td>
-        <td class="td-num td-r grp-revenue">${has && !isDA ? fmt(a.eu) : nd}</td>
-        <td class="td-num td-r">${has && !isDA ? fmt(c.qty) : nd}</td>
-        <td class="td-num td-r">${has && !isDA ? fmt(a.actual) : nd}</td>
+        <td class="td-num td-r grp-revenue">${has && !isDA && !isCPS ? fmt(a.eu) : nd}</td>
+        <td class="td-num td-r">${has && !isDA && !isCPS ? fmt(c.qty) : nd}</td>
+        <td class="td-num td-r">${has && !isDA && !isCPS ? fmt(a.actual) : nd}</td>
         <td class="td-num td-r" style="font-weight:600;">${has ? fmt(a.amt ?? a.adc) : nd}</td>
         <td class="td-num td-r" style="color:var(--text2);">${has ? fmt((a.amt ?? a.adc) + a.adcVat) : nd}</td>
         <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
         <td class="td-dim grp-purchase">${_escHtml(c.media)}</td>
         <td class="td-dim">${_escHtml(MEDIA_DATA.find(x=>x.company===c.media)?.invoiceTo||'—')}</td>
-        <td class="td-num td-r">${hasBuy && !isDA ? fmt(c.buyUnit) : nd}</td>
-        <td class="td-num td-r">${has && !isDA ? fmt(a.buyActual ?? a.actual) : nd}</td>
+        <td class="td-num td-r">${hasBuy && !isDA && !isCPS ? fmt(c.buyUnit) : nd}</td>
+        <td class="td-num td-r">${has && !isDA && !isCPS ? fmt(a.buyActual ?? a.actual) : nd}</td>
         <td class="td-num td-r" style="font-weight:600;">${hasBuy ? fmt(a.buyAmt) : nd}</td>
         <td class="td-num td-r" style="color:var(--text2);">${hasBuy ? fmt(a.buyAmt + a.buyVat) : nd}</td>
         <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
