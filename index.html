@@ -2202,6 +2202,19 @@
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
         <input type="hidden" id="tax-edit-gid">
         <input type="hidden" id="tax-r-payin-date">
+        <input type="hidden" id="tax-r-campId">
+        <!-- 캠페인 연결 -->
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;">
+          <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">캠페인 연결</span>
+          <div style="position:relative;flex:1;">
+            <input type="text" class="form-input" id="tax-r-camp-text"
+              placeholder="캠페인명·ID·매출처 검색 (선택 — 연결 시 업체·월·금액 자동채움)"
+              autocomplete="off" style="font-size:12px;padding:5px 8px;width:100%;"
+              oninput="taxRegCampRender()" onfocus="taxRegCampRender()" onblur="setTimeout(taxRegCampClose,180)">
+            <div id="tax-r-camp-list" class="combo-list" style="display:none;max-height:220px;overflow-y:auto;"></div>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="tax-r-camp-clear" style="display:none;white-space:nowrap;" onclick="taxRegCampClear()">연결 해제</button>
+        </div>
         <!-- 수정 모드 안내 -->
         <div id="tax-reg-edit-notice" style="display:none;font-size:12px;color:var(--orange,#d97706);background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 14px;">
           * 참조 캠페인을 수정하려면 삭제 후 새로 등록해주세요.

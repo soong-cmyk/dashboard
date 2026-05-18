@@ -8309,6 +8309,77 @@ function taxInlineEdit(td, id, field) {
   });
 }
 
+// ── 수동 등록 — 캠페인 연결 콤보 ──
+function taxRegCampRender() {
+  const q    = (document.getElementById('tax-r-camp-text')?.value || '').trim().toLowerCase();
+  const list = document.getElementById('tax-r-camp-list');
+  if (!list) return;
+  const hits = DATA.filter(c => {
+    const name = (_cName(c) || '').toLowerCase();
+    const sel  = (c.seller || c.adv || '').toLowerCase();
+    const id   = (c.id || '').toLowerCase();
+    return !q || name.includes(q) || sel.includes(q) || id.includes(q);
+  }).slice(0, 30);
+  if (!hits.length) { list.style.display = 'none'; return; }
+  list.innerHTML = hits.map(c => {
+    const dateStr = (c.date || '').slice(0, 7);
+    return `<div class="combo-item" onmousedown="taxRegCampSelect('${c.id}')">
+      <span style="font-weight:600;">${_escHtml(_cName(c))}</span>
+      <span style="color:var(--text3);font-size:11px;margin-left:6px;">${_escHtml(c.product||'')} · ${dateStr} · ${_escHtml(c.seller||c.adv||'')}</span>
+    </div>`;
+  }).join('');
+  list.style.display = '';
+}
+function taxRegCampClose() {
+  const list = document.getElementById('tax-r-camp-list');
+  if (list) list.style.display = 'none';
+}
+function taxRegCampSelect(cid) {
+  const c = DATA.find(x => x.id === cid);
+  if (!c) return;
+  document.getElementById('tax-r-campId').value      = cid;
+  document.getElementById('tax-r-camp-text').value   = _cName(c);
+  const campClear = document.getElementById('tax-r-camp-clear');
+  if (campClear) campClear.style.display = '';
+  taxRegCampClose();
+
+  // 발행구분 기준으로 업체명/사업자명 채움
+  const taxType = document.getElementById('tax-r-taxType')?.value || 'adv';
+  const company = taxType === 'media' ? (c.media || '') : (c.seller || c.adv || '');
+  const companyEl  = document.getElementById('tax-r-company');
+  const bizNameEl  = document.getElementById('tax-r-bizName');
+  if (companyEl && !companyEl.value)  companyEl.value  = company;
+  if (bizNameEl && !bizNameEl.value)  bizNameEl.value  = company;
+
+  // 담당자
+  const mgr = document.getElementById('tax-r-manager');
+  if (mgr && !mgr.value && c.ops) mgr.value = c.ops;
+
+  // 첫 행이 비어있으면 집행월·품목·공급가액 자동채움
+  const firstRow = document.querySelector('#tax-r-rows .tax-r-row');
+  if (firstRow) {
+    const dateParts = (c.date || '').split('-');
+    const yearSel = firstRow.querySelector('.tax-r-row-year');
+    const monSel  = firstRow.querySelector('.tax-r-row-mon');
+    if (yearSel && dateParts[0] && !yearSel.value) yearSel.value = dateParts[0];
+    if (monSel  && dateParts[1])                   monSel.value  = parseInt(dateParts[1]);
+    const contentEl = firstRow.querySelector('.tax-r-row-content');
+    if (contentEl && !contentEl.value) contentEl.value = _taxContentAuto(c);
+    const supplyEl = firstRow.querySelector('.tax-r-row-supply');
+    if (supplyEl && !supplyEl.value) {
+      const stl = _stlAmt(c);
+      const amt = taxType === 'media' ? stl.buyAmt : stl.amt;
+      if (amt > 0) { supplyEl.value = amt; taxManualCalcTotal(); }
+    }
+  }
+}
+function taxRegCampClear() {
+  document.getElementById('tax-r-campId').value    = '';
+  document.getElementById('tax-r-camp-text').value = '';
+  const campClear = document.getElementById('tax-r-camp-clear');
+  if (campClear) campClear.style.display = 'none';
+}
+
 // ── 수동 등록/수정 모달 ──
 function openTaxReg(gid) {
   const now = new Date();
@@ -8322,6 +8393,10 @@ function openTaxReg(gid) {
   document.getElementById('tax-r-payDue').value   = '';
   document.getElementById('tax-r-payin-date').value = '';
   document.getElementById('tax-r-rows').innerHTML = '';
+  document.getElementById('tax-r-campId').value = '';
+  document.getElementById('tax-r-camp-text').value = '';
+  const campClear = document.getElementById('tax-r-camp-clear');
+  if (campClear) campClear.style.display = 'none';
   const paidChk   = document.getElementById('tax-r-paid');
   const paidLabel = document.getElementById('tax-r-paid-label');
   const payDueWrap = document.getElementById('tax-r-paydue-wrap');
@@ -8355,6 +8430,16 @@ function openTaxReg(gid) {
       document.getElementById('tax-r-payDue').value = rep.payDue || '';
     }
     if (mgr) mgr.value = rep.manager || '';
+    // 연결 캠페인 복원
+    const linkedCid = items.find(t => t.campaignId)?.campaignId;
+    if (linkedCid) {
+      const lc = DATA.find(x => x.id === linkedCid);
+      if (lc) {
+        document.getElementById('tax-r-campId').value = linkedCid;
+        document.getElementById('tax-r-camp-text').value = _cName(lc);
+        if (campClear) campClear.style.display = '';
+      }
+    }
     items.forEach(t => taxManualAddRow(t));
   }
   taxManualCalcTotal();
@@ -8437,6 +8522,7 @@ async function saveTaxReg() {
   const payInDate = _v('tax-r-payin-date') || null;
   const editGid   = parseInt(_v('tax-edit-gid')) || null;
   const isNew     = !editGid;
+  const linkedCid = _v('tax-r-campId') || null;
   if (!company) { alert('업체명을 입력해주세요.'); return; }
   const rows = [...document.querySelectorAll('#tax-r-rows .tax-r-row')];
   if (!rows.length) { alert('항목을 하나 이상 입력해주세요.'); return; }
@@ -8464,7 +8550,7 @@ async function saveTaxReg() {
     const email   = (tr.querySelector('.tax-r-row-email')?.value || '').trim();
     const memo    = (tr.querySelector('.tax-r-row-memo')?.value  || '').trim();
     const t = {
-      id: nextId++, groupId, campaignId: null, createdBy, taxType, manager, month,
+      id: nextId++, groupId, campaignId: linkedCid || null, createdBy, taxType, manager, month,
       reqDate, issueDate, taxStatus,
       payDue:    paidChk ? '' : payDue,
       paid:      paidChk ? '완료' : null,
@@ -8477,6 +8563,15 @@ async function saveTaxReg() {
     TAX_DATA.push(t);
     await _fbSaveTax(t);
     saved.push(t);
+  }
+  // 연결된 캠페인에 이중발행 방지 플래그 세우기
+  if (linkedCid) {
+    const lc = DATA.find(x => x.id === linkedCid);
+    if (lc) {
+      if (taxType === 'adv')   lc.taxAdvReq   = true;
+      if (taxType === 'media') lc.taxMediaReq = true;
+      _fbSaveCampaign(lc);
+    }
   }
   if (isNew && currentUser?.id !== 'wonjoon') {
     const body = _notifBody('tax_new', company, '', saved.length, groupId);
