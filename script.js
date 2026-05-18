@@ -8328,7 +8328,7 @@ function taxRegCampRender() {
       <span style="color:var(--text3);font-size:11px;margin-left:6px;">${_escHtml(c.product||'')} · ${dateStr} · ${_escHtml(c.seller||c.adv||'')}</span>
     </div>`;
   }).join('');
-  list.style.display = '';
+  list.style.display = 'block';
 }
 function taxRegCampClose() {
   const list = document.getElementById('tax-r-camp-list');
