@@ -898,7 +898,7 @@ function openDetail(idx, skipPush) {
   document.getElementById('dName').textContent = _cName(c);
   document.getElementById('dCat').textContent = _getCat(c);
   const dDateLbl = document.getElementById('dDateLbl');
-  if (dDateLbl) dDateLbl.textContent = c.product === 'DA' ? '노출기간' : '발송일시';
+  if (dDateLbl) dDateLbl.textContent = c.product === 'DA' ? '노출기간' : (c.product === 'CPA' && c.dateEnd ? '발송기간' : '발송일시');
   document.getElementById('dDate').textContent = _formatDateRange(c);
   document.getElementById('dCampaign').textContent = _cName(c);
   document.getElementById('dPromo').textContent = c.promo || '—';
@@ -943,8 +943,10 @@ function openDetail(idx, skipPush) {
   document.getElementById('dSvc').textContent       = svc    ? svc.toLocaleString()    + ' 건' : '—';
   document.getElementById('dSellUnit').textContent  = unit    ? unit.toLocaleString()    + '원'  : '—';
   document.getElementById('dBuyUnit').textContent   = buyUnit ? buyUnit.toLocaleString() + '원'  : '—';
+  const _showVal    = (val, suffix) => (val != null && val !== '') ? val.toLocaleString() + suffix : '—';
+  const _hasBillData = qty > 0 || actual > 0;
   const dBuyAmtEl = document.getElementById('dBuyAmt');
-  if (dBuyAmtEl) dBuyAmtEl.textContent = buyAmt ? buyAmt.toLocaleString() + '원' : '—';
+  if (dBuyAmtEl) dBuyAmtEl.textContent = (_hasBillData || c.buyAmtFixed != null) ? _showVal(buyAmt, '원') : '—';
   const dBuyLbl = document.getElementById('dBuyBillBaseLbl');
   if (dBuyLbl) dBuyLbl.textContent = _baseLbl(buyBillBase);
   const dSellLbl = document.getElementById('dSellBillBaseLbl');
@@ -959,14 +961,14 @@ function openDetail(idx, skipPush) {
   if (dSellBQEl) dSellBQEl.innerHTML = adcBill ? `${adcBill.toLocaleString()} 건${svcApplyAdv && svc ? _svcTag : ''}` : '—';
   const dBuyBQEl = document.getElementById('dBuyBillQty');
   if (dBuyBQEl) dBuyBQEl.innerHTML = buyBill ? `${buyBill.toLocaleString()} 건${svcApplyMedia && svc ? _svcTag : ''}` : '—';
-  document.getElementById('dAdcost').textContent = adc  ? adc.toLocaleString()  + '원' : '—';
+  document.getElementById('dAdcost').textContent = (_hasBillData || c.adcostFixed != null) ? _showVal(adc, '원') : '—';
   document.getElementById('dDisc').textContent   = disc ? disc.toLocaleString() + '원' : '—';
-  document.getElementById('dAmt').textContent    = adc  ? real.toLocaleString() + '원' : '—';
+  document.getElementById('dAmt').textContent    = (_hasBillData || c.amtFixed != null)    ? _showVal(real, '원') : '—';
   document.getElementById('dComm').textContent   = comm ? comm + '%'            : '—';
-  document.getElementById('dRev').textContent    = rev  ? rev.toLocaleString()  + '원'  : '—';
+  document.getElementById('dRev').textContent    = (_hasBillData || c.revFixed != null)    ? _showVal(rev, '원') : '—';
   document.getElementById('dAgrateLbl').textContent = `– 대행료 (${agrate}%)`;
   document.getElementById('dAgfee').textContent  = agf  ? agf.toLocaleString()  + '원'  : '—';
-  document.getElementById('dProfit').textContent = prf  ? prf.toLocaleString()  + '원'  : '—';
+  document.getElementById('dProfit').textContent = (_hasBillData || c.profitFixed != null) ? _showVal(prf, '원') : '—';
 
   // 타겟 & 문구
   const targetEl = document.getElementById('dTarget');
@@ -2572,22 +2574,22 @@ function submitReg() {
                      : (isCPA ? (document.getElementById('r_cpa_buyUnit')?.dataset.manual ? (+document.getElementById('r_cpa_buyUnit').value || 0) : Math.round((+document.getElementById('r_cpa_unit').value || 0) * (1 - (+document.getElementById('r_cpa_comm')?.value || 0) / 100)))
                               : (isCPS ? 0 : (+document.getElementById('r_buyUnit').value || 0))),
     adcostFixed:  isCPA
-      ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_cpa_adcost')))
-      : (!isDA && !isPC && !isCPS ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_adcost'))) : null),
-    amtFixed:     (!isDA && !isPC && !isCPA && !isCPS) ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_amt')))    : null,
+      ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_cpa_adcost')))
+      : (!isDA && !isPC && !isCPS ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_adcost'))) : null),
+    amtFixed:     (!isDA && !isPC && !isCPA && !isCPS) ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_amt')))    : null,
     buyAmtFixed:  isCPA
-      ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_cpa_buyAmt')))
-      : (!isDA && !isPC && !isCPS ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_buyAmt'))) : null),
+      ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_cpa_buyAmt')))
+      : (!isDA && !isPC && !isCPS ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_buyAmt'))) : null),
     revFixed:     isCPA
-      ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_cpa_rev')))
-      : (!isDA && !isPC && !isCPS ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_rev')))    : null),
+      ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_cpa_rev')))
+      : (!isDA && !isPC && !isCPS ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_rev')))    : null),
     profitFixed:  isCPA
-      ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_cpa_profit')))
-      : (!isDA && !isPC && !isCPS ? ((el => el?.dataset.manual && +el.value ? +el.value : null)(document.getElementById('r_profit'))) : null),
+      ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_cpa_profit')))
+      : (!isDA && !isPC && !isCPS ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_profit'))) : null),
     svcApplyAdv:   (!isDA && !isPC && !isCPA && !isCPS) ? (document.getElementById('r_svcApplyAdv')?.checked   ?? true)  : true,
     svcApplyMedia: (!isDA && !isPC && !isCPA && !isCPS) ? (document.getElementById('r_svcApplyMedia')?.checked ?? false) : false,
     agrate:    isDA  ? (+document.getElementById('r_da_agrate')?.value || 0) : (isCPA ? (+document.getElementById('r_cpa_agrate')?.value || 0) : (isCPS ? 0 : (+document.getElementById('r_agrate').value || 0))),
-    dateEnd:   isDA  ? `${document.getElementById('r_da_eyear').value}-${document.getElementById('r_da_emonth').value}-${document.getElementById('r_da_eday').value}` : '',
+    dateEnd:   (isDA || isCPA) ? `${document.getElementById('r_da_eyear').value}-${document.getElementById('r_da_emonth').value}-${document.getElementById('r_da_eday').value}` : '',
     daAdcost:  isDA  ? (+document.getElementById('r_da_adcost').value  || 0) : 0,
     daBillBase: isDA ? (document.getElementById('r_da_billbase')?.value || '') : '',
     daFeeYn:   isDA  ? (document.getElementById('r_da_fee_yn')?.value   || '') : '',
@@ -2796,7 +2798,7 @@ function openCopyCampaign() {
   const _setManual = (id, val) => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (val) { el.value = val; el.dataset.manual = '1'; }
+    if (val != null) { el.value = val; el.dataset.manual = '1'; }
     else { el.value = ''; delete el.dataset.manual; }
   };
   _setManual('r_adcost', c.adcostFixed ?? null);
@@ -2893,7 +2895,7 @@ function openEdit() {
   const _restoreManual = (id, val) => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (val) { el.value = val; el.dataset.manual = '1'; }
+    if (val != null) { el.value = val; el.dataset.manual = '1'; }
     else { el.value = ''; delete el.dataset.manual; }
   };
   const eBuyUnitEl = document.getElementById('e_buyUnit');
@@ -2988,8 +2990,17 @@ function openEdit() {
     const dateParts = (c.date || '').split('-');
     const eDAYear  = document.getElementById('e_da_year');
     const eDAMonth = document.getElementById('e_da_month');
+    const eDADay   = document.getElementById('e_da_day');
     if (eDAYear  && dateParts[0]) eDAYear.value  = dateParts[0];
     if (eDAMonth && dateParts[1]) eDAMonth.value = dateParts[1];
+    if (eDADay   && dateParts[2]) eDADay.value   = dateParts[2].split(' ')[0].padStart(2,'0');
+    const endParts = (c.dateEnd || '').split('-');
+    const eDAEYear  = document.getElementById('e_da_eyear');
+    const eDAEMonth = document.getElementById('e_da_emonth');
+    const eDAEDay   = document.getElementById('e_da_eday');
+    if (eDAEYear  && endParts[0]) eDAEYear.value  = endParts[0];
+    if (eDAEMonth && endParts[1]) eDAEMonth.value = endParts[1];
+    if (eDAEDay   && endParts[2]) eDAEDay.value   = endParts[2].padStart(2,'0');
     const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
     setEl('e_cpa_qty',      c.qty       || '');
     setEl('e_cpa_unit',     c.sellUnit  || '');
@@ -3197,9 +3208,12 @@ function submitEdit() {
     c.buyBillBase  = '';
     c.status    = '성과입력완료';
   } else if (isEditCPA) {
-    const yr = document.getElementById('e_da_year').value;
-    const mo = document.getElementById('e_da_month').value;
-    c.date      = `${yr}-${mo}-01 00:00`;
+    const yr  = document.getElementById('e_da_year').value;
+    const mo  = document.getElementById('e_da_month').value;
+    const day = document.getElementById('e_da_day')?.value || '01';
+    c.date    = `${yr}-${mo}-${day} 00:00`;
+    const eyr = document.getElementById('e_da_eyear')?.value || yr;
+    c.dateEnd = `${eyr}-${document.getElementById('e_da_emonth')?.value || mo}-${document.getElementById('e_da_eday')?.value || day}`;
     c.sellUnit  = +document.getElementById('e_cpa_unit').value     || 0;
     c.billBase  = document.getElementById('e_cpa_billbase')?.value || '';
     c.cpaFeeYn  = document.getElementById('e_cpa_fee_yn')?.value   || '';
@@ -3255,7 +3269,7 @@ function submitEdit() {
     const eBuyAmtEl2 = document.getElementById('e_buyAmt');
     const eRevEl2    = document.getElementById('e_rev');
     const ePrfEl2    = document.getElementById('e_profit');
-    const _fixedVal = (el) => (el?.dataset.manual && +el.value) ? +el.value : null;
+    const _fixedVal = (el) => (el?.dataset.manual && el.value !== '') ? +el.value : null;
     c.adcostFixed  = _fixedVal(eAdcEl2);
     c.amtFixed     = _fixedVal(eAmtEl2);
     c.buyAmtFixed  = _fixedVal(eBuyAmtEl2);
@@ -3673,7 +3687,7 @@ function openImgNewTab(b64) {
 }
 
 function _formatDateRange(c) {
-  if (c.product === 'DA' && c.dateEnd) {
+  if ((c.product === 'DA' || c.product === 'CPA') && c.dateEnd) {
     const sp = (c.date    || '').split('-');
     const ep = (c.dateEnd || '').split('-');
     if (sp.length >= 3 && ep.length >= 3)
@@ -3689,7 +3703,7 @@ function openCalPreview(idx) {
   document.getElementById('cp-promo').textContent    = c.promo || '—';
   document.getElementById('cp-cat').textContent      = _getCat(c) || '—';
   const cpDateLbl = document.getElementById('cp-date-lbl');
-  if (cpDateLbl) cpDateLbl.textContent = c.product === 'DA' ? '노출기간' : '발송일시';
+  if (cpDateLbl) cpDateLbl.textContent = c.product === 'DA' ? '노출기간' : (c.product === 'CPA' && c.dateEnd ? '발송기간' : '발송일시');
   document.getElementById('cp-date').textContent = _formatDateRange(c);
   document.getElementById('cp-product').textContent  = c.product || '—';
   const cpSellerEl = document.getElementById('cp-seller');
