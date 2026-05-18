@@ -8440,7 +8440,7 @@ function openTaxReg(gid) {
         if (campClear) campClear.style.display = '';
       }
     }
-    items.forEach(t => taxManualAddRow(t));
+    items.filter(t => !t.isRef).forEach(t => taxManualAddRow(t));
   }
   taxManualCalcTotal();
   openModal('modalTaxReg');
@@ -8564,10 +8564,26 @@ async function saveTaxReg() {
     await _fbSaveTax(t);
     saved.push(t);
   }
-  // 연결된 캠페인에 이중발행 방지 플래그 세우기
+  // 연결된 캠페인: 참조 항목(isRef) 생성 + 이중발행 방지 플래그
   if (linkedCid) {
     const lc = DATA.find(x => x.id === linkedCid);
     if (lc) {
+      const stl    = _stlAmt(lc);
+      const refAmt = taxType === 'media' ? (stl.buyAmt || 0) : (stl.amt || 0);
+      const refItem = {
+        id: nextId++, groupId, campaignId: linkedCid, isRef: true,
+        createdBy, taxType, manager, month: _taxMonthLabel(lc),
+        reqDate, issueDate, taxStatus,
+        payDue: paidChk ? '' : payDue,
+        paid: paidChk ? '완료' : null,
+        payInDate: paidChk ? payInDate : null,
+        unpaid: paidChk ? 0 : null,
+        company, bizName, content: _taxContentAuto(lc),
+        supplyAmt: refAmt, vatAmt: Math.round(refAmt * 1.1),
+        contactEmail: '', memo: ''
+      };
+      TAX_DATA.push(refItem);
+      await _fbSaveTax(refItem);
       if (taxType === 'adv')   lc.taxAdvReq   = true;
       if (taxType === 'media') lc.taxMediaReq = true;
       _fbSaveCampaign(lc);
