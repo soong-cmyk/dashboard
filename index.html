@@ -469,8 +469,9 @@
           <input type="hidden" id="fFrom">
           <input type="hidden" id="fTo">
           <div class="f-div"></div>
-          <input type="text" class="f-search" id="fQ" placeholder="🔍  캠페인명/캠페인ID 검색" oninput="applyFilter()">
+          <input type="text" class="f-search" id="fQ" placeholder="🔍  캠페인명 / ID / 매출처 검색" oninput="applyFilter()">
           <span class="f-reset" onclick="resetFilter()">✕ 초기화</span>
+          <button class="btn btn-ghost btn-sm" id="btn-deleted-list" style="display:none;color:var(--text3);" onclick="openDeletedListModal()">🗑 삭제이력</button>
         </div>
         <div class="table-card">
           <div class="table-header">
@@ -1467,11 +1468,46 @@
           <select class="f-sel" id="stl-fOps" onchange="renderSettlement()">
             <option value="">담당자</option>
           </select>
-          <input class="f-sel" id="stl-fQ" type="text" placeholder="캠페인명 / ID 검색" oninput="renderSettlement()" style="width:170px;">
+          <input class="f-sel" id="stl-fQ" type="text" placeholder="캠페인명 / ID / 매출처 검색" oninput="renderSettlement()" style="width:170px;">
           <div style="flex:1;"></div>
           <span class="f-reset" onclick="resetStlFilter()">✕ 초기화</span>
           <div id="stl-dl-wrap" style="display:inline-block;">
             <button class="btn btn-ghost btn-sm" onclick="toggleStlDownload(this)">⬇ 다운로드 ▾</button>
+          </div>
+        </div>
+
+        <!-- 일괄처리 바 -->
+        <div id="stl-bulk-bar" style="display:none;align-items:center;gap:8px;margin-bottom:10px;padding:7px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);flex-wrap:wrap;">
+          <span id="stl-bulk-count" style="font-size:12px;color:var(--text3);"></span>
+          <div style="width:1px;height:14px;background:var(--border);"></div>
+          <span style="font-size:12px;color:var(--text2);">일괄처리</span>
+          <div style="position:relative;" id="stl-bulk-wrap-invoiceOut">
+            <button class="btn btn-ghost btn-sm" onclick="stlBulkDropdown('invoiceOut')">매출계산서 ▾</button>
+            <div id="stl-bulk-dd-invoiceOut" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:500;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:110px;overflow:hidden;">
+              <div class="stl-bulk-opt" onclick="stlBulkAction('invoiceOut',true)">✓ 전체완료</div>
+              <div class="stl-bulk-opt" onclick="stlBulkAction('invoiceOut',false)">✕ 전체취소</div>
+            </div>
+          </div>
+          <div style="position:relative;" id="stl-bulk-wrap-payIn">
+            <button class="btn btn-ghost btn-sm" onclick="stlBulkDropdown('payIn')">입금 ▾</button>
+            <div id="stl-bulk-dd-payIn" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:500;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:110px;overflow:hidden;">
+              <div class="stl-bulk-opt" onclick="stlBulkAction('payIn',true)">✓ 전체완료</div>
+              <div class="stl-bulk-opt" onclick="stlBulkAction('payIn',false)">✕ 전체취소</div>
+            </div>
+          </div>
+          <div style="position:relative;" id="stl-bulk-wrap-invoiceIn">
+            <button class="btn btn-ghost btn-sm" onclick="stlBulkDropdown('invoiceIn')">매입계산서 ▾</button>
+            <div id="stl-bulk-dd-invoiceIn" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:500;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:110px;overflow:hidden;">
+              <div class="stl-bulk-opt" onclick="stlBulkAction('invoiceIn',true)">✓ 전체완료</div>
+              <div class="stl-bulk-opt" onclick="stlBulkAction('invoiceIn',false)">✕ 전체취소</div>
+            </div>
+          </div>
+          <div style="position:relative;" id="stl-bulk-wrap-payOut">
+            <button class="btn btn-ghost btn-sm" onclick="stlBulkDropdown('payOut')">지급 ▾</button>
+            <div id="stl-bulk-dd-payOut" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:500;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:110px;overflow:hidden;">
+              <div class="stl-bulk-opt" onclick="stlBulkAction('payOut',true)">✓ 전체완료</div>
+              <div class="stl-bulk-opt" onclick="stlBulkAction('payOut',false)">✕ 전체취소</div>
+            </div>
           </div>
         </div>
 
@@ -2151,7 +2187,7 @@
           <select class="form-sel" id="tax-fManager" onchange="renderTaxList()" style="width:110px;">
             <option value="">요청자 전체</option>
           </select>
-          <input class="form-input" id="tax-fCompany" placeholder="업체명/상호명 검색" oninput="renderTaxList()" style="width:160px;">
+          <input class="form-input" id="tax-fCompany" placeholder="업체명 / 캠페인명 / ID 검색" oninput="renderTaxList()" style="width:160px;">
           <button class="btn btn-ghost btn-sm" onclick="resetTaxFilter()">✕ 초기화</button>
           <div style="flex:1;"></div>
           <button class="btn btn-ghost btn-sm" onclick="openTaxReg(null)">+ 수동 등록</button>
@@ -2202,18 +2238,19 @@
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
         <input type="hidden" id="tax-edit-gid">
         <input type="hidden" id="tax-r-payin-date">
-        <input type="hidden" id="tax-r-campId">
         <!-- 캠페인 연결 -->
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;">
-          <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">캠페인 연결</span>
-          <div style="position:relative;flex:1;">
-            <input type="text" class="form-input" id="tax-r-camp-text"
-              placeholder="캠페인명·ID·매출처 검색 (선택 — 연결 시 업체·월·금액 자동채움)"
-              autocomplete="off" style="font-size:12px;padding:5px 8px;width:100%;"
-              oninput="taxRegCampRender()" onfocus="taxRegCampRender()" onblur="setTimeout(taxRegCampClose,180)">
-            <div id="tax-r-camp-list" class="combo-list" style="display:none;max-height:220px;overflow-y:auto;"></div>
+        <div style="padding:8px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">캠페인 연결</span>
+            <div style="position:relative;flex:1;">
+              <input type="text" class="form-input" id="tax-r-camp-text"
+                placeholder="캠페인명·ID·매출처 검색 (선택 — 여러 개 추가 가능)"
+                autocomplete="off" style="font-size:12px;padding:5px 8px;width:100%;"
+                oninput="taxRegCampRender()" onfocus="taxRegCampRender()" onblur="setTimeout(taxRegCampClose,180)">
+              <div id="tax-r-camp-list" class="combo-list" style="display:none;max-height:220px;overflow-y:auto;"></div>
+            </div>
           </div>
-          <button class="btn btn-ghost btn-sm" id="tax-r-camp-clear" style="display:none;white-space:nowrap;" onclick="taxRegCampClear()">연결 해제</button>
+          <div id="tax-r-camp-chips" style="display:none;flex-wrap:wrap;gap:6px;"></div>
         </div>
         <!-- 수정 모드 안내 -->
         <div id="tax-reg-edit-notice" style="display:none;font-size:12px;color:var(--orange,#d97706);background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 14px;">
@@ -3291,11 +3328,26 @@
           <div class="ci-lbl" style="color:var(--red);">삭제 대상</div>
           <div class="ci-val" id="delName"></div>
         </div>
-        <p style="font-size:13px;color:var(--text2);line-height:1.6;">삭제한 캠페인은 복구할 수 없습니다. 정말 삭제하시겠습니까?</p>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6;">삭제된 캠페인은 복구할 수 없습니다. 정말 삭제하시겠습니까?</p>
       </div>
       <div class="modal-foot">
         <button class="btn btn-outline" onclick="closeModal('modalDel')">취소</button>
         <button class="btn btn-primary" style="background:var(--red);" onclick="confirmDel()">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 삭제이력 모달 -->
+  <div class="modal-overlay" id="modalDeletedList">
+    <div class="modal" style="width:720px;max-width:95vw;">
+      <div class="modal-head">
+        <span class="modal-title">🗑 삭제된 캠페인 이력</span>
+        <button class="modal-close" onclick="closeModal('modalDeletedList')">✕</button>
+      </div>
+      <div class="modal-body" style="padding:0;max-height:60vh;overflow-y:auto;">
+        <div id="deleted-list-body" style="padding:16px;">
+          <div style="text-align:center;color:var(--text3);padding:32px;font-size:13px;">로딩 중...</div>
+        </div>
       </div>
     </div>
   </div>
