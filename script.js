@@ -5724,8 +5724,11 @@ function saveSeller() {
   if (!company) { toast('⚠ 회사명을 입력해주세요', 'warn'); return; }
   const agrate  = +document.getElementById('sel-agrate').value || 0;
   const obj = { type, company, agrate, brands: [...sellerBrands] };
+  const oldCompany = sellerEditIdx != null ? SELLER_DATA[sellerEditIdx]?.company : null;
   if (sellerEditIdx != null) SELLER_DATA[sellerEditIdx] = obj;
   else SELLER_DATA.push(obj);
+  // 회사명이 바뀐 경우 기존 Firestore 문서 삭제 후 새 이름으로 저장
+  if (oldCompany && oldCompany !== company) _fbDeleteSeller(oldCompany);
   _fbSaveSeller(obj);
 
   // 브랜드명 변경 → 관련 캠페인 일괄 업데이트
