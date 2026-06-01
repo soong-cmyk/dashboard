@@ -8117,7 +8117,7 @@ function renderTaxList() {
 
     const _makeRow = (t, canDel) => {
       const camp = DATA.find(c => c.id === t.campaignId);
-      const campName = camp ? _cName(camp) : (t.content || '—');
+      const campName = t.content || (camp ? _cName(camp) : '—');
       const mgr = t.manager || '—';
       const monthShort = (t.month || '').replace(/\d+년/, '');
       return `<tr>
@@ -9101,7 +9101,7 @@ function taxToggleRef(ids) {
   if (!items.length) return;
   const rows = items.map(t => {
     const camp = DATA.find(c => c.id === t.campaignId);
-    const nm = camp ? _cName(camp) : (t.content || '—');
+    const nm = t.content || (camp ? _cName(camp) : '—');
     const month = (t.month || '').replace(/\d+년/, '');
     const campIdx = camp ? DATA.indexOf(camp) : -1;
     const nmCell = campIdx >= 0
