@@ -4594,6 +4594,11 @@ async function downloadInvoiceExcel() {
       const subRow = ws.addRow(['', `청구처: ${invoiceTo}`]);
       subRow.getCell(2).font = { size: 11, color: { argb: 'FF555555' } };
     }
+    const _bankStr = [mediaInfo?.bankHolder, mediaInfo?.bankName, mediaInfo?.bankAccount].filter(Boolean).join(' | ');
+    if (_bankStr) {
+      const bankRow = ws.addRow(['', `계좌정보: ${_bankStr}`]);
+      bankRow.getCell(2).font = { size: 11, color: { argb: 'FF555555' } };
+    }
     ws.addRow([]);
 
     // 헤더 행
@@ -4721,7 +4726,7 @@ async function downloadInvoiceExcel() {
   // 퍼미션콜 → 디앤유 / OHC 시트 2개 생성
   if (pcCamps.length > 0) {
     const PC_NUM_COLS = new Set([5, 6, 7, 8, 9]); // E(광고비) F(매입단가) G(매입액) H(VAT) I(합계)
-    const _buildPCSheet = (sheetName, billTo, getBuyAmt, buyUnit) => {
+    const _buildPCSheet = (sheetName, billTo, getBuyAmt, buyUnit, bankStr) => {
       const ws = wb.addWorksheet(sheetName);
       ws.columns = [
         { width: 3  }, { width: 14 }, { width: 36 }, { width: 12 },
@@ -4736,8 +4741,12 @@ async function downloadInvoiceExcel() {
       // 2행: 청구처
       const subRow = ws.addRow(['', `청구처: ${billTo}`]);
       subRow.getCell(2).font = { size: 11, color: { argb: 'FF555555' } };
+      if (bankStr) {
+        const bankRow = ws.addRow(['', `계좌정보: ${bankStr}`]);
+        bankRow.getCell(2).font = { size: 11, color: { argb: 'FF555555' } };
+      }
 
-      // 3행: 헤더 (빈 행 없이 바로)
+      // 다음 행: 헤더 (빈 행 없이 바로)
       const hdrRow = ws.addRow(['', '광고기간', '캠페인명', '상품', '광고비', '매입단가(원)', '매입액(원)', 'VAT(원)', '합계(원)', '계산서']);
       hdrRow.eachCell((cell, colNum) => {
         if (colNum === 1) return;
@@ -4796,8 +4805,9 @@ async function downloadInvoiceExcel() {
       });
     };
 
-    _buildPCSheet('디앤유', '디앤유', c => (c.pcAgree || 0) * 5500, 5500);
-    _buildPCSheet('OHC', 'OHC', c => c.pcOhcCost || 0, null);
+    const _pcBank = name => { const m = MEDIA_DATA.find(x => x.company === name); return m ? [m.bankHolder, m.bankName, m.bankAccount].filter(Boolean).join(' | ') : ''; };
+    _buildPCSheet('디앤유', '디앤유', c => (c.pcAgree || 0) * 5500, 5500, _pcBank('디앤유'));
+    _buildPCSheet('OHC', 'OHC', c => c.pcOhcCost || 0, null, _pcBank('OHC'));
   }
 
   // 버퍼 → Blob → 다운로드
@@ -5278,12 +5288,16 @@ function renderMediaDetail() {
   if (delBtn) delBtn.style.display = (currentUser && currentUser.isAdmin) ? '' : 'none';
 
   // 기본 정보
+  const _bankDisp = m.bankHolder || m.bankName || m.bankAccount
+    ? [m.bankHolder, m.bankName, m.bankAccount].filter(Boolean).join(' | ')
+    : nd;
   document.getElementById('med-detail-basic').innerHTML =
     `<div class="field"><span class="f-label">매체명</span><span class="f-val" style="font-weight:600;">${v(m.company)}</span></div>
     <div class="field"><span class="f-label">매입처 (청구)</span><span class="f-val">${v(m.invoiceTo)}</span></div>
     <div class="field"><span class="f-label">단가 (원/건)</span><span class="f-val f-mono">${m.unit ? m.unit.toLocaleString()+'원' : nd}</span></div>
     <div class="field"><span class="f-label">담당자</span><span class="f-val">${v(m.contact)}</span></div>
     <div class="field"><span class="f-label">연락처</span><span class="f-val f-mono">${v(m.tel)}</span></div>
+    <div class="field"><span class="f-label">계좌정보</span><span class="f-val f-mono">${_bankDisp}</span></div>
     <div class="field"><span class="f-label">작성일</span><span class="f-val f-mono">${v(m.createdAt)}</span></div>`;
 
   // 수수료1
@@ -5347,14 +5361,14 @@ function deleteMediaFromDetail() {
 function openMediaModal(idx) {
   mediaPendingCombo = null;
   mediaEditIdx = idx ?? null;
-  const d = {type:'매체사',company:'',invoiceTo:'',unit:'',contact:'',tel:'',c1Base:'',c1Req:'',c1Adj:'',c1Reason:'',note1:'',c2Base:'',c2Req:'',c2Adj:'',c2Reason:'',note2:'',excTarget:'',excAdj:'',createdAt:'',cpsRate:'',naverCpsRate:''};
+  const d = {type:'매체사',company:'',invoiceTo:'',unit:'',contact:'',tel:'',bankHolder:'',bankName:'',bankAccount:'',c1Base:'',c1Req:'',c1Adj:'',c1Reason:'',note1:'',c2Base:'',c2Req:'',c2Adj:'',c2Reason:'',note2:'',excTarget:'',excAdj:'',createdAt:'',cpsRate:'',naverCpsRate:''};
   const m = idx != null ? MEDIA_DATA[idx] : d;
   document.getElementById('med-title').textContent = idx != null ? '매체사 수정' : '매체사 등록';
   document.getElementById('med-del-btn').style.display = idx != null ? '' : 'none';
   document.getElementById('med-type').value = m.type || '매체사';
   medTypeChange();
   const _medNumKeys = ['unit','c1Base','c1Req','c1Adj','c2Base','c2Req','c2Adj','cpsRate','naverCpsRate'];
-  ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay','createdAt','cpsRate','naverCpsRate']
+  ['company','invoiceTo','unit','contact','tel','bankHolder','bankName','bankAccount','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay','createdAt','cpsRate','naverCpsRate']
     .forEach(k => { const el=document.getElementById('med-'+k); if(el) el.value = _medNumKeys.includes(k) ? (m[k] || '') : (m[k] ?? ''); });
   const taxYnEl = document.getElementById('med-taxYn');
   if (taxYnEl) taxYnEl.checked = m.taxYn !== false; // 기본값 true
@@ -5364,7 +5378,7 @@ function openMediaModal(idx) {
 function saveMedia() {
   const company = document.getElementById('med-company').value.trim();
   if (!company) { toast('⚠ 매체명을 입력해주세요','warn'); return; }
-  const keys = ['company','invoiceTo','unit','contact','tel','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay','cpsRate','naverCpsRate'];
+  const keys = ['company','invoiceTo','unit','contact','tel','bankHolder','bankName','bankAccount','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay','cpsRate','naverCpsRate'];
   const obj = { type: document.getElementById('med-type').value || '매체사' };
   keys.forEach(k => {
     const v = document.getElementById('med-'+k)?.value ?? '';
@@ -9742,6 +9756,7 @@ function _fbWatchSellers() {
 const MEDIA_FIELD_LABELS = {
   company:'매체명', type:'유형', invoiceTo:'청구처', unit:'단가',
   contact:'담당자', tel:'연락처',
+  bankHolder:'예금주명', bankName:'은행명', bankAccount:'계좌번호',
   c1Base:'수수료1 기준', c1Req:'수수료1 요청', c1Adj:'수수료1 조정', c1Reason:'수수료1 사유', note1:'메모1',
   c2Base:'수수료2 기준', c2Req:'수수료2 요청', c2Adj:'수수료2 조정', c2Reason:'수수료2 사유', note2:'메모2',
   excTarget:'예외 대상', excAdj:'예외 조정', createdAt:'등록일'
