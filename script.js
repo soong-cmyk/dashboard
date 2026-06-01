@@ -5731,23 +5731,33 @@ function saveSeller() {
   if (oldCompany && oldCompany !== company) _fbDeleteSeller(oldCompany);
   _fbSaveSeller(obj);
 
-  // 브랜드명 변경 → 관련 캠페인 일괄 업데이트
+  let campUpdateCount = 0;
+
+  // 회사명 변경 → 관련 캠페인 seller/adv 일괄 업데이트
+  if (oldCompany && oldCompany !== company) {
+    DATA.forEach(c => {
+      let changed = false;
+      if (c.seller === oldCompany) { c.seller = company; changed = true; }
+      if (c.adv    === oldCompany) { c.adv    = company; changed = true; }
+      if (changed) { _fbSaveCampaign(c); campUpdateCount++; }
+    });
+  }
+
+  // 브랜드명 변경 → 관련 캠페인 content 일괄 업데이트
   if (_brandRenames.length > 0) {
-    let updatedCount = 0;
     _brandRenames.forEach(({old: oldName, new: newName}) => {
       DATA.forEach(c => {
         if ((c.seller === company || c.adv === company) && c.content === oldName) {
           c.content = newName;
           _fbSaveCampaign(c);
-          updatedCount++;
+          campUpdateCount++;
         }
       });
     });
-    if (updatedCount > 0) toast(`✓ 저장되었습니다 (관련 캠페인 ${updatedCount}건 업데이트)`, 'ok');
-    else toast('✓ 저장되었습니다', 'ok');
-  } else {
-    toast('✓ 저장되었습니다', 'ok');
   }
+
+  if (campUpdateCount > 0) toast(`✓ 저장되었습니다 (관련 캠페인 ${campUpdateCount}건 업데이트)`, 'ok');
+  else toast('✓ 저장되었습니다', 'ok');
   _brandRenames = [];
   _editingBrandName = null;
 
