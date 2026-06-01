@@ -4596,7 +4596,8 @@ async function downloadInvoiceExcel() {
     }
     const _bankStr = [...[mediaInfo?.bankHolder, mediaInfo?.bankName].filter(Boolean), ...(mediaInfo?.bankAccount ? [`계좌번호 : ${mediaInfo.bankAccount}`] : [])].join(' | ');
     if (_bankStr) {
-      const bankRow = ws.addRow(['', `계좌정보: ${_bankStr}`]);
+      const _bankLabel = mediaInfo?.bankUpdatedAt ? `계좌정보: ${_bankStr}  (${mediaInfo.bankUpdatedAt} 변경)` : `계좌정보: ${_bankStr}`;
+      const bankRow = ws.addRow(['', _bankLabel]);
       bankRow.getCell(2).font = { size: 11, color: { argb: 'FF555555' } };
     }
     ws.addRow([]);
@@ -4805,7 +4806,12 @@ async function downloadInvoiceExcel() {
       });
     };
 
-    const _pcBank = name => { const m = MEDIA_DATA.find(x => x.company === name); return m ? [...[m.bankHolder, m.bankName].filter(Boolean), ...(m.bankAccount ? [`계좌번호 : ${m.bankAccount}`] : [])].join(' | ') : ''; };
+    const _pcBank = name => {
+      const m = MEDIA_DATA.find(x => x.company === name);
+      if (!m) return '';
+      const str = [...[m.bankHolder, m.bankName].filter(Boolean), ...(m.bankAccount ? [`계좌번호 : ${m.bankAccount}`] : [])].join(' | ');
+      return str ? (m.bankUpdatedAt ? `${str}  (${m.bankUpdatedAt} 변경)` : str) : '';
+    };
     _buildPCSheet('디앤유', '디앤유', c => (c.pcAgree || 0) * 5500, 5500, _pcBank('디앤유'));
     _buildPCSheet('OHC', 'OHC', c => c.pcOhcCost || 0, null, _pcBank('OHC'));
   }
@@ -5389,6 +5395,13 @@ function saveMedia() {
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   obj.createdAt = (mediaEditIdx != null && MEDIA_DATA[mediaEditIdx]?.createdAt) ? MEDIA_DATA[mediaEditIdx].createdAt : todayStr;
   const oldObj = mediaEditIdx != null ? Object.assign({}, MEDIA_DATA[mediaEditIdx]) : null;
+  // 계좌 정보 변경 여부 추적
+  const bankChanged = ['bankHolder','bankName','bankAccount'].some(k => (oldObj?.[k] ?? '') !== (obj[k] ?? ''));
+  if (bankChanged) {
+    obj.bankUpdatedAt = `${today.getFullYear()}년 ${today.getMonth()+1}월`;
+  } else {
+    obj.bankUpdatedAt = oldObj?.bankUpdatedAt || '';
+  }
   if (mediaEditIdx != null) MEDIA_DATA[mediaEditIdx] = obj;
   else { MEDIA_DATA.push(obj); currentMediaIdx = MEDIA_DATA.length - 1; }
   // 이름이 바뀐 경우 기존 문서 삭제 + 캠페인 media 필드 일괄 업데이트
