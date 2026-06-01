@@ -4594,7 +4594,7 @@ async function downloadInvoiceExcel() {
       const subRow = ws.addRow(['', `청구처: ${invoiceTo}`]);
       subRow.getCell(2).font = { size: 11, color: { argb: 'FF555555' } };
     }
-    const _bankStr = [mediaInfo?.bankHolder, mediaInfo?.bankName, mediaInfo?.bankAccount].filter(Boolean).join(' | ');
+    const _bankStr = [...[mediaInfo?.bankHolder, mediaInfo?.bankName].filter(Boolean), ...(mediaInfo?.bankAccount ? [`계좌번호 : ${mediaInfo.bankAccount}`] : [])].join(' | ');
     if (_bankStr) {
       const bankRow = ws.addRow(['', `계좌정보: ${_bankStr}`]);
       bankRow.getCell(2).font = { size: 11, color: { argb: 'FF555555' } };
@@ -4805,7 +4805,7 @@ async function downloadInvoiceExcel() {
       });
     };
 
-    const _pcBank = name => { const m = MEDIA_DATA.find(x => x.company === name); return m ? [m.bankHolder, m.bankName, m.bankAccount].filter(Boolean).join(' | ') : ''; };
+    const _pcBank = name => { const m = MEDIA_DATA.find(x => x.company === name); return m ? [...[m.bankHolder, m.bankName].filter(Boolean), ...(m.bankAccount ? [`계좌번호 : ${m.bankAccount}`] : [])].join(' | ') : ''; };
     _buildPCSheet('디앤유', '디앤유', c => (c.pcAgree || 0) * 5500, 5500, _pcBank('디앤유'));
     _buildPCSheet('OHC', 'OHC', c => c.pcOhcCost || 0, null, _pcBank('OHC'));
   }
@@ -5289,7 +5289,7 @@ function renderMediaDetail() {
 
   // 기본 정보
   const _bankDisp = m.bankHolder || m.bankName || m.bankAccount
-    ? [m.bankHolder, m.bankName, m.bankAccount].filter(Boolean).join(' | ')
+    ? [...[m.bankHolder, m.bankName].filter(Boolean), ...(m.bankAccount ? [`계좌번호 : ${m.bankAccount}`] : [])].join(' | ')
     : nd;
   document.getElementById('med-detail-basic').innerHTML =
     `<div class="field"><span class="f-label">매체명</span><span class="f-val" style="font-weight:600;">${v(m.company)}</span></div>
