@@ -5420,12 +5420,18 @@ function saveMedia() {
   _fbSaveMedia(obj);
   if (oldObj) _fbSaveMediaLog(oldObj, obj);
   // invoiceTo 변경 → 관련 세금계산서 company/bizName 동기화
-  if (oldObj && oldObj.invoiceTo && oldObj.invoiceTo !== obj.invoiceTo) {
+  if (oldObj && oldObj.invoiceTo !== obj.invoiceTo) {
+    // 이 매체사 캠페인 ID 목록 (캠페인 media 필드 기준)
+    const mediaCampIds = new Set(DATA.filter(c => c.media === obj.company).map(c => c.id));
     TAX_DATA.forEach(t => {
       if (t.taxType !== 'media') return;
+      const linkedToThisMedia = t.campaignId && mediaCampIds.has(t.campaignId);
+      // 기존 invoiceTo 값으로 채워진 경우 OR 이 매체 캠페인에 연결된 경우
+      const companyMatch = t.company === oldObj.invoiceTo || t.company === oldObj.company || linkedToThisMedia;
+      const bizMatch     = t.bizName === oldObj.invoiceTo || t.bizName === oldObj.company  || linkedToThisMedia;
       let changed = false;
-      if (t.company === oldObj.invoiceTo) { t.company = obj.invoiceTo; changed = true; }
-      if (t.bizName === oldObj.invoiceTo) { t.bizName = obj.invoiceTo; changed = true; }
+      if (companyMatch) { t.company = obj.invoiceTo; changed = true; }
+      if (bizMatch)     { t.bizName = obj.invoiceTo; changed = true; }
       if (changed) _fbSaveTax(t);
     });
   }
@@ -8507,7 +8513,8 @@ function taxRegCampSelect(cid) {
   if (isFirst) {
     // 첫 번째 캠페인만 업체명·담당자·행 자동채움
     const taxType = document.getElementById('tax-r-taxType')?.value || 'adv';
-    const company = taxType === 'media' ? (c.media || '') : (c.seller || c.adv || '');
+    const mediaRec = taxType === 'media' ? MEDIA_DATA.find(x => x.company === c.media) : null;
+    const company = taxType === 'media' ? (mediaRec?.invoiceTo || c.media || '') : (c.seller || c.adv || '');
     const companyEl = document.getElementById('tax-r-company');
     const bizNameEl = document.getElementById('tax-r-bizName');
     if (companyEl && !companyEl.value) companyEl.value = company;
