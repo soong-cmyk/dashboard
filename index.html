@@ -449,8 +449,8 @@
           <select class="f-sel" id="fProd" onchange="applyFilter()">
             <option value="">상품</option>
           </select>
-          <select class="f-sel" id="fMedia" onchange="applyFilter()">
-            <option value="">매체사</option>
+          <select class="f-sel" id="fOrg" onchange="applyFilter()" style="width:110px;">
+            <option value="">본부/팀 전체</option>
           </select>
           <select class="f-sel" id="fMgr" onchange="applyFilter()">
             <option value="">담당자</option>
@@ -458,8 +458,8 @@
           <select class="f-sel" id="fAdv" onchange="applyFilter()">
             <option value="">광고주/대행사</option>
           </select>
-          <select class="f-sel" id="fOrg" onchange="applyFilter()" style="width:110px;">
-            <option value="">본부/팀 전체</option>
+          <select class="f-sel" id="fMedia" onchange="applyFilter()">
+            <option value="">매체사</option>
           </select>
           <div class="f-div"></div>
           <div id="drp-trigger" onclick="drpOpen()" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:13px;color:var(--text1);white-space:nowrap;user-select:none;">
@@ -1440,10 +1440,6 @@
             <option value="settled">성과입력완료만</option>
             <option value="all">전체 캠페인</option>
           </select>
-          <div class="f-div"></div>
-          <select class="f-sel" id="stl-fProd" onchange="renderSettlement()">
-            <option value="">상품</option>
-          </select>
           <select class="f-sel" id="stl-fCat" onchange="renderSettlement()">
             <option value="">카테고리</option>
             <option>분양</option>
@@ -1454,19 +1450,21 @@
             <option>병의원</option>
             <option>기타</option>
           </select>
-          <select class="f-sel" id="stl-fMedia" onchange="renderSettlement()">
-            <option value="">매체사</option>
+          <select class="f-sel" id="stl-fProd" onchange="renderSettlement()">
+            <option value="">상품</option>
           </select>
-          <select class="f-sel" id="stl-fAdv" onchange="renderSettlement()">
-            <option value="">광고주/대행사</option>
-          </select>
-          <div class="f-div"></div>
-          <div class="stl-filter-break"></div>
           <select class="f-sel" id="stl-fOrg" onchange="renderSettlement()" style="width:110px;">
             <option value="">본부/팀 전체</option>
           </select>
           <select class="f-sel" id="stl-fOps" onchange="renderSettlement()">
             <option value="">담당자</option>
+          </select>
+          <div class="f-div"></div>
+          <select class="f-sel" id="stl-fAdv" onchange="renderSettlement()">
+            <option value="">광고주/대행사</option>
+          </select>
+          <select class="f-sel" id="stl-fMedia" onchange="renderSettlement()">
+            <option value="">매체사</option>
           </select>
           <input class="f-sel" id="stl-fQ" type="text" placeholder="캠페인명 / ID / 매출처 검색" oninput="renderSettlement()" style="width:170px;">
           <div style="flex:1;"></div>
@@ -2830,7 +2828,7 @@
 
         <div style="display:flex;gap:10px;margin-top:4px;">
           <div class="fg" style="flex:1;"><label class="form-label">예금주명</label><input type="text" class="form-input" id="med-bankHolder" placeholder="예금주"></div>
-          <div class="fg" style="flex:1;"><label class="form-label">은행명</label><input type="text" class="form-input" id="med-bankName" placeholder="국민은행"></div>
+          <div class="fg" style="flex:1;"><label class="form-label">은행명</label><input type="text" class="form-input" id="med-bankName" placeholder="ㅇㅇ은행"></div>
           <div class="fg" style="flex:2;"><label class="form-label">계좌번호</label><input type="text" class="form-input" id="med-bankAccount" placeholder="000-000-000000"></div>
         </div>
 
