@@ -5419,6 +5419,16 @@ function saveMedia() {
   }
   _fbSaveMedia(obj);
   if (oldObj) _fbSaveMediaLog(oldObj, obj);
+  // invoiceTo 변경 → 관련 세금계산서 company/bizName 동기화
+  if (oldObj && oldObj.invoiceTo && oldObj.invoiceTo !== obj.invoiceTo) {
+    TAX_DATA.forEach(t => {
+      if (t.taxType !== 'media') return;
+      let changed = false;
+      if (t.company === oldObj.invoiceTo) { t.company = obj.invoiceTo; changed = true; }
+      if (t.bizName === oldObj.invoiceTo) { t.bizName = obj.invoiceTo; changed = true; }
+      if (changed) _fbSaveTax(t);
+    });
+  }
   const pendingCombo = mediaPendingCombo;
   mediaPendingCombo = null;
   closeModal('modalMedia');
