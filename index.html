@@ -449,10 +449,10 @@
           <select class="f-sel" id="fProd" onchange="applyFilter()">
             <option value="">상품</option>
           </select>
-          <select class="f-sel" id="fOrg" onchange="applyFilter()" style="width:110px;">
+          <select class="f-sel" id="fOrg" onchange="_campOrgFilterChange()" style="width:110px;">
             <option value="">본부/팀 전체</option>
           </select>
-          <select class="f-sel" id="fMgr" onchange="applyFilter()">
+          <select class="f-sel" id="fMgr" onchange="_campOrgFilterChange()">
             <option value="">담당자</option>
           </select>
           <select class="f-sel" id="fAdv" onchange="applyFilter()">
@@ -1440,6 +1440,7 @@
             <option value="settled">성과입력완료만</option>
             <option value="all">전체 캠페인</option>
           </select>
+           <div class="f-div"></div>
           <select class="f-sel" id="stl-fCat" onchange="renderSettlement()">
             <option value="">카테고리</option>
             <option>분양</option>
@@ -1453,10 +1454,10 @@
           <select class="f-sel" id="stl-fProd" onchange="renderSettlement()">
             <option value="">상품</option>
           </select>
-          <select class="f-sel" id="stl-fOrg" onchange="renderSettlement()" style="width:110px;">
+          <select class="f-sel" id="stl-fOrg" onchange="_stlOrgOpsFilterChange()" style="width:110px;">
             <option value="">본부/팀 전체</option>
           </select>
-          <select class="f-sel" id="stl-fOps" onchange="renderSettlement()">
+          <select class="f-sel" id="stl-fOps" onchange="_stlOrgOpsFilterChange()">
             <option value="">담당자</option>
           </select>
           <div class="f-div"></div>

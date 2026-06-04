@@ -1381,11 +1381,30 @@ function _populateAdvFilter() {
   if (btnDel) btnDel.style.display = (currentUser?.isAdmin || currentUser?.id === 'wonjoon') ? '' : 'none';
   const sel = document.getElementById('fAdv');
   if (!sel) return;
+  const { bonbu, team } = _parseOrgFilter(document.getElementById('fOrg')?.value || '');
+  const mgr = document.getElementById('fMgr')?.value || '';
+  let advList;
+  if (bonbu || team || mgr) {
+    advList = [...new Set(
+      DATA.filter(c => {
+        if (mgr && c.ops !== mgr) return false;
+        if (bonbu || team) {
+          const u = USERS.find(u => u.name === c.ops);
+          if (bonbu && (!u || u.bonbu !== bonbu)) return false;
+          if (team  && (!u || u.dept  !== team))  return false;
+        }
+        return true;
+      }).map(c => c.seller || c.adv || '').filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, 'ko'));
+  } else {
+    advList = SELLER_DATA.map(s => s.company);
+  }
   const current = sel.value;
   sel.innerHTML = '<option value="">광고주/대행사</option>' +
-    SELLER_DATA.map(s => `<option value="${s.company}">${s.company}</option>`).join('');
-  sel.value = current; // 기존 선택값 유지
+    advList.map(v => `<option value="${_escHtml(v)}">${_escHtml(v)}</option>`).join('');
+  sel.value = advList.includes(current) ? current : '';
 }
+function _campOrgFilterChange() { _populateAdvFilter(); applyFilter(); }
 
 function applyFilter() {
   const cat    = document.getElementById('fCat').value;
@@ -6256,13 +6275,30 @@ function _stlAmt(c) {
 
 /** 정산 동적 필터 드롭다운 채우기 (매출처·담당자·본부·팀) */
 function _stlPopulateDynFilters() {
-  // 광고주/대행사 (seller)
+  // 광고주/대행사 — 본부/팀·담당자 선택 시 해당 범위 캠페인의 광고주만 표시
   const advEl = document.getElementById('stl-fAdv');
   if (advEl) {
+    const { bonbu, team } = _parseOrgFilter(document.getElementById('stl-fOrg')?.value || '');
+    const ops = document.getElementById('stl-fOps')?.value || '';
+    let advList;
+    if (bonbu || team || ops) {
+      advList = [...new Set(
+        DATA.filter(c => {
+          if (ops && c.ops !== ops) return false;
+          if (bonbu || team) {
+            const u = USERS.find(u => u.name === c.ops);
+            if (bonbu && (!u || u.bonbu !== bonbu)) return false;
+            if (team  && (!u || u.dept  !== team))  return false;
+          }
+          return true;
+        }).map(c => c.seller || c.adv || '').filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b, 'ko'));
+    } else {
+      advList = [...new Set(DATA.map(c => c.seller || c.adv || '').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+    }
     const cur = advEl.value;
-    const advList = [...new Set(DATA.map(c => c.seller || c.adv || '').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
-    advEl.innerHTML = '<option value="">광고주/대행사</option>' + advList.map(v=>`<option value="${v}">${v}</option>`).join('');
-    if (cur) advEl.value = cur;
+    advEl.innerHTML = '<option value="">광고주/대행사</option>' + advList.map(v=>`<option value="${_escHtml(v)}">${_escHtml(v)}</option>`).join('');
+    advEl.value = advList.includes(cur) ? cur : '';
   }
   // 담당자 (ops)
   const opsEl = document.getElementById('stl-fOps');
@@ -6279,6 +6315,7 @@ function _stlPopulateDynFilters() {
     stlOrgEl.dataset.init = '1';
   }
 }
+function _stlOrgOpsFilterChange() { _stlPopulateDynFilters(); renderSettlement(); }
 
 
 /** 정산 탭 필터 초기화 */
@@ -8184,7 +8221,7 @@ function renderTaxList() {
           <thead>
             <tr>
               <th style="padding:6px 10px;width:80px;min-width:80px;white-space:nowrap;">발행일</th>
-              <th style="width:150px;min-width:150px;max-width:150px;">상호명</th>
+              <th style="width:150px;min-width:150px;max-width:150px;">매입처명</th>
               <th style="min-width:160px;">품목</th>
               <th>담당자</th>
               <th class="td-r">공급가액</th>
