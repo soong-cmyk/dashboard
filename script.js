@@ -5419,19 +5419,17 @@ function saveMedia() {
   }
   _fbSaveMedia(obj);
   if (oldObj) _fbSaveMediaLog(oldObj, obj);
-  // invoiceTo 변경 → 관련 세금계산서 company/bizName 동기화
-  if (oldObj && oldObj.invoiceTo !== obj.invoiceTo) {
-    // 이 매체사 캠페인 ID 목록 (캠페인 media 필드 기준)
+  // invoiceTo → 관련 세금계산서 bizName 동기화, 잘못 저장된 company(invoiceTo값) → 매체사명으로 교정
+  if (obj.invoiceTo) {
     const mediaCampIds = new Set(DATA.filter(c => c.media === obj.company).map(c => c.id));
     TAX_DATA.forEach(t => {
       if (t.taxType !== 'media') return;
       const linkedToThisMedia = t.campaignId && mediaCampIds.has(t.campaignId);
-      // 기존 invoiceTo 값으로 채워진 경우 OR 이 매체 캠페인에 연결된 경우
-      const companyMatch = t.company === oldObj.invoiceTo || t.company === oldObj.company || linkedToThisMedia;
-      const bizMatch     = t.bizName === oldObj.invoiceTo || t.bizName === oldObj.company  || linkedToThisMedia;
+      const nameMatch = t.company === obj.company || t.company === (oldObj?.company) || t.company === (oldObj?.invoiceTo);
+      if (!linkedToThisMedia && !nameMatch) return;
       let changed = false;
-      if (companyMatch) { t.company = obj.invoiceTo; changed = true; }
-      if (bizMatch)     { t.bizName = obj.invoiceTo; changed = true; }
+      if (t.company !== obj.company) { t.company = obj.company; changed = true; }
+      if (t.bizName !== obj.invoiceTo) { t.bizName = obj.invoiceTo; changed = true; }
       if (changed) _fbSaveTax(t);
     });
   }
@@ -8514,11 +8512,12 @@ function taxRegCampSelect(cid) {
     // 첫 번째 캠페인만 업체명·담당자·행 자동채움
     const taxType = document.getElementById('tax-r-taxType')?.value || 'adv';
     const mediaRec = taxType === 'media' ? MEDIA_DATA.find(x => x.company === c.media) : null;
-    const company = taxType === 'media' ? (mediaRec?.invoiceTo || c.media || '') : (c.seller || c.adv || '');
+    const company  = taxType === 'media' ? (c.media || '') : (c.seller || c.adv || '');
+    const bizName  = taxType === 'media' ? (mediaRec?.invoiceTo || c.media || '') : (c.seller || c.adv || '');
     const companyEl = document.getElementById('tax-r-company');
     const bizNameEl = document.getElementById('tax-r-bizName');
     if (companyEl && !companyEl.value) companyEl.value = company;
-    if (bizNameEl && !bizNameEl.value) bizNameEl.value = company;
+    if (bizNameEl && !bizNameEl.value) bizNameEl.value = bizName;
     const mgr = document.getElementById('tax-r-manager');
     if (mgr && !mgr.value && c.ops) mgr.value = c.ops;
     const firstRow = document.querySelector('#tax-r-rows .tax-r-row');
@@ -8902,7 +8901,7 @@ function taxGenNext() {
   entries.forEach(({c, taxType}) => {
     const company = taxType==='adv'
       ? (c.seller||c.adv||'(미지정)')
-      : (MEDIA_DATA.find(m => m.company === c.media)?.invoiceTo || c.media || '(미지정)');
+      : (c.media || '(미지정)');
     const key = `${taxType}::${company}`;
     if (!byGroup.has(key)) byGroup.set(key, {company, taxType, campaigns:[]});
     byGroup.get(key).campaigns.push(c);
@@ -9467,7 +9466,8 @@ async function confirmTaxAutoGen() {
       const email    = tr.querySelector('.tax-gen-email')?.value.trim() || '';
       const memo     = tr.querySelector('.tax-gen-memo')?.value.trim()  || '';
       const mediaRec = MEDIA_DATA.find(m => m.company === c.media);
-      const company  = taxType==='adv' ? (c.seller||c.adv||'') : (mediaRec?.invoiceTo || c.media || '');
+      const company  = taxType==='adv' ? (c.seller||c.adv||'') : (c.media || '');
+      const bizName  = taxType==='adv' ? (c.seller||c.adv||'') : (mediaRec?.invoiceTo || c.media || '');
 
       const t = {
         id: _taxNextId(), groupId,
@@ -9481,7 +9481,7 @@ async function confirmTaxAutoGen() {
         paid:      paidChk ? '완료' : null,
         payInDate: paidChk ? (payInDate || null) : null,
         unpaid:    paidChk ? 0 : null,
-        company, content: _taxContentAuto(c), bizName: company,
+        company, content: _taxContentAuto(c), bizName,
         supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
         contactEmail: email, memo,
         isRef: manualRows.length > 0 ? true : undefined
