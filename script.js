@@ -6920,7 +6920,7 @@ function renderStlPermCall(container) {
     if (selYear  && !c.date.startsWith(selYear))    return false;
     if (selMonth && c.date.slice(5,7) !== selMonth) return false;
     return true;
-  });
+  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   if (data.length === 0) {
     container.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3);font-size:13px;">퍼미션콜 데이터가 없습니다.</div>';
@@ -7009,6 +7009,10 @@ function renderStlCpsView(container) {
     if (selYear  && !filterDate.startsWith(selYear))    return false;
     if (selMonth && filterDate.slice(5, 7) !== selMonth) return false;
     return true;
+  }).sort((a, b) => {
+    const da = a.stlMonth || (a.date || '').slice(0, 7);
+    const db = b.stlMonth || (b.date || '').slice(0, 7);
+    return db.localeCompare(da);
   });
 
   if (data.length === 0) {
