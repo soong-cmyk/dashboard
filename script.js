@@ -10094,7 +10094,7 @@ async function _fbDeleteTax(id) {
   catch(e) { console.error('[FB] 세금계산서 삭제 실패:', e); }
 }
 async function _fbSaveTaxDeleteLog(t) {
-  if (!window._db) return;
+  if (!window._db || t.isRef) return;
   try {
     const log = {
       deletedAt:  new Date().toISOString(),
