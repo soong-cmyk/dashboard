@@ -8079,6 +8079,8 @@ function setTaxQuickFilter(type) {
 function renderTaxList() {
   const purgeBtn = document.getElementById('btn-tax-purge');
   if (purgeBtn) purgeBtn.style.display = currentUser?.isAdmin ? '' : 'none';
+  const logBtn = document.getElementById('btn-tax-delete-log');
+  if (logBtn) logBtn.style.display = currentUser?.isAdmin ? '' : 'none';
   _taxPopulateManagerFilter();
   const year    = document.getElementById('tax-year')?.value     || '';
   const month   = document.getElementById('tax-month')?.value    || '';
@@ -8321,6 +8323,7 @@ async function deleteTax(id) {
   const { campaignId, taxType } = t;
   const idx = TAX_DATA.findIndex(x => x.id === id);
   if (idx !== -1) TAX_DATA.splice(idx, 1);
+  await _fbSaveTaxDeleteLog(t);
   await _fbDeleteTax(id);
   // 캠페인 요청 플래그 리셋 (삭제 후 같은 타입 항목이 없으면)
   if (campaignId && taxType) {
@@ -8344,6 +8347,7 @@ async function deleteGroup(gid) {
     const idx = TAX_DATA.findIndex(x => x.id === t.id);
     if (idx !== -1) TAX_DATA.splice(idx, 1);
   });
+  await Promise.all(toDelete.map(t => _fbSaveTaxDeleteLog(t)));
   await Promise.all(toDelete.map(t => _fbDeleteTax(t.id)));
   // 각 캠페인 요청 플래그 리셋
   toDelete.forEach(t => {
@@ -8379,6 +8383,7 @@ async function taxPurgeAll() {
   });
 
   // Firebase 일괄 삭제
+  await Promise.all(TAX_DATA.map(t => _fbSaveTaxDeleteLog(t)));
   await Promise.all(TAX_DATA.map(t => _fbDeleteTax(t.id)));
   TAX_DATA.length = 0;
   renderTaxList();
@@ -10087,6 +10092,75 @@ async function _fbDeleteTax(id) {
   if (!window._db) return;
   try { await window._db.collection('taxInvoices').doc(String(id)).delete(); }
   catch(e) { console.error('[FB] 세금계산서 삭제 실패:', e); }
+}
+async function _fbSaveTaxDeleteLog(t) {
+  if (!window._db) return;
+  try {
+    const log = {
+      deletedAt:  new Date().toISOString(),
+      deletedBy:  currentUser?.name || '',
+      taxId:      t.id,
+      groupId:    t.groupId || null,
+      taxType:    t.taxType || 'adv',
+      company:    t.company || '',
+      bizName:    t.bizName || '',
+      month:      t.month   || '',
+      content:    t.content || '',
+      supplyAmt:  t.supplyAmt || 0,
+      isRef:      t.isRef || false,
+      campaignId: t.campaignId || null,
+    };
+    await window._db.collection('taxDeleteLog').add(log);
+  } catch(e) { console.error('[FB] 삭제이력 저장 실패:', e); }
+}
+async function openTaxDeleteLog() {
+  const body = document.getElementById('tax-delete-log-body');
+  if (!body) return;
+  body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text3);">불러오는 중...</div>';
+  openModal('modalTaxDeleteLog');
+  try {
+    const snap = await window._db.collection('taxDeleteLog').orderBy('deletedAt', 'desc').limit(200).get();
+    if (snap.empty) {
+      body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text3);">삭제이력이 없습니다.</div>';
+      return;
+    }
+    const typeLabel = t => t === 'media' ? '매체' : '광고주';
+    const fmtDate = iso => {
+      const d = new Date(iso);
+      return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    };
+    const rows = snap.docs.map(d => {
+      const l = d.data();
+      return `<tr>
+        <td>${fmtDate(l.deletedAt)}</td>
+        <td>${_escHtml(l.deletedBy || '—')}</td>
+        <td>${_escHtml(l.company || '—')}</td>
+        <td style="text-align:center;">${typeLabel(l.taxType)}</td>
+        <td>${_escHtml(l.month || '—')}</td>
+        <td>${_escHtml(l.content || '—')}</td>
+        <td style="text-align:right;">${l.supplyAmt ? l.supplyAmt.toLocaleString() + '원' : '—'}</td>
+        <td style="text-align:center;color:var(--text3);font-size:11px;">${l.isRef ? '참조' : '수동'}</td>
+      </tr>`;
+    }).join('');
+    body.innerHTML = `<div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:var(--surface2);color:var(--text2);font-size:12px;">
+          <th style="padding:8px 10px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border);">삭제일시</th>
+          <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);">삭제자</th>
+          <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);">업체명</th>
+          <th style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--border);">구분</th>
+          <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);">집행월</th>
+          <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);">품목</th>
+          <th style="padding:8px 10px;text-align:right;border-bottom:1px solid var(--border);">공급가액</th>
+          <th style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--border);">항목</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  } catch(e) {
+    body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--red);">이력 조회 실패</div>';
+    console.error(e);
+  }
 }
 function _fbWatchTax() {
   if (!window._db) return;

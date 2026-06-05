@@ -455,6 +455,7 @@
           <select class="f-sel" id="fMgr" onchange="_campOrgFilterChange()">
             <option value="">담당자</option>
           </select>
+           <div class="f-div"></div>
           <select class="f-sel" id="fAdv" onchange="applyFilter()">
             <option value="">광고주/대행사</option>
           </select>
@@ -2189,6 +2190,7 @@
           <input class="form-input" id="tax-fCompany" placeholder="업체명 / 캠페인명 / ID 검색" oninput="renderTaxList()" style="width:160px;">
           <button class="btn btn-ghost btn-sm" onclick="resetTaxFilter()">✕ 초기화</button>
           <div style="flex:1;"></div>
+          <button class="btn btn-ghost btn-sm" id="btn-tax-delete-log" style="display:none;color:var(--red);" onclick="openTaxDeleteLog()">삭제이력</button>
           <button class="btn btn-ghost btn-sm" onclick="openTaxReg(null)">+ 수동 등록</button>
           <button class="btn btn-primary btn-sm" onclick="openTaxAutoGen()">+ 캠페인에서 가져오기</button>
         </div>
@@ -2328,6 +2330,19 @@
       <div class="modal-foot">
         <button class="btn btn-ghost" onclick="closeModal('modalTaxReg')">취소</button>
         <button class="btn btn-primary" onclick="saveTaxReg()">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 세금계산서 삭제이력 모달 -->
+  <div class="modal-overlay" id="modalTaxDeleteLog">
+    <div class="modal" style="width:820px;max-width:96vw;">
+      <div class="modal-header">
+        <span class="modal-title">세금계산서 삭제이력</span>
+        <button class="modal-close" onclick="closeModal('modalTaxDeleteLog')">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px;">
+        <div id="tax-delete-log-body" style="min-height:120px;"></div>
       </div>
     </div>
   </div>
