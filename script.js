@@ -6946,7 +6946,7 @@ function renderStlPermCall(container) {
     totAdc += adc; totOhc += ohcCost; totDnu += dnuCost; totPrf += profit;
     const idx = DATA.indexOf(c);
     rows += `<tr onclick="openDetail(${idx})" style="cursor:pointer;">
-      <td>${_cName(c)}</td>
+      <td class="stl-sticky-col">${_cName(c)}</td>
       <td>${fmtMonth(c.date)}</td>
       <td>${c.seller || c.adv || '—'}</td>
       <td>${c.ops || '—'}</td>
@@ -6967,7 +6967,7 @@ function renderStlPermCall(container) {
     <div class="settle-table-wrap">
       <table class="stl-table">
         <thead><tr>
-          <th>캠페인명</th><th>집행월</th><th>매출처</th><th>담당자</th>
+          <th class="stl-sticky-col">캠페인명</th><th>집행월</th><th>매출처</th><th>담당자</th>
           <th style="text-align:right;">매체유입</th><th style="text-align:right;">동의건</th><th style="text-align:right;">CVR</th>
           <th style="text-align:right;">광고주단가</th><th style="text-align:right;">광고비</th>
           <th style="text-align:right;">OHC비용</th><th style="text-align:right;">DNU비용</th>
@@ -7040,7 +7040,7 @@ function renderStlCpsView(container) {
       ? `<div class="chk on" style="${canPayOut?'':'opacity:0.35;cursor:not-allowed;pointer-events:none;'}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','payOut')">✓</div>`
       : `<div class="chk"    style="${canPayOut?'':'opacity:0.35;cursor:not-allowed;pointer-events:none;'}" onmousedown="event.preventDefault()" onclick="event.stopPropagation();toggleSettlePay('${c.id}','payOut')"></div>`;
     return `<tr data-stlcamp="${c.id}" onclick="openDetail(${idx})" style="cursor:pointer;">
-      <td>${_escHtml(_cName(c))}</td>
+      <td class="stl-sticky-col">${_escHtml(_cName(c))}</td>
       <td>${fmtMonth(c.date)}</td>
       <td style="font-weight:700;color:var(--accent);">${c.stlMonth ? fmtMonth(c.stlMonth) : nd}</td>
       <td>${_escHtml(c.seller || c.adv || '—')}</td>
@@ -7062,7 +7062,7 @@ function renderStlCpsView(container) {
     <div class="settle-table-wrap">
       <table class="stl-table">
         <thead><tr>
-          <th>캠페인명</th><th>집행월</th><th>정산월</th><th>매출처</th><th>매체사</th><th>담당자</th>
+          <th class="stl-sticky-col">캠페인명</th><th>집행월</th><th>정산월</th><th>매출처</th><th>매체사</th><th>담당자</th>
           <th style="text-align:right;">최종정산매출</th>
           <th style="text-align:right;">총CPS수수료</th><th style="text-align:right;">실수수료율</th>
           <th style="text-align:right;">매체수수료</th><th style="text-align:right;">실매체수수료율</th>
