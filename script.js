@@ -8722,13 +8722,23 @@ async function saveTaxReg() {
     (TAX_DATA.find(t => _taxGroupId(t) === editGid)?.createdBy || currentUser?.name || '');
   const taxStatus = isNew ? '' :
     (TAX_DATA.find(t => _taxGroupId(t) === editGid)?.taxStatus || '');
-  // 수정 시 기존 항목 삭제
+  // 수정 시 기존 항목 삭제 + 연결 해제된 캠페인 플래그 리셋
   if (!isNew) {
     const existing = TAX_DATA.filter(t => _taxGroupId(t) === editGid);
+    const oldLinkedCids = [...new Set(existing.filter(t => t.campaignId).map(t => t.campaignId))];
     for (const t of existing) {
       TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1);
       await _fbDeleteTax(t.id);
     }
+    // 새 연결 목록에서 빠진 캠페인의 플래그 리셋
+    oldLinkedCids.forEach(cid => {
+      if (_taxRegLinkedCamps.includes(cid)) return;
+      const c = DATA.find(x => x.id === cid);
+      if (!c) return;
+      if (taxType === 'adv')   c.taxAdvReq   = false;
+      if (taxType === 'media') c.taxMediaReq = false;
+      _fbSaveCampaign(c);
+    });
   }
   let nextId = _taxNextId();
   const saved = [];
