@@ -7009,11 +7009,7 @@ function renderStlCpsView(container) {
     if (selYear  && !filterDate.startsWith(selYear))    return false;
     if (selMonth && filterDate.slice(5, 7) !== selMonth) return false;
     return true;
-  }).sort((a, b) => {
-    const da = a.stlMonth || (a.date || '').slice(0, 7);
-    const db = b.stlMonth || (b.date || '').slice(0, 7);
-    return db.localeCompare(da);
-  });
+  }).sort((a, b) => _cName(a).localeCompare(_cName(b), 'ko'));
 
   if (data.length === 0) {
     container.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3);font-size:13px;">CPS 데이터가 없습니다.</div>';
