@@ -292,10 +292,10 @@ async function openLoginHistory() {
   if (el) el.innerHTML = '<div style="padding:20px;color:var(--text3);text-align:center;">불러오는 중...</div>';
   openModal('modalLoginHistory');
   try {
-    const snap = await window._db.collection('loginHistory').orderBy('loginAt', 'desc').limit(300).get();
+    const snap = await window._db.collection('loginHistory').orderBy('loginAt', 'desc').limit(100).get();
     if (!el) return;
     if (snap.empty) { el.innerHTML = '<div style="padding:20px;color:var(--text3);text-align:center;">기록 없음</div>'; return; }
-    el.innerHTML = snap.docs.map(d => {
+    const rows = snap.docs.map(d => {
       const r = d.data();
       const dt = r.loginAt?.toDate ? r.loginAt.toDate() : new Date(0);
       const pad = n => String(n).padStart(2, '0');
@@ -307,6 +307,8 @@ async function openLoginHistory() {
         <span style="margin-left:auto;color:var(--text3);font-size:12px;">로그인</span>
       </div>`;
     }).join('');
+    el.style.cssText = 'overflow-y:auto;max-height:400px;';
+    el.innerHTML = rows;
   } catch(e) {
     if (el) el.innerHTML = '<div style="padding:20px;color:var(--danger);">불러오기 실패</div>';
   }
