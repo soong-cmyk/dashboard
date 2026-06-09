@@ -250,8 +250,6 @@ async function login() {
   currentUser = user;
   localStorage.setItem('cu', JSON.stringify(user));
   localStorage.setItem('_loginAt', Date.now());
-  const _reloading = await _checkDeployVersion();
-  if (_reloading) return;
   if (window._db) {
     window._db.collection('loginHistory').add({
       userId: user.id, name: user.name,
@@ -259,6 +257,8 @@ async function login() {
       loginAt: firebase.firestore.FieldValue.serverTimestamp()
     }).catch(() => {});
   }
+  const _reloading = await _checkDeployVersion();
+  if (_reloading) return;
   _updateUserUI();
   _fbWatchNotifications();
   // 로그인 전에 detail URL로 접근했던 경우 복원
