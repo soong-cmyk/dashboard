@@ -250,7 +250,7 @@ async function login() {
   currentUser = user;
   localStorage.setItem('cu', JSON.stringify(user));
   localStorage.setItem('_loginAt', Date.now());
-  if (window._db) {
+  if (window._db && user.id !== 'admin') {
     window._db.collection('loginHistory').add({
       userId: user.id, name: user.name,
       dept: [user.bonbu, user.dept].filter(Boolean).join(' ') || '',
