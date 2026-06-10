@@ -8089,33 +8089,38 @@ function renderTaxList() {
   const manager = document.getElementById('tax-fManager')?.value || '';
   const company = (document.getElementById('tax-fCompany')?.value || '').trim().toLowerCase();
 
-  // 필터링
-  const filtered = TAX_DATA.filter(t => {
-    if (year    && !(t.month || '').includes(year+'년')) return false;
-    if (month   && !(t.month || '').includes(parseInt(month)+'월'))  return false;
-    if (manager && t.createdBy !== manager) return false;
-    if (company) {
-      const lc = t.campaignId ? DATA.find(c => c.id === t.campaignId) : null;
-      const lName   = lc ? (_cName(lc)||'').toLowerCase() : '';
-      const lSeller = lc ? (lc.seller||lc.adv||'').toLowerCase() : '';
-      if (!(t.company||'').toLowerCase().includes(company) &&
-          !(t.bizName||'').toLowerCase().includes(company) &&
-          !(t.campaignId||'').toLowerCase().includes(company) &&
-          !lName.includes(company) &&
-          !lSeller.includes(company)) return false;
-    }
-    return true;
-  });
-
-  // groupId 기준으로 묶기
-  const groupMap = new Map(); // groupId → items[]
-  filtered.forEach(t => {
+  // 전체를 groupId 기준으로 먼저 묶기
+  const groupMap = new Map();
+  TAX_DATA.forEach(t => {
     const gid = _taxGroupId(t);
     if (!groupMap.has(gid)) groupMap.set(gid, []);
     groupMap.get(gid).push(t);
   });
+
+  // 그룹 단위 필터링 (어느 항목이라도 조건에 맞으면 그룹 전체 유지)
+  const _groupMatches = (items) => {
+    const rep = items[0];
+    if (year    && !(rep.month || '').includes(year+'년')) return false;
+    if (month   && !(rep.month || '').includes(parseInt(month)+'월')) return false;
+    if (manager && rep.createdBy !== manager) return false;
+    if (company) {
+      return items.some(t => {
+        const lc = t.campaignId ? DATA.find(c => c.id === t.campaignId) : null;
+        const lName   = lc ? (_cName(lc)||'').toLowerCase() : '';
+        const lSeller = lc ? (lc.seller||lc.adv||'').toLowerCase() : '';
+        return (t.company||'').toLowerCase().includes(company) ||
+               (t.bizName||'').toLowerCase().includes(company) ||
+               (t.campaignId||'').toLowerCase().includes(company) ||
+               lName.includes(company) ||
+               lSeller.includes(company);
+      });
+    }
+    return true;
+  };
   // 그룹 정렬: groupId 내림차순 (새로 생긴 그룹이 위)
-  const groups = [...groupMap.entries()].sort((a, b) => b[0] - a[0]);
+  const groups = [...groupMap.entries()]
+    .filter(([, items]) => _groupMatches(items))
+    .sort((a, b) => b[0] - a[0]);
 
   // 퀵필터 카운트 (필터 적용 전 전체 기준)
   const unissuedCnt = groups.filter(([, items]) => items[0].taxStatus !== '완료').length;
