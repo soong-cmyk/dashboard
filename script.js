@@ -4578,20 +4578,24 @@ async function downloadInvoiceExcel() {
   // 퍼미션콜 항목은 별도 시트(디앤유/OHC)로 분리
   const pcCamps = settled.filter(c => c.product === '퍼미션콜');
 
-  // 퍼미션콜 제외하고 매체사별 그룹핑
+  // 퍼미션콜 제외하고 매입처(invoiceTo) 기준 그룹핑 — invoiceTo 없으면 매체명 기준
   const byMedia = {};
   settled.filter(c => c.product !== '퍼미션콜').forEach(c => {
-    const key = c.media || '미지정';
+    const mediaInfo = MEDIA_DATA.find(x => x.company === c.media);
+    const key = mediaInfo?.invoiceTo || c.media || '미지정';
     if (!byMedia[key]) byMedia[key] = [];
     byMedia[key].push(c);
   });
 
-  for (const media of Object.keys(byMedia).sort()) {
-    const mediaInfo = MEDIA_DATA.find(x => x.company === media);
-    if (mediaInfo?.payDay === '선입금') continue; // 선입금 매체사는 시트 생성 제외
-    const camps = byMedia[media];
-    const invoiceTo = mediaInfo?.invoiceTo || '';
-    const ws = wb.addWorksheet(media.slice(0, 31));
+  for (const sheetKey of Object.keys(byMedia).sort()) {
+    const camps = byMedia[sheetKey];
+    // 그룹 내 첫 번째 매체사 정보(계좌 등) 참조
+    const mediaInfo = MEDIA_DATA.find(x => (x.invoiceTo || x.company) === sheetKey) ||
+                      MEDIA_DATA.find(x => x.company === camps[0]?.media);
+    if (mediaInfo?.payDay === '선입금' && camps.every(c => MEDIA_DATA.find(x=>x.company===c.media)?.payDay === '선입금')) continue;
+    const media = sheetKey; // 시트명·헤더에 사용
+    const invoiceTo = sheetKey;
+    const ws = wb.addWorksheet(sheetKey.slice(0, 31));
 
     // A열 공백, B열(2)부터 표
     // 열 순서: A(빈칸), B광고기간, C캠페인명, D상품, E광고비, F매입단가, G발송수량, H매입액, I VAT, J합계, K계산서
