@@ -4594,7 +4594,7 @@ async function downloadInvoiceExcel() {
     const ws = wb.addWorksheet(media.slice(0, 31));
 
     // A열 공백, B열(2)부터 표
-    // 열 순서: A(빈칸), B광고기간, C캠페인명, D상품, E광고비, F매입단가, G매입액, H VAT, I합계, J계산서
+    // 열 순서: A(빈칸), B광고기간, C캠페인명, D상품, E광고비, F매입단가, G발송수량, H매입액, I VAT, J합계, K계산서
     ws.columns = [
       { width: 3  }, // A — 빈칸
       { width: 14 }, // B — 광고기간
@@ -4602,10 +4602,11 @@ async function downloadInvoiceExcel() {
       { width: 12 }, // D — 상품
       { width: 14 }, // E — 광고비(실청구액)
       { width: 13 }, // F — 매입단가
-      { width: 14 }, // G — 매입액
-      { width: 12 }, // H — VAT
-      { width: 14 }, // I — 합계
-      { width: 10 }, // J — 계산서
+      { width: 12 }, // G — 발송수량
+      { width: 14 }, // H — 매입액
+      { width: 12 }, // I — VAT
+      { width: 14 }, // J — 합계
+      { width: 10 }, // K — 계산서
     ];
 
     // 제목 행 (B열에 표기)
@@ -4624,7 +4625,7 @@ async function downloadInvoiceExcel() {
     ws.addRow([]);
 
     // 헤더 행
-    const headerRow = ws.addRow(['', '광고기간', '캠페인명', '상품', '광고비', '매입단가(원)', '매입액(원)', 'VAT(원)', '합계(원)', '계산서']);
+    const headerRow = ws.addRow(['', '광고기간', '캠페인명', '상품', '광고비', '매입단가(원)', '발송수량', '매입액(원)', 'VAT(원)', '합계(원)', '계산서']);
     headerRow.eachCell((cell, colNum) => {
       if (colNum === 1) return;
       cell.font = { bold: true, size: 11 };
@@ -4639,8 +4640,8 @@ async function downloadInvoiceExcel() {
     });
 
     // 데이터 행
-    // 숫자 열(1-based): E=5(광고비), F=6(매입단가), G=7(매입액), H=8(VAT), I=9(합계)
-    const NUM_COLS = new Set([5, 6, 7, 8, 9]);
+    // 숫자 열(1-based): E=5(광고비), F=6(매입단가), G=7(발송수량), H=8(매입액), I=9(VAT), J=10(합계)
+    const NUM_COLS = new Set([5, 6, 7, 8, 9, 10]);
     let totalAdc = 0, totalBuy = 0, totalVat = 0;
     camps.forEach(c => {
       const a = _stlAmt(c);
@@ -4661,6 +4662,7 @@ async function downloadInvoiceExcel() {
         c.product || '',
         adcost,
         hasBuy ? (c.buyUnit || null) : null,
+        c.sent || null,
         buyAmt,
         buyVat,
         hasBuy ? buyAmt + buyVat : null,
@@ -4682,7 +4684,7 @@ async function downloadInvoiceExcel() {
     });
 
     // 합계 행
-    const totalRow = ws.addRow(['', '합계', '', '', totalAdc, '', totalBuy, totalVat, totalBuy + totalVat, '']);
+    const totalRow = ws.addRow(['', '합계', '', '', totalAdc, '', '', totalBuy, totalVat, totalBuy + totalVat, '']);
     totalRow.eachCell((cell, colNum) => {
       if (colNum === 1) return;
       cell.font = { bold: true };
