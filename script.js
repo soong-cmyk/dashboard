@@ -2586,7 +2586,7 @@ function submitReg() {
     adv:      document.getElementById('r_seller').value,
     ops:      document.getElementById('r_ops').value,
     dept:     _getDeptByName(document.getElementById('r_ops').value) || [currentUser?.bonbu, currentUser?.dept].filter(Boolean).join(' ') || '',
-    sellUnit:  (isCPA || isCPS) ? 0 : (+document.getElementById('r_sellUnit').value || 0),
+    sellUnit:  isCPS ? 0 : (isCPA ? (+document.getElementById('r_cpa_unit')?.value || 0) : (+document.getElementById('r_sellUnit').value || 0)),
     qty:       (isCPA || isCPS) ? 0 : (+document.getElementById('r_sched').value || 0),
     svc:       (isCPA || isCPS) ? 0 : (+document.getElementById('r_svc').value  || 0),
     disc:      (isCPA || isCPS) ? 0 : (+document.getElementById('r_disc').value || 0),
