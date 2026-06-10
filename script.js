@@ -7239,7 +7239,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
       const has    = _stlHas(c);
       const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (isDA && !!c.comm) || (isCPS && !!c.cpsMediaComm));
       return `<tr data-stlcamp="${c.id}" style="font-size:12px;cursor:pointer;" onclick="openCalPreview(DATA.findIndex(d=>d.id==='${c.id}'))">
-        <td class="td-dim stl-s1" style="background:${bgSb};padding-left:20px;">${_escHtml(c.cat)}</td>
+        <td class="td-dim stl-s1" style="background:${bgSb};padding-left:20px;">${_escHtml(_getCat(c))}</td>
         <td class="stl-s2" style="background:${bgSb};color:var(--text2);">${_escHtml(_cCompany(c))}</td>
         <td class="stl-s3" style="background:${bgSb};cursor:default;" onmousemove="showMemoBubbleAtMouse(event,'${_escHtml(_cName(c))}')" onmouseleave="hideMemoBubble()">${_escHtml(_cName(c))}<div style="font-size:11px;font-weight:400;color:var(--text3);margin-top:2px;">${(c.date||'').slice(0,10)}</div></td>
         <td class="td-num td-r grp-revenue">${has && !isDA && !isCPS ? fmt(a.eu) : nd}</td>
