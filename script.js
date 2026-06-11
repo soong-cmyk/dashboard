@@ -4664,7 +4664,7 @@ async function downloadInvoiceExcel() {
         c.product || '',
         adcost,
         hasBuy ? (c.buyUnit || null) : null,
-        c.sent || null,
+        c.actual || null,
         buyAmt,
         buyVat,
         hasBuy ? buyAmt + buyVat : null,
