@@ -4578,23 +4578,21 @@ async function downloadInvoiceExcel() {
   // 퍼미션콜 항목은 별도 시트(디앤유/OHC)로 분리
   const pcCamps = settled.filter(c => c.product === '퍼미션콜');
 
-  // 퍼미션콜 제외하고 매입처(invoiceTo) 기준 그룹핑 — invoiceTo 없으면 매체명 기준
+  // 퍼미션콜 제외하고 매체명 기준 그룹핑 — invoiceTo가 'CNCAD'인 경우만 CNCAD 시트로 합침
   const byMedia = {};
   settled.filter(c => c.product !== '퍼미션콜').forEach(c => {
     const mediaInfo = MEDIA_DATA.find(x => x.company === c.media);
-    const key = mediaInfo?.invoiceTo || c.media || '미지정';
+    const key = mediaInfo?.invoiceTo === 'CNCAD' ? 'CNCAD' : (c.media || '미지정');
     if (!byMedia[key]) byMedia[key] = [];
     byMedia[key].push(c);
   });
 
   for (const sheetKey of Object.keys(byMedia).sort()) {
     const camps = byMedia[sheetKey];
-    // 그룹 내 첫 번째 매체사 정보(계좌 등) 참조
-    const mediaInfo = MEDIA_DATA.find(x => (x.invoiceTo || x.company) === sheetKey) ||
-                      MEDIA_DATA.find(x => x.company === camps[0]?.media);
+    const mediaInfo = MEDIA_DATA.find(x => x.company === camps[0]?.media);
     if (mediaInfo?.payDay === '선입금' && camps.every(c => MEDIA_DATA.find(x=>x.company===c.media)?.payDay === '선입금')) continue;
-    const media = sheetKey; // 시트명·헤더에 사용
-    const invoiceTo = sheetKey;
+    const media = sheetKey;
+    const invoiceTo = sheetKey === 'CNCAD' ? 'CNCAD' : (mediaInfo?.invoiceTo || '');
     const ws = wb.addWorksheet(sheetKey.slice(0, 31));
 
     // A열 공백, B열(2)부터 표
