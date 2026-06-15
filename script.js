@@ -519,6 +519,7 @@ let PAGE_SIZE = 10;
 let pendingTestEl = null, pendingTestIdx = null;
 let pendingSendEl = null, pendingSendIdx = null;
 let currentDetailIdx = null;
+let currentDetailId = null;
 let _detailFromScreen = 'campaigns'; // 상세보기 진입 전 화면 (back-btn 귀환 대상)
 
 // ══════════════════════════════════════════
@@ -866,6 +867,7 @@ function openDetail(idx, skipPush) {
     }
   }
   currentDetailIdx = idx;
+  currentDetailId = DATA[idx]?.id || null;
   const c = DATA[idx];
 
   // 권한별 버튼 표시
@@ -9818,6 +9820,11 @@ function _fbWatchCampaigns() {
       const idx = DATA.findIndex(c => c.id === window._pendingDetailId);
       window._pendingDetailId = null;
       if (idx !== -1) { openDetail(idx); return; }
+    }
+    // onSnapshot으로 DATA 재빌드 시 currentDetailIdx 재동기화 (stale index 방지)
+    if (currentDetailId) {
+      const newIdx = DATA.findIndex(c => c.id === currentDetailId);
+      if (newIdx !== -1) currentDetailIdx = newIdx;
     }
     // 현재 활성 화면 재렌더
     const sid = document.querySelector('.screen.active')?.id;
