@@ -9803,6 +9803,82 @@ async function purgeDeletedCampaign(docId) {
   toast('🗑 완전삭제 되었습니다', 'err');
 }
 
+// ══════════════════════════════════════════
+// 백업 / 복원
+// ══════════════════════════════════════════
+
+const _BACKUP_COLLECTIONS = [
+  'campaigns', 'deleted_campaigns', 'sellers', 'media',
+  'pipeline', 'taxInvoices', 'users', 'history', 'invoiceImages'
+];
+
+async function backupDB() {
+  if (!currentUser?.isAdmin) return;
+  if (!window._db) return;
+  toast('백업 준비 중...', 'ok');
+  try {
+    const backup = { _backupAt: new Date().toISOString(), _version: '1.0' };
+    for (const col of _BACKUP_COLLECTIONS) {
+      const snap = await window._db.collection(col).get();
+      backup[col] = snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
+    }
+    // settings/pipeline_targets 별도 처리
+    const settingsSnap = await window._db.collection('settings').doc('pipeline_targets').get();
+    backup['settings'] = { pipeline_targets: settingsSnap.exists ? settingsSnap.data() : null };
+
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `braincube_backup_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    const total = _BACKUP_COLLECTIONS.reduce((s, col) => s + (backup[col]?.length || 0), 0);
+    toast(`✓ 백업 완료 (${total}건)`, 'ok');
+  } catch(e) {
+    console.error('[backup]', e);
+    toast('백업 실패', 'err');
+  }
+}
+
+async function restoreDB(file) {
+  if (!currentUser?.isAdmin || !file || !window._db) return;
+  if (!confirm(`백업 파일(${file.name})로 복원하면 기존 데이터를 덮어씁니다.\n계속하시겠습니까?`)) return;
+
+  toast('복원 중...', 'ok');
+  try {
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if (!backup._backupAt) throw new Error('올바른 백업 파일이 아닙니다.');
+
+    let total = 0;
+    for (const col of _BACKUP_COLLECTIONS) {
+      const docs = backup[col] || [];
+      // 500개씩 배치 커밋
+      for (let i = 0; i < docs.length; i += 500) {
+        const batch = window._db.batch();
+        docs.slice(i, i + 500).forEach(({ _docId, ...data }) => {
+          batch.set(window._db.collection(col).doc(_docId), data);
+        });
+        await batch.commit();
+        total += Math.min(500, docs.length - i);
+      }
+    }
+    // settings 복원
+    if (backup.settings?.pipeline_targets) {
+      await window._db.collection('settings').doc('pipeline_targets').set(backup.settings.pipeline_targets);
+    }
+    toast(`✓ 복원 완료 (${total}건)`, 'ok');
+  } catch(e) {
+    console.error('[restore]', e);
+    toast('복원 실패: ' + e.message, 'err');
+  }
+}
+
 // 기존 DATA 전체를 Firestore에 업로드 (최초 1회)
 // Firestore 실시간 구독 — 캠페인
 function _fbWatchCampaigns() {
