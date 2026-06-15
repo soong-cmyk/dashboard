@@ -287,7 +287,7 @@ function logout() {
   goScreen('login');
 }
 async function openLoginHistory() {
-  if (!currentUser?.isAdmin) return;
+  if (!currentUser?.isAdmin && currentUser?.id !== 'soongeun') return;
   const el = document.getElementById('login-history-list');
   if (el) el.innerHTML = '<div style="padding:20px;color:var(--text3);text-align:center;">불러오는 중...</div>';
   openModal('modalLoginHistory');
