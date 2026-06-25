@@ -24,6 +24,11 @@ function _parseOrgFilter(val) {
 }
 
 // ══════════════════════════════════════════
+// 공통 포맷 유틸
+// ══════════════════════════════════════════
+function _fmtMoney(n) { return Math.round(n).toLocaleString(); }
+
+// ══════════════════════════════════════════
 // 상품 목록 (중앙 관리)
 // ══════════════════════════════════════════
 const PRODUCT_LIST = ['MMS', 'LMS', '실시간 발송', 'DA', 'CPA', 'CPS', 'PUSH', '카톡MSG', '퍼미션콜'];
@@ -50,6 +55,7 @@ function _populateProductSelects() {
 // ══════════════════════════════════════════
 const DATA = [];
 let _nextCampaignNum = 1;
+let _perfTab = 'matrix';
 
 // ══════════════════════════════════════════
 // TAX INVOICE DATA
@@ -261,6 +267,17 @@ async function login() {
   if (_reloading) return;
   _updateUserUI();
   _fbWatchNotifications();
+  // admin 자동 백업 — 하루 한 번
+  if (user.isAdmin) {
+    const today = new Date().toISOString().slice(0, 10);
+    const lastBackup = localStorage.getItem('_lastAutoBackup');
+    if (lastBackup !== today) {
+      setTimeout(async () => {
+        await backupDB();
+        localStorage.setItem('_lastAutoBackup', today);
+      }, 2000);
+    }
+  }
   // 로그인 전에 detail URL로 접근했던 경우 복원
   const afterHash = sessionStorage.getItem('_afterLoginHash');
   if (afterHash) {
@@ -756,11 +773,11 @@ function goScreen(name, skipPush) {
 
   // nav highlight
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',settlement:'nav-settlement',monthly:'nav-monthly',tax:'nav-tax',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',payment:'nav-payment','payment-detail':'nav-payment'};
+  const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',perf:'nav-perf',settlement:'nav-settlement',monthly:'nav-monthly',tax:'nav-tax',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',payment:'nav-payment','payment-detail':'nav-payment'};
   if (navIds[name]) document.getElementById(navIds[name])?.classList.add('active');
 
   // breadcrumb
-  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
+  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
   if (labels[name]) {
     document.getElementById('breadcrumb').innerHTML = `<span class="cur">${labels[name]}</span>`;
   }
@@ -794,6 +811,7 @@ function goScreen(name, skipPush) {
   if (btnReg) btnReg.style.display = ['dashboard','calendar','campaigns'].includes(name) ? '' : 'none';
 
   if (name === 'dashboard') renderDashboard();
+  if (name === 'perf') initPerfScreen();
   if (name === 'pipeline') initPipelineScreen();
   if (name === 'adreport') {
     if (!skipPush) { rptReset(); effReset(); }
@@ -946,9 +964,9 @@ function openDetail(idx, skipPush) {
   const prf      = c.profitFixed  ?? (rev - agf);   // 이익
   document.getElementById('dQty').textContent       = qty    ? qty.toLocaleString()    + ' 건' : '—';
   document.getElementById('dSvc').textContent       = svc    ? svc.toLocaleString()    + ' 건' : '—';
-  document.getElementById('dSellUnit').textContent  = unit    ? unit.toLocaleString()    + '원'  : '—';
-  document.getElementById('dBuyUnit').textContent   = buyUnit ? buyUnit.toLocaleString() + '원'  : '—';
-  const _showVal    = (val, suffix) => (val != null && val !== '') ? val.toLocaleString() + suffix : '—';
+  document.getElementById('dSellUnit').textContent  = unit    ? _fmtMoney(unit)    + '원'  : '—';
+  document.getElementById('dBuyUnit').textContent   = buyUnit ? _fmtMoney(buyUnit) + '원'  : '—';
+  const _showVal    = (val, suffix) => (val != null && val !== '') ? _fmtMoney(val) + suffix : '—';
   const _hasBillData = qty > 0 || actual > 0;
   const dBuyAmtEl = document.getElementById('dBuyAmt');
   if (dBuyAmtEl) dBuyAmtEl.textContent = (_hasBillData || c.buyAmtFixed != null) ? _showVal(buyAmt, '원') : '—';
@@ -967,12 +985,12 @@ function openDetail(idx, skipPush) {
   const dBuyBQEl = document.getElementById('dBuyBillQty');
   if (dBuyBQEl) dBuyBQEl.innerHTML = buyBill ? `${buyBill.toLocaleString()} 건${svcApplyMedia && svc ? _svcTag : ''}` : '—';
   document.getElementById('dAdcost').textContent = (_hasBillData || c.adcostFixed != null) ? _showVal(adc, '원') : '—';
-  document.getElementById('dDisc').textContent   = disc ? disc.toLocaleString() + '원' : '—';
+  document.getElementById('dDisc').textContent   = disc ? _fmtMoney(disc) + '원' : '—';
   document.getElementById('dAmt').textContent    = (_hasBillData || c.amtFixed != null)    ? _showVal(real, '원') : '—';
   document.getElementById('dComm').textContent   = comm ? comm + '%'            : '—';
   document.getElementById('dRev').textContent    = (_hasBillData || c.revFixed != null)    ? _showVal(rev, '원') : '—';
   document.getElementById('dAgrateLbl').textContent = `– 대행료 (${agrate}%)`;
-  document.getElementById('dAgfee').textContent  = agf  ? agf.toLocaleString()  + '원'  : '—';
+  document.getElementById('dAgfee').textContent  = agf  ? _fmtMoney(agf)  + '원'  : '—';
   document.getElementById('dProfit').textContent = (_hasBillData || c.profitFixed != null) ? _showVal(prf, '원') : '—';
 
   // 타겟 & 문구
@@ -1106,16 +1124,16 @@ function openDetail(idx, skipPush) {
     const daAgf    = Math.round(daAdc * daAgrate / 100);
     const daPrf    = daRev - daAgf;
     const setText  = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    setText('dDaAdcostShow', daAdc   ? daAdc.toLocaleString()  + '원' : '—');
+    setText('dDaAdcostShow', daAdc   ? _fmtMoney(daAdc)  + '원' : '—');
     setText('dDaBillBase',   c.daBillBase || '—');
     setText('dDaFeeYn',      c.daFeeYn    || '—');
     setText('dDaComm',       daComm  ? daComm + '%'            : '—');
-    setText('dDaBuyUnit',    daBuyU  ? daBuyU.toLocaleString() + '원' : '—');
-    setText('dDaRev',        daRev   ? daRev.toLocaleString()  + '원' : '—');
-    setText('dDaProfit',     daAdc   ? daPrf.toLocaleString()  + '원' : '—');
+    setText('dDaBuyUnit',    daBuyU  ? _fmtMoney(daBuyU) + '원' : '—');
+    setText('dDaRev',        daRev   ? _fmtMoney(daRev)  + '원' : '—');
+    setText('dDaProfit',     daAdc   ? _fmtMoney(daPrf)  + '원' : '—');
     const agLbl = document.getElementById('dDaAgratelbl');
     if (agLbl) agLbl.textContent = `– 대행료 (${daAgrate}%)`;
-    setText('dDaAgfee',      daAgf   ? daAgf.toLocaleString()  + '원' : '—');
+    setText('dDaAgfee',      daAgf   ? _fmtMoney(daAgf)  + '원' : '—');
     // 타겟 조건
     const daTargetEl = document.getElementById('dDaTarget');
     const daTags = (c.target||'').split('\n').map(t=>t.trim()).filter(Boolean);
@@ -1155,7 +1173,7 @@ function openDetail(idx, skipPush) {
       { id:'dDaImp',   val: imp,   fmt: v => Number(v).toLocaleString()+'건', auto: false },
       { id:'dDaClick', val: click, fmt: v => Number(v).toLocaleString()+'건', auto: false },
       { id:'dDaConv',  val: conv,  fmt: v => Number(v).toLocaleString()+'건', auto: false },
-      { id:'dDaRev',   val: rev,   fmt: v => Number(v).toLocaleString()+'원', auto: false },
+      { id:'dDaRev',   val: rev,   fmt: v => _fmtMoney(Number(v))+'원', auto: false },
       { id:'dDaCtr',   val: ctr,   fmt: v => v,                               auto: true  },
       { id:'dDaCpa',   val: cpa,   fmt: v => v,                               auto: true  },
       { id:'dDaRoas',  val: roas,  fmt: v => v,                               auto: true  },
@@ -1216,11 +1234,11 @@ function openDetail(idx, skipPush) {
     setText('dPcInflow',  inflow  ? inflow.toLocaleString()  + '건' : nd);
     setText('dPcAgree',   agree   ? agree.toLocaleString()   + '건' : nd);
     setText('dPcCvr',     cvr);
-    setText('dPcAdvUnit', advU    ? advU.toLocaleString()    + '원' : nd);
-    setText('dPcAdc',     adc     ? adc.toLocaleString()     + '원' : nd);
-    setText('dPcOhcCost', ohcCost ? ohcCost.toLocaleString() + '원' : nd);
-    setText('dPcDnuCost', dnuCost ? dnuCost.toLocaleString() + '원' : nd);
-    setText('dPcProfit',  profit  ? profit.toLocaleString()  + '원' : nd);
+    setText('dPcAdvUnit', advU    ? _fmtMoney(advU)    + '원' : nd);
+    setText('dPcAdc',     adc     ? _fmtMoney(adc)     + '원' : nd);
+    setText('dPcOhcCost', ohcCost ? _fmtMoney(ohcCost) + '원' : nd);
+    setText('dPcDnuCost', dnuCost ? _fmtMoney(dnuCost) + '원' : nd);
+    setText('dPcProfit',  profit  ? _fmtMoney(profit)  + '원' : nd);
     setText('dPcPrfRate', prfRate);
   }
 
@@ -1241,14 +1259,14 @@ function openDetail(idx, skipPush) {
     const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     setText('dCpsExecMonth', fmtMonth((c.date || '').slice(0, 7)));
     setText('dCpsStlMonth',  fmtMonth(c.stlMonth));
-    setText('dCpsFinalSales', finalSales ? finalSales.toLocaleString() + '원' : nd);
-    setText('dCpsTotalComm',  totalComm  ? totalComm.toLocaleString()  + '원' : nd);
+    setText('dCpsFinalSales', finalSales ? _fmtMoney(finalSales) + '원' : nd);
+    setText('dCpsTotalComm',  totalComm  ? _fmtMoney(totalComm)  + '원' : nd);
     setText('dCpsCommRate1',  commRate1);
     setText('dCpsMediaRate',  cpsRate ? cpsRate + '%' : nd);
-    setText('dCpsMediaComm',  mediaComm  ? mediaComm.toLocaleString()  + '원' : nd);
+    setText('dCpsMediaComm',  mediaComm  ? _fmtMoney(mediaComm)  + '원' : nd);
     setText('dCpsCommRate2',  commRate2);
     setText('dCpsBcRate',     bcRate);
-    setText('dCpsBcProfit',   bcProfit   ? bcProfit.toLocaleString()   + '원' : nd);
+    setText('dCpsBcProfit',   bcProfit   ? _fmtMoney(bcProfit)   + '원' : nd);
     setText('dCpsPrfRate',    prfRate);
   }
 
@@ -1351,7 +1369,7 @@ function renderTable(data) {
       <td class="td-dim">${c.product}</td>
       <td class="td-dim">${c.ops || '—'}</td>
       <td class="td-num td-r">${(c.qty||0).toLocaleString()}</td>
-      <td class="td-num td-r">${(()=>{ const adc = c.product==='DA' ? (c.daAdcost||0) : c.product==='CPA' ? (c.adcostFixed||(c.db||c.qty||0)*(c.sellUnit||0)) : (c.adcostFixed || (()=>{ const base=(c.sellBillBase||c.billBase||'actual')==='sched'?(c.qty||0)-(c.svc||0):(c.actual?(c.actual-(c.svc||0)):(c.qty||0)-(c.svc||0)); return base*(c.sellUnit||0); })()); return adc?(adc>=10000?(adc/10000).toFixed(0)+'만':adc.toLocaleString())+'원':'<span style="color:var(--text3)">—</span>'; })()}</td>
+      <td class="td-num td-r">${(()=>{ const adc = c.product==='DA' ? (c.daAdcost||0) : c.product==='CPA' ? (c.adcostFixed||(c.db||c.qty||0)*(c.sellUnit||0)) : (c.adcostFixed || (()=>{ const base=(c.sellBillBase||c.billBase||'actual')==='sched'?(c.qty||0)-(c.svc||0):(c.actual?(c.actual-(c.svc||0)):(c.qty||0)-(c.svc||0)); return base*(c.sellUnit||0); })()); return adc?(adc>=10000?(adc/10000).toFixed(0)+'만':_fmtMoney(adc))+'원':'<span style="color:var(--text3)">—</span>';})()}</td>
       <td class="td-num td-r">${c.clicks!=null?c.clicks.toLocaleString():'<span style="color:var(--text3)">—</span>'}</td>
       <td class="td-num td-r">${(()=>{ const v=c.ctr; if(v==null)return '<span style="color:var(--text3)">—</span>'; const n=typeof v==='string'?parseFloat(v):v; return isNaN(n)?'<span style="color:var(--text3)">—</span>':n.toFixed(2)+'%'; })()}</td>
       <td><span class="badge b-${c.status}">${c.status}</span></td>
@@ -6961,11 +6979,11 @@ function renderStlPermCall(container) {
       <td style="text-align:right;">${inflow ? inflow.toLocaleString() : nd}</td>
       <td style="text-align:right;">${agree  ? agree.toLocaleString()  : nd}</td>
       <td style="text-align:right;">${cvr !== null ? cvr : nd}</td>
-      <td style="text-align:right;">${advU ? advU.toLocaleString() + '원' : nd}</td>
-      <td style="text-align:right;">${adc ? adc.toLocaleString() + '원' : nd}</td>
-      <td style="text-align:right;">${ohcCost ? ohcCost.toLocaleString() + '원' : nd}</td>
-      <td style="text-align:right;">${dnuCost ? dnuCost.toLocaleString() + '원' : nd}</td>
-      <td style="text-align:right;font-weight:700;color:${profit >= 0 ? 'var(--green)' : 'var(--red)'};">${profit ? profit.toLocaleString() + '원' : nd}</td>
+      <td style="text-align:right;">${advU ? _fmtMoney(advU) + '원' : nd}</td>
+      <td style="text-align:right;">${adc ? _fmtMoney(adc) + '원' : nd}</td>
+      <td style="text-align:right;">${ohcCost ? _fmtMoney(ohcCost) + '원' : nd}</td>
+      <td style="text-align:right;">${dnuCost ? _fmtMoney(dnuCost) + '원' : nd}</td>
+      <td style="text-align:right;font-weight:700;color:${profit >= 0 ? 'var(--green)' : 'var(--red)'};">${profit ? _fmtMoney(profit) + '원' : nd}</td>
       <td style="text-align:right;">${prfRate !== null ? prfRate : nd}</td>
     </tr>`;
   });
@@ -6984,10 +7002,10 @@ function renderStlPermCall(container) {
         <tbody>${rows}</tbody>
         <tfoot><tr style="font-weight:700;background:var(--surface2);">
           <td colspan="8" style="text-align:right;color:var(--text2);height:44px;padding:10px 12px;">합계</td>
-          <td style="text-align:right;">${totAdc ? totAdc.toLocaleString() + '원' : '—'}</td>
-          <td style="text-align:right;">${totOhc ? totOhc.toLocaleString() + '원' : '—'}</td>
-          <td style="text-align:right;">${totDnu ? totDnu.toLocaleString() + '원' : '—'}</td>
-          <td style="text-align:right;color:${totPrf >= 0 ? 'var(--green)' : 'var(--red)'};">${totPrf ? totPrf.toLocaleString() + '원' : '—'}</td>
+          <td style="text-align:right;">${totAdc ? _fmtMoney(totAdc) + '원' : '—'}</td>
+          <td style="text-align:right;">${totOhc ? _fmtMoney(totOhc) + '원' : '—'}</td>
+          <td style="text-align:right;">${totDnu ? _fmtMoney(totDnu) + '원' : '—'}</td>
+          <td style="text-align:right;color:${totPrf >= 0 ? 'var(--green)' : 'var(--red)'};">${totPrf ? _fmtMoney(totPrf) + '원' : '—'}</td>
           <td style="text-align:right;">${totPrfRate}</td>
         </tr></tfoot>
       </table>
@@ -7025,7 +7043,7 @@ function renderStlCpsView(container) {
   }
 
   const nd = '<span style="color:var(--text3);">—</span>';
-  const fmt = v => v.toLocaleString();
+  const fmt = v => _fmtMoney(v);
   const pct = (n, d) => d > 0 ? (n / d * 100).toFixed(2) + '%' : nd;
   let totFinal = 0, totTotal = 0, totMedia = 0, totProfit = 0;
   const fmtMonth = d => { const p = (d || '').split('-'); return p.length >= 2 ? `${p[0]}년 ${+p[1]}월` : (d || '—'); };
@@ -7097,7 +7115,7 @@ function renderStlCpsView(container) {
 function renderStlCampaignView(data, container) {
   const nd  = '<span style="color:var(--text3);">—</span>';
   const bg0 = 'var(--surface)';
-  const fmt = v => v.toLocaleString();
+  const fmt = v => _fmtMoney(v);
   const pct = v => v.toFixed(1) + '%';
   const isAdminView = currentUser?.id === 'admin';
   const invInCell = (c) => {
@@ -7203,7 +7221,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
   const nd   = '<span style="color:var(--text3);">—</span>';
   const bg0  = 'var(--surface)';
   const bgSb = 'var(--surface2)';
-  const fmt  = v => v.toLocaleString();
+  const fmt  = v => _fmtMoney(v);
   const pct  = v => v.toFixed(1) + '%';
   const cntBadge = (done, total) => {
     const col = done === total ? 'var(--green)' : done > 0 ? 'var(--yellow)' : 'var(--text3)';
@@ -7282,11 +7300,11 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
       <td class="td-num td-r" style="font-weight:700;">${tQty ? fmt(tQty) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${tActual ? fmt(tActual) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${tAdc ? fmt(tAdc) : nd}</td>
-      <td class="td-num td-r" style="font-weight:700;">${tAdc ? fmt(tAdc + tAdcVat) : nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${tAdc ? fmt(Math.round(tAdc * 1.1)) : nd}</td>
       <td>${nd}</td>
       <td class="grp-purchase">${nd}</td><td>${nd}</td><td>${nd}</td><td class="td-num td-r" style="font-weight:700;">${tBuyActual ? fmt(tBuyActual) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${tBuy ? fmt(tBuy) : nd}</td>
-      <td class="td-num td-r" style="font-weight:700;">${tBuy ? fmt(tBuy + tBuyVat) : nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${tBuy ? fmt(Math.round(tBuy * 1.1)) : nd}</td>
       <td>${nd}</td>
       <td class="grp-pnl">${nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${tFee ? fmt(tFee) : nd}</td>
@@ -8180,9 +8198,9 @@ function renderTaxList() {
 
   const cards = [];
   displayGroups.forEach(([gid, items]) => {
-    const mainItems = items.filter(t => !t.isRef);
-    const refItems  = items.filter(t =>  t.isRef);
-    const dispItems = mainItems.length ? mainItems : items; // 하위호환: isRef 없는 기존 그룹
+    const mainItems = items.filter(t => !t.isRef).sort((a, b) => a.id - b.id);
+    const refItems  = items.filter(t =>  t.isRef).sort((a, b) => a.id - b.id);
+    const dispItems = mainItems.length ? mainItems : items.slice().sort((a, b) => a.id - b.id);
     const rep = dispItems[0];
     const isDone      = rep.taxStatus === '완료';
     const isPaid      = rep.paid === '완료';
@@ -8193,6 +8211,10 @@ function renderTaxList() {
     const supplySum   = dispItems.reduce((s, t) => s + (t.supplyAmt || 0), 0);
     const vatSum      = dispItems.reduce((s, t) => s + (t.vatAmt    || 0), 0);
     const unpaidVal   = rep.unpaid != null ? rep.unpaid : null;
+    const modItem     = items.find(t => t.modifiedAfterIssue);
+    const modBadge    = modItem
+      ? `<span style="font-size:10px;font-weight:600;color:#d97706;background:#fffbeb;border:1px solid #fde68a;padding:2px 7px;border-radius:10px;white-space:nowrap;margin-left:6px;">발행 후 변경 · ${(modItem.modifiedAfterIssueDate||'').slice(5).replace('-','/')}</span>`
+      : '';
 
     const _makeRow = (t, canDel) => {
       const camp = DATA.find(c => c.id === t.campaignId);
@@ -8270,7 +8292,7 @@ function renderTaxList() {
           <div class="tax-card-head-main" style="display:grid;grid-template-columns:170px 1px 1fr;grid-template-rows:auto auto;gap:0;">
             <!-- [1,1]: 번호 -->
             <div style="grid-column:1;grid-row:1;padding-right:40px;padding-bottom:4px;white-space:nowrap;align-self:center;">
-              <span style="font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-light);padding:2px 0px;border-radius:10px;white-space:nowrap;">${_taxGroupLabel(gid)}</span>
+              <span style="font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-light);padding:2px 0px;border-radius:10px;white-space:nowrap;">${_taxGroupLabel(gid)}</span>${modBadge}
             </div>
             <!-- 세로선: 두 행 전체 -->
             <div style="grid-column:2;grid-row:1/span 2;background:black;margin:0 16px;"></div>
@@ -8413,6 +8435,10 @@ async function taxGroupToggleStatus(gid) {
   const newStatus = isDone ? '' : '완료';
   for (const t of items) {
     t.taxStatus = newStatus;
+    if (newStatus === '완료') {
+      t.modifiedAfterIssue = false;
+      t.modifiedAfterIssueDate = null;
+    }
     await _fbSaveTax(t);
     // 정산 탭 invoiceOut 동기화 (광고주 타입만)
     if (t.campaignId && (t.taxType === 'adv' || !t.taxType)) {
@@ -8650,7 +8676,7 @@ function openTaxReg(gid) {
     // 연결 캠페인 복원 (참조 항목 기준 — 여러 개 지원)
     _taxRegLinkedCamps = [...new Set(items.filter(t => t.isRef && t.campaignId).map(t => t.campaignId))];
     _taxRegRenderChips();
-    items.filter(t => !t.isRef).forEach(t => taxManualAddRow(t));
+    items.filter(t => !t.isRef).sort((a, b) => a.id - b.id).forEach(t => taxManualAddRow(t));
   }
   taxManualCalcTotal();
   openModal('modalTaxReg');
@@ -8720,6 +8746,7 @@ function taxManualPaidChange(chk) {
 }
 
 async function saveTaxReg() {
+  const _saveBtn = document.querySelector('#modalTaxReg .modal-foot .btn-primary');
   const _v = id => (document.getElementById(id)?.value || '').trim();
   const reqDate   = _v('tax-r-reqDate');
   const company   = _v('tax-r-company');
@@ -8735,19 +8762,23 @@ async function saveTaxReg() {
   if (!company) { alert('업체명을 입력해주세요.'); return; }
   const rows = [...document.querySelectorAll('#tax-r-rows .tax-r-row')];
   if (!rows.length) { alert('항목을 하나 이상 입력해주세요.'); return; }
+  if (_saveBtn) { _saveBtn.disabled = true; _saveBtn.textContent = '저장 중…'; }
+  try {
   const groupId   = isNew ? _taxNextGroupId() : editGid;
   const createdBy = isNew ? (currentUser?.name || '') :
     (TAX_DATA.find(t => _taxGroupId(t) === editGid)?.createdBy || currentUser?.name || '');
-  const taxStatus = isNew ? '' :
-    (TAX_DATA.find(t => _taxGroupId(t) === editGid)?.taxStatus || '');
+  const existingForEdit = isNew ? [] : TAX_DATA.filter(t => _taxGroupId(t) === editGid);
+  const wasIssuedReg    = !isNew && existingForEdit.length > 0 && existingForEdit[0].taxStatus === '완료';
+  const hadModBadgeReg  = !isNew && existingForEdit.some(t => t.modifiedAfterIssue);
+  const prevModDateReg  = existingForEdit.find(t => t.modifiedAfterIssue)?.modifiedAfterIssueDate || null;
+  const taxStatus       = (isNew || wasIssuedReg) ? '' : (existingForEdit[0]?.taxStatus || '');
+  const todayReg        = new Date().toISOString().slice(0, 10);
   // 수정 시 기존 항목 삭제 + 연결 해제된 캠페인 플래그 리셋
   if (!isNew) {
-    const existing = TAX_DATA.filter(t => _taxGroupId(t) === editGid);
+    const existing = existingForEdit;
     const oldLinkedCids = [...new Set(existing.filter(t => t.campaignId).map(t => t.campaignId))];
-    for (const t of existing) {
-      TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1);
-      await _fbDeleteTax(t.id);
-    }
+    existing.forEach(t => TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1));
+    await Promise.all(existing.map(t => _fbDeleteTax(t.id)));
     // 새 연결 목록에서 빠진 캠페인의 플래그 리셋
     oldLinkedCids.forEach(cid => {
       if (_taxRegLinkedCamps.includes(cid)) return;
@@ -8777,13 +8808,15 @@ async function saveTaxReg() {
       unpaid:    paidChk ? 0 : null,
       company, bizName, content,
       supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
-      contactEmail: email, memo
+      contactEmail: email, memo,
+      modifiedAfterIssue: wasIssuedReg || hadModBadgeReg,
+      modifiedAfterIssueDate: wasIssuedReg ? todayReg : (hadModBadgeReg ? prevModDateReg : null),
     };
     TAX_DATA.push(t);
-    await _fbSaveTax(t);
     saved.push(t);
   }
   // 연결된 캠페인: 참조 항목(isRef) 생성 + 이중발행 방지 플래그 (다중 지원)
+  const refItems = [];
   for (const linkedCid of _taxRegLinkedCamps) {
     const lc = DATA.find(x => x.id === linkedCid);
     if (!lc) continue;
@@ -8802,25 +8835,44 @@ async function saveTaxReg() {
       contactEmail: '', memo: ''
     };
     TAX_DATA.push(refItem);
-    await _fbSaveTax(refItem);
+    refItems.push({ refItem, lc });
+  }
+  await Promise.all([
+    ...saved.map(t => _fbSaveTax(t)),
+    ...refItems.map(({ refItem }) => _fbSaveTax(refItem)),
+  ]);
+  refItems.forEach(({ lc }) => {
     if (taxType === 'adv')   lc.taxAdvReq   = true;
     if (taxType === 'media') lc.taxMediaReq = true;
     _fbSaveCampaign(lc);
-  }
+  });
   if (isNew && currentUser?.id !== 'wonjoon') {
     const body = _notifBody('tax_new', company, '', saved.length, groupId);
     _fbSaveNotification('wonjoon', 'tax_new', body);
   }
   closeModal('modalTaxReg');
   renderTaxList();
+  } finally {
+    if (_saveBtn) { _saveBtn.disabled = false; _saveBtn.textContent = '저장'; }
+  }
 }
 
 // ── 자동 생성 모달 ──
 // 전체 eligible 캐시 (필터링용)
 let _taxGenEligible = [];
+let _taxGenAdvSet   = new Set();
+let _taxGenMediaSet = new Set();
 
 function openTaxAutoGen() {
-  _taxGenEligible = DATA.filter(c => _taxCampaignPending(c));
+  _taxGenAdvSet   = new Set(TAX_DATA.filter(t => t.campaignId && (t.taxType === 'adv' || !t.taxType)).map(t => t.campaignId));
+  _taxGenMediaSet = new Set(TAX_DATA.filter(t => t.campaignId && t.taxType === 'media').map(t => t.campaignId));
+  _taxGenEligible = DATA.filter(c => {
+    if (!_taxIsSettled(c)) return false;
+    const mediaRec = MEDIA_DATA.find(m => m.company === c.media);
+    const canAdv   = !c.taxAdvReq   && !_taxGenAdvSet.has(c.id);
+    const canMedia = !c.taxMediaReq && !_taxGenMediaSet.has(c.id) && !(mediaRec?.taxYn === false);
+    return canAdv || canMedia;
+  });
 
   // 필터 드롭다운 채우기
   const months   = [...new Set(_taxGenEligible.map(c => _taxMonthLabel(c)).filter(Boolean))].sort();
@@ -8880,8 +8932,8 @@ function taxGenRenderList() {
     const mediaNoTax = mediaRec && mediaRec.taxYn === false;
 
     // 요청 가능한 타입만 옵션으로 구성 (플래그 or 기존 TAX_DATA 기준)
-    const hasAdv   = c.taxAdvReq   || TAX_DATA.some(t => t.campaignId===c.id && (t.taxType==='adv' || !t.taxType));
-    const hasMedia = c.taxMediaReq || TAX_DATA.some(t => t.campaignId===c.id && t.taxType==='media');
+    const hasAdv   = c.taxAdvReq   || _taxGenAdvSet.has(c.id);
+    const hasMedia = c.taxMediaReq || _taxGenMediaSet.has(c.id);
     const opts = ['<option value="">선택</option>'];
     if (!hasAdv)              opts.push('<option value="adv">광고주</option>');
     if (!hasMedia && !mediaNoTax) opts.push('<option value="media">매체</option>');
@@ -9252,8 +9304,8 @@ function taxEditGroup(gid) {
   const typeLabel   = taxType === 'adv' ? '광고주' : '매체';
   const company     = rep.company || '';
   const isPaid      = rep.paid === '완료';
-  const manualItems = items.filter(t => !t.isRef);
-  const refItems    = items.filter(t => t.isRef);
+  const manualItems = items.filter(t => !t.isRef).sort((a, b) => a.id - b.id);
+  const refItems    = items.filter(t =>  t.isRef).sort((a, b) => a.id - b.id);
   const refTotal    = refItems.reduce((s, t) => s + (t.supplyAmt||0), 0);
   const manualTotal = manualItems.reduce((s, t) => s + (t.supplyAmt||0), 0);
 
@@ -9375,6 +9427,9 @@ function taxEditGroup(gid) {
 
 async function confirmTaxEdit() {
   if (!_taxEditGid) return;
+  const _saveBtn = document.querySelector('#tax-gen-step2 .modal-foot .btn-primary');
+  if (_saveBtn) { _saveBtn.disabled = true; _saveBtn.textContent = '저장 중…'; }
+  try {
   const commonReq = document.getElementById('tax-gen-common-req')?.value || '';
   const card = document.querySelector('#tax-gen-step2-container .tax-gen-group-card');
   if (!card) return;
@@ -9390,11 +9445,13 @@ async function confirmTaxEdit() {
   const existing = TAX_DATA.filter(t => _taxGroupId(t) === _taxEditGid);
   const origMap  = {};
   existing.forEach(t => { origMap[t.id] = t; });
+  const wasIssued   = existing.length > 0 && existing[0].taxStatus === '완료';
+  const hadModBadge = existing.some(t => t.modifiedAfterIssue);
+  const prevModDate = existing.find(t => t.modifiedAfterIssue)?.modifiedAfterIssueDate || null;
+  const today = new Date().toISOString().slice(0, 10);
 
-  for (const t of existing) {
-    TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1);
-    await _fbDeleteTax(t.id);
-  }
+  existing.forEach(t => TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1));
+  await Promise.all(existing.map(t => _fbDeleteTax(t.id)));
 
   const groupId = _taxEditGid;
   const commonFields = {
@@ -9407,7 +9464,9 @@ async function confirmTaxEdit() {
     unpaid:     paidChk ? 0 : null,
   };
 
-  // Save manual rows
+  const newItems = [];
+
+  // Build manual rows
   const manualRows = [...card.querySelectorAll('.tax-gen-manual-row')];
   for (const tr of manualRows) {
     const y       = tr.querySelector('.tax-gen-m-year')?.value   || '';
@@ -9429,13 +9488,15 @@ async function confirmTaxEdit() {
       vatAmt: Math.round(supply * 1.1),
       contactEmail: email, memo,
       bizName: company,
-      taxStatus: origItem?.taxStatus || '',
+      taxStatus: wasIssued ? '' : (origItem?.taxStatus || ''),
+      modifiedAfterIssue: wasIssued || hadModBadge,
+      modifiedAfterIssueDate: wasIssued ? today : (hadModBadge ? prevModDate : null),
     };
     TAX_DATA.push(t);
-    await _fbSaveTax(t);
+    newItems.push(t);
   }
 
-  // Save ref rows (preserve campaignId / isRef from original)
+  // Build ref rows (preserve campaignId / isRef from original)
   const campRows = [...card.querySelectorAll('.tax-gen-camp-row')];
   for (const tr of campRows) {
     const origTid  = parseInt(tr.dataset.tid);
@@ -9457,21 +9518,30 @@ async function confirmTaxEdit() {
       contactEmail: origItem.contactEmail || '',
       memo:         origItem.memo         || '',
       bizName,
-      taxStatus: origItem.taxStatus || '',
+      taxStatus: wasIssued ? '' : (origItem.taxStatus || ''),
+      modifiedAfterIssue: wasIssued || hadModBadge,
+      modifiedAfterIssueDate: wasIssued ? today : (hadModBadge ? prevModDate : null),
     };
     TAX_DATA.push(t);
-    await _fbSaveTax(t);
+    newItems.push(t);
   }
+
+  await Promise.all(newItems.map(t => _fbSaveTax(t)));
 
   _taxEditGid = null;
   closeModal('modalTaxAutoGen');
   renderTaxList();
   toast('✓ 수정되었습니다', 'ok');
+  } finally {
+    if (_saveBtn) { _saveBtn.disabled = false; _saveBtn.textContent = '저장'; }
+  }
 }
 
 async function confirmTaxAutoGen() {
   const commonReq = document.getElementById('tax-gen-common-req')?.value || '';
   if (!commonReq) { alert('발행요청일자를 입력해주세요.'); return; }
+  const _regBtn = document.querySelector('#tax-gen-step2 .modal-foot .btn-primary');
+  if (_regBtn) { _regBtn.disabled = true; _regBtn.textContent = '등록 중…'; }
 
   const _savedItems = []; // 알림용 추적
   const cards = [...document.querySelectorAll('.tax-gen-group-card')];
@@ -9571,6 +9641,7 @@ async function confirmTaxAutoGen() {
     if (body) _fbSaveNotification('wonjoon', 'tax_new', body);
   }
   closeModal('modalTaxAutoGen');
+  if (_regBtn) { _regBtn.disabled = false; _regBtn.textContent = '등록'; }
   const _now = new Date();
   const elY = document.getElementById('tax-year');
   const elM = document.getElementById('tax-month');
@@ -9915,6 +9986,7 @@ function _fbWatchCampaigns() {
       _stlRestoreScroll();
     }
     if (sid === 'screen-monthly')   renderMonthly();
+    if (sid === 'screen-perf')      initPerfScreen();
     if (sid === 'screen-adreport' && typeof _rptPopulateSeller === 'function') _rptPopulateSeller();
   }, e => console.error('[FB] 캠페인 구독 실패:', e));
 }
@@ -10493,6 +10565,199 @@ function effRender() {
   });
 
   document.getElementById('eff-body').innerHTML = html;
+}
+
+// ══════════════════════════════════════════
+// 성과분석
+// ══════════════════════════════════════════
+function initPerfScreen() {
+  const catSel   = document.getElementById('perf-f-cat');
+  const mediaSel = document.getElementById('perf-f-media');
+  if (catSel) {
+    const cur = catSel.value;
+    catSel.innerHTML = '<option value="">카테고리 전체</option>';
+    const cats = [...new Set(DATA.filter(c => c.status !== '삭제').map(c => _getCat(c)).filter(Boolean))].sort();
+    cats.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; catSel.appendChild(o); });
+    if (cur) catSel.value = cur;
+  }
+  if (mediaSel) {
+    const cur = mediaSel.value;
+    mediaSel.innerHTML = '<option value="">매체 전체</option>';
+    const medias = [...new Set(DATA.filter(c => c.status !== '삭제').map(c => c.media).filter(Boolean))].sort();
+    medias.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; mediaSel.appendChild(o); });
+    if (cur) mediaSel.value = cur;
+  }
+  if (!document.getElementById('perf-tooltip')) {
+    const tip = document.createElement('div');
+    tip.id = 'perf-tooltip';
+    tip.style.cssText = 'display:none;position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.15);font-size:12px;line-height:1.7;pointer-events:none;';
+    document.body.appendChild(tip);
+  }
+  perfSwitchTab(_perfTab);
+}
+
+function perfSwitchTab(tab) {
+  _perfTab = tab;
+  document.getElementById('perf-tab-matrix').classList.toggle('active',  tab === 'matrix');
+  document.getElementById('perf-tab-history').classList.toggle('active', tab === 'history');
+  const matrixEl  = document.getElementById('perf-view-matrix');
+  const historyEl = document.getElementById('perf-view-history');
+  if (matrixEl)  { matrixEl.style.display  = tab === 'matrix'  ? '' : 'none'; matrixEl.scrollLeft = 0; }
+  if (historyEl)   historyEl.style.display = tab === 'history' ? '' : 'none';
+  if (tab === 'matrix') renderPerfMatrix();
+  else renderPerfHistory();
+}
+
+function renderPerfCurrent() {
+  if (_perfTab === 'matrix') renderPerfMatrix();
+  else renderPerfHistory();
+}
+
+function _perfBaseData() {
+  const year  = document.getElementById('perf-f-year')?.value  || '';
+  const cat   = document.getElementById('perf-f-cat')?.value   || '';
+  const media = document.getElementById('perf-f-media')?.value || '';
+  return DATA.filter(c => {
+    if (c.status === '삭제') return false;
+    if (year  && !(c.date || '').startsWith(year)) return false;
+    if (cat   && _getCat(c) !== cat) return false;
+    if (media && c.media !== media) return false;
+    return true;
+  });
+}
+
+function renderPerfMatrix() {
+  const container = document.getElementById('perf-view-matrix');
+  if (!container) return;
+  const data = _perfBaseData().filter(c => c.ctr != null && c.ctr !== '');
+  if (!data.length) {
+    container.innerHTML = '<div style="padding:48px;text-align:center;color:var(--text3);font-size:13px;">해당 조건의 CTR 데이터가 없습니다.</div>';
+    return;
+  }
+
+  const cats   = [...new Set(data.map(c => _getCat(c)).filter(Boolean))].sort();
+  const medias = [...new Set(data.map(c => c.media).filter(Boolean))].sort();
+
+  const agg = {};
+  for (const c of data) {
+    const cat = _getCat(c); const med = c.media;
+    if (!cat || !med) continue;
+    const key = cat + '||' + med;
+    if (!agg[key]) agg[key] = { ctrSum: 0, count: 0, clicks: 0, actual: 0 };
+    agg[key].ctrSum  += parseFloat(c.ctr)    || 0;
+    agg[key].count++;
+    agg[key].clicks  += parseFloat(c.clicks) || 0;
+    agg[key].actual  += parseFloat(c.actual) || 0;
+  }
+
+  const maxCtr = Math.max(0.01, ...Object.values(agg).map(v => v.count ? v.ctrSum / v.count : 0));
+  const thS = 'padding:9px 14px;font-size:12px;font-weight:600;color:var(--text2);background:var(--surface2);border:1px solid var(--border);white-space:nowrap;';
+
+  container.style.overflowX = 'auto';
+  let html = `<table style="border-collapse:collapse;font-size:12px;width:max-content;">
+    <thead><tr>
+      <th style="${thS}text-align:left;min-width:120px;">카테고리</th>
+      ${medias.map(m => `<th style="${thS}text-align:center;min-width:90px;">${_escHtml(m)}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+  for (const cat of cats) {
+    html += `<tr><td style="${thS}font-weight:600;color:var(--text1);">${_escHtml(cat)}</td>`;
+    for (const med of medias) {
+      const cell = agg[cat + '||' + med];
+      if (!cell || !cell.count) {
+        html += `<td style="padding:9px 14px;text-align:center;border:1px solid var(--border);color:var(--text3);">—</td>`;
+      } else {
+        const avg = cell.ctrSum / cell.count;
+        const bg  = `rgba(34,197,94,${(avg / maxCtr * 0.55).toFixed(2)})`;
+        html += `<td style="padding:9px 14px;text-align:center;border:1px solid var(--border);background:${bg};font-weight:700;cursor:default;"
+          data-cat="${_escHtml(cat)}" data-med="${_escHtml(med)}"
+          data-ctr="${avg.toFixed(2)}" data-count="${cell.count}"
+          data-clicks="${Math.round(cell.clicks)}" data-actual="${Math.round(cell.actual)}"
+          onmouseenter="perfShowTooltip(event,this)" onmouseleave="perfHideTooltip()">${avg.toFixed(2)}%</td>`;
+      }
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function perfShowTooltip(e, el) {
+  const tip = document.getElementById('perf-tooltip');
+  if (!tip) return;
+  tip.innerHTML = `
+    <div style="font-weight:700;margin-bottom:5px;">${_escHtml(el.dataset.cat)} × ${_escHtml(el.dataset.med)}</div>
+    <div style="color:var(--text2);">평균 CTR &nbsp;<b style="color:var(--text1);">${el.dataset.ctr}%</b></div>
+    <div style="color:var(--text2);">총 클릭수 &nbsp;<b style="color:var(--text1);">${parseInt(el.dataset.clicks).toLocaleString()}</b></div>
+    <div style="color:var(--text2);">실발송수량 &nbsp;<b style="color:var(--text1);">${parseInt(el.dataset.actual).toLocaleString()}</b></div>
+    <div style="color:var(--text2);">캠페인 &nbsp;<b style="color:var(--text1);">${el.dataset.count}건</b></div>`;
+  tip.style.display = 'block';
+  tip.style.left = (e.clientX + 14) + 'px';
+  tip.style.top  = (e.clientY - 10) + 'px';
+}
+
+function perfHideTooltip() {
+  const tip = document.getElementById('perf-tooltip');
+  if (tip) tip.style.display = 'none';
+}
+
+function renderPerfHistory() {
+  const container = document.getElementById('perf-history-list');
+  if (!container) return;
+  const search = (document.getElementById('perf-h-search')?.value || '').trim().toLowerCase();
+  if (!search) {
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">광고주 이름을 검색하세요.</div>';
+    return;
+  }
+  const data = _perfBaseData().filter(c => {
+    const adv   = (c.seller || c.adv || '').toLowerCase();
+    const brand = (c.content || '').toLowerCase();
+    return adv.includes(search) || brand.includes(search);
+  });
+  if (!data.length) {
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">검색 결과가 없습니다.</div>';
+    return;
+  }
+
+  const advMap = {};
+  for (const c of data) {
+    const adv = c.seller || c.adv || '(매출처 없음)';
+    if (!advMap[adv]) advMap[adv] = [];
+    advMap[adv].push(c);
+  }
+
+  let html = '';
+  for (const [adv, camps] of Object.entries(advMap)) {
+    camps.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const thH = 'text-align:left;padding:5px 8px;font-weight:500;color:var(--text3);';
+    html += `<div style="margin-bottom:24px;">
+      <div style="font-weight:700;font-size:14px;padding:6px 0 8px;border-bottom:2px solid var(--accent);margin-bottom:10px;">${_escHtml(adv)}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr>
+          <th style="${thH}white-space:nowrap;">집행월</th>
+          <th style="${thH}">브랜드</th>
+          <th style="${thH}">매체</th>
+          <th style="${thH}">상품</th>
+          <th style="${thH}text-align:right;">CTR</th>
+          <th style="${thH}text-align:right;">클릭수</th>
+        </tr></thead>
+        <tbody>${camps.map(c => {
+          const ctr    = c.ctr    != null ? parseFloat(c.ctr).toFixed(2) + '%' : '—';
+          const clicks = c.clicks != null ? Math.round(c.clicks).toLocaleString() : '—';
+          const month  = (c.date || '').slice(0, 7).replace('-', '/') || '—';
+          return `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:7px 8px;color:var(--text2);white-space:nowrap;">${month}</td>
+            <td style="padding:7px 8px;">${_escHtml(c.content || '—')}</td>
+            <td style="padding:7px 8px;">${_escHtml(c.media || '—')}</td>
+            <td style="padding:7px 8px;color:var(--text2);">${_escHtml(c.product || '—')}</td>
+            <td style="padding:7px 8px;text-align:right;font-weight:700;">${ctr}</td>
+            <td style="padding:7px 8px;text-align:right;">${clicks}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
+  }
+  container.innerHTML = html;
 }
 
 // ══════════════════════════════════════════
