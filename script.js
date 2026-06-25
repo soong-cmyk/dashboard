@@ -10602,8 +10602,16 @@ function perfSwitchTab(tab) {
   document.getElementById('perf-tab-history').classList.toggle('active', tab === 'history');
   const matrixEl  = document.getElementById('perf-view-matrix');
   const historyEl = document.getElementById('perf-view-history');
-  if (matrixEl)  { matrixEl.style.display  = tab === 'matrix'  ? '' : 'none'; matrixEl.scrollLeft = 0; }
-  if (historyEl)   historyEl.style.display = tab === 'history' ? '' : 'none';
+  // 히스토리 탭 전환 시: 매트릭스 내부 및 .content 수평 스크롤 위치 초기화
+  if (tab === 'history') {
+    if (matrixEl) matrixEl.scrollLeft = 0;
+    const _wrap = matrixEl?.querySelector('div[style*="overflow-x"]');
+    if (_wrap) _wrap.scrollLeft = 0;
+    const contentEl = document.querySelector('.content');
+    if (contentEl) contentEl.scrollLeft = 0;
+  }
+  if (matrixEl)  matrixEl.style.display  = tab === 'matrix'  ? '' : 'none';
+  if (historyEl) historyEl.style.display = tab === 'history' ? '' : 'none';
   if (tab === 'matrix') renderPerfMatrix();
   else renderPerfHistory();
 }
@@ -10653,8 +10661,8 @@ function renderPerfMatrix() {
   const maxCtr = Math.max(0.01, ...Object.values(agg).map(v => v.count ? v.ctrSum / v.count : 0));
   const thS = 'padding:9px 14px;font-size:12px;font-weight:600;color:var(--text2);background:var(--surface2);border:1px solid var(--border);white-space:nowrap;';
 
-  container.style.overflowX = 'auto';
-  let html = `<table style="border-collapse:collapse;font-size:12px;width:max-content;">
+  container.style.overflowX = '';
+  let html = `<div style="overflow-x:auto;width:100%;"><table style="border-collapse:collapse;font-size:12px;width:max-content;">
     <thead><tr>
       <th style="${thS}text-align:left;min-width:120px;">카테고리</th>
       ${medias.map(m => `<th style="${thS}text-align:center;min-width:90px;">${_escHtml(m)}</th>`).join('')}
@@ -10678,7 +10686,7 @@ function renderPerfMatrix() {
     }
     html += '</tr>';
   }
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   container.innerHTML = html;
 }
 

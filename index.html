@@ -60,6 +60,9 @@
       <div class="nav-item" id="nav-campaigns" onclick="goScreen('campaigns')">
         <span class="nav-icon">📋</span>캠페인 목록
       </div>
+      <div class="nav-item" id="nav-perf" onclick="goScreen('perf')">
+        <span class="nav-icon">📈</span>성과분석
+      </div>
       <div class="nav-item" id="nav-settlement" onclick="goScreen('settlement')">
         <span class="nav-icon">🧾</span>정산
       </div>
@@ -2233,6 +2236,41 @@
         </div>
         <!-- 카드 목록 -->
         <div id="tax-list"></div>
+      </div>
+
+      <!-- ══════════════════════════════════
+           성과분석
+      ══════════════════════════════════ -->
+      <div class="screen" id="screen-perf">
+        <!-- 필터 바 -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+          <select class="form-sel" id="perf-f-year" onchange="renderPerfCurrent()" style="width:110px;">
+            <option value="">전체 기간</option>
+            <option>2024</option><option>2025</option><option>2026</option>
+          </select>
+          <select class="form-sel" id="perf-f-cat" onchange="renderPerfCurrent()" style="width:130px;">
+            <option value="">카테고리 전체</option>
+          </select>
+          <select class="form-sel" id="perf-f-media" onchange="renderPerfCurrent()" style="width:130px;">
+            <option value="">매체 전체</option>
+          </select>
+        </div>
+        <!-- 탭 -->
+        <div class="view-tabs" style="margin-bottom:16px;">
+          <button class="view-tab active" id="perf-tab-matrix"  onclick="perfSwitchTab('matrix')">카테고리 × 매체</button>
+          <button class="view-tab"        id="perf-tab-history" onclick="perfSwitchTab('history')">광고주 히스토리</button>
+        </div>
+        <!-- 매트릭스 뷰 -->
+        <div id="perf-view-matrix"></div>
+        <!-- 히스토리 뷰 -->
+        <div id="perf-view-history" style="display:none;">
+          <div style="margin-bottom:14px;">
+            <input type="text" class="form-input" id="perf-h-search"
+              placeholder="광고주 이름 검색…" oninput="renderPerfHistory()"
+              style="width:240px;">
+          </div>
+          <div id="perf-history-list"></div>
+        </div>
       </div>
 
     </div><!-- /content -->
