@@ -59,7 +59,7 @@ let _perfTab = 'matrix';
 let _perfMatrixSub = 'cat';
 let _perfTimeSub   = 'cat';
 let _perfSelectedKey = '';
-let _perfHistoryDbOnly = false;
+let _perfHistoryDbOnly = true;
 
 // ══════════════════════════════════════════
 // TAX INVOICE DATA
@@ -10604,7 +10604,7 @@ function initPerfScreen() {
   }
   const searchInp = document.getElementById('perf-h-search');
   if (searchInp) searchInp.value = '';
-  _perfHistoryDbOnly = false;
+  _perfHistoryDbOnly = true;
   _applyPerfDbToggleStyle();
 
   // 상태 초기화 — 매체×카테고리 탭, 카테고리별 서브탭
