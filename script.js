@@ -10575,37 +10575,51 @@ function effRender() {
 // 성과분석
 // ══════════════════════════════════════════
 function initPerfScreen() {
+  // 필터 초기화
+  const yearEl = document.getElementById('perf-f-year');
+  if (yearEl) yearEl.value = '';
+  const monthBtn = document.getElementById('perf-f-month-btn');
+  if (monthBtn) monthBtn.disabled = true;
+  document.querySelectorAll('#perf-f-month-panel input').forEach(b => b.checked = false);
+  _updatePerfMonthLabel();
+  perfMonthDropdownClose();
+
   const catSel   = document.getElementById('perf-f-cat');
   const mediaSel = document.getElementById('perf-f-media');
   if (catSel) {
-    const cur = catSel.value;
     catSel.innerHTML = '<option value="">카테고리 전체</option>';
     const cats = [...new Set(DATA.filter(c => c.status !== '삭제').map(c => _getCat(c)).filter(Boolean))].sort();
     cats.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; catSel.appendChild(o); });
-    if (cur) catSel.value = cur;
   }
   if (mediaSel) {
-    const cur = mediaSel.value;
     mediaSel.innerHTML = '<option value="">매체 전체</option>';
     const medias = [...new Set(DATA.filter(c => c.status !== '삭제').map(c => c.media).filter(Boolean))].sort();
     medias.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; mediaSel.appendChild(o); });
-    if (cur) mediaSel.value = cur;
   }
   const advSel = document.getElementById('perf-h-adv-sel');
   if (advSel) {
-    const cur = advSel.value;
     advSel.innerHTML = '<option value="">광고주 선택</option>';
     const advs = [...new Set(DATA.filter(c => c.status !== '삭제').map(c => c.seller || c.adv).filter(Boolean))].sort();
     advs.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; advSel.appendChild(o); });
-    if (cur) advSel.value = cur;
   }
+  const searchInp = document.getElementById('perf-h-search');
+  if (searchInp) searchInp.value = '';
+  _perfHistoryDbOnly = false;
+  _applyPerfDbToggleStyle();
+
+  // 상태 초기화 — 매체×카테고리 탭, 카테고리별 서브탭
+  _perfTab = 'matrix';
+  _perfMatrixSub = 'cat';
+  _perfTimeSub   = 'cat';
+  _perfSelectedKey = '';
+
   if (!document.getElementById('perf-tooltip')) {
     const tip = document.createElement('div');
     tip.id = 'perf-tooltip';
     tip.style.cssText = 'display:none;position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.15);font-size:12px;line-height:1.7;pointer-events:none;';
     document.body.appendChild(tip);
   }
-  perfSwitchTab(_perfTab);
+  perfSwitchTab('matrix');
 }
 
 function perfHistorySelChange() {
