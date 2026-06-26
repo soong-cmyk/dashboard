@@ -56,6 +56,10 @@ function _populateProductSelects() {
 const DATA = [];
 let _nextCampaignNum = 1;
 let _perfTab = 'matrix';
+let _perfMatrixSub = 'cat';
+let _perfTimeSub   = 'cat';
+let _perfSelectedKey = '';
+let _perfHistoryDbOnly = false;
 
 // ══════════════════════════════════════════
 // TAX INVOICE DATA
@@ -10587,6 +10591,14 @@ function initPerfScreen() {
     medias.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; mediaSel.appendChild(o); });
     if (cur) mediaSel.value = cur;
   }
+  const advSel = document.getElementById('perf-h-adv-sel');
+  if (advSel) {
+    const cur = advSel.value;
+    advSel.innerHTML = '<option value="">광고주 선택</option>';
+    const advs = [...new Set(DATA.filter(c => c.status !== '삭제').map(c => c.seller || c.adv).filter(Boolean))].sort();
+    advs.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; advSel.appendChild(o); });
+    if (cur) advSel.value = cur;
+  }
   if (!document.getElementById('perf-tooltip')) {
     const tip = document.createElement('div');
     tip.id = 'perf-tooltip';
@@ -10596,45 +10608,204 @@ function initPerfScreen() {
   perfSwitchTab(_perfTab);
 }
 
+function perfHistorySelChange() {
+  const sel = document.getElementById('perf-h-adv-sel');
+  const inp = document.getElementById('perf-h-search');
+  if (inp) inp.value = sel?.value || '';
+  renderPerfHistory();
+}
+function perfHistoryInputChange() {
+  const sel = document.getElementById('perf-h-adv-sel');
+  if (sel) sel.value = '';
+  renderPerfHistory();
+}
+function perfHistoryClear() {
+  const sel = document.getElementById('perf-h-adv-sel');
+  const inp = document.getElementById('perf-h-search');
+  if (sel) sel.value = '';
+  if (inp) inp.value = '';
+  _perfHistoryDbOnly = false;
+  _applyPerfDbToggleStyle();
+  renderPerfHistory();
+}
+function perfHistoryDbToggle() {
+  _perfHistoryDbOnly = !_perfHistoryDbOnly;
+  _applyPerfDbToggleStyle();
+  renderPerfHistory();
+}
+function _applyPerfDbToggleStyle() {
+  const btn = document.getElementById('perf-h-db-toggle');
+  if (!btn) return;
+  btn.style.background   = _perfHistoryDbOnly ? 'var(--accent)' : '';
+  btn.style.color        = _perfHistoryDbOnly ? '#fff'          : '';
+  btn.style.borderColor  = _perfHistoryDbOnly ? 'var(--accent)' : '';
+}
+
 function perfSwitchTab(tab) {
   _perfTab = tab;
-  document.getElementById('perf-tab-matrix').classList.toggle('active',  tab === 'matrix');
-  document.getElementById('perf-tab-history').classList.toggle('active', tab === 'history');
+  document.getElementById('perf-tab-matrix') ?.classList.toggle('active', tab === 'matrix');
+  document.getElementById('perf-tab-time')   ?.classList.toggle('active', tab === 'time');
+  document.getElementById('perf-tab-month')  ?.classList.toggle('active', tab === 'month');
+  document.getElementById('perf-tab-history')?.classList.toggle('active', tab === 'history');
   const matrixEl  = document.getElementById('perf-view-matrix');
+  const timeEl    = document.getElementById('perf-view-time');
+  const monthEl   = document.getElementById('perf-view-month');
   const historyEl = document.getElementById('perf-view-history');
-  // 히스토리 탭 전환 시: 매트릭스 내부 및 .content 수평 스크롤 위치 초기화
-  if (tab === 'history') {
-    if (matrixEl) matrixEl.scrollLeft = 0;
-    const _wrap = matrixEl?.querySelector('div[style*="overflow-x"]');
-    if (_wrap) _wrap.scrollLeft = 0;
+  if (tab === 'history' || tab === 'time' || tab === 'month') {
+    perfCloseCellPanel();
     const contentEl = document.querySelector('.content');
     if (contentEl) contentEl.scrollLeft = 0;
   }
   if (matrixEl)  matrixEl.style.display  = tab === 'matrix'  ? '' : 'none';
+  if (timeEl)    timeEl.style.display    = tab === 'time'    ? '' : 'none';
+  if (monthEl)   monthEl.style.display   = tab === 'month'   ? '' : 'none';
   if (historyEl) historyEl.style.display = tab === 'history' ? '' : 'none';
-  if (tab === 'matrix') renderPerfMatrix();
+  const subEl     = document.getElementById('perf-matrix-subtabs');
+  const timeSubEl = document.getElementById('perf-time-subtabs');
+  if (subEl)     subEl.style.display     = tab === 'matrix' ? 'flex' : 'none';
+  if (timeSubEl) timeSubEl.style.display = tab === 'time'   ? 'flex' : 'none';
+  if (tab === 'matrix')  renderPerfMatrix();
+  else if (tab === 'time')  renderPerfTimeMatrix();
+  else if (tab === 'month') renderPerfMonthMatrix();
   else renderPerfHistory();
 }
 
 function renderPerfCurrent() {
-  if (_perfTab === 'matrix') renderPerfMatrix();
+  if (_perfTab === 'matrix')  renderPerfMatrix();
+  else if (_perfTab === 'time')  renderPerfTimeMatrix();
+  else if (_perfTab === 'month') renderPerfMonthMatrix();
   else renderPerfHistory();
 }
 
+function perfMonthDropdownToggle() {
+  const btn = document.getElementById('perf-f-month-btn');
+  if (btn?.disabled) return;
+  const panel = document.getElementById('perf-f-month-panel');
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? '' : 'none';
+  if (opening) {
+    setTimeout(() => document.addEventListener('click', _perfMonthOutsideClick, { once: true }), 0);
+  }
+}
+
+function _perfMonthOutsideClick(e) {
+  const wrap = document.getElementById('perf-month-wrap');
+  if (wrap?.contains(e.target)) {
+    document.addEventListener('click', _perfMonthOutsideClick, { once: true });
+  } else {
+    perfMonthDropdownClose();
+  }
+}
+
+function perfMonthDropdownClose() {
+  const panel = document.getElementById('perf-f-month-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+function perfMonthCheck() {
+  const boxes   = [...document.querySelectorAll('#perf-f-month-panel input[data-month]')];
+  const allBox  = document.getElementById('perf-m-all');
+  if (allBox) allBox.checked = boxes.every(b => b.checked);
+  _updatePerfMonthLabel();
+  renderPerfCurrent();
+}
+
+function perfMonthAllChange(cb) {
+  document.querySelectorAll('#perf-f-month-panel input[data-month]').forEach(b => b.checked = cb.checked);
+  _updatePerfMonthLabel();
+  renderPerfCurrent();
+}
+
+function _updatePerfMonthLabel() {
+  const MONTH_LABEL = {'01':'1월','02':'2월','03':'3월','04':'4월','05':'5월','06':'6월',
+                       '07':'7월','08':'8월','09':'9월','10':'10월','11':'11월','12':'12월'};
+  const boxes   = [...document.querySelectorAll('#perf-f-month-panel input[data-month]')];
+  const checked = boxes.filter(b => b.checked);
+  const label   = document.getElementById('perf-f-month-label');
+  if (!label) return;
+  if (!checked.length || checked.length === boxes.length) {
+    label.textContent = '전체 월';
+  } else if (checked.length <= 3) {
+    label.textContent = checked.map(b => MONTH_LABEL[b.dataset.month]).join(', ');
+  } else {
+    label.textContent = `${checked.length}개월 선택`;
+  }
+}
+
+function perfYearChange() {
+  const yearEl = document.getElementById('perf-f-year');
+  const btn    = document.getElementById('perf-f-month-btn');
+  if (btn) {
+    btn.disabled = !yearEl?.value;
+    if (!yearEl?.value) {
+      document.querySelectorAll('#perf-f-month-panel input').forEach(b => b.checked = false);
+      _updatePerfMonthLabel();
+      perfMonthDropdownClose();
+    }
+  }
+  renderPerfCurrent();
+}
+
 function _perfBaseData() {
-  const year  = document.getElementById('perf-f-year')?.value  || '';
-  const cat   = document.getElementById('perf-f-cat')?.value   || '';
-  const media = document.getElementById('perf-f-media')?.value || '';
+  const year          = document.getElementById('perf-f-year')?.value || '';
+  const checkedMonths = [...document.querySelectorAll('#perf-f-month-panel input[data-month]:checked')].map(b => b.dataset.month);
+  const cat           = document.getElementById('perf-f-cat')?.value  || '';
+  const media         = document.getElementById('perf-f-media')?.value || '';
   return DATA.filter(c => {
     if (c.status === '삭제') return false;
+    if ((c.date || '').endsWith('00:00')) return false;
+    if (c.product === '실시간 발송') return false;
     if (year  && !(c.date || '').startsWith(year)) return false;
+    if (checkedMonths.length && !checkedMonths.includes((c.date || '').slice(5, 7))) return false;
     if (cat   && _getCat(c) !== cat) return false;
     if (media && c.media !== media) return false;
     return true;
   });
 }
 
+const _PERF_CAT_PALETTE = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#ec4899','#8b5cf6','#14b8a6','#f97316','#06b6d4'];
+
+function _buildAdvCatColors(data) {
+  // 광고주별 주 카테고리(캠페인 수 기준) 결정
+  const catCount = {};
+  for (const c of data) {
+    const adv = c.seller || c.adv;
+    const cat = _getCat(c);
+    if (!adv || !cat) continue;
+    if (!catCount[adv]) catCount[adv] = {};
+    catCount[adv][cat] = (catCount[adv][cat] || 0) + 1;
+  }
+  const advPrimaryCat = {};
+  for (const [adv, cc] of Object.entries(catCount)) {
+    advPrimaryCat[adv] = Object.entries(cc).sort((a, b) => b[1] - a[1])[0][0];
+  }
+  // 카테고리 → 색상
+  const cats = [...new Set(Object.values(advPrimaryCat))].sort();
+  const catColorMap = {};
+  cats.forEach((cat, i) => catColorMap[cat] = _PERF_CAT_PALETTE[i % _PERF_CAT_PALETTE.length]);
+  return { advPrimaryCat, catColorMap };
+}
+
+function perfMatrixSubSwitch(sub) {
+  _perfMatrixSub = sub;
+  const catBtn = document.getElementById('perf-msub-cat');
+  const advBtn = document.getElementById('perf-msub-adv');
+  if (catBtn) {
+    catBtn.style.background  = sub === 'cat' ? 'var(--accent)' : 'transparent';
+    catBtn.style.color       = sub === 'cat' ? '#fff'          : 'var(--text2)';
+    catBtn.style.borderColor = sub === 'cat' ? 'var(--accent)' : 'var(--border)';
+  }
+  if (advBtn) {
+    advBtn.style.background  = sub === 'adv' ? 'var(--accent)' : 'transparent';
+    advBtn.style.color       = sub === 'adv' ? '#fff'          : 'var(--text2)';
+    advBtn.style.borderColor = sub === 'adv' ? 'var(--accent)' : 'var(--border)';
+  }
+  renderPerfMatrix();
+}
+
 function renderPerfMatrix() {
+  _perfSelectedKey = '';
   const container = document.getElementById('perf-view-matrix');
   if (!container) return;
   const data = _perfBaseData().filter(c => c.ctr != null && c.ctr !== '');
@@ -10643,14 +10814,18 @@ function renderPerfMatrix() {
     return;
   }
 
-  const cats   = [...new Set(data.map(c => _getCat(c)).filter(Boolean))].sort();
+  const isAdv  = _perfMatrixSub === 'adv';
   const medias = [...new Set(data.map(c => c.media).filter(Boolean))].sort();
+  const cols   = isAdv
+    ? [...new Set(data.map(c => c.seller || c.adv).filter(Boolean))].sort()
+    : [...new Set(data.map(c => _getCat(c)).filter(Boolean))].sort();
 
   const agg = {};
   for (const c of data) {
-    const cat = _getCat(c); const med = c.media;
-    if (!cat || !med) continue;
-    const key = cat + '||' + med;
+    const med = c.media;
+    const col = isAdv ? (c.seller || c.adv) : _getCat(c);
+    if (!med || !col) continue;
+    const key = med + '||' + col;
     if (!agg[key]) agg[key] = { ctrSum: 0, count: 0, clicks: 0, actual: 0 };
     agg[key].ctrSum  += parseFloat(c.ctr)    || 0;
     agg[key].count++;
@@ -10659,42 +10834,88 @@ function renderPerfMatrix() {
   }
 
   const maxCtr = Math.max(0.01, ...Object.values(agg).map(v => v.count ? v.ctrSum / v.count : 0));
-  const thS = 'padding:9px 14px;font-size:12px;font-weight:600;color:var(--text2);background:var(--surface2);border:1px solid var(--border);white-space:nowrap;';
+  const thS    = 'padding:9px 14px;font-size:12px;font-weight:600;color:var(--text2);background:var(--surface2);border:1px solid var(--border);white-space:nowrap;';
+  const thCorner = thS + 'position:sticky;top:0;left:0;z-index:3;';
+  const thHead   = thS + 'position:sticky;top:0;z-index:2;';
+  const thFirst  = thS + 'position:sticky;left:0;z-index:1;font-weight:600;color:var(--text1);';
+
+  const catFilter = document.getElementById('perf-f-cat')?.value || '';
+  const hint = isAdv && !catFilter
+    ? `<div style="font-size:12px;color:var(--text3);margin-bottom:10px;">💡 카테고리를 선택하면 해당 카테고리 광고주만 표시됩니다.</div>`
+    : '';
+
+  const { advPrimaryCat, catColorMap } = isAdv ? _buildAdvCatColors(data) : { advPrimaryCat: {}, catColorMap: {} };
+
+  // 카테고리 범례 (광고주별일 때만)
+  const legendHtml = isAdv && Object.keys(catColorMap).length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:10px;">` +
+      Object.entries(catColorMap).map(([cat, color]) =>
+        `<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);">` +
+        `<span style="width:10px;height:10px;border-radius:2px;background:${color};display:inline-block;"></span>${_escHtml(cat)}</span>`
+      ).join('') + `</div>`
+    : '';
 
   container.style.overflowX = '';
-  let html = `<div style="overflow-x:auto;width:100%;"><table style="border-collapse:collapse;font-size:12px;width:max-content;">
-    <thead><tr>
-      <th style="${thS}text-align:left;min-width:120px;">카테고리</th>
-      ${medias.map(m => `<th style="${thS}text-align:center;min-width:90px;">${_escHtml(m)}</th>`).join('')}
-    </tr></thead><tbody>`;
+  let html = `${hint}${legendHtml}<div style="display:flex;gap:16px;align-items:flex-start;">
+    <div style="min-width:0;overflow:auto;max-height:70vh;">
+      <table style="border-collapse:collapse;font-size:12px;width:max-content;">
+        <thead><tr>
+          <th style="${thCorner}text-align:left;min-width:120px;">매체</th>
+          ${cols.map(col => {
+            const color = isAdv && advPrimaryCat[col] ? catColorMap[advPrimaryCat[col]] : null;
+            const bg = color ? `background:${color}28;` : '';
+            return `<th style="${thHead}${bg}text-align:center;min-width:90px;">${_escHtml(col)}</th>`;
+          }).join('')}
+        </tr></thead><tbody>`;
 
-  for (const cat of cats) {
-    html += `<tr><td style="${thS}font-weight:600;color:var(--text1);">${_escHtml(cat)}</td>`;
-    for (const med of medias) {
-      const cell = agg[cat + '||' + med];
+  for (const med of medias) {
+    html += `<tr><td style="${thFirst}">${_escHtml(med)}</td>`;
+    for (const col of cols) {
+      const cell = agg[med + '||' + col];
       if (!cell || !cell.count) {
         html += `<td style="padding:9px 14px;text-align:center;border:1px solid var(--border);color:var(--text3);">—</td>`;
       } else {
         const avg = cell.ctrSum / cell.count;
         const bg  = `rgba(34,197,94,${(avg / maxCtr * 0.55).toFixed(2)})`;
-        html += `<td style="padding:9px 14px;text-align:center;border:1px solid var(--border);background:${bg};font-weight:700;cursor:default;"
-          data-cat="${_escHtml(cat)}" data-med="${_escHtml(med)}"
+        const dataAttr = isAdv
+          ? `data-adv="${_escHtml(col)}" data-med="${_escHtml(med)}"`
+          : `data-cat="${_escHtml(col)}" data-med="${_escHtml(med)}"`;
+        html += `<td style="padding:9px 14px;text-align:center;border:1px solid var(--border);background:${bg};font-weight:700;cursor:pointer;"
+          ${dataAttr}
           data-ctr="${avg.toFixed(2)}" data-count="${cell.count}"
           data-clicks="${Math.round(cell.clicks)}" data-actual="${Math.round(cell.actual)}"
-          onmouseenter="perfShowTooltip(event,this)" onmouseleave="perfHideTooltip()">${avg.toFixed(2)}%</td>`;
+          onmouseenter="perfShowTooltip(event,this)" onmouseleave="perfHideTooltip()"
+          onclick="perfSelectCell(this)">${avg.toFixed(2)}%</td>`;
       }
     }
     html += '</tr>';
   }
-  html += '</tbody></table></div>';
+  html += `</tbody></table>
+    </div>
+    <div id="perf-cell-panel" style="display:none;width:500px;flex-shrink:0;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:16px;box-shadow:var(--shadow);position:sticky;top:24px;align-self:flex-start;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span id="perf-cell-title" style="font-weight:700;font-size:13px;color:var(--text1);"></span>
+        <button onclick="perfCloseCellPanel()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);line-height:1;">✕</button>
+      </div>
+      <div id="perf-cell-summary" style="font-size:12px;color:var(--text2);margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);"></div>
+      <div id="perf-cell-list" style="overflow-y:auto;max-height:420px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>`;
   container.innerHTML = html;
 }
 
 function perfShowTooltip(e, el) {
   const tip = document.getElementById('perf-tooltip');
   if (!tip) return;
+  const MONTH_LABEL = { '01':'1월','02':'2월','03':'3월','04':'4월','05':'5월','06':'6월',
+                        '07':'7월','08':'8월','09':'9월','10':'10월','11':'11월','12':'12월' };
+  const tipLabel = el.dataset.med && el.dataset.adv  ? `${el.dataset.med} × ${el.dataset.adv}`
+                 : el.dataset.med                    ? `${el.dataset.med} × ${el.dataset.cat}`
+                 : el.dataset.hour && el.dataset.adv ? `${el.dataset.hour}시 × ${el.dataset.adv}`
+                 : el.dataset.hour                   ? `${el.dataset.hour}시 × ${el.dataset.cat}`
+                 : `${MONTH_LABEL[el.dataset.month] || el.dataset.month} × ${el.dataset.cat}`;
   tip.innerHTML = `
-    <div style="font-weight:700;margin-bottom:5px;">${_escHtml(el.dataset.cat)} × ${_escHtml(el.dataset.med)}</div>
+    <div style="font-weight:700;margin-bottom:5px;">${_escHtml(tipLabel)}</div>
     <div style="color:var(--text2);">평균 CTR &nbsp;<b style="color:var(--text1);">${el.dataset.ctr}%</b></div>
     <div style="color:var(--text2);">총 클릭수 &nbsp;<b style="color:var(--text1);">${parseInt(el.dataset.clicks).toLocaleString()}</b></div>
     <div style="color:var(--text2);">실발송수량 &nbsp;<b style="color:var(--text1);">${parseInt(el.dataset.actual).toLocaleString()}</b></div>
@@ -10709,21 +10930,448 @@ function perfHideTooltip() {
   if (tip) tip.style.display = 'none';
 }
 
+function perfSelectCell(td) {
+  const med  = td.dataset.med;
+  const isAdv = !!td.dataset.adv;
+  const col  = isAdv ? td.dataset.adv : td.dataset.cat;
+  const key  = med + '||' + col;
+
+  if (_perfSelectedKey === key) { perfCloseCellPanel(); return; }
+  _perfSelectedKey = key;
+
+  document.querySelectorAll('#perf-view-matrix td[data-med]').forEach(el => el.style.outline = '');
+  td.style.outline = '2px solid var(--accent)';
+
+  const camps = _perfBaseData().filter(c => {
+    if (c.media !== med || c.ctr == null || c.ctr === '') return false;
+    return isAdv ? (c.seller || c.adv) === col : _getCat(c) === col;
+  });
+  camps.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const avgCtr     = camps.reduce((s, c) => s + (parseFloat(c.ctr)    || 0), 0) / camps.length;
+  const totalClicks = camps.reduce((s, c) => s + (parseFloat(c.clicks) || 0), 0);
+  const totalActual = camps.reduce((s, c) => s + (parseFloat(c.actual) || 0), 0);
+
+  document.getElementById('perf-cell-title').textContent = `${med} × ${col}`;
+  document.getElementById('perf-cell-summary').innerHTML =
+    `캠페인 <b>${camps.length}건</b> &nbsp;·&nbsp; 평균 CTR <b>${avgCtr.toFixed(2)}%</b><br>` +
+    `총 클릭 <b>${Math.round(totalClicks).toLocaleString()}</b> &nbsp;·&nbsp; 총 발송 <b>${Math.round(totalActual).toLocaleString()}</b>`;
+
+  const listEl = document.getElementById('perf-cell-list');
+  const thL = 'font-size:11px;color:var(--text3);font-weight:500;padding:4px 6px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;';
+  const tdL = 'font-size:12px;padding:6px 6px;border-bottom:1px solid var(--border);cursor:pointer;';
+  const rows = camps.map(c => {
+    const idx    = DATA.findIndex(d => d.id === c.id);
+    const date   = (c.date || '').slice(0, 10).replace(/-/g, '/') || '—';
+    const ctr    = c.ctr    != null ? parseFloat(c.ctr).toFixed(2) + '%' : '—';
+    const clicks = c.clicks != null ? Math.round(c.clicks).toLocaleString() : '—';
+    return `<tr onclick="openCalPreview(${idx})" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
+      <td style="${tdL}color:var(--text2);white-space:nowrap;">${date}</td>
+      <td style="${tdL}">${_escHtml(c.content || '—')}</td>
+      <td style="${tdL}color:var(--text2);">${_escHtml(c.product || '—')}</td>
+      <td style="${tdL}text-align:right;font-weight:700;">${ctr}</td>
+      <td style="${tdL}text-align:right;color:var(--text2);">${clicks}</td>
+    </tr>`;
+  }).join('');
+  listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+    <thead><tr>
+      <th style="${thL}">집행일</th><th style="${thL}">브랜드</th><th style="${thL}">상품</th>
+      <th style="${thL}text-align:right;">CTR</th><th style="${thL}text-align:right;">클릭</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+
+  document.getElementById('perf-cell-panel').style.display = '';
+}
+
+function perfCloseCellPanel() {
+  _perfSelectedKey = '';
+  document.querySelectorAll('#perf-view-matrix td[data-med]').forEach(el => el.style.outline = '');
+  const panel = document.getElementById('perf-cell-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+function perfTimeSubSwitch(sub) {
+  _perfTimeSub = sub;
+  const catBtn = document.getElementById('perf-tsub-cat');
+  const advBtn = document.getElementById('perf-tsub-adv');
+  if (catBtn) {
+    catBtn.style.background  = sub === 'cat' ? 'var(--accent)' : 'transparent';
+    catBtn.style.color       = sub === 'cat' ? '#fff'          : 'var(--text2)';
+    catBtn.style.borderColor = sub === 'cat' ? 'var(--accent)' : 'var(--border)';
+  }
+  if (advBtn) {
+    advBtn.style.background  = sub === 'adv' ? 'var(--accent)' : 'transparent';
+    advBtn.style.color       = sub === 'adv' ? '#fff'          : 'var(--text2)';
+    advBtn.style.borderColor = sub === 'adv' ? 'var(--accent)' : 'var(--border)';
+  }
+  renderPerfTimeMatrix();
+}
+
+function renderPerfTimeMatrix() {
+  _perfSelectedKey = '';
+  const container = document.getElementById('perf-view-time');
+  if (!container) return;
+  const data = _perfBaseData().filter(c => c.ctr != null && c.ctr !== '' && (c.date || '').includes(' '));
+  if (!data.length) {
+    container.innerHTML = '<div style="padding:48px;text-align:center;color:var(--text3);font-size:13px;">발송 시각이 있는 CTR 데이터가 없습니다.</div>';
+    return;
+  }
+
+  const isAdv  = _perfTimeSub === 'adv';
+  const hours  = [...new Set(data.map(c => (c.date || '').split(' ')[1]?.slice(0, 2)).filter(Boolean))].sort();
+  const cols   = isAdv
+    ? [...new Set(data.map(c => c.seller || c.adv).filter(Boolean))].sort()
+    : [...new Set(data.map(c => _getCat(c)).filter(Boolean))].sort();
+
+  const agg = {};
+  for (const c of data) {
+    const hour = (c.date || '').split(' ')[1]?.slice(0, 2);
+    const col  = isAdv ? (c.seller || c.adv) : _getCat(c);
+    if (!hour || !col) continue;
+    const key = hour + '||' + col;
+    if (!agg[key]) agg[key] = { ctrSum: 0, count: 0, clicks: 0, actual: 0 };
+    agg[key].ctrSum  += parseFloat(c.ctr)    || 0;
+    agg[key].count++;
+    agg[key].clicks  += parseFloat(c.clicks) || 0;
+    agg[key].actual  += parseFloat(c.actual) || 0;
+  }
+
+  const maxCtr   = Math.max(0.01, ...Object.values(agg).map(v => v.count ? v.ctrSum / v.count : 0));
+  const thS      = 'padding:9px 14px;font-size:12px;font-weight:600;color:var(--text2);background:var(--surface2);border:1px solid var(--border);white-space:nowrap;';
+  const thCorner = thS + 'position:sticky;top:0;left:0;z-index:3;';
+  const thHead   = thS + 'position:sticky;top:0;z-index:2;';
+  const thFirst  = thS + 'position:sticky;left:0;z-index:1;font-weight:600;color:var(--text1);';
+
+  const catFilter = document.getElementById('perf-f-cat')?.value || '';
+  const hint = isAdv && !catFilter
+    ? `<div style="font-size:12px;color:var(--text3);margin-bottom:10px;">💡 카테고리를 선택하면 해당 카테고리 광고주만 표시됩니다.</div>`
+    : '';
+
+  const { advPrimaryCat, catColorMap } = isAdv ? _buildAdvCatColors(data) : { advPrimaryCat: {}, catColorMap: {} };
+
+  const legendHtml = isAdv && Object.keys(catColorMap).length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:10px;">` +
+      Object.entries(catColorMap).map(([cat, color]) =>
+        `<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);">` +
+        `<span style="width:10px;height:10px;border-radius:2px;background:${color};display:inline-block;"></span>${_escHtml(cat)}</span>`
+      ).join('') + `</div>`
+    : '';
+
+  container.style.overflowX = '';
+  let html = `${hint}${legendHtml}<div style="display:flex;gap:16px;align-items:flex-start;">
+    <div style="min-width:0;overflow:auto;max-height:70vh;">
+      <table style="border-collapse:collapse;font-size:12px;width:max-content;">
+        <thead><tr>
+          <th style="${thCorner}text-align:left;min-width:80px;">시간대</th>
+          ${cols.map(col => {
+            const color = isAdv && advPrimaryCat[col] ? catColorMap[advPrimaryCat[col]] : null;
+            const bg = color ? `background:${color}28;` : '';
+            return `<th style="${thHead}${bg}text-align:center;min-width:90px;">${_escHtml(col)}</th>`;
+          }).join('')}
+        </tr></thead><tbody>`;
+
+  for (const hour of hours) {
+    html += `<tr><td style="${thFirst}">${hour}시</td>`;
+    for (const col of cols) {
+      const cell = agg[hour + '||' + col];
+      if (!cell || !cell.count) {
+        html += `<td style="padding:9px 14px;text-align:center;border:1px solid var(--border);color:var(--text3);">—</td>`;
+      } else {
+        const avg = cell.ctrSum / cell.count;
+        const bg  = `rgba(34,197,94,${(avg / maxCtr * 0.55).toFixed(2)})`;
+        const dataAttr = isAdv
+          ? `data-hour="${hour}" data-adv="${_escHtml(col)}"`
+          : `data-hour="${hour}" data-cat="${_escHtml(col)}"`;
+        html += `<td style="padding:9px 14px;text-align:center;border:1px solid var(--border);background:${bg};font-weight:700;cursor:pointer;"
+          ${dataAttr}
+          data-ctr="${avg.toFixed(2)}" data-count="${cell.count}"
+          data-clicks="${Math.round(cell.clicks)}" data-actual="${Math.round(cell.actual)}"
+          onmouseenter="perfShowTooltip(event,this)" onmouseleave="perfHideTooltip()"
+          onclick="perfSelectTimeCell(this)">${avg.toFixed(2)}%</td>`;
+      }
+    }
+    html += '</tr>';
+  }
+  html += `</tbody></table>
+    </div>
+    <div id="perf-time-panel" style="display:none;width:500px;flex-shrink:0;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:16px;box-shadow:var(--shadow);position:sticky;top:24px;align-self:flex-start;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span id="perf-time-title" style="font-weight:700;font-size:13px;color:var(--text1);"></span>
+        <button onclick="perfCloseTimePanel()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);line-height:1;">✕</button>
+      </div>
+      <div id="perf-time-summary" style="font-size:12px;color:var(--text2);margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);"></div>
+      <div id="perf-time-list" style="overflow-y:auto;max-height:420px;"></div>
+    </div>
+  </div>`;
+  container.innerHTML = html;
+}
+
+function perfSelectTimeCell(td) {
+  const hour  = td.dataset.hour;
+  const isAdv = !!td.dataset.adv;
+  const col   = isAdv ? td.dataset.adv : td.dataset.cat;
+  const key   = hour + '||' + col;
+  if (_perfSelectedKey === key) { perfCloseTimePanel(); return; }
+  _perfSelectedKey = key;
+
+  document.querySelectorAll('#perf-view-time td[data-hour]').forEach(el => el.style.outline = '');
+  td.style.outline = '2px solid var(--accent)';
+
+  const camps = _perfBaseData().filter(c => {
+    if ((c.date || '').split(' ')[1]?.slice(0, 2) !== hour) return false;
+    if (c.ctr == null || c.ctr === '') return false;
+    return isAdv ? (c.seller || c.adv) === col : _getCat(c) === col;
+  });
+  camps.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const avgCtr      = camps.reduce((s, c) => s + (parseFloat(c.ctr)    || 0), 0) / camps.length;
+  const totalClicks = camps.reduce((s, c) => s + (parseFloat(c.clicks) || 0), 0);
+  const totalActual = camps.reduce((s, c) => s + (parseFloat(c.actual) || 0), 0);
+
+  document.getElementById('perf-time-title').textContent = `${hour}시 발송 × ${col}`;
+  document.getElementById('perf-time-summary').innerHTML =
+    `캠페인 <b>${camps.length}건</b> &nbsp;·&nbsp; 평균 CTR <b>${avgCtr.toFixed(2)}%</b><br>` +
+    `총 클릭 <b>${Math.round(totalClicks).toLocaleString()}</b> &nbsp;·&nbsp; 총 발송 <b>${Math.round(totalActual).toLocaleString()}</b>`;
+
+  const thL = 'font-size:11px;color:var(--text3);font-weight:500;padding:4px 6px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;';
+  const tdL = 'font-size:12px;padding:6px 6px;border-bottom:1px solid var(--border);cursor:pointer;';
+  const rows = camps.map(c => {
+    const idx    = DATA.findIndex(d => d.id === c.id);
+    const date   = (c.date || '').slice(0, 10).replace(/-/g, '/') || '—';
+    const ctr    = parseFloat(c.ctr).toFixed(2) + '%';
+    const clicks = c.clicks != null ? Math.round(c.clicks).toLocaleString() : '—';
+    return `<tr onclick="openCalPreview(${idx})" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
+      <td style="${tdL}color:var(--text2);white-space:nowrap;">${date}</td>
+      <td style="${tdL}">${_escHtml(c.content || '—')}</td>
+      <td style="${tdL}color:var(--text2);">${_escHtml(c.media || '—')}</td>
+      <td style="${tdL}color:var(--text2);">${_escHtml(c.product || '—')}</td>
+      <td style="${tdL}text-align:right;font-weight:700;">${ctr}</td>
+      <td style="${tdL}text-align:right;color:var(--text2);">${clicks}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('perf-time-list').innerHTML = `<table style="width:100%;border-collapse:collapse;">
+    <thead><tr>
+      <th style="${thL}">발송일</th><th style="${thL}">브랜드</th><th style="${thL}">매체</th><th style="${thL}">상품</th>
+      <th style="${thL}text-align:right;">CTR</th><th style="${thL}text-align:right;">클릭</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+
+  document.getElementById('perf-time-panel').style.display = '';
+}
+
+function perfCloseTimePanel() {
+  _perfSelectedKey = '';
+  document.querySelectorAll('#perf-view-time td[data-hour]').forEach(el => el.style.outline = '');
+  const panel = document.getElementById('perf-time-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+function renderPerfMonthMatrix() {
+  _perfSelectedKey = '';
+  const container = document.getElementById('perf-view-month');
+  if (!container) return;
+  const data = _perfBaseData().filter(c => c.ctr != null && c.ctr !== '');
+  if (!data.length) {
+    container.innerHTML = '<div style="padding:48px;text-align:center;color:var(--text3);font-size:13px;">CTR 데이터가 없습니다.</div>';
+    return;
+  }
+
+  const MONTH_LABEL = {'01':'1월','02':'2월','03':'3월','04':'4월','05':'5월','06':'6월',
+                       '07':'7월','08':'8월','09':'9월','10':'10월','11':'11월','12':'12월'};
+  const cats   = [...new Set(data.map(c => _getCat(c)).filter(Boolean))].sort();
+  const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+
+  const agg = {};
+  for (const c of data) {
+    const cat   = _getCat(c);
+    const month = (c.date || '').slice(5, 7);
+    if (!cat || !month) continue;
+    if (!agg[month]) agg[month] = {};
+    if (!agg[month][cat]) agg[month][cat] = { ctrSum: 0, count: 0, clicks: 0, actual: 0 };
+    agg[month][cat].ctrSum  += parseFloat(c.ctr)    || 0;
+    agg[month][cat].count++;
+    agg[month][cat].clicks  += parseFloat(c.clicks) || 0;
+    agg[month][cat].actual  += parseFloat(c.actual) || 0;
+  }
+
+  let maxCtr = 0.01;
+  for (const m of months) for (const cat of cats) {
+    const cell = agg[m]?.[cat];
+    if (cell?.count) maxCtr = Math.max(maxCtr, cell.ctrSum / cell.count);
+  }
+  const yMax = Math.ceil(maxCtr * 1.1 / 0.5) * 0.5;
+
+  const W = 680, H = 400;
+  const PAD = { top: 20, right: 24, bottom: 40, left: 52 };
+  const cW = W - PAD.left - PAD.right;
+  const cH = H - PAD.top  - PAD.bottom;
+  const xPos = i => PAD.left + (months.length > 1 ? i / (months.length - 1) : 0.5) * cW;
+
+  // 0~10% 구간을 차트 높이의 75%로, 10%~ 는 나머지 25%로 압축하는 piecewise 스케일
+  const BREAK = 10, BFRAC = 0.75;
+  const displayMax = Math.max(yMax, 12); // 항상 10% 위 압축 구간이 보이도록 최소 12% 확보
+  const yPos = v => {
+    if (v <= BREAK) return PAD.top + cH * (1 - BFRAC) + (1 - v / BREAK) * cH * BFRAC;
+    return PAD.top + (1 - (v - BREAK) / (displayMax - BREAK)) * cH * (1 - BFRAC);
+  };
+  const yTickVals = [0, 2, 4, 6, 8, 10, parseFloat(displayMax.toFixed(1))].filter((v, i, a) => a.indexOf(v) === i);
+
+  const COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#ec4899','#8b5cf6','#14b8a6','#f97316','#06b6d4'];
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:52%;height:400px;display:block;">`;
+
+  // Y-axis grid + labels
+  for (const v of yTickVals) {
+    const y = yPos(v);
+    svg += `<line x1="${PAD.left}" y1="${y.toFixed(1)}" x2="${W - PAD.right}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1"/>`;
+    svg += `<text x="${PAD.left - 6}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text3)" font-family="inherit">${v.toFixed(1)}%</text>`;
+  }
+
+  // X-axis labels
+  months.forEach((m, i) => {
+    svg += `<text x="${xPos(i).toFixed(1)}" y="${H - PAD.bottom + 15}" text-anchor="middle" font-size="11" fill="var(--text2)" font-family="inherit">${MONTH_LABEL[m] || m}</text>`;
+  });
+
+  // Lines + dots per category
+  cats.forEach((cat, ci) => {
+    const color = COLORS[ci % COLORS.length];
+    const pts = months.map((m, i) => {
+      const cell = agg[m]?.[cat];
+      if (!cell?.count) return null;
+      const avg = cell.ctrSum / cell.count;
+      return { x: xPos(i), y: yPos(avg), m, avg, cell };
+    });
+
+    // Line path (skip gaps)
+    let d = '';
+    for (let i = 0; i < pts.length; i++) {
+      if (!pts[i]) continue;
+      const prevExists = pts.slice(0, i).some(p => p);
+      if (!prevExists) d += `M${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
+      else d += ` L${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
+    }
+    if (d) svg += `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+
+    // Dots
+    pts.forEach(pt => {
+      if (!pt) return;
+      svg += `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="5"
+        fill="${color}" stroke="white" stroke-width="2" style="cursor:pointer;"
+        data-month="${pt.m}" data-cat="${_escHtml(cat)}"
+        data-ctr="${pt.avg.toFixed(2)}" data-count="${pt.cell.count}"
+        data-clicks="${Math.round(pt.cell.clicks)}" data-actual="${Math.round(pt.cell.actual)}"
+        onmouseenter="perfShowTooltip(event,this)" onmouseleave="perfHideTooltip()"
+        onclick="perfSelectMonthCell(this)"/>`;
+    });
+  });
+
+  svg += '</svg>';
+
+  const legendHtml = `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;padding-left:${PAD.left}px;">` +
+    cats.map((cat, ci) =>
+      `<span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);">` +
+      `<span style="width:10px;height:10px;border-radius:50%;background:${COLORS[ci % COLORS.length]};flex-shrink:0;display:inline-block;"></span>${_escHtml(cat)}</span>`
+    ).join('') + '</div>';
+
+  container.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px;">
+    <div style="width:100%;">${svg}${legendHtml}</div>
+    <div id="perf-month-panel" style="display:none;width:100%;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:16px;box-shadow:var(--shadow);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span id="perf-month-title" style="font-weight:700;font-size:13px;color:var(--text1);"></span>
+        <button onclick="perfCloseMonthPanel()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);line-height:1;">✕</button>
+      </div>
+      <div id="perf-month-summary" style="font-size:12px;color:var(--text2);margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);"></div>
+      <div id="perf-month-list" style="overflow-y:auto;max-height:420px;"></div>
+    </div>
+  </div>`;
+}
+
+function perfSelectMonthCell(el) {
+  const month = el.dataset.month;
+  const cat   = el.dataset.cat;
+  const key   = month + '||' + cat;
+  if (_perfSelectedKey === key) { perfCloseMonthPanel(); return; }
+  _perfSelectedKey = key;
+
+  const MONTH_LABEL = {'01':'1월','02':'2월','03':'3월','04':'4월','05':'5월','06':'6월',
+                       '07':'7월','08':'8월','09':'9월','10':'10월','11':'11월','12':'12월'};
+
+  document.querySelectorAll('#perf-view-month circle[data-month]').forEach(c => {
+    c.setAttribute('r', '5');
+    c.setAttribute('stroke', 'white');
+    c.setAttribute('stroke-width', '2');
+  });
+  el.setAttribute('r', '7');
+  el.setAttribute('stroke', 'var(--accent)');
+  el.setAttribute('stroke-width', '3');
+
+  const camps = _perfBaseData().filter(c =>
+    _getCat(c) === cat &&
+    (c.date || '').slice(5, 7) === month &&
+    c.ctr != null && c.ctr !== ''
+  );
+  camps.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const avgCtr      = camps.reduce((s, c) => s + (parseFloat(c.ctr)    || 0), 0) / camps.length;
+  const totalClicks = camps.reduce((s, c) => s + (parseFloat(c.clicks) || 0), 0);
+  const totalActual = camps.reduce((s, c) => s + (parseFloat(c.actual) || 0), 0);
+
+  document.getElementById('perf-month-title').textContent = `${MONTH_LABEL[month] || month} × ${cat}`;
+  document.getElementById('perf-month-summary').innerHTML =
+    `캠페인 <b>${camps.length}건</b> &nbsp;·&nbsp; 평균 CTR <b>${avgCtr.toFixed(2)}%</b><br>` +
+    `총 클릭 <b>${Math.round(totalClicks).toLocaleString()}</b> &nbsp;·&nbsp; 총 발송 <b>${Math.round(totalActual).toLocaleString()}</b>`;
+
+  const thL = 'font-size:11px;color:var(--text3);font-weight:500;padding:4px 6px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;';
+  const tdL = 'font-size:12px;padding:6px 6px;border-bottom:1px solid var(--border);cursor:pointer;';
+  const rows = camps.map(c => {
+    const idx    = DATA.findIndex(d => d.id === c.id);
+    const date   = (c.date || '').slice(0, 10).replace(/-/g, '/') || '—';
+    const ctr    = parseFloat(c.ctr).toFixed(2) + '%';
+    const clicks = c.clicks != null ? Math.round(c.clicks).toLocaleString() : '—';
+    return `<tr onclick="openCalPreview(${idx})" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
+      <td style="${tdL}color:var(--text2);white-space:nowrap;">${date}</td>
+      <td style="${tdL}">${_escHtml(c.content || '—')}</td>
+      <td style="${tdL}color:var(--text2);">${_escHtml(c.media || '—')}</td>
+      <td style="${tdL}color:var(--text2);">${_escHtml(c.product || '—')}</td>
+      <td style="${tdL}text-align:right;font-weight:700;">${ctr}</td>
+      <td style="${tdL}text-align:right;color:var(--text2);">${clicks}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('perf-month-list').innerHTML = `<table style="width:100%;border-collapse:collapse;">
+    <thead><tr>
+      <th style="${thL}">집행일</th><th style="${thL}">브랜드</th><th style="${thL}">매체</th><th style="${thL}">상품</th>
+      <th style="${thL}text-align:right;">CTR</th><th style="${thL}text-align:right;">클릭</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+
+  document.getElementById('perf-month-panel').style.display = '';
+}
+
+function perfCloseMonthPanel() {
+  _perfSelectedKey = '';
+  document.querySelectorAll('#perf-view-month circle[data-month]').forEach(c => {
+    c.setAttribute('r', '5');
+    c.setAttribute('stroke', 'white');
+    c.setAttribute('stroke-width', '2');
+  });
+  const panel = document.getElementById('perf-month-panel');
+  if (panel) panel.style.display = 'none';
+}
+
 function renderPerfHistory() {
   const container = document.getElementById('perf-history-list');
   if (!container) return;
-  const search = (document.getElementById('perf-h-search')?.value || '').trim().toLowerCase();
-  if (!search) {
-    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">광고주 이름을 검색하세요.</div>';
-    return;
-  }
-  const data = _perfBaseData().filter(c => {
-    const adv   = (c.seller || c.adv || '').toLowerCase();
+  const selVal = (document.getElementById('perf-h-adv-sel')?.value || '').trim();
+  const search = (document.getElementById('perf-h-search')?.value  || '').trim().toLowerCase();
+
+  let data = _perfBaseData().filter(c => {
+    const adv   = (c.seller || c.adv || '');
     const brand = (c.content || '').toLowerCase();
-    return adv.includes(search) || brand.includes(search);
+    if (selVal) return adv === selVal;
+    if (search) return adv.toLowerCase().includes(search) || brand.includes(search);
+    return true;
   });
+  if (_perfHistoryDbOnly) data = data.filter(c => c.db != null && parseFloat(c.db) > 0);
+
   if (!data.length) {
-    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">검색 결과가 없습니다.</div>';
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">데이터가 없습니다.</div>';
     return;
   }
 
@@ -10734,32 +11382,42 @@ function renderPerfHistory() {
     advMap[adv].push(c);
   }
 
+  const thH = 'text-align:left;padding:5px 8px;font-weight:500;color:var(--text3);white-space:nowrap;';
+  const tdS = 'padding:7px 8px;border-bottom:1px solid var(--border);';
   let html = '';
-  for (const [adv, camps] of Object.entries(advMap)) {
+  for (const [adv, camps] of Object.entries(advMap).sort(([a], [b]) => a.localeCompare(b))) {
     camps.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    const thH = 'text-align:left;padding:5px 8px;font-weight:500;color:var(--text3);';
     html += `<div style="margin-bottom:24px;">
       <div style="font-weight:700;font-size:14px;padding:6px 0 8px;border-bottom:2px solid var(--accent);margin-bottom:10px;">${_escHtml(adv)}</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
         <thead><tr>
-          <th style="${thH}white-space:nowrap;">집행월</th>
+          <th style="${thH}">집행일</th>
           <th style="${thH}">브랜드</th>
           <th style="${thH}">매체</th>
           <th style="${thH}">상품</th>
+          <th style="${thH}text-align:right;">발송건수</th>
           <th style="${thH}text-align:right;">CTR</th>
           <th style="${thH}text-align:right;">클릭수</th>
+          <th style="${thH}text-align:right;">DB등록수</th>
+          <th style="${thH}text-align:right;">DB등록률</th>
         </tr></thead>
         <tbody>${camps.map(c => {
-          const ctr    = c.ctr    != null ? parseFloat(c.ctr).toFixed(2) + '%' : '—';
-          const clicks = c.clicks != null ? Math.round(c.clicks).toLocaleString() : '—';
-          const month  = (c.date || '').slice(0, 7).replace('-', '/') || '—';
-          return `<tr style="border-bottom:1px solid var(--border);">
-            <td style="padding:7px 8px;color:var(--text2);white-space:nowrap;">${month}</td>
-            <td style="padding:7px 8px;">${_escHtml(c.content || '—')}</td>
-            <td style="padding:7px 8px;">${_escHtml(c.media || '—')}</td>
-            <td style="padding:7px 8px;color:var(--text2);">${_escHtml(c.product || '—')}</td>
-            <td style="padding:7px 8px;text-align:right;font-weight:700;">${ctr}</td>
-            <td style="padding:7px 8px;text-align:right;">${clicks}</td>
+          const date   = (c.date   || '').slice(0, 10).replace(/-/g, '/') || '—';
+          const actual = c.actual  != null && c.actual  !== '' ? Math.round(parseFloat(c.actual)).toLocaleString()   : '—';
+          const ctr    = c.ctr     != null && c.ctr     !== '' ? parseFloat(c.ctr).toFixed(2)    + '%'               : '—';
+          const clicks = c.clicks  != null && c.clicks  !== '' ? Math.round(parseFloat(c.clicks)).toLocaleString()   : '—';
+          const db     = c.db      != null && c.db      !== '' ? Math.round(parseFloat(c.db)).toLocaleString()       : '—';
+          const dbr    = c.dbr     != null && c.dbr     !== '' ? parseFloat(c.dbr).toFixed(2)    + '%'               : '—';
+          return `<tr onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
+            <td style="${tdS}color:var(--text2);">${date}</td>
+            <td style="${tdS}">${_escHtml(c.content || '—')}</td>
+            <td style="${tdS}color:var(--text2);">${_escHtml(c.media || '—')}</td>
+            <td style="${tdS}color:var(--text2);">${_escHtml(c.product || '—')}</td>
+            <td style="${tdS}text-align:right;color:var(--text2);">${actual}</td>
+            <td style="${tdS}text-align:right;font-weight:700;">${ctr}</td>
+            <td style="${tdS}text-align:right;">${clicks}</td>
+            <td style="${tdS}text-align:right;color:var(--text2);">${db}</td>
+            <td style="${tdS}text-align:right;color:var(--text2);">${dbr}</td>
           </tr>`;
         }).join('')}</tbody>
       </table>

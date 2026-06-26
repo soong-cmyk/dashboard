@@ -2244,30 +2244,79 @@
       <div class="screen" id="screen-perf">
         <!-- 필터 바 -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-          <select class="form-sel" id="perf-f-year" onchange="renderPerfCurrent()" style="width:110px;">
-            <option value="">전체 기간</option>
+          <select class="form-sel" id="perf-f-year" onchange="perfYearChange()" style="width:90px;">
+            <option value="">전체 연도</option>
             <option>2024</option><option>2025</option><option>2026</option>
           </select>
+          <div style="position:relative;" id="perf-month-wrap">
+            <button class="form-sel" id="perf-f-month-btn" onclick="perfMonthDropdownToggle()"
+              style="width:110px;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:4px;cursor:pointer;background:var(--surface);color:var(--text1);" disabled>
+              <span id="perf-f-month-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">전체 월</span>
+              <span style="font-size:9px;color:var(--text3);flex-shrink:0;">▾</span>
+            </button>
+            <div id="perf-f-month-panel" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:4px 0;min-width:110px;">
+              <label class="perf-month-opt"><input type="checkbox" id="perf-m-all" onchange="perfMonthAllChange(this)"> 전체</label>
+              <div style="border-top:1px solid var(--border);margin:3px 0;"></div>
+              <label class="perf-month-opt"><input type="checkbox" data-month="01" onchange="perfMonthCheck()"> 1월</label>
+              <label class="perf-month-opt"><input type="checkbox" data-month="02" onchange="perfMonthCheck()"> 2월</label>
+              <label class="perf-month-opt"><input type="checkbox" data-month="03" onchange="perfMonthCheck()"> 3월</label>
+              <label class="perf-month-opt"><input type="checkbox" data-month="04" onchange="perfMonthCheck()"> 4월</label>
+              <label class="perf-month-opt"><input type="checkbox" data-month="05" onchange="perfMonthCheck()"> 5월</label>
+              <label class="perf-month-opt"><input type="checkbox" data-month="06" onchange="perfMonthCheck()"> 6월</label>
+              <label class="perf-month-opt"><input type="checkbox" data-month="07" onchange="perfMonthCheck()"> 7월</label>
+              <label class="perf-month-opt"><input type="checkbox" data-month="08" onchange="perfMonthCheck()"> 8월</label>
+              <label class="perf-month-opt"><input type="checkbox" data-month="09" onchange="perfMonthCheck()"> 9월</label>
+              <label class="perf-month-opt"><input type="checkbox" data-month="10" onchange="perfMonthCheck()"> 10월</label>
+              <label class="perf-month-opt"><input type="checkbox" data-month="11" onchange="perfMonthCheck()"> 11월</label>
+              <label class="perf-month-opt"><input type="checkbox" data-month="12" onchange="perfMonthCheck()"> 12월</label>
+            </div>
+          </div>
           <select class="form-sel" id="perf-f-cat" onchange="renderPerfCurrent()" style="width:130px;">
             <option value="">카테고리 전체</option>
           </select>
           <select class="form-sel" id="perf-f-media" onchange="renderPerfCurrent()" style="width:130px;">
             <option value="">매체 전체</option>
           </select>
+          <span style="font-size:11px;font-weight:600;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 8px;white-space:nowrap;">MMS·LMS·PUSH·카톡MSG 기준</span>
         </div>
         <!-- 탭 -->
         <div class="view-tabs" style="margin-bottom:16px;">
-          <button class="view-tab active" id="perf-tab-matrix"  onclick="perfSwitchTab('matrix')">카테고리 × 매체</button>
+          <button class="view-tab active" id="perf-tab-matrix"  onclick="perfSwitchTab('matrix')">매체 × 카테고리</button>
+          <button class="view-tab"        id="perf-tab-time"    onclick="perfSwitchTab('time')">시간대 × 카테고리</button>
+          <button class="view-tab"        id="perf-tab-month"   onclick="perfSwitchTab('month')">월별 × 카테고리</button>
           <button class="view-tab"        id="perf-tab-history" onclick="perfSwitchTab('history')">광고주 히스토리</button>
+        </div>
+        <!-- 매트릭스 서브탭 -->
+        <div id="perf-matrix-subtabs" style="display:flex;gap:6px;margin-bottom:12px;">
+          <button id="perf-msub-cat" onclick="perfMatrixSubSwitch('cat')"
+            style="padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;">카테고리별</button>
+          <button id="perf-msub-adv" onclick="perfMatrixSubSwitch('adv')"
+            style="padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);">광고주별</button>
         </div>
         <!-- 매트릭스 뷰 -->
         <div id="perf-view-matrix"></div>
+        <!-- 시간대 서브탭 -->
+        <div id="perf-time-subtabs" style="display:none;gap:6px;margin-bottom:12px;">
+          <button id="perf-tsub-cat" onclick="perfTimeSubSwitch('cat')"
+            style="padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:#fff;">카테고리별</button>
+          <button id="perf-tsub-adv" onclick="perfTimeSubSwitch('adv')"
+            style="padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);">광고주별</button>
+        </div>
+        <!-- 시간대 뷰 -->
+        <div id="perf-view-time" style="display:none;"></div>
+        <!-- 월별 뷰 -->
+        <div id="perf-view-month" style="display:none;"></div>
         <!-- 히스토리 뷰 -->
         <div id="perf-view-history" style="display:none;">
-          <div style="margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            <select class="form-sel" id="perf-h-adv-sel" onchange="perfHistorySelChange()" style="width:180px;">
+              <option value="">광고주 전체</option>
+            </select>
             <input type="text" class="form-input" id="perf-h-search"
-              placeholder="광고주 이름 검색…" oninput="renderPerfHistory()"
-              style="width:240px;">
+              placeholder="직접 검색…" oninput="perfHistoryInputChange()"
+              style="width:180px;">
+            <button class="btn btn-ghost btn-sm" onclick="perfHistoryClear()">✕</button>
+            <button class="btn btn-ghost btn-sm" id="perf-h-db-toggle" onclick="perfHistoryDbToggle()">DB등록 건만</button>
           </div>
           <div id="perf-history-list"></div>
         </div>
