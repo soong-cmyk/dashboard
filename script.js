@@ -10852,6 +10852,15 @@ function renderPerfMatrix() {
   const thCorner = thS + 'position:sticky;top:0;left:0;z-index:3;';
   const thHead   = thS + 'position:sticky;top:0;z-index:2;';
   const thFirst  = thS + 'position:sticky;left:0;z-index:1;font-weight:600;color:var(--text1);';
+  const thAvgS   = 'padding:6px 14px;font-size:11px;font-weight:700;background:var(--surface);border:1px solid var(--border);white-space:nowrap;';
+
+  // 열별 가중 평균
+  const colAvg = {};
+  for (const col of cols) {
+    let s = 0, n = 0;
+    for (const med of medias) { const cell = agg[med + '||' + col]; if (cell?.count) { s += cell.ctrSum; n += cell.count; } }
+    colAvg[col] = n ? s / n : null;
+  }
 
   const catFilter = document.getElementById('perf-f-cat')?.value || '';
   const hint = isAdv && !catFilter
@@ -10873,14 +10882,24 @@ function renderPerfMatrix() {
   let html = `${hint}${legendHtml}<div style="display:flex;gap:16px;align-items:flex-start;">
     <div style="min-width:0;overflow:auto;max-height:70vh;">
       <table style="border-collapse:collapse;font-size:12px;width:max-content;">
-        <thead><tr>
+        <thead>
+        <tr>
           <th style="${thCorner}text-align:left;min-width:120px;">매체</th>
           ${cols.map(col => {
             const color = isAdv && advPrimaryCat[col] ? catColorMap[advPrimaryCat[col]] : null;
             const bg = color ? `background:${color}28;` : '';
             return `<th style="${thHead}${bg}text-align:center;min-width:90px;">${_escHtml(col)}</th>`;
           }).join('')}
-        </tr></thead><tbody>`;
+        </tr>
+        <tr>
+          <th style="${thAvgS}position:sticky;left:0;z-index:1;text-align:left;color:var(--text3);">전체 평균</th>
+          ${cols.map(col => {
+            const avg = colAvg[col];
+            const bg  = avg != null ? `background:rgba(34,197,94,${(avg / maxCtr * 0.3).toFixed(2)});` : '';
+            return `<th style="${thAvgS}${bg}text-align:center;color:var(--primary);">${avg != null ? avg.toFixed(2) + '%' : '—'}</th>`;
+          }).join('')}
+        </tr>
+        </thead><tbody>`;
 
   for (const med of medias) {
     html += `<tr><td style="${thFirst}">${_escHtml(med)}</td>`;
@@ -11054,6 +11073,15 @@ function renderPerfTimeMatrix() {
   const thCorner = thS + 'position:sticky;top:0;left:0;z-index:3;';
   const thHead   = thS + 'position:sticky;top:0;z-index:2;';
   const thFirst  = thS + 'position:sticky;left:0;z-index:1;font-weight:600;color:var(--text1);';
+  const thAvgS   = 'padding:6px 14px;font-size:11px;font-weight:700;background:var(--surface);border:1px solid var(--border);white-space:nowrap;';
+
+  // 열별 가중 평균
+  const colAvg = {};
+  for (const col of cols) {
+    let s = 0, n = 0;
+    for (const hour of hours) { const cell = agg[hour + '||' + col]; if (cell?.count) { s += cell.ctrSum; n += cell.count; } }
+    colAvg[col] = n ? s / n : null;
+  }
 
   const catFilter = document.getElementById('perf-f-cat')?.value || '';
   const hint = isAdv && !catFilter
@@ -11074,14 +11102,24 @@ function renderPerfTimeMatrix() {
   let html = `${hint}${legendHtml}<div style="display:flex;gap:16px;align-items:flex-start;">
     <div style="min-width:0;overflow:auto;max-height:70vh;">
       <table style="border-collapse:collapse;font-size:12px;width:max-content;">
-        <thead><tr>
+        <thead>
+        <tr>
           <th style="${thCorner}text-align:left;min-width:80px;">시간대</th>
           ${cols.map(col => {
             const color = isAdv && advPrimaryCat[col] ? catColorMap[advPrimaryCat[col]] : null;
             const bg = color ? `background:${color}28;` : '';
             return `<th style="${thHead}${bg}text-align:center;min-width:90px;">${_escHtml(col)}</th>`;
           }).join('')}
-        </tr></thead><tbody>`;
+        </tr>
+        <tr>
+          <th style="${thAvgS}position:sticky;left:0;z-index:1;text-align:left;color:var(--text3);">전체 평균</th>
+          ${cols.map(col => {
+            const avg = colAvg[col];
+            const bg  = avg != null ? `background:rgba(34,197,94,${(avg / maxCtr * 0.3).toFixed(2)});` : '';
+            return `<th style="${thAvgS}${bg}text-align:center;color:var(--primary);">${avg != null ? avg.toFixed(2) + '%' : '—'}</th>`;
+          }).join('')}
+        </tr>
+        </thead><tbody>`;
 
   for (const hour of hours) {
     html += `<tr><td style="${thFirst}">${hour}시</td>`;
