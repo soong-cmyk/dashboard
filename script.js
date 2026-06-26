@@ -10609,9 +10609,9 @@ function initPerfScreen() {
 
   // 상태 초기화 — 매체×카테고리 탭, 카테고리별 서브탭
   _perfTab = 'matrix';
-  _perfMatrixSub = 'cat';
-  _perfTimeSub   = 'cat';
   _perfSelectedKey = '';
+  perfMatrixSubSwitch('cat');
+  perfTimeSubSwitch('cat');
 
   if (!document.getElementById('perf-tooltip')) {
     const tip = document.createElement('div');
