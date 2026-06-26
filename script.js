@@ -10852,7 +10852,7 @@ function renderPerfMatrix() {
   const thCorner = thS + 'position:sticky;top:0;left:0;z-index:3;';
   const thHead   = thS + 'position:sticky;top:0;z-index:2;';
   const thFirst  = thS + 'position:sticky;left:0;z-index:1;font-weight:600;color:var(--text1);';
-  const thAvgS   = 'padding:6px 14px;font-size:11px;font-weight:700;background:var(--surface);border:1px solid var(--border);white-space:nowrap;';
+  const thAvgS   = 'padding:6px 14px;font-size:11px;font-weight:700;background:#eef2ff;border:1px solid var(--border);white-space:nowrap;';
 
   // 열별 가중 평균
   const colAvg = {};
@@ -10895,8 +10895,7 @@ function renderPerfMatrix() {
           <th style="${thAvgS}position:sticky;left:0;z-index:1;text-align:left;color:var(--text3);">전체 평균</th>
           ${cols.map(col => {
             const avg = colAvg[col];
-            const bg  = avg != null ? `background:rgba(34,197,94,${(avg / maxCtr * 0.3).toFixed(2)});` : '';
-            return `<th style="${thAvgS}${bg}text-align:center;color:var(--primary);">${avg != null ? avg.toFixed(2) + '%' : '—'}</th>`;
+            return `<th style="${thAvgS}text-align:center;color:var(--primary);">${avg != null ? avg.toFixed(2) + '%' : '—'}</th>`;
           }).join('')}
         </tr>
         </thead><tbody>`;
@@ -11073,7 +11072,7 @@ function renderPerfTimeMatrix() {
   const thCorner = thS + 'position:sticky;top:0;left:0;z-index:3;';
   const thHead   = thS + 'position:sticky;top:0;z-index:2;';
   const thFirst  = thS + 'position:sticky;left:0;z-index:1;font-weight:600;color:var(--text1);';
-  const thAvgS   = 'padding:6px 14px;font-size:11px;font-weight:700;background:var(--surface);border:1px solid var(--border);white-space:nowrap;';
+  const thAvgS   = 'padding:6px 14px;font-size:11px;font-weight:700;background:#eef2ff;border:1px solid var(--border);white-space:nowrap;';
 
   // 열별 가중 평균
   const colAvg = {};
@@ -11115,8 +11114,7 @@ function renderPerfTimeMatrix() {
           <th style="${thAvgS}position:sticky;left:0;z-index:1;text-align:left;color:var(--text3);">전체 평균</th>
           ${cols.map(col => {
             const avg = colAvg[col];
-            const bg  = avg != null ? `background:rgba(34,197,94,${(avg / maxCtr * 0.3).toFixed(2)});` : '';
-            return `<th style="${thAvgS}${bg}text-align:center;color:var(--primary);">${avg != null ? avg.toFixed(2) + '%' : '—'}</th>`;
+            return `<th style="${thAvgS}text-align:center;color:var(--primary);">${avg != null ? avg.toFixed(2) + '%' : '—'}</th>`;
           }).join('')}
         </tr>
         </thead><tbody>`;
