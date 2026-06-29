@@ -835,7 +835,7 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
 #drp-chip-from.active,#drp-chip-to.active { border-color:#185FA5;color:#185FA5; }
 
 /* ── KPI·매출 현황 ── */
-.kpi-cards-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+.kpi-cards-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
 @media(max-width:900px){ .kpi-cards-grid{ grid-template-columns:repeat(2,1fr); } }
 .kpi-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px 20px; }
 .kpi-card-label { font-size:11px; color:var(--text3); font-weight:600; margin-bottom:6px; }
