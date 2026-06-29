@@ -61,6 +61,11 @@ let _perfTimeSub   = 'cat';
 let _perfSelectedKey = '';
 let _perfHistoryDbOnly = true;
 
+let KPI_DATA       = {};
+let _kpiYear       = String(new Date().getFullYear());
+let _kpiOrgFilter  = '';
+let _kpiUnsub      = null;
+
 // ══════════════════════════════════════════
 // TAX INVOICE DATA
 // ══════════════════════════════════════════
@@ -777,11 +782,11 @@ function goScreen(name, skipPush) {
 
   // nav highlight
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',perf:'nav-perf',settlement:'nav-settlement',monthly:'nav-monthly',tax:'nav-tax',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',payment:'nav-payment','payment-detail':'nav-payment'};
+  const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',perf:'nav-perf',settlement:'nav-settlement',monthly:'nav-monthly',tax:'nav-tax',kpi:'nav-kpi',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',payment:'nav-payment','payment-detail':'nav-payment'};
   if (navIds[name]) document.getElementById(navIds[name])?.classList.add('active');
 
   // breadcrumb
-  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
+  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI·매출 현황',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
   if (labels[name]) {
     document.getElementById('breadcrumb').innerHTML = `<span class="cur">${labels[name]}</span>`;
   }
@@ -816,6 +821,7 @@ function goScreen(name, skipPush) {
 
   if (name === 'dashboard') renderDashboard();
   if (name === 'perf') initPerfScreen();
+  if (name === 'kpi')  initKpiScreen();
   if (name === 'pipeline') initPipelineScreen();
   if (name === 'adreport') {
     if (!skipPush) { rptReset(); effReset(); }
@@ -9991,6 +9997,7 @@ function _fbWatchCampaigns() {
     }
     if (sid === 'screen-monthly')   renderMonthly();
     if (sid === 'screen-perf')      initPerfScreen();
+    if (sid === 'screen-kpi')       renderKpi();
     if (sid === 'screen-adreport' && typeof _rptPopulateSeller === 'function') _rptPopulateSeller();
   }, e => console.error('[FB] 캠페인 구독 실패:', e));
 }
@@ -10569,6 +10576,489 @@ function effRender() {
   });
 
   document.getElementById('eff-body').innerHTML = html;
+}
+
+// ══════════════════════════════════════════
+// KPI·매출 현황
+// ══════════════════════════════════════════
+
+const _KPI_MONTHS = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+const _KPI_ML = {'01':'1월','02':'2월','03':'3월','04':'4월','05':'5월','06':'6월','07':'7월','08':'8월','09':'9월','10':'10월','11':'11월','12':'12월'};
+
+function _fbWatchKpiTargets(year) {
+  if (_kpiUnsub) { _kpiUnsub(); _kpiUnsub = null; }
+  if (!window._db) return;
+  _kpiUnsub = window._db.collection('settings').doc('kpi_targets_' + year)
+    .onSnapshot(doc => {
+      KPI_DATA = doc.exists ? doc.data() : {};
+      if (document.getElementById('screen-kpi')?.classList.contains('active')) renderKpi();
+    }, e => console.error('[FB] KPI 구독 실패:', e));
+}
+
+function _kpiCanEdit() {
+  return !!(currentUser?.isAdmin || ['대표이사','이사','본부장'].includes(currentUser?.rank));
+}
+
+function _kpiCalcActual(year, bonbu, team, month) {
+  const commRate = KPI_DATA.commRate ?? 15;
+  return DATA.filter(c => {
+    if (c.status === '삭제') return false;
+    const d = c.date || '';
+    if (!d.startsWith(month ? `${year}-${month}` : year)) return false;
+    if (bonbu || team) {
+      const u = USERS.find(u => u.name === (c.ops || ''));
+      if (!u) return false;
+      if (bonbu && u.bonbu !== bonbu) return false;
+      if (team  && u.dept  !== team)  return false;
+    }
+    return true;
+  }).reduce((s, c) => {
+    const rev = c.revFixed != null ? c.revFixed
+              : c.amtFixed != null ? c.amtFixed * commRate / 100
+              : 0;
+    return s + (rev || 0);
+  }, 0);
+}
+
+function _kpiCalcClients(year, bonbu, team, month) {
+  const set = new Set();
+  DATA.filter(c => {
+    if (c.status === '삭제') return false;
+    const d = c.date || '';
+    if (!d.startsWith(month ? `${year}-${month}` : year)) return false;
+    if (bonbu || team) {
+      const u = USERS.find(u => u.name === (c.ops || ''));
+      if (!u) return false;
+      if (bonbu && u.bonbu !== bonbu) return false;
+      if (team  && u.dept  !== team)  return false;
+    }
+    return true;
+  }).forEach(c => { const k = c.seller || c.adv; if (k) set.add(k); });
+  return set.size;
+}
+
+function _fmtW(n) {
+  if (n == null || n === '') return '<span style="color:var(--text3)">—</span>';
+  if (n === 0) return '0';
+  const abs = Math.abs(n);
+  if (abs >= 100000000) return (n / 100000000).toFixed(1) + '억';
+  if (abs >= 10000) return Math.round(n / 10000).toLocaleString() + '만';
+  return _fmtMoney(n);
+}
+
+function _kpiRateHtml(actual, target) {
+  if (!target) return '<span style="color:var(--text3)">—</span>';
+  const r = Math.round((actual / target - 1) * 100);
+  if (r > 0)  return `<span class="kpi-up">▲${r}%</span>`;
+  if (r < 0)  return `<span class="kpi-down">▼${Math.abs(r)}%</span>`;
+  return `<span class="kpi-flat">±0%</span>`;
+}
+
+function _kpiYoyHtml(actual, prev) {
+  if (!prev) return '<span style="color:var(--text3)">—</span>';
+  const r = Math.round((actual / prev - 1) * 100);
+  if (r > 0)  return `<span class="kpi-up">▲${r}%</span>`;
+  if (r < 0)  return `<span class="kpi-down">▼${Math.abs(r)}%</span>`;
+  return `<span class="kpi-flat">±0%</span>`;
+}
+
+function initKpiScreen() {
+  const cy = new Date().getFullYear();
+  const yr = document.getElementById('kpi-year');
+  if (yr) {
+    yr.innerHTML = [cy - 1, cy, cy + 1].map(y =>
+      `<option value="${y}"${String(y) === _kpiYear ? ' selected' : ''}>${y}년</option>`
+    ).join('');
+  }
+  const orgSel = document.getElementById('kpi-org-filter');
+  if (orgSel) {
+    orgSel.innerHTML = '<option value="">전사 전체</option>' + _buildOrgSelectHTML();
+    orgSel.value = _kpiOrgFilter;
+  }
+  const canEdit = _kpiCanEdit();
+  ['kpi-edit-btn', 'kpi-team-edit-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = canEdit ? '' : 'none';
+  });
+  _fbWatchKpiTargets(_kpiYear);
+}
+
+function kpiYearChange() {
+  _kpiYear = document.getElementById('kpi-year')?.value || String(new Date().getFullYear());
+  _fbWatchKpiTargets(_kpiYear);
+}
+
+function kpiOrgChange() {
+  _kpiOrgFilter = document.getElementById('kpi-org-filter')?.value || '';
+  renderKpiOrgTable();
+}
+
+function renderKpi() {
+  renderKpiCards();
+  renderKpiGrandTable();
+  renderKpiOrgTable();
+  renderKpiPnlTable();
+}
+
+function renderKpiCards() {
+  const el = document.getElementById('kpi-cards');
+  if (!el) return;
+
+  const allTeamMonths = (KPI_DATA.bonbus || []).flatMap(b => b.teams || []).flatMap(t => t.months || []);
+  const annualTarget  = allTeamMonths.reduce((s, m) => s + (m.target || 0), 0);
+
+  const now    = new Date();
+  const curM   = String(now.getMonth() + 1).padStart(2, '0');
+  const passed = _KPI_MONTHS.filter(m => m <= curM);
+
+  const cumActual = passed.reduce((s, m) => s + _kpiCalcActual(_kpiYear, '', '', m), 0);
+  const cumTarget = passed.reduce((s, m) => s + allTeamMonths.filter(x => x.month === m).reduce((ss, x) => ss + (x.target || 0), 0), 0);
+  const cumPrev   = passed.reduce((s, m) => s + allTeamMonths.filter(x => x.month === m).reduce((ss, x) => ss + (x.prevYear || 0), 0), 0);
+
+  const kpiPct   = cumTarget ? Math.round(cumActual / cumTarget * 100) : 0;
+  const progW    = annualTarget ? Math.min(100, Math.round(cumActual / annualTarget * 100)) : 0;
+  const progClr  = progW >= 100 ? 'var(--green)' : progW >= 80 ? 'var(--accent)' : 'var(--red)';
+
+  const laborCost = KPI_DATA.laborCost ?? 0;
+  const fixedCost = KPI_DATA.fixedCost ?? 0;
+  const curActual = _kpiCalcActual(_kpiYear, '', '', curM);
+  const curProfit = curActual - laborCost - fixedCost;
+
+  const yoyHtml = cumPrev ? _kpiYoyHtml(cumActual, cumPrev) : '';
+
+  el.innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-card-label">연간 매출 KPI (전사)</div>
+      <div class="kpi-card-value">${_fmtW(annualTarget)}</div>
+      <div class="kpi-card-sub">${_kpiYear}년 목표</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">누적 매출 실적 (1월~${parseInt(curM)}월)</div>
+      <div class="kpi-card-value">${_fmtW(cumActual)}</div>
+      <div class="kpi-card-sub">${yoyHtml || '&nbsp;'}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">KPI 달성률</div>
+      <div class="kpi-card-value" style="color:${kpiPct>=100?'var(--green)':kpiPct>=80?'var(--accent)':'var(--red)'};">${kpiPct}%</div>
+      <div class="kpi-card-prog"><div class="kpi-card-prog-bar" style="width:${progW}%;background:${progClr};"></div></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">당월 영업이익 (${parseInt(curM)}월)</div>
+      <div class="kpi-card-value" style="color:${curProfit>=0?'var(--green)':'var(--red)'};">${_fmtW(curProfit)}</div>
+      <div class="kpi-card-sub">매출 ${_fmtW(curActual)} − 판관비 ${_fmtW(laborCost+fixedCost)}</div>
+    </div>`;
+}
+
+function renderKpiGrandTable() {
+  const el = document.getElementById('kpi-grand-table');
+  if (!el) return;
+
+  const tgt = {}, prev = {};
+  _KPI_MONTHS.forEach(m => { tgt[m] = 0; prev[m] = 0; });
+  (KPI_DATA.bonbus || []).forEach(b => (b.teams || []).forEach(t => (t.months || []).forEach(md => {
+    tgt[md.month]  = (tgt[md.month]  || 0) + (md.target  || 0);
+    prev[md.month] = (prev[md.month] || 0) + (md.prevYear || 0);
+  })));
+
+  const act = {};
+  _KPI_MONTHS.forEach(m => { act[m] = _kpiCalcActual(_kpiYear, '', '', m); });
+  const totAct  = _KPI_MONTHS.reduce((s, m) => s + act[m], 0);
+  const totTgt  = _KPI_MONTHS.reduce((s, m) => s + tgt[m], 0);
+  const totPrev = _KPI_MONTHS.reduce((s, m) => s + prev[m], 0);
+
+  const thC = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
+  const tdL = 'padding:7px 12px;border:1px solid var(--border);font-weight:600;font-size:12px;color:var(--text2);background:var(--surface2);white-space:nowrap;position:sticky;left:0;z-index:1;';
+  const tdV = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:12px;white-space:nowrap;';
+  const tdAN = tdV + 'background:#eef2ff;font-weight:700;';
+  const tdAC = 'padding:7px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#eef2ff;font-weight:700;';
+  const tdC  = tdV + 'text-align:center;';
+
+  el.innerHTML = `<div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
+    <thead><tr>
+      <th style="${thC}text-align:left;min-width:110px;position:sticky;left:0;z-index:2;">구분</th>
+      <th style="${thC}min-width:90px;background:#eef2ff;">연간합계</th>
+      ${_KPI_MONTHS.map(m => `<th style="${thC}min-width:78px;">${_KPI_ML[m]}</th>`).join('')}
+    </tr></thead>
+    <tbody>
+      <tr><td style="${tdL}">광고 매출 실적</td><td style="${tdAN}">${_fmtW(totAct)}</td>${_KPI_MONTHS.map(m=>`<td style="${tdV}">${_fmtW(act[m])}</td>`).join('')}</tr>
+      <tr><td style="${tdL}">KPI 목표</td><td style="${tdAN}">${_fmtW(totTgt)}</td>${_KPI_MONTHS.map(m=>`<td style="${tdV}">${_fmtW(tgt[m])}</td>`).join('')}</tr>
+      <tr><td style="${tdL}">KPI 달성률</td><td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>${_KPI_MONTHS.map(m=>`<td style="${tdC}">${_kpiRateHtml(act[m],tgt[m])}</td>`).join('')}</tr>
+      <tr><td style="${tdL}">전년도 매출</td><td style="${tdAN}">${_fmtW(totPrev)}</td>${_KPI_MONTHS.map(m=>`<td style="${tdV}">${_fmtW(prev[m])}</td>`).join('')}</tr>
+      <tr><td style="${tdL}">YoY</td><td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>${_KPI_MONTHS.map(m=>`<td style="${tdC}">${_kpiYoyHtml(act[m],prev[m])}</td>`).join('')}</tr>
+    </tbody>
+  </table></div>`;
+}
+
+function renderKpiOrgTable() {
+  const el = document.getElementById('kpi-org-table');
+  if (!el) return;
+  const { bonbu, team } = _parseOrgFilter(_kpiOrgFilter);
+
+  const teamsToShow = [];
+  (KPI_DATA.bonbus || []).forEach(b => {
+    if (bonbu && b.name !== bonbu) return;
+    (b.teams || []).forEach(t => {
+      if (team && t.name !== team) return;
+      teamsToShow.push({ bonbuName: b.name, annualTarget: b.annualTarget || 0, ...t });
+    });
+  });
+
+  if (!teamsToShow.length) {
+    el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3);font-size:13px;">KPI 데이터가 없습니다. KPI 등록/수정으로 데이터를 입력하세요.</div>';
+    return;
+  }
+
+  const thC = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
+  const tdL = 'padding:7px 10px;border:1px solid var(--border);font-weight:600;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
+  const tdV = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;white-space:nowrap;';
+  const tdAN = tdV + 'background:#eef2ff;font-weight:700;';
+  const tdAC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#eef2ff;font-weight:700;';
+  const tdC  = tdV + 'text-align:center;';
+
+  let html = `<div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
+    <thead><tr>
+      <th style="${thC}text-align:left;min-width:60px;position:sticky;left:0;z-index:2;">본부</th>
+      <th style="${thC}text-align:left;min-width:60px;">팀</th>
+      <th style="${thC}text-align:left;min-width:90px;">구분</th>
+      <th style="${thC}min-width:88px;background:#eef2ff;">연간합계</th>
+      ${_KPI_MONTHS.map(m => `<th style="${thC}min-width:78px;">${_KPI_ML[m]}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+  for (const t of teamsToShow) {
+    const acts  = {}; _KPI_MONTHS.forEach(m => { acts[m]  = _kpiCalcActual(_kpiYear, t.bonbuName, t.name, m); });
+    const tgts  = {}; const prevs = {}; const stgts = {};
+    _KPI_MONTHS.forEach(m => {
+      const md = (t.months || []).find(x => x.month === m) || {};
+      tgts[m]  = md.target      || 0;
+      prevs[m] = md.prevYear    || 0;
+      stgts[m] = md.salesTarget || 0;
+    });
+    const clients = {}; _KPI_MONTHS.forEach(m => { clients[m] = _kpiCalcClients(_kpiYear, t.bonbuName, t.name, m); });
+    const allAdvs = [...new Set((t.months || []).flatMap(md => md.advertisers || []))].join(', ');
+
+    const totAct    = _KPI_MONTHS.reduce((s, m) => s + acts[m], 0);
+    const totTgt    = _KPI_MONTHS.reduce((s, m) => s + tgts[m], 0);
+    const totPrev   = _KPI_MONTHS.reduce((s, m) => s + prevs[m], 0);
+    const totStgt   = _KPI_MONTHS.reduce((s, m) => s + stgts[m], 0);
+    const totClients = _KPI_MONTHS.reduce((s, m) => s + clients[m], 0);
+
+    const teamLabel = `${_escHtml(t.name)}${t.category ? `<br><span style="font-size:10px;color:var(--text3);font-weight:400;">${_escHtml(t.category)}</span>` : ''}`;
+
+    // Block A: 매출 현황 (5 rows), Block B: 영업 현황 (4 rows) = 9 rows total
+    const TOTAL_ROWS = 9;
+    const rows = [
+      // Block A
+      { label:'매출 실적',  vals: _KPI_MONTHS.map(m => `<td style="${tdV}">${_fmtW(acts[m])}</td>`).join(''),  total: `<td style="${tdAN}">${_fmtW(totAct)}</td>` },
+      { label:'KPI 목표',   vals: _KPI_MONTHS.map(m => `<td style="${tdV}">${_fmtW(tgts[m])}</td>`).join(''), total: `<td style="${tdAN}">${_fmtW(totTgt)}</td>` },
+      { label:'달성률',     vals: _KPI_MONTHS.map(m => `<td style="${tdC}">${_kpiRateHtml(acts[m],tgts[m])}</td>`).join(''), total: `<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>` },
+      { label:'전년도 매출',vals: _KPI_MONTHS.map(m => `<td style="${tdV}">${_fmtW(prevs[m])}</td>`).join(''), total: `<td style="${tdAN}">${_fmtW(totPrev)}</td>` },
+      { label:'YoY',        vals: _KPI_MONTHS.map(m => `<td style="${tdC}">${_kpiYoyHtml(acts[m],prevs[m])}</td>`).join(''), total: `<td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>` },
+      // Block B
+      { label:'담당 광고주',vals: _KPI_MONTHS.map(() => `<td style="${tdC}background:#fff9e6;"></td>`).join(''), total: `<td style="padding:6px 10px;border:1px solid var(--border);background:#fff9e6;font-size:11px;color:var(--text2);" colspan="1">${_escHtml(allAdvs || '—')}</td>`, blockB: true },
+      { label:'광고주 수(실적)', vals: _KPI_MONTHS.map(m => `<td style="${tdC}background:#fff9e6;">${clients[m] || '<span style="color:var(--text3)">—</span>'}</td>`).join(''), total: `<td style="${tdAC}background:#fff7e6;">${totClients || '—'}</td>`, blockB: true },
+      { label:'영업 목표',  vals: _KPI_MONTHS.map(m => `<td style="${tdC}background:#fff9e6;">${stgts[m] ? stgts[m]+'건' : '<span style="color:var(--text3)">—</span>'}</td>`).join(''), total: `<td style="${tdAC}background:#fff7e6;">${totStgt ? totStgt+'건' : '—'}</td>`, blockB: true },
+      { label:'영업 달성률',vals: _KPI_MONTHS.map(m => `<td style="${tdC}background:#fff9e6;">${_kpiRateHtml(clients[m],stgts[m])}</td>`).join(''), total: `<td style="${tdAC}background:#fff7e6;">${_kpiRateHtml(totClients,totStgt)}</td>`, blockB: true },
+    ];
+
+    rows.forEach((row, ri) => {
+      const bg = row.blockB ? 'background:#fff9e6;' : '';
+      html += `<tr>
+        ${ri === 0 ? `<td style="${tdL}position:sticky;left:0;z-index:1;" rowspan="${TOTAL_ROWS}">${_escHtml(t.bonbuName)}</td><td style="${tdL}" rowspan="${TOTAL_ROWS}">${teamLabel}</td>` : ''}
+        <td style="${tdL}${bg}">${row.label}</td>
+        ${row.total}
+        ${row.vals}
+      </tr>`;
+    });
+  }
+
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+
+function renderKpiPnlTable() {
+  const el = document.getElementById('kpi-pnl-table');
+  if (!el) return;
+  const commRate  = KPI_DATA.commRate  ?? 15;
+  const laborCost = KPI_DATA.laborCost ?? 0;
+  const fixedCost = KPI_DATA.fixedCost ?? 0;
+  const kpi1      = KPI_DATA.kpi1Turnover ?? 0;
+  const kpi2      = KPI_DATA.kpi2Turnover ?? 0;
+  const bepTO     = commRate ? (laborCost + fixedCost) / (commRate / 100) : 0;
+
+  const curM = String(new Date().getMonth() + 1).padStart(2, '0');
+  const curTO = DATA.filter(c => c.status !== '삭제' && (c.date||'').startsWith(`${_kpiYear}-${curM}`))
+    .reduce((s, c) => s + (c.amtFixed || 0), 0);
+
+  const cols = [
+    { label: 'BEP 기준',              to: bepTO },
+    { label: `현재 (${parseInt(curM)}월)`, to: curTO },
+    { label: 'KPI-1 목표',            to: kpi1  },
+    { label: 'KPI-2 목표',            to: kpi2  },
+  ];
+
+  const thC = 'padding:9px 14px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:12px;color:var(--text2);text-align:center;min-width:120px;';
+  const tdL = 'padding:8px 14px;border:1px solid var(--border);font-weight:600;font-size:12px;color:var(--text2);background:var(--surface2);';
+  const tdV = 'padding:8px 14px;border:1px solid var(--border);text-align:right;font-size:12px;';
+
+  const rows = [
+    ['취급고',    col => _fmtW(col.to)],
+    [`매출 (${commRate}%)`, col => _fmtW(col.to * commRate / 100)],
+    ['인건비',    () => _fmtW(laborCost)],
+    ['고정비',    () => _fmtW(fixedCost)],
+    ['판관비 합', () => _fmtW(laborCost + fixedCost)],
+    ['영업이익',  col => { const p = col.to * commRate / 100 - laborCost - fixedCost; return `<span style="color:${p>=0?'var(--green)':'var(--red)'};font-weight:700;">${_fmtW(p)}</span>`; }],
+  ];
+
+  el.innerHTML = `<table class="kpi-tbl" style="width:auto;">
+    <thead><tr>
+      <th style="${thC}text-align:left;min-width:110px;">항목</th>
+      ${cols.map(c => `<th style="${thC}">${c.label}</th>`).join('')}
+    </tr></thead>
+    <tbody>
+      ${rows.map(([label, fn]) => `<tr><td style="${tdL}">${label}</td>${cols.map(c => `<td style="${tdV}">${fn(c)}</td>`).join('')}</tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function openKpiEditModal() {
+  if (!_kpiCanEdit()) return;
+  const commRate  = KPI_DATA.commRate  ?? 15;
+  const laborCost = KPI_DATA.laborCost ?? 0;
+  const fixedCost = KPI_DATA.fixedCost ?? 0;
+  const kpi1      = KPI_DATA.kpi1Turnover ?? 0;
+  const kpi2      = KPI_DATA.kpi2Turnover ?? 0;
+  const cy = new Date().getFullYear();
+
+  const bonbuInputs = ORG_STRUCTURE.map(org => {
+    const kb = (KPI_DATA.bonbus || []).find(b => b.name === org.bonbu) || {};
+    return `<div class="fg" style="flex:1;min-width:160px;">
+      <label class="form-label">${_escHtml(org.bonbu)} 연간 KPI (원)</label>
+      <input type="number" class="form-input" id="ki_ann_${org.bonbu}" value="${kb.annualTarget || ''}">
+    </div>`;
+  }).join('');
+
+  const teamSections = ORG_STRUCTURE.map(org => {
+    const kb = (KPI_DATA.bonbus || []).find(b => b.name === org.bonbu) || {};
+    return (org.teams || []).map(teamName => {
+      const kt = (kb.teams || []).find(t => t.name === teamName) || {};
+      const advStr = [...new Set((kt.months || []).flatMap(md => md.advertisers || []))].join(', ');
+      const thS2 = 'padding:4px 8px;border:1px solid var(--border);background:var(--surface2);font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;';
+      const tdI  = 'padding:2px 3px;border:1px solid var(--border);';
+      return `<div style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--surface2);border-radius:4px;margin-bottom:8px;">
+          <span style="font-weight:700;font-size:13px;">${_escHtml(org.bonbu)} / ${_escHtml(teamName)}</span>
+          <input type="text" class="form-input" style="width:180px;font-size:11px;" id="ki_cat_${org.bonbu}_${teamName}" placeholder="담당 카테고리" value="${_escHtml(kt.category||'')}">
+        </div>
+        <div style="overflow-x:auto;margin-bottom:6px;">
+          <table style="border-collapse:collapse;font-size:11px;width:max-content;">
+            <thead><tr>
+              <th style="${thS2}min-width:80px;">항목</th>
+              ${_KPI_MONTHS.map(m => `<th style="${thS2}min-width:72px;">${_KPI_ML[m]}</th>`).join('')}
+            </tr></thead>
+            <tbody>
+              ${['매출 목표(원)', '전년도 실적(원)', '영업 목표(건)'].map((rowLabel, ri) => {
+                const fKey = ['tgt','prev','stgt'][ri];
+                return `<tr><td style="${thS2}">${rowLabel}</td>${_KPI_MONTHS.map(m => {
+                  const md = (kt.months||[]).find(x=>x.month===m)||{};
+                  const v = ri===0?md.target : ri===1?md.prevYear : md.salesTarget;
+                  return `<td style="${tdI}"><input type="number" class="form-input" style="width:66px;padding:2px 4px;font-size:11px;" id="ki_${fKey}_${org.bonbu}_${teamName}_${m}" value="${v||''}"></td>`;
+                }).join('')}</tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <label style="font-size:11px;color:var(--text3);white-space:nowrap;">담당 광고주 (쉼표 구분)</label>
+          <input type="text" class="form-input" style="flex:1;" id="ki_advs_${org.bonbu}_${teamName}" value="${_escHtml(advStr)}">
+        </div>
+      </div>`;
+    }).join('');
+  }).join('');
+
+  const mId = 'modalKpiEdit';
+  let mEl = document.getElementById(mId);
+  if (!mEl) { mEl = document.createElement('div'); mEl.id = mId; mEl.className = 'modal-overlay'; document.body.appendChild(mEl); }
+
+  mEl.style.zIndex = '200';
+  mEl.innerHTML = `<div class="modal" style="width:min(1020px,95vw);max-height:90vh;overflow-y:auto;">
+    <div class="modal-header">
+      <span class="modal-title">KPI 등록/수정</span>
+      <button class="modal-close" onclick="document.getElementById('${mId}').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body" style="overflow:visible;">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+        <label class="form-label" style="margin:0;white-space:nowrap;">대상 연도</label>
+        <select class="form-sel" id="ki_year" style="width:90px;">
+          ${[cy-1,cy,cy+1].map(y=>`<option value="${y}"${String(y)===_kpiYear?' selected':''}>${y}년</option>`).join('')}
+        </select>
+      </div>
+      <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;">전사 공통 설정</h4>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
+        <div class="fg" style="flex:1;min-width:100px;"><label class="form-label">수익률 (%)</label><input type="number" class="form-input" id="ki_commRate" value="${commRate}"></div>
+        <div class="fg" style="flex:1;min-width:150px;"><label class="form-label">월 인건비 (원)</label><input type="number" class="form-input" id="ki_laborCost" value="${laborCost}"></div>
+        <div class="fg" style="flex:1;min-width:150px;"><label class="form-label">월 고정비 (원)</label><input type="number" class="form-input" id="ki_fixedCost" value="${fixedCost}"></div>
+        <div class="fg" style="flex:1;min-width:150px;"><label class="form-label">KPI-1 월 취급고 (원)</label><input type="number" class="form-input" id="ki_kpi1" value="${kpi1}"></div>
+        <div class="fg" style="flex:1;min-width:150px;"><label class="form-label">KPI-2 월 취급고 (원)</label><input type="number" class="form-input" id="ki_kpi2" value="${kpi2}"></div>
+      </div>
+      <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;">본부별 연간 KPI 목표</h4>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">${bonbuInputs}</div>
+      <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;">팀별 월별 목표</h4>
+      ${teamSections}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="document.getElementById('${mId}').style.display='none'">취소</button>
+      <button class="btn btn-primary" id="ki_save_btn" onclick="saveKpiTargets()">저장</button>
+    </div>
+  </div>`;
+  mEl.style.display = 'flex';
+}
+
+async function saveKpiTargets() {
+  if (!_kpiCanEdit()) return;
+  const year      = document.getElementById('ki_year')?.value || _kpiYear;
+  const commRate  = +(document.getElementById('ki_commRate')?.value)  || 15;
+  const laborCost = +(document.getElementById('ki_laborCost')?.value) || 0;
+  const fixedCost = +(document.getElementById('ki_fixedCost')?.value) || 0;
+  const kpi1      = +(document.getElementById('ki_kpi1')?.value)      || 0;
+  const kpi2      = +(document.getElementById('ki_kpi2')?.value)      || 0;
+
+  const bonbus = ORG_STRUCTURE.map(org => {
+    const annualTarget = +(document.getElementById(`ki_ann_${org.bonbu}`)?.value) || 0;
+    const teams = (org.teams || []).map(teamName => {
+      const category  = document.getElementById(`ki_cat_${org.bonbu}_${teamName}`)?.value || '';
+      const advStr    = document.getElementById(`ki_advs_${org.bonbu}_${teamName}`)?.value || '';
+      const advertisers = advStr.split(',').map(s => s.trim()).filter(Boolean);
+      const months = _KPI_MONTHS.map(m => ({
+        month:       m,
+        target:      +(document.getElementById(`ki_tgt_${org.bonbu}_${teamName}_${m}`)?.value)  || 0,
+        prevYear:    +(document.getElementById(`ki_prev_${org.bonbu}_${teamName}_${m}`)?.value) || 0,
+        salesTarget: +(document.getElementById(`ki_stgt_${org.bonbu}_${teamName}_${m}`)?.value) || 0,
+        advertisers,
+      }));
+      return { name: teamName, category, months };
+    });
+    return { name: org.bonbu, annualTarget, teams };
+  });
+
+  const data = { year, commRate, laborCost, fixedCost, kpi1Turnover: kpi1, kpi2Turnover: kpi2, bonbus };
+  if (!window._db) { toast('DB 연결 없음', 'err'); return; }
+  const btn = document.getElementById('ki_save_btn');
+  if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
+  try {
+    await window._db.collection('settings').doc('kpi_targets_' + year).set(data);
+    document.getElementById('modalKpiEdit').style.display = 'none';
+    if (year !== _kpiYear) {
+      _kpiYear = year;
+      const yr = document.getElementById('kpi-year');
+      if (yr) yr.value = year;
+    }
+    _fbWatchKpiTargets(year);
+    toast('KPI 저장 완료', 'ok');
+  } catch(e) {
+    toast('저장 실패: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+  }
 }
 
 // ══════════════════════════════════════════

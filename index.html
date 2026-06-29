@@ -72,6 +72,9 @@
       <div class="nav-item" id="nav-tax" onclick="goScreen('tax')">
         <span class="nav-icon">📑</span>세금계산서
       </div>
+      <div class="nav-item" id="nav-kpi" onclick="goScreen('kpi')">
+        <span class="nav-icon">📊</span>KPI·매출 현황
+      </div>
 <!--
       <div class="nav-item" id="nav-pipeline" onclick="goScreen('pipeline')">
         <span class="nav-icon">📈</span>영업 리포트
@@ -2242,6 +2245,43 @@
         </div>
         <!-- 카드 목록 -->
         <div id="tax-list"></div>
+      </div>
+
+      <!-- ══════════════════════════════════
+           KPI·매출 현황
+      ══════════════════════════════════ -->
+      <div class="screen" id="screen-kpi">
+        <!-- 상단 topbar -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+          <h2 style="font-size:16px;font-weight:700;color:var(--text1);margin:0;">KPI·매출 현황</h2>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+            <select class="form-sel" id="kpi-year" style="width:90px;" onchange="kpiYearChange()"></select>
+            <button class="btn btn-primary" id="kpi-edit-btn" onclick="openKpiEditModal()" style="display:none;">KPI 등록/수정</button>
+          </div>
+        </div>
+        <!-- 요약 카드 -->
+        <div id="kpi-cards" class="kpi-cards-grid"></div>
+        <!-- 섹션①: 전사 매출 KPI 월별 현황 -->
+        <div class="table-card" style="margin-bottom:16px;">
+          <div class="table-header"><span class="card-title">전사 매출 KPI 월별 현황</span></div>
+          <div id="kpi-grand-table"></div>
+        </div>
+        <!-- 섹션②: 본부·팀별 KPI 상세 -->
+        <div class="table-card" style="margin-bottom:16px;">
+          <div class="table-header" style="display:flex;align-items:center;gap:8px;">
+            <span class="card-title">본부·팀별 KPI 상세</span>
+            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+              <select class="form-sel" id="kpi-org-filter" style="width:140px;" onchange="kpiOrgChange()"></select>
+              <button class="btn btn-outline" id="kpi-team-edit-btn" onclick="openKpiEditModal()" style="display:none;">목표 수정</button>
+            </div>
+          </div>
+          <div id="kpi-org-table"></div>
+        </div>
+        <!-- 섹션③: 손익 현황 -->
+        <div class="table-card">
+          <div class="table-header"><span class="card-title">손익 현황</span></div>
+          <div id="kpi-pnl-table"></div>
+        </div>
       </div>
 
       <!-- ══════════════════════════════════

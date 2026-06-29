@@ -833,3 +833,20 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
 .drp-day.other-month    { color:var(--text3); }
 .drp-day.empty          { pointer-events:none; }
 #drp-chip-from.active,#drp-chip-to.active { border-color:#185FA5;color:#185FA5; }
+
+/* ── KPI·매출 현황 ── */
+.kpi-cards-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+@media(max-width:900px){ .kpi-cards-grid{ grid-template-columns:repeat(2,1fr); } }
+.kpi-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px 20px; }
+.kpi-card-label { font-size:11px; color:var(--text3); font-weight:600; margin-bottom:6px; }
+.kpi-card-value { font-size:20px; font-weight:700; color:var(--text1); line-height:1.2; }
+.kpi-card-sub   { font-size:11px; color:var(--text3); margin-top:4px; min-height:16px; }
+.kpi-card-prog  { height:5px; border-radius:3px; background:var(--border); margin-top:8px; overflow:hidden; }
+.kpi-card-prog-bar { height:100%; border-radius:3px; transition:width .4s; }
+.kpi-tbl { border-collapse:collapse; font-size:12px; }
+.kpi-tbl th { padding:8px 10px; border:1px solid var(--border); background:var(--surface2); font-weight:600; color:var(--text2); white-space:nowrap; }
+.kpi-tbl td { padding:7px 10px; border:1px solid var(--border); white-space:nowrap; }
+.kpi-tbl tbody tr:hover td { background:var(--surface2); }
+.kpi-up   { color:var(--green); font-weight:700; }
+.kpi-down { color:var(--red);   font-weight:700; }
+.kpi-flat { color:var(--text3); }
