@@ -31,7 +31,7 @@ function _fmtMoney(n) { return Math.round(n).toLocaleString(); }
 // ══════════════════════════════════════════
 // 상품 목록 (중앙 관리)
 // ══════════════════════════════════════════
-const PRODUCT_LIST = ['MMS', 'LMS', '실시간 발송', 'DA', 'CPA', 'CPS', 'PUSH', '카톡MSG', '퍼미션콜'];
+const PRODUCT_LIST = ['MMS', 'LMS', '실시간 발송', 'DA', 'IPTV', 'CPA', 'CPS', 'PUSH', '카톡MSG', '퍼미션콜'];
 
 function _populateProductSelects() {
   const opts = PRODUCT_LIST.map(p => `<option value="${p}">${p}</option>`).join('');
@@ -925,7 +925,7 @@ function openDetail(idx, skipPush) {
   document.getElementById('dName').textContent = _cName(c);
   document.getElementById('dCat').textContent = _getCat(c);
   const dDateLbl = document.getElementById('dDateLbl');
-  if (dDateLbl) dDateLbl.textContent = c.product === 'DA' ? '노출기간' : (c.product === 'CPA' && c.dateEnd ? '발송기간' : '발송일시');
+  if (dDateLbl) dDateLbl.textContent = ['DA','IPTV'].includes(c.product) ? '노출기간' : (c.product === 'CPA' && c.dateEnd ? '발송기간' : '발송일시');
   document.getElementById('dDate').textContent = _formatDateRange(c);
   document.getElementById('dCampaign').textContent = _cName(c);
   document.getElementById('dPromo').textContent = c.promo || '—';
@@ -1038,7 +1038,7 @@ function openDetail(idx, skipPush) {
   }
 
   // DA 캠페인이 '부킹확정' 상태면 자동으로 '성과입력대기'로 전환
-  const isDAcamp  = c.product === 'DA';
+  const isDAcamp  = ['DA','IPTV'].includes(c.product);
   const isPCcamp  = c.product === '퍼미션콜';
   const isCPAcamp = c.product === 'CPA';
   const isCPScamp = c.product === 'CPS';
@@ -1329,7 +1329,7 @@ function renderTable(data) {
   // 카운트
   document.getElementById('shownCnt').textContent = total;
   const totalAdc = data.reduce((s, c) => {
-    if (c.product === 'DA') return s + (c.daAdcost || 0);
+    if (['DA','IPTV'].includes(c.product)) return s + (c.daAdcost || 0);
     if (c.product === 'CPA') return s + (c.adcostFixed || (c.db || c.qty || 0) * (c.sellUnit || 0));
     const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
     return s + base * (c.sellUnit||0);
@@ -1373,7 +1373,7 @@ function renderTable(data) {
       <td class="td-dim">${c.product}</td>
       <td class="td-dim">${c.ops || '—'}</td>
       <td class="td-num td-r">${(c.qty||0).toLocaleString()}</td>
-      <td class="td-num td-r">${(()=>{ const adc = c.product==='DA' ? (c.daAdcost||0) : c.product==='CPA' ? (c.adcostFixed||(c.db||c.qty||0)*(c.sellUnit||0)) : (c.adcostFixed || (()=>{ const base=(c.sellBillBase||c.billBase||'actual')==='sched'?(c.qty||0)-(c.svc||0):(c.actual?(c.actual-(c.svc||0)):(c.qty||0)-(c.svc||0)); return base*(c.sellUnit||0); })()); return adc?(adc>=10000?(adc/10000).toFixed(0)+'만':_fmtMoney(adc))+'원':'<span style="color:var(--text3)">—</span>';})()}</td>
+      <td class="td-num td-r">${(()=>{ const adc = ['DA','IPTV'].includes(c.product) ? (c.daAdcost||0) : c.product==='CPA' ? (c.adcostFixed||(c.db||c.qty||0)*(c.sellUnit||0)) : (c.adcostFixed || (()=>{ const base=(c.sellBillBase||c.billBase||'actual')==='sched'?(c.qty||0)-(c.svc||0):(c.actual?(c.actual-(c.svc||0)):(c.qty||0)-(c.svc||0)); return base*(c.sellUnit||0); })()); return adc?(adc>=10000?(adc/10000).toFixed(0)+'만':_fmtMoney(adc))+'원':'<span style="color:var(--text3)">—</span>';})()}</td>
       <td class="td-num td-r">${c.clicks!=null?c.clicks.toLocaleString():'<span style="color:var(--text3)">—</span>'}</td>
       <td class="td-num td-r">${(()=>{ const v=c.ctr; if(v==null)return '<span style="color:var(--text3)">—</span>'; const n=typeof v==='string'?parseFloat(v):v; return isNaN(n)?'<span style="color:var(--text3)">—</span>':n.toFixed(2)+'%'; })()}</td>
       <td><span class="badge b-${c.status}">${c.status}</span></td>
@@ -2140,7 +2140,7 @@ function daEditFilesSelected(files) {
 
 function onEditProductChange() {
   const prod  = document.getElementById('e_product').value;
-  const isDA  = prod === 'DA';
+  const isDA  = ['DA','IPTV'].includes(prod);
   const isPC  = prod === '퍼미션콜';
   const isCPA = prod === 'CPA';
   const isCPS = prod === 'CPS';
@@ -2192,7 +2192,7 @@ function onEditProductChange() {
 
 function onRegProductChange() {
   const prod  = document.getElementById('r_product').value;
-  const isDA  = prod === 'DA';
+  const isDA  = ['DA','IPTV'].includes(prod);
   const isPC  = prod === '퍼미션콜';
   const isCPA = prod === 'CPA';
   const isCPS = prod === 'CPS';
@@ -2510,7 +2510,7 @@ function calcDBR() {
 function submitReg() {
   // 필수 항목 검증
   const prod  = document.getElementById('r_product').value;
-  const isDA  = prod === 'DA';
+  const isDA  = ['DA','IPTV'].includes(prod);
   const isPC  = prod === '퍼미션콜';
   const isCPA = prod === 'CPA';
   const isCPS = prod === 'CPS';
@@ -2796,7 +2796,7 @@ function openCopyCampaign() {
   const c = DATA[currentDetailIdx];
   if (!c) return;
 
-  const isDA  = c.product === 'DA';
+  const isDA  = ['DA','IPTV'].includes(c.product);
   const isPC  = c.product === '퍼미션콜';
   const isCPA = c.product === 'CPA';
   const isCPS = c.product === 'CPS';
@@ -2975,7 +2975,7 @@ function openEdit() {
   document.getElementById('e_note').value   = c.note   || '';
 
   // DA / 퍼미션콜 vs 일반 수정 화면 토글
-  const isEditDA  = c.product === 'DA';
+  const isEditDA  = ['DA','IPTV'].includes(c.product);
   const isEditPC  = c.product === '퍼미션콜';
   const isEditCPA = c.product === 'CPA';
   const isEditCPS = c.product === 'CPS';
@@ -3223,7 +3223,7 @@ function submitEdit() {
   c.dtarget  = document.getElementById('e_dtarget').value;
   c.note     = document.getElementById('e_note').value;
 
-  const isEditDA  = c.product === 'DA';
+  const isEditDA  = ['DA','IPTV'].includes(c.product);
   const isEditPC  = c.product === '퍼미션콜';
   const isEditCPA = c.product === 'CPA';
   const isEditCPS = c.product === 'CPS';
@@ -3377,7 +3377,7 @@ function open2ndModal() {
   const c = DATA[currentDetailIdx];
   if (!c) return;
   if (c.status !== '성과입력대기' && c.status !== '성과입력완료') return;
-  const isDA = c.product === 'DA';
+  const isDA = ['DA','IPTV'].includes(c.product);
   document.getElementById('perf-normal').style.display = isDA ? 'none' : '';
   document.getElementById('perf-da').style.display     = isDA ? '' : 'none';
   if (isDA) {
@@ -3404,7 +3404,7 @@ function open2ndModal() {
 function submit2nd()  {
   const c = DATA[currentDetailIdx];
   if (!c) return;
-  const isDA = c.product === 'DA';
+  const isDA = ['DA','IPTV'].includes(c.product);
 
   if (isDA) {
     const imp   = document.getElementById('p_imp').value;
@@ -3508,7 +3508,7 @@ function confirmDel() {
 
 function openEditTarget() {
   const c = DATA[currentDetailIdx] || {};
-  const isDA = c.product === 'DA';
+  const isDA = ['DA','IPTV'].includes(c.product);
   const hasReviewed = !!c.msgFinal;
   document.getElementById('et_target').value  = c.target  || '';
   document.getElementById('et_dtarget').value = c.dtarget || '';
@@ -3624,13 +3624,13 @@ function _getFilteredEvents(key) {
       const prod = c.product || '';
       if (isDA) {
         // DA 탭: DA 상품만, 날짜 범위 내 포함 여부
-        if (prod !== 'DA') return false;
+        if (!['DA','IPTV'].includes(prod)) return false;
         const startKey = (c.date || '').slice(0, 10);
         const endKey   = (c.dateEnd || startKey).slice(0, 10);
         return key >= startKey && key <= endKey;
       } else {
         // 문자광고 탭: 퍼미션콜·CPA·DA 제외, 시작일 기준
-        if (prod === '퍼미션콜' || prod === 'CPA' || prod === 'DA') return false;
+        if (prod === '퍼미션콜' || prod === 'CPA' || ['DA','IPTV'].includes(prod)) return false;
         return (c.date || '').startsWith(key);
       }
     });
@@ -3716,7 +3716,7 @@ function _makeEvtEl(ev) {
   el.style.color = '#333';
   const c = ev.idx !== null ? DATA[ev.idx] : null;
   const label = c ? _cName(c) : ev.t;
-  const time  = (c?.product === 'DA') ? '' : (c?.date ? c.date.split(' ')[1] || '' : '');
+  const time  = (['DA','IPTV'].includes(c?.product)) ? '' : (c?.date ? c.date.split(' ')[1] || '' : '');
   el.textContent = time ? `[${time}] ${label}` : label;
   el.title = label;
   el.onclick = e => { e.stopPropagation(); ev.idx !== null ? openCalPreview(ev.idx) : toast(label + ' 클릭됨', 'ok'); };
@@ -3738,7 +3738,7 @@ function openImgNewTab(b64) {
 }
 
 function _formatDateRange(c) {
-  if ((c.product === 'DA' || c.product === 'CPA') && c.dateEnd) {
+  if ((['DA','IPTV'].includes(c.product) || c.product === 'CPA') && c.dateEnd) {
     const sp = (c.date    || '').split('-');
     const ep = (c.dateEnd || '').split('-');
     if (sp.length >= 3 && ep.length >= 3)
@@ -3754,7 +3754,7 @@ function openCalPreview(idx) {
   document.getElementById('cp-promo').textContent    = c.promo || '—';
   document.getElementById('cp-cat').textContent      = _getCat(c) || '—';
   const cpDateLbl = document.getElementById('cp-date-lbl');
-  if (cpDateLbl) cpDateLbl.textContent = c.product === 'DA' ? '노출기간' : (c.product === 'CPA' && c.dateEnd ? '발송기간' : '발송일시');
+  if (cpDateLbl) cpDateLbl.textContent = ['DA','IPTV'].includes(c.product) ? '노출기간' : (c.product === 'CPA' && c.dateEnd ? '발송기간' : '발송일시');
   document.getElementById('cp-date').textContent = _formatDateRange(c);
   document.getElementById('cp-product').textContent  = c.product || '—';
   const cpSellerEl = document.getElementById('cp-seller');
@@ -3855,12 +3855,12 @@ function _updateCalMeta() {
   const visible = DATA.filter(c => {
     const prod = c.product || '';
     if (isDATab) {
-      if (prod !== 'DA') return false;
+      if (!['DA','IPTV'].includes(prod)) return false;
       const startKey = (c.date    || '').slice(0, 10);
       const endKey   = (c.dateEnd || startKey).slice(0, 10);
       if (endKey < monthStart || startKey > monthEnd) return false;
     } else {
-      if (prod === '퍼미션콜' || prod === 'CPA' || prod === 'DA') return false;
+      if (prod === '퍼미션콜' || prod === 'CPA' || ['DA','IPTV'].includes(prod)) return false;
       if (!(c.date || '').startsWith(prefix)) return false;
     }
     if (catF     && _getCat(c)      !== catF)     return false;
@@ -3886,7 +3886,7 @@ function _updateCalMeta() {
 
   const totalQty = visible.reduce((s, c) => s + (c.actual || c.qty || 0), 0);
   const totalAdc = visible.reduce((s, c) => {
-    if (c.product === 'DA') return s + (c.daAdcost || 0);
+    if (['DA','IPTV'].includes(c.product)) return s + (c.daAdcost || 0);
     const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0) - (c.svc||0) : (c.actual ? c.actual - (c.svc||0) : (c.qty||0) - (c.svc||0));
     return s + (c.adcostFixed || base * (c.sellUnit || 0));
   }, 0);
@@ -4007,7 +4007,7 @@ function _computeDABars(cells, dim, todayIdx = -1) {
 
   // 필터 적용 + 이번 달 겹치는 DA 캠페인 수집
   const daCamps = DATA.filter(c => {
-    if ((c.product || '') !== 'DA') return false;
+    if (!['DA','IPTV'].includes(c.product || '')) return false;
     const s = (c.date    || '').slice(0, 10);
     const e = (c.dateEnd || s  ).slice(0, 10);
     if (e < monthStart || s > monthEnd) return false;
@@ -4322,7 +4322,7 @@ function renderDashboard() {
   const totalQty = statData.reduce((s, c) => s + (c.qty || 0), 0);
   const statAdc  = statData.reduce((s, c) => {
     let adc = 0;
-    if (c.product === 'DA') {
+    if (['DA','IPTV'].includes(c.product)) {
       adc = c.daAdcost || 0;
     } else if (c.product === 'CPA') {
       adc = c.adcostFixed || (c.db || c.qty || 0) * (c.sellUnit || 0);
@@ -4437,7 +4437,7 @@ function _getStlFilteredData() {
   const selMonth = document.getElementById('stl-month')?.value   || '';
   return DATA.filter(c => {
     if (scope === 'settled') {
-      if      (c.product === 'DA')  { if (!c.daAdcost)           return false; }
+      if      (['DA','IPTV'].includes(c.product))  { if (!c.daAdcost)           return false; }
       else if (c.product === 'CPA') { if (!c.db && !c.qty)       return false; }
       else if (c.product === 'CPS') { if (!c.cpsFinalSales)      return false; }
       else if (c.status !== '성과입력완료') return false;
@@ -4534,7 +4534,7 @@ async function downloadSettlementExcel() {
   settled.forEach(c => {
     const a      = _stlAmt(c);
     const has    = _stlHas(c);
-    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm));
+    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (['DA','IPTV'].includes(c.product) && !!c.comm));
     const r  = v => has    ? v : null;
     const rb = v => hasBuy ? v : null;
     const buyQty = a.buyActual ?? a.actual ?? 0;
@@ -4673,7 +4673,7 @@ async function downloadInvoiceExcel() {
       const a = _stlAmt(c);
       const has = _stlHas(c);
       const isCPS = c.product === 'CPS';
-      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm) || (isCPS && !!c.cpsMediaComm));
+      const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (['DA','IPTV'].includes(c.product) && !!c.comm) || (isCPS && !!c.cpsMediaComm));
       const adcost = has ? (isCPS ? a.adc : (a.amt ?? a.adc)) : null;
       const buyAmt = hasBuy ? a.buyAmt : null;
       const buyVat = hasBuy ? a.buyVat : null;
@@ -5061,7 +5061,7 @@ function renderMonthly() {
   const totalQty    = src.reduce((s,c) => s+(c.qty||0), 0);
   const totalActual = src.reduce((s,c) => s+(c.actual||0), 0);
   const totalAdc    = src.reduce((s,c) => {
-    if (c.product === 'DA') return s + (c.daAdcost || 0);
+    if (['DA','IPTV'].includes(c.product)) return s + (c.daAdcost || 0);
     if (c.product === 'CPA') return s + (c.adcostFixed || (c.db || c.qty || 0) * (c.sellUnit || 0));
     if (c.product === '퍼미션콜') return s + (c.pcAgree || 0) * (c.pcAdvUnit || 0);
     const base = (c.sellBillBase||c.billBase||'actual')==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
@@ -6219,7 +6219,7 @@ window.addEventListener('hashchange', () => {
 
 /** 정산 데이터 표시 여부 (상품별 기준 필드 다름) */
 function _stlHas(c) {
-  if (c.product === 'DA')        return !!c.daAdcost;
+  if (['DA','IPTV'].includes(c.product))        return !!c.daAdcost;
   if (c.product === 'CPA')       return !!(c.db || c.qty);
   if (c.product === 'CPS')       return !!c.cpsFinalSales;
   if (c.product === '퍼미션콜')  return !!c.pcAdvUnit || !!c.pcAgree;
@@ -6229,7 +6229,7 @@ function _stlHas(c) {
 /** 실발송수량(actual) 기준 정산 금액 계산 */
 function _stlAmt(c) {
   // DA 캠페인: daAdcost 기준 (수량 개념 없음)
-  if (c.product === 'DA') {
+  if (['DA','IPTV'].includes(c.product)) {
     const adc    = c.daAdcost || 0;
     const buyAmt = c.buyUnit  || Math.round(adc * (1 - (c.comm || 0) / 100));
     const adcVat = Math.round(adc * 0.1);
@@ -6850,7 +6850,7 @@ function _stlGetFiltered() {
   const selMonth = document.getElementById('stl-month')?.value  || '';
   return DATA.filter(c => {
     if (scope === 'settled') {
-      if      (c.product === 'DA')  { if (!c.daAdcost)           return false; }
+      if      (['DA','IPTV'].includes(c.product))  { if (!c.daAdcost)           return false; }
       else if (c.product === 'CPA') { if (!c.db && !c.qty)       return false; }
       else if (c.product === 'CPS') { if (!c.cpsFinalSales)      return false; }
       else if (c.status !== '성과입력완료') return false;
@@ -6882,11 +6882,11 @@ function renderSettlement() {
   settled.forEach(c => {
     const a      = _stlAmt(c);
     const has    = _stlHas(c);
-    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (c.product === 'DA' && !!c.comm) || (c.product === 'CPS' && !!c.cpsMediaComm));
+    const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (['DA','IPTV'].includes(c.product) && !!c.comm) || (c.product === 'CPS' && !!c.cpsMediaComm));
     if (has)    totalAdc += (a.amt ?? a.adc);
     if (hasBuy) totalBuy += a.buyAmt;
     if (has)    totalPrf += a.prf;
-    if (has && c.product !== 'DA') {
+    if (has && !['DA','IPTV'].includes(c.product)) {
       totalSellQty += a.actual ?? 0;
       totalBuyQty  += a.buyActual ?? a.actual ?? 0;
     }
@@ -7131,7 +7131,7 @@ function renderStlCampaignView(data, container) {
 
   const rows = data.map(c => {
     const a      = _stlAmt(c);
-    const isDA   = c.product === 'DA';
+    const isDA   = ['DA','IPTV'].includes(c.product);
     const isCPS  = c.product === 'CPS';
     const has    = _stlHas(c);
     const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (isDA && !!c.comm) || (isCPS && !!c.cpsMediaComm));
@@ -7239,7 +7239,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
     let tAdc = 0, tAdcVat = 0, tBuy = 0, tBuyVat = 0, tFee = 0, tPrf = 0, tQty = 0, tActual = 0, tBuyActual = 0;
     camps.forEach(c => {
       const a    = _stlAmt(c);
-      const isDA = c.product === 'DA';
+      const isDA = ['DA','IPTV'].includes(c.product);
       const has  = _stlHas(c);
       tAdc += (a.amt ?? a.adc); tAdcVat += a.adcVat; tBuy += a.buyAmt; tBuyVat += a.buyVat; tFee += a.agFee; tPrf += a.prf;
       if (has && !isDA) { tQty += a.qty; tActual += a.actual; tBuyActual += (a.buyActual ?? a.actual); }
@@ -7262,7 +7262,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
         return `<div class="chk" style="width:18px;height:18px;" onmousedown="event.preventDefault()" onclick="event.stopPropagation();openInvoiceInModal('${c.id}')"></div>`;
       };
 
-      const isDA   = c.product === 'DA';
+      const isDA   = ['DA','IPTV'].includes(c.product);
       const isCPS  = c.product === 'CPS';
       const has    = _stlHas(c);
       const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (isDA && !!c.comm) || (isCPS && !!c.cpsMediaComm));
@@ -7672,7 +7672,7 @@ function renderPipelineStats() {
         var u = USERS.find(function(usr) { return usr.name === c.ops; });
         if (!u || u.bonbu !== bonbu) return;
       }
-      var amt = c.product === 'DA' ? (c.daAdcost || 0) : (c.qty || 0) * (c.sellUnit || 0);
+      var amt = ['DA','IPTV'].includes(c.product) ? (c.daAdcost || 0) : (c.qty || 0) * (c.sellUnit || 0);
       sum += amt;
     });
     return sum;
@@ -8055,7 +8055,7 @@ function _taxContentAuto(c) {
   return [m, c.adv||'', c.media||'', c.product||'', '광고비'].filter(Boolean).join('_');
 }
 function _taxIsSettled(c) {
-  if (c.product === 'DA')  return !!c.daAdcost;
+  if (['DA','IPTV'].includes(c.product))  return !!c.daAdcost;
   if (c.product === 'CPA') return !!(c.db || c.qty);
   return c.status === '성과입력완료';
 }
