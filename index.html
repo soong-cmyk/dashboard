@@ -2256,6 +2256,7 @@
           <h2 style="font-size:16px;font-weight:700;color:var(--text1);margin:0;">KPI</h2>
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
             <select class="form-sel" id="kpi-year" style="width:90px;" onchange="kpiYearChange()"></select>
+            <button class="btn btn-outline" id="kpi-qtr-toggle-btn" onclick="toggleKpiQtr()" style="font-size:12px;">분기합계 숨기기</button>
             <button class="btn btn-primary" id="kpi-edit-btn" onclick="openKpiEditModal()" style="display:none;">KPI 등록/수정</button>
           </div>
         </div>
@@ -2274,7 +2275,6 @@
             <span class="card-title">본부·팀별 KPI 상세</span>
             <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
               <select class="form-sel" id="kpi-org-filter" style="width:140px;" onchange="kpiOrgChange()"></select>
-              <button class="btn btn-outline" id="kpi-team-edit-btn" onclick="openKpiEditModal()" style="display:none;">목표 수정</button>
               <button class="btn btn-outline" id="kpi-inline-edit-btn" onclick="toggleKpiInlineEdit()" style="display:none;">전체수정</button>
             </div>
           </div>
