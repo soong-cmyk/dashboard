@@ -73,7 +73,7 @@
         <span class="nav-icon">📑</span>세금계산서
       </div>
       <div class="nav-item" id="nav-kpi" onclick="goScreen('kpi')">
-        <span class="nav-icon">📊</span>KPI
+        <span class="nav-icon">🎯</span>KPI
       </div>
 <!--
       <div class="nav-item" id="nav-pipeline" onclick="goScreen('pipeline')">
@@ -1819,12 +1819,9 @@
         <!-- 검색 필터 -->
         <div class="filter-bar" style="margin-bottom:14px;">
           <span class="f-label">검색</span>
-          <input type="text" class="f-search" id="mediaQ" placeholder="매체명, 담당자 등" style="width:220px;"
+          <input type="text" class="f-search" id="mediaQ" placeholder="매체명, 담당자, 매입처명 등" style="width:220px;"
             onkeydown="if(event.key==='Enter')searchMedia()">
-          <select class="f-sel" id="mediaType" style="width:100px;">
-            <option value="">전체</option>
-            <option value="매체사">매체사</option>
-          </select>
+
           <button class="btn btn-primary btn-sm" onclick="searchMedia()">조회</button>
           <button class="btn btn-outline btn-sm" onclick="resetMediaSearch()">초기화</button>
         </div>

@@ -5254,7 +5254,6 @@ function searchMedia() { renderMediaList(); }
 
 function resetMediaSearch() {
   document.getElementById('mediaQ').value = '';
-  document.getElementById('mediaType').value = '';
   mediaSortDir = null;
   const arrow = document.getElementById('media-sort-arrow');
   if (arrow) arrow.textContent = '';
@@ -5263,7 +5262,6 @@ function resetMediaSearch() {
 
 function renderMediaList() {
   const q    = (document.getElementById('mediaQ')?.value   || '').trim().toLowerCase();
-  const type = (document.getElementById('mediaType')?.value || '');
   const isAdmin = currentUser && currentUser.isAdmin;
   const nd = '<span style="color:var(--text3)">—</span>';
   const v = x => x || nd;
@@ -5274,8 +5272,7 @@ function renderMediaList() {
   if (thActive) thActive.style.display = isAdmin ? '' : 'none';
 
   let list = MEDIA_DATA.map((m, realIdx) => ({m, realIdx})).filter(({m}) => {
-    if (type && m.type !== type) return false;
-    if (q && ![(m.company||''),(m.contact||''),(m.tel||'')].some(s => s.toLowerCase().includes(q))) return false;
+    if (q && ![(m.company||''),(m.contact||''),(m.tel||''),(m.invoiceTo||'')].some(s => s.toLowerCase().includes(q))) return false;
     return true;
   });
   if (mediaSortDir) {
