@@ -11102,14 +11102,14 @@ function openKpiEditModal() {
   if (!mEl) { mEl = document.createElement('div'); mEl.id = mId; mEl.className = 'modal-overlay'; document.body.appendChild(mEl); }
 
   mEl.style.zIndex = '200';
-  mEl.innerHTML = `<div class="modal" style="width:min(1060px,95vw);max-height:92vh;overflow-y:auto;">
+  mEl.innerHTML = `<div class="modal" style="width:min(1060px,95vw);max-height:92vh;overflow-y:auto;overflow-x:hidden;">
     <div class="modal-head">
       <span class="modal-title">KPI 등록/수정</span>
       <div style="display:flex;align-items:center;gap:10px;">
         <select class="form-sel" id="ki_year" style="width:90px;">
           ${[cy-1,cy,cy+1].map(y=>`<option value="${y}"${String(y)===_kpiYear?' selected':''}>${y}년</option>`).join('')}
         </select>
-        <button class="modal-close" onclick="document.getElementById('${mId}').style.display='none'">✕</button>
+        <button class="modal-close" onclick="closeModal('${mId}')">✕</button>
       </div>
     </div>
     <div class="modal-body" style="overflow:visible;">
@@ -11121,7 +11121,7 @@ function openKpiEditModal() {
       <button class="btn btn-primary" id="ki_save_btn" onclick="saveKpiTargets()">저장</button>
     </div>
   </div>`;
-  mEl.style.display = 'flex';
+  openModal(mId);
 }
 
 async function saveKpiTargets() {
@@ -11148,7 +11148,7 @@ async function saveKpiTargets() {
   if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
   try {
     await window._db.collection('settings').doc('kpi_targets_' + year).set(data);
-    document.getElementById('modalKpiEdit').style.display = 'none';
+    closeModal('modalKpiEdit');
     if (year !== _kpiYear) {
       _kpiYear = year;
       const yr = document.getElementById('kpi-year');
