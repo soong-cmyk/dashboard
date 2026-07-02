@@ -8999,7 +8999,7 @@ function taxGenUpdateTotal() {
   let total = 0;
   document.querySelectorAll('.tax-gen-chk:checked').forEach(chk => {
     const typeEl = chk.closest('tr')?.querySelector('.tax-gen-type');
-    if (typeEl && typeEl.value) total += parseInt(chk.dataset.supply || 0, 10);
+    if (typeEl && typeEl.value) total += Number(chk.dataset.supply) || 0;
   });
   const el = document.getElementById('tax-gen-total');
   if (el) el.innerHTML = `선택 합계 <b>${total ? total.toLocaleString() : '0'}</b>원`;
