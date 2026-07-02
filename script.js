@@ -8782,22 +8782,7 @@ async function saveTaxReg() {
   const prevModDateReg  = existingForEdit.find(t => t.modifiedAfterIssue)?.modifiedAfterIssueDate || null;
   const taxStatus       = (isNew || wasIssuedReg) ? '' : (existingForEdit[0]?.taxStatus || '');
   const todayReg        = new Date().toISOString().slice(0, 10);
-  // 수정 시 기존 항목 삭제 + 연결 해제된 캠페인 플래그 리셋
-  if (!isNew) {
-    const existing = existingForEdit;
-    const oldLinkedCids = [...new Set(existing.filter(t => t.campaignId).map(t => t.campaignId))];
-    existing.forEach(t => TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1));
-    await Promise.all(existing.map(t => _fbDeleteTax(t.id)));
-    // 새 연결 목록에서 빠진 캠페인의 플래그 리셋
-    oldLinkedCids.forEach(cid => {
-      if (_taxRegLinkedCamps.includes(cid)) return;
-      const c = DATA.find(x => x.id === cid);
-      if (!c) return;
-      if (taxType === 'adv')   c.taxAdvReq   = false;
-      if (taxType === 'media') c.taxMediaReq = false;
-      _fbSaveCampaign(c);
-    });
-  }
+  const oldLinkedCids = !isNew ? [...new Set(existingForEdit.filter(t => t.campaignId).map(t => t.campaignId))] : [];
   let nextId = _taxNextId();
   const saved = [];
   for (const tr of rows) {
@@ -8808,7 +8793,7 @@ async function saveTaxReg() {
     const supply  = parseFloat(tr.querySelector('.tax-r-row-supply')?.value) || 0;
     const email   = (tr.querySelector('.tax-r-row-email')?.value || '').trim();
     const memo    = (tr.querySelector('.tax-r-row-memo')?.value  || '').trim();
-    const t = {
+    saved.push({
       id: nextId++, groupId, campaignId: _taxRegLinkedCamps[0] || null, createdBy, taxType, manager, month,
       reqDate, issueDate, taxStatus,
       payDue:    paidChk ? '' : payDue,
@@ -8820,9 +8805,7 @@ async function saveTaxReg() {
       contactEmail: email, memo,
       modifiedAfterIssue: wasIssuedReg || hadModBadgeReg,
       modifiedAfterIssueDate: wasIssuedReg ? todayReg : (hadModBadgeReg ? prevModDateReg : null),
-    };
-    TAX_DATA.push(t);
-    saved.push(t);
+    });
   }
   // 연결된 캠페인: 참조 항목(isRef) 생성 + 이중발행 방지 플래그 (다중 지원)
   const refItems = [];
@@ -8831,7 +8814,7 @@ async function saveTaxReg() {
     if (!lc) continue;
     const stl    = _stlAmt(lc);
     const refAmt = taxType === 'media' ? (stl.buyAmt || 0) : (stl.amt || 0);
-    const refItem = {
+    refItems.push({ lc, refItem: {
       id: nextId++, groupId, campaignId: linkedCid, isRef: true,
       createdBy, taxType, manager, month: _taxMonthLabel(lc),
       reqDate, issueDate, taxStatus,
@@ -8842,14 +8825,29 @@ async function saveTaxReg() {
       company, bizName, content: _taxContentAuto(lc),
       supplyAmt: refAmt, vatAmt: Math.round(refAmt * 1.1),
       contactEmail: '', memo: ''
-    };
-    TAX_DATA.push(refItem);
-    refItems.push({ refItem, lc });
+    }});
   }
+  // ① 새 레코드 Firebase 저장 먼저 — 성공해야만 기존 것 삭제
   await Promise.all([
     ...saved.map(t => _fbSaveTax(t)),
     ...refItems.map(({ refItem }) => _fbSaveTax(refItem)),
   ]);
+  // ② 저장 성공 후 기존 레코드 삭제 + 연결 해제된 캠페인 플래그 리셋
+  if (!isNew) {
+    await Promise.all(existingForEdit.map(t => _fbDeleteTax(t.id)));
+    existingForEdit.forEach(t => TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1));
+    oldLinkedCids.forEach(cid => {
+      if (_taxRegLinkedCamps.includes(cid)) return;
+      const c = DATA.find(x => x.id === cid);
+      if (!c) return;
+      if (taxType === 'adv')   c.taxAdvReq   = false;
+      if (taxType === 'media') c.taxMediaReq = false;
+      _fbSaveCampaign(c);
+    });
+  }
+  // ③ 메모리 동기화
+  saved.forEach(t => TAX_DATA.push(t));
+  refItems.forEach(({ refItem }) => TAX_DATA.push(refItem));
   refItems.forEach(({ lc }) => {
     if (taxType === 'adv')   lc.taxAdvReq   = true;
     if (taxType === 'media') lc.taxMediaReq = true;
@@ -8924,7 +8922,7 @@ function taxGenRenderList() {
     if (fSeller && (c.seller||c.adv||'') !== fSeller)              return false;
     if (fMedia  && (c.media||'') !== fMedia)                        return false;
     if (fMgr    && (c.ops||'') !== fMgr)                            return false;
-    if (fSearch && !_cName(c).toLowerCase().includes(fSearch) && !(c.id||'').toLowerCase().includes(fSearch)) return false;
+    if (fSearch && !_cName(c).toLowerCase().includes(fSearch) && !(c.id||'').toLowerCase().includes(fSearch) && !(c.seller||c.adv||'').toLowerCase().includes(fSearch)) return false;
     return true;
   });
   const countEl = document.getElementById('tax-gen-count');
@@ -9450,7 +9448,7 @@ async function confirmTaxEdit() {
   const taxType   = card.dataset.taxtype   || 'adv';
   const company   = card.dataset.company   || '';
 
-  // Capture existing items before deletion to preserve fields
+  // 기존 레코드 파악 (아직 삭제하지 않음)
   const existing = TAX_DATA.filter(t => _taxGroupId(t) === _taxEditGid);
   const origMap  = {};
   existing.forEach(t => { origMap[t.id] = t; });
@@ -9458,9 +9456,6 @@ async function confirmTaxEdit() {
   const hadModBadge = existing.some(t => t.modifiedAfterIssue);
   const prevModDate = existing.find(t => t.modifiedAfterIssue)?.modifiedAfterIssueDate || null;
   const today = new Date().toISOString().slice(0, 10);
-
-  existing.forEach(t => TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1));
-  await Promise.all(existing.map(t => _fbDeleteTax(t.id)));
 
   const groupId = _taxEditGid;
   const commonFields = {
@@ -9488,7 +9483,7 @@ async function confirmTaxEdit() {
     if (!content && !supply) continue;
     const origTid  = parseInt(tr.dataset.tid) || null;
     const origItem = origTid ? origMap[origTid] : null;
-    const t = {
+    newItems.push({
       id: _taxNextId(), ...commonFields,
       campaignId: null,
       createdBy: currentUser?.name || '',
@@ -9496,13 +9491,11 @@ async function confirmTaxEdit() {
       month, content, supplyAmt: supply,
       vatAmt: Math.round(supply * 1.1),
       contactEmail: email, memo,
-      bizName: company,
+      bizName: taxType === 'adv' ? company : (MEDIA_DATA.find(mm => mm.company === company)?.invoiceTo || company),
       taxStatus: wasIssued ? '' : (origItem?.taxStatus || ''),
       modifiedAfterIssue: wasIssued || hadModBadge,
       modifiedAfterIssueDate: wasIssued ? today : (hadModBadge ? prevModDate : null),
-    };
-    TAX_DATA.push(t);
-    newItems.push(t);
+    });
   }
 
   // Build ref rows (preserve campaignId / isRef from original)
@@ -9515,7 +9508,7 @@ async function confirmTaxEdit() {
     const bizName = taxType === 'adv'
       ? (camp?.seller || camp?.adv || company)
       : (MEDIA_DATA.find(mm => mm.company === camp?.media)?.invoiceTo || camp?.media || company);
-    const t = {
+    newItems.push({
       id: _taxNextId(), ...commonFields,
       campaignId: origItem.campaignId, isRef: true,
       createdBy: currentUser?.name || '',
@@ -9530,12 +9523,18 @@ async function confirmTaxEdit() {
       taxStatus: wasIssued ? '' : (origItem.taxStatus || ''),
       modifiedAfterIssue: wasIssued || hadModBadge,
       modifiedAfterIssueDate: wasIssued ? today : (hadModBadge ? prevModDate : null),
-    };
-    TAX_DATA.push(t);
-    newItems.push(t);
+    });
   }
 
+  // ① 새 레코드 Firebase 저장 먼저 — 성공해야만 기존 것 삭제
   await Promise.all(newItems.map(t => _fbSaveTax(t)));
+
+  // ② 저장 성공 후 기존 레코드 삭제
+  await Promise.all(existing.map(t => _fbDeleteTax(t.id)));
+
+  // ③ 메모리 동기화
+  existing.forEach(t => TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1));
+  newItems.forEach(t => TAX_DATA.push(t));
 
   _taxEditGid = null;
   closeModal('modalTaxAutoGen');
@@ -9587,7 +9586,7 @@ async function confirmTaxAutoGen() {
         paid:      paidChk ? '완료' : null,
         payInDate: paidChk ? (payInDate || null) : null,
         unpaid:    paidChk ? 0 : null,
-        company: cardCompany, bizName: cardCompany,
+        company: cardCompany, bizName: cardTaxType === 'adv' ? cardCompany : (MEDIA_DATA.find(mm => mm.company === cardCompany)?.invoiceTo || cardCompany),
         content, supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
         contactEmail: email, memo
       };
