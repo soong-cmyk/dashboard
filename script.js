@@ -9630,13 +9630,14 @@ async function confirmTaxAutoGen() {
         isRef: manualRows.length > 0 ? true : undefined
       };
 
-      if (taxType==='adv')   c.taxAdvReq   = true;
-      if (taxType==='media') c.taxMediaReq = true;
-      _fbSaveCampaign(c);
-
+      // 레코드 저장 먼저 — 성공 후에만 플래그 세팅
       TAX_DATA.push(t);
       await _fbSaveTax(t);
       _savedItems.push(t);
+
+      if (taxType==='adv')   c.taxAdvReq   = true;
+      if (taxType==='media') c.taxMediaReq = true;
+      _fbSaveCampaign(c);
     }
   }
 
