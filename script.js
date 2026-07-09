@@ -560,14 +560,23 @@ const HISTORY = {};
 
 // 필드 한글 레이블 매핑 (DB 연동 시에도 그대로 사용)
 const FIELD_LABELS = {
-  name:'광고내용',
-  cat:'카테고리', date:'발송일시', media:'매체사',
-  product:'상품', contract:'계약주체', adv:'광고주', agency:'대행사',
+  name:'광고내용', promo:'프로모션',
+  cat:'카테고리', date:'발송일시', dateEnd:'종료일', media:'매체사',
+  product:'상품', contract:'계약주체', seller:'매출처', adv:'광고주', agency:'대행사', content:'브랜드',
   ops:'담당자', dept:'부서', status:'단계',
-  qty:'발송예약수량', svc:'서비스물량', unit:'단가', disc:'할인금액',
-  comm:'수수료율', agrate:'대행료율', target:'타겟조건', dtarget:'디타겟조건', msg:'발송문구',
+  qty:'발송예약수량', svc:'서비스물량', unit:'단가', sellUnit:'매출단가', buyUnit:'매입단가', disc:'할인금액',
+  comm:'수수료율', agrate:'대행료율', target:'타겟조건', dtarget:'디타겟조건', msg:'발송문구', msgFinal:'검수완료문구',
   note:'특기사항', testOk:'테스트수신', sent:'성과입력대기',
   actual:'실발송수량', clicks:'클릭수', ctr:'클릭률', db:'DB등록수', dbr:'DB등록률',
+  billBase:'정산기준', sellBillBase:'매출정산기준', buyBillBase:'매입정산기준',
+  svcApplyAdv:'서비스수량 적용(광고주)', svcApplyMedia:'서비스수량 적용(매체)',
+  adcostFixed:'광고비 수동입력', amtFixed:'실청구 수동입력', buyAmtFixed:'매입액 수동입력',
+  revFixed:'매출수익 수동입력', profitFixed:'이익 수동입력',
+  daAdcost:'DA광고비', daBillBase:'DA정산기준', daFeeYn:'DA수수료포함여부',
+  daImp:'노출수', daClick:'클릭수(2차)', daConv:'전환수', daRev:'매출(DA)', daImage:'이미지',
+  cpaFeeYn:'CPA수수료포함여부',
+  cpsFinalSales:'최종정산매출', cpsTotalComm:'총수수료', cpsMediaComm:'매체수수료', stlMonth:'정산월',
+  pcAdvUnit:'광고주단가', pcOhcCost:'OHC비용', pcDnuUnit:'DNU단가', pcInflow:'매체유입', pcAgree:'동의건',
   invoiceOut:'매출계산서발행', payIn:'입금', invoiceIn:'매입계산서발행', payOut:'지급',
   confirmAdv:'담당자확인(광고주)', confirmMedia:'담당자확인(매체)',
 };
@@ -962,18 +971,10 @@ function openDetail(idx, skipPush) {
   const adcBill  = isCPADetail ? cpaBillQty : Math.max(0, (sellBillBase === 'sched' ? qty : (actual || qty)) - (svcApplyAdv   ? svc : 0));
   const buyBill  = isCPADetail ? cpaBillQty : Math.max(0, (buyBillBase  === 'sched' ? qty : (actual || qty)) - (svcApplyMedia  ? svc : 0));
   const bill     = isCPADetail ? (cpaBillQty || null) : (actual ? actual - svc : null);
-  const eu      = disc > 0 ? disc : unit;           // 실적용단가 (할인단가 입력 시 우선)
-  const adcCalc  = adcBill * unit;
-  const adc      = c.adcostFixed  ?? adcCalc;       // 광고비 (수동 고정값 우선)
-  const real     = c.amtFixed     ?? (adcBill * eu);// 실청구
-  const buyAmt   = c.buyAmtFixed  ?? (buyBill * buyUnit);
-  // CPA: buyUnit/buyAmtFixed 있으면 실제 매입액 기준, 없으면 comm% 기준
-  const revCalc  = c.product === 'CPA'
-    ? ((c.buyUnit || c.buyAmtFixed) ? (adc - buyAmt) : Math.round(real * comm / 100))
-    : real - buyAmt;                                // 일반: 실청구 기준 매출수익
-  const rev      = c.revFixed     ?? revCalc;       // 매출수익
-  const agf      = Math.round(real * (agrate / 100));
-  const prf      = c.profitFixed  ?? (rev - agf);   // 이익
+  // 광고비/실청구/매입액/대행료/이익: 정산탭(_stlAmt)과 동일한 계산 결과를 그대로 사용 (단일 소스)
+  const stl  = _stlAmt(c);
+  const adc  = stl.adc, real = stl.amt, buyAmt = stl.buyAmt, agf = stl.agFee, prf = stl.prf;
+  const rev  = real - buyAmt;                       // 매출수익
   document.getElementById('dQty').textContent       = qty    ? qty.toLocaleString()    + ' 건' : '—';
   document.getElementById('dSvc').textContent       = svc    ? svc.toLocaleString()    + ' 건' : '—';
   document.getElementById('dSellUnit').textContent  = unit    ? _fmtMoney(unit)    + '원'  : '—';
@@ -1261,7 +1262,7 @@ function openDetail(idx, skipPush) {
     const mediaComm  = c.cpsMediaComm  || 0;
     const cpsRate    = _getCpsRate(c.media, c.seller || c.adv);
     const isNaver    = (c.seller || c.adv) === '네이버';
-    const bcProfit   = totalComm - mediaComm;
+    const bcProfit   = c.profitFixed ?? (totalComm - mediaComm);
     const bcRate     = (isNaver && cpsRate) ? (1.8 - cpsRate).toFixed(2) + '%' : '—';
     const commRate1  = finalSales > 0 ? (totalComm / finalSales * 100).toFixed(2) + '%' : '—';
     const commRate2  = finalSales > 0 ? (mediaComm / finalSales * 100).toFixed(2) + '%' : '—';
@@ -2641,7 +2642,9 @@ function submitReg() {
       : (!isDA && !isPC && !isCPS ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_rev')))    : null),
     profitFixed:  isCPA
       ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_cpa_profit')))
-      : (!isDA && !isPC && !isCPS ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_profit'))) : null),
+      : isCPS
+      ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_cps_bc_profit')))
+      : (!isDA && !isPC ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_profit'))) : null),
     svcApplyAdv:   (!isDA && !isPC && !isCPA && !isCPS) ? (document.getElementById('r_svcApplyAdv')?.checked   ?? true)  : true,
     svcApplyMedia: (!isDA && !isPC && !isCPA && !isCPS) ? (document.getElementById('r_svcApplyMedia')?.checked ?? false) : false,
     agrate:    isDA  ? (+document.getElementById('r_da_agrate')?.value || 0) : (isCPA ? (+document.getElementById('r_cpa_agrate')?.value || 0) : (isCPS ? 0 : (+document.getElementById('r_agrate').value || 0))),
@@ -3066,19 +3069,19 @@ function openEdit() {
     setEl('e_cpa_fee_yn',   c.cpaFeeYn  || '포함');
     setEl('e_cpa_comm',     c.comm      || '');
     setEl('e_cpa_agrate',   c.agrate    || '');
-    // 수기입력 고정값 복원 (있으면 manual 표시, 없으면 자동계산)
+    // 수기입력 고정값 복원 (있으면 manual 표시, 없으면 자동계산) — null만 "미입력"으로 취급 (0 원 수동입력과 구분)
     const _restoreCpaManual = (id, val) => {
       const el = document.getElementById(id);
       if (!el) return;
-      if (val) { el.value = val; el.dataset.manual = '1'; }
-      else     { el.value = ''; delete el.dataset.manual; }
+      if (val != null) { el.value = val; el.dataset.manual = '1'; }
+      else              { el.value = ''; delete el.dataset.manual; }
     };
-    _restoreCpaManual('e_cpa_adcost',  c.adcostFixed  || 0);
+    _restoreCpaManual('e_cpa_adcost',  c.adcostFixed);
     const calcBuyUnit = Math.round((c.sellUnit || 0) * (1 - (c.comm || 0) / 100));
-    _restoreCpaManual('e_cpa_buyUnit', c.buyUnit !== calcBuyUnit ? c.buyUnit : 0);
-    _restoreCpaManual('e_cpa_buyAmt',  c.buyAmtFixed  || 0);
-    _restoreCpaManual('e_cpa_rev',     c.revFixed     || 0);
-    _restoreCpaManual('e_cpa_profit',  c.profitFixed  || 0);
+    _restoreCpaManual('e_cpa_buyUnit', c.buyUnit !== calcBuyUnit ? c.buyUnit : null);
+    _restoreCpaManual('e_cpa_buyAmt',  c.buyAmtFixed);
+    _restoreCpaManual('e_cpa_rev',     c.revFixed);
+    _restoreCpaManual('e_cpa_profit',  c.profitFixed);
     calcCPAEdit();
   }
   if (isEditCPS) {
@@ -3095,9 +3098,15 @@ function openEdit() {
     setEl('e_cps_final_sales', c.cpsFinalSales || '');
     setEl('e_cps_total_comm',  c.cpsTotalComm  || '');
     setEl('e_cps_media_comm',  c.cpsMediaComm  || '');
-    ['e_cps_total_comm','e_cps_media_comm','e_cps_bc_profit'].forEach(id => {
+    ['e_cps_total_comm','e_cps_media_comm'].forEach(id => {
       const el = document.getElementById(id); if (el) delete el.dataset.manual;
     });
+    // 브레인큐브 수익(원) 수기입력 고정값 복원 (있으면 manual 표시, 없으면 자동계산)
+    const eCpsBcProfitRestoreEl = document.getElementById('e_cps_bc_profit');
+    if (eCpsBcProfitRestoreEl) {
+      if (c.profitFixed != null) { eCpsBcProfitRestoreEl.value = c.profitFixed; eCpsBcProfitRestoreEl.dataset.manual = '1'; }
+      else { eCpsBcProfitRestoreEl.value = ''; delete eCpsBcProfitRestoreEl.dataset.manual; }
+    }
     calcCPSEdit();
   }
 
@@ -3213,10 +3222,11 @@ function calcEdit() {
 function submitEdit() {
   document.querySelector('.topbar').style.display = '';
   const c = DATA[currentDetailIdx];
-  // 변경 전 스냅샷 (이력용)
-  const TRACK = ['promo','cat','date','media','product','seller','content','dept','ops','status','qty','svc','sellUnit','buyUnit','disc','comm','agrate','target','dtarget','msg','msgFinal','note','pcAdvUnit','pcOhcCost','pcInflow','pcAgree'];
+  // 변경 전 스냅샷 (이력용) — id/regDate/regUser 등 등록 메타데이터를 제외한 모든 필드 추적
+  const _histSkip = new Set(['id','regDate','regUser']);
+  const _histVal = (v) => Array.isArray(v) ? (v.length ? `이미지 ${v.length}장` : '') : String(v ?? '');
   const snap = {};
-  TRACK.forEach(k => { snap[k] = String(c[k] ?? ''); });
+  Object.keys(c).forEach(k => { if (!_histSkip.has(k)) snap[k] = _histVal(c[k]); });
 
   c.promo    = document.getElementById('e_adpromo').value;
   c.cat      = document.getElementById('e_cat').value;
@@ -3284,12 +3294,12 @@ function submitEdit() {
     const eCpaAdcEl = document.getElementById('e_cpa_adcost');
     const eCpaRevEl = document.getElementById('e_cpa_rev');
     const eCpaPrfEl = document.getElementById('e_cpa_profit');
-    c.adcostFixed  = eCpaAdcEl?.dataset.manual ? (+eCpaAdcEl.value || 0) : 0;
-    c.revFixed     = eCpaRevEl?.dataset.manual ? (+eCpaRevEl.value || 0) : 0;
-    c.profitFixed  = eCpaPrfEl?.dataset.manual ? (+eCpaPrfEl.value || 0) : 0;
-    c.amtFixed     = 0;
+    c.adcostFixed  = eCpaAdcEl?.dataset.manual ? (+eCpaAdcEl.value || 0) : null;
+    c.revFixed     = eCpaRevEl?.dataset.manual ? (+eCpaRevEl.value || 0) : null;
+    c.profitFixed  = eCpaPrfEl?.dataset.manual ? (+eCpaPrfEl.value || 0) : null;
+    c.amtFixed     = null;
     const eCpaBuyAmtEl = document.getElementById('e_cpa_buyAmt');
-    c.buyAmtFixed  = eCpaBuyAmtEl?.dataset.manual ? (+eCpaBuyAmtEl.value || 0) : 0;
+    c.buyAmtFixed  = eCpaBuyAmtEl?.dataset.manual ? (+eCpaBuyAmtEl.value || 0) : null;
     c.sellBillBase = '';
     c.buyBillBase  = '';
     c.svc       = 0;
@@ -3306,7 +3316,9 @@ function submitEdit() {
     c.cpsMediaComm  = +document.getElementById('e_cps_media_comm')?.value  || 0;
     c.sellUnit = 0; c.buyUnit = 0; c.qty = 0; c.svc = 0; c.disc = 0;
     c.comm = 0; c.agrate = 0; c.sellBillBase = ''; c.buyBillBase = '';
-    c.adcostFixed = 0; c.amtFixed = 0; c.buyAmtFixed = 0; c.revFixed = 0; c.profitFixed = 0;
+    c.adcostFixed = 0; c.amtFixed = 0; c.buyAmtFixed = 0; c.revFixed = 0;
+    const eCpsBcProfitEl = document.getElementById('e_cps_bc_profit');
+    c.profitFixed = eCpsBcProfitEl?.dataset.manual ? (+eCpsBcProfitEl.value || 0) : null;
     c.status = '성과입력완료';
   } else {
     c.date     = _getDateTime('e');
@@ -3359,10 +3371,11 @@ function submitEdit() {
     }
   }
 
-  // 변경된 필드만 이력 기록
-  TRACK.forEach(k => {
-    const bv = snap[k];
-    const av = String(c[k] ?? '');
+  // 변경된 필드만 이력 기록 — 스냅샷 이후 새로 생긴 필드까지 포함해 전부 비교
+  new Set([...Object.keys(snap), ...Object.keys(c)]).forEach(k => {
+    if (_histSkip.has(k)) return;
+    const bv = snap[k] ?? '';
+    const av = _histVal(c[k]);
     if (bv !== av) _log(c.id, 'field', k, bv, av);
   });
 
@@ -6262,7 +6275,7 @@ function _stlAmt(c) {
     const finalSales = c.cpsFinalSales || 0;
     const totalComm  = c.cpsTotalComm  || 0;
     const mediaComm  = c.cpsMediaComm  || 0;
-    const bcProfit   = totalComm - mediaComm;
+    const bcProfit   = c.profitFixed ?? (totalComm - mediaComm);
     const prfRate    = finalSales > 0 ? (bcProfit / finalSales * 100) : 0;
     return { actual: 0, qty: 0, eu: 0, adc: finalSales, amt: totalComm, adcVat: 0, buyAmt: mediaComm, buyVat: Math.round(mediaComm * 0.1), stlRate: 0, agFee: 0, prf: bcProfit, prfRate };
   }
@@ -7061,7 +7074,7 @@ function renderStlCpsView(container) {
     const finalSales = c.cpsFinalSales || 0;
     const totalComm  = c.cpsTotalComm  || 0;
     const mediaComm  = c.cpsMediaComm  || 0;
-    const bcProfit   = totalComm - mediaComm;
+    const bcProfit   = c.profitFixed ?? (totalComm - mediaComm);
     totFinal  += finalSales; totTotal += totalComm; totMedia += mediaComm; totProfit += bcProfit;
     const idx = DATA.indexOf(c);
     const invIn = c.invoiceIn || '';
@@ -8556,12 +8569,36 @@ function _taxRegRenderChips() {
   const wrap = document.getElementById('tax-r-camp-chips');
   if (!wrap) return;
   if (!_taxRegLinkedCamps.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
-  wrap.style.display = 'flex';
-  wrap.innerHTML = _taxRegLinkedCamps.map(cid => {
+  const taxType = document.getElementById('tax-r-taxType')?.value || 'adv';
+  const rows = _taxRegLinkedCamps.map(cid => {
     const c = DATA.find(x => x.id === cid);
-    const label = c ? _cName(c) : cid;
-    return `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(26,115,232,.12);color:var(--primary,#1a73e8);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">${_escHtml(label)}<button type="button" style="background:none;border:none;cursor:pointer;color:inherit;font-size:13px;line-height:1;padding:0 0 0 2px;" onmousedown="taxRegCampRemove('${cid}')">×</button></span>`;
+    if (!c) return '';
+    const stl = _stlAmt(c);
+    const supply = taxType === 'media' ? (stl.buyAmt || 0) : (stl.amt || 0);
+    return `<tr>
+      <td style="font-size:12px;color:var(--text2);padding:5px 6px;">${_taxMonthLabel(c)}</td>
+      <td style="font-size:12px;color:var(--text2);padding:5px 6px;">${_escHtml(c.product||'—')}</td>
+      <td style="font-size:12px;font-weight:600;padding:5px 6px;">${_escHtml(_cName(c))}</td>
+      <td style="font-size:12px;padding:5px 6px;text-align:right;color:var(--text2);">${supply ? supply.toLocaleString() : '—'}</td>
+      <td style="font-size:12px;padding:5px 6px;color:var(--text2);">${_escHtml(c.ops||'—')}</td>
+      <td style="padding:5px 4px;text-align:center;"><button type="button" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:14px;line-height:1;padding:0 4px;" onmousedown="taxRegCampRemove('${cid}')">×</button></td>
+    </tr>`;
   }).join('');
+  wrap.style.display = 'block';
+  wrap.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+      <thead>
+        <tr style="background:var(--surface2);">
+          <th style="font-size:11px;font-weight:500;color:var(--text3);padding:5px 6px;text-align:left;width:80px;">집행월</th>
+          <th style="font-size:11px;font-weight:500;color:var(--text3);padding:5px 6px;text-align:left;">상품</th>
+          <th style="font-size:11px;font-weight:500;color:var(--text3);padding:5px 6px;text-align:left;">캠페인명</th>
+          <th style="font-size:11px;font-weight:500;color:var(--text3);padding:5px 6px;text-align:right;width:100px;">공급가액</th>
+          <th style="font-size:11px;font-weight:500;color:var(--text3);padding:5px 6px;text-align:left;">담당자</th>
+          <th style="width:28px;"></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 function taxRegCampRender() {
   const q    = (document.getElementById('tax-r-camp-text')?.value || '').trim().toLowerCase();
@@ -8834,8 +8871,8 @@ async function saveTaxReg() {
   ]);
   // ② 저장 성공 후 기존 레코드 삭제 + 연결 해제된 캠페인 플래그 리셋
   if (!isNew) {
+    existingForEdit.forEach(t => _fbSaveTaxDeleteLog(t, '수정'));
     await Promise.all(existingForEdit.map(t => _fbDeleteTax(t.id)));
-    existingForEdit.forEach(t => TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1));
     oldLinkedCids.forEach(cid => {
       if (_taxRegLinkedCamps.includes(cid)) return;
       const c = DATA.find(x => x.id === cid);
@@ -8845,9 +8882,7 @@ async function saveTaxReg() {
       _fbSaveCampaign(c);
     });
   }
-  // ③ 메모리 동기화
-  saved.forEach(t => TAX_DATA.push(t));
-  refItems.forEach(({ refItem }) => TAX_DATA.push(refItem));
+  // TAX_DATA는 onSnapshot이 자동으로 갱신 — 수동 push 제거 (중복 방지)
   refItems.forEach(({ lc }) => {
     if (taxType === 'adv')   lc.taxAdvReq   = true;
     if (taxType === 'media') lc.taxMediaReq = true;
@@ -8858,6 +8893,8 @@ async function saveTaxReg() {
     _fbSaveNotification('wonjoon', 'tax_new', body);
   }
   closeModal('modalTaxReg');
+  const _taxM = document.getElementById('tax-month');
+  if (_taxM) _taxM.value = '';
   renderTaxList();
   } finally {
     if (_saveBtn) { _saveBtn.disabled = false; _saveBtn.textContent = '저장'; }
@@ -8892,13 +8929,17 @@ function openTaxAutoGen() {
   const fMgr    = document.getElementById('tax-gen-fManager');
   if (fMonth) {
     fMonth.innerHTML = '<option value="">발송월 전체</option>' + months.map(v=>`<option>${_escHtml(v)}</option>`).join('');
-    const now = new Date();
-    const curLabel = `${now.getFullYear()}년${now.getMonth()+1}월`;
-    if (months.includes(curLabel)) fMonth.value = curLabel;
+    fMonth.value = '';
   }
   if (fSeller) fSeller.innerHTML = '<option value="">광고주/대행사 전체</option>' + sellers.map(v=>`<option>${_escHtml(v)}</option>`).join('');
   if (fMedia)  fMedia.innerHTML  = '<option value="">매체사 전체</option>'        + medias.map(v=>`<option>${_escHtml(v)}</option>`).join('');
   if (fMgr)    fMgr.innerHTML    = '<option value="">담당자 전체</option>'        + managers.map(v=>`<option>${_escHtml(v)}</option>`).join('');
+  const fSearch = document.getElementById('tax-gen-fSearch');
+  if (fSearch) fSearch.value = '';
+  ['tax-gen-bulk-adv','tax-gen-bulk-media'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) { b.className = 'btn btn-ghost btn-sm'; b.style.fontSize = '11px'; b.style.padding = '3px 10px'; }
+  });
 
   // step1 초기화
   document.getElementById('tax-gen-step1').style.display = '';
@@ -8993,6 +9034,14 @@ function taxGenBulkType(type) {
     if ([...sel.options].some(o => o.value === type)) sel.value = type;
   });
   taxGenUpdateTotal();
+  const btnAdv   = document.getElementById('tax-gen-bulk-adv');
+  const btnMedia = document.getElementById('tax-gen-bulk-media');
+  if (btnAdv && btnMedia) {
+    btnAdv.className   = 'btn btn-sm' + (type === 'adv'   ? ' btn-primary' : ' btn-ghost');
+    btnMedia.className = 'btn btn-sm' + (type === 'media' ? ' btn-primary' : ' btn-ghost');
+    btnAdv.style.fontSize = btnMedia.style.fontSize = '11px';
+    btnAdv.style.padding  = btnMedia.style.padding  = '3px 10px';
+  }
 }
 
 function taxGenUpdateTotal() {
@@ -9122,7 +9171,7 @@ function taxGenNext() {
             <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-${gi}">${supplyTotal ? supplyTotal.toLocaleString() : '0'}</b>원 &nbsp;·&nbsp; 부가세포함 <b id="tax-gen-m-vat-${gi}">${supplyTotal ? Math.round(supplyTotal*1.1).toLocaleString() : '0'}</b>원</span>
           </div>
 
-          <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.4px;margin-bottom:6px;">불러온 캠페인 (참조)</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.4px;margin-bottom:6px;">불러온 캠페인 (참조) <span style="color:var(--primary,#1a73e8);font-weight:700;">${campaigns.length}건</span></div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;border-top:1px solid var(--border);">
             <thead>
               <tr style="color:var(--text3);">
@@ -9469,6 +9518,7 @@ async function confirmTaxEdit() {
   };
 
   const newItems = [];
+  let nextNewId = _taxNextId(); // ID를 미리 확보해 순차 증가 (TAX_DATA push 없이도 중복 방지)
 
   // Build manual rows
   const manualRows = [...card.querySelectorAll('.tax-gen-manual-row')];
@@ -9484,7 +9534,7 @@ async function confirmTaxEdit() {
     const origTid  = parseInt(tr.dataset.tid) || null;
     const origItem = origTid ? origMap[origTid] : null;
     newItems.push({
-      id: _taxNextId(), ...commonFields,
+      id: nextNewId++, ...commonFields,
       campaignId: null,
       createdBy: currentUser?.name || '',
       manager: origItem?.manager || '',
@@ -9509,7 +9559,7 @@ async function confirmTaxEdit() {
       ? (camp?.seller || camp?.adv || company)
       : (MEDIA_DATA.find(mm => mm.company === camp?.media)?.invoiceTo || camp?.media || company);
     newItems.push({
-      id: _taxNextId(), ...commonFields,
+      id: nextNewId++, ...commonFields,
       campaignId: origItem.campaignId, isRef: true,
       createdBy: currentUser?.name || '',
       manager:      origItem.manager      || '',
@@ -9532,10 +9582,7 @@ async function confirmTaxEdit() {
   // ② 저장 성공 후 기존 레코드 삭제
   await Promise.all(existing.map(t => _fbDeleteTax(t.id)));
 
-  // ③ 메모리 동기화
-  existing.forEach(t => TAX_DATA.splice(TAX_DATA.findIndex(x => x.id === t.id), 1));
-  newItems.forEach(t => TAX_DATA.push(t));
-
+  // TAX_DATA는 onSnapshot이 자동으로 갱신 — 수동 조작 제거 (중복 방지)
   _taxEditGid = null;
   closeModal('modalTaxAutoGen');
   renderTaxList();
@@ -9655,7 +9702,7 @@ async function confirmTaxAutoGen() {
   const elY = document.getElementById('tax-year');
   const elM = document.getElementById('tax-month');
   if (elY) elY.value = String(_now.getFullYear());
-  if (elM) elM.value = String(_now.getMonth() + 1).padStart(2, '0');
+  if (elM) elM.value = '';
   renderTaxList();
 }
 
@@ -10262,19 +10309,20 @@ function _fbWatchUsers() {
 async function _fbSaveTax(t) {
   if (!window._db) return;
   try { await window._db.collection('taxInvoices').doc(String(t.id)).set(t); }
-  catch(e) { console.error('[FB] 세금계산서 저장 실패:', e); }
+  catch(e) { console.error('[FB] 세금계산서 저장 실패:', e); throw e; }
 }
 async function _fbDeleteTax(id) {
   if (!window._db) return;
   try { await window._db.collection('taxInvoices').doc(String(id)).delete(); }
   catch(e) { console.error('[FB] 세금계산서 삭제 실패:', e); }
 }
-async function _fbSaveTaxDeleteLog(t) {
+async function _fbSaveTaxDeleteLog(t, reason = '삭제') {
   if (!window._db || t.isRef) return;
   try {
     const log = {
       deletedAt:  new Date().toISOString(),
       deletedBy:  currentUser?.name || '',
+      reason,
       taxId:      t.id,
       groupId:    t.groupId || null,
       taxType:    t.taxType || 'adv',
