@@ -2466,31 +2466,7 @@ function _calcCPAByPrefix(p) {
   setAuto('profit', adc ? prfAuto : '');
 }
 function calcCPA() { _calcCPAByPrefix('r_cpa_'); }
-function calcCPAEdit() {
-  const qty  = +document.getElementById('e_cpa_qty')?.value    || 0;
-  const unit = +document.getElementById('e_cpa_unit')?.value   || 0;
-  const comm = +document.getElementById('e_cpa_comm')?.value   || 0;
-  const ag   = +document.getElementById('e_cpa_agrate')?.value || 0;
-  const isManual = id => !!document.getElementById(id)?.dataset.manual;
-  const adc           = qty * unit;
-  const buyUnitEl     = document.getElementById('e_cpa_buyUnit');
-  const buyUnit       = buyUnitEl?.dataset.manual ? (+buyUnitEl.value || 0) : (unit ? Math.round(unit * (1 - comm / 100)) : 0);
-  const autoBuyAmt    = buyUnit * qty;
-  const buyAmt     = isManual('e_cpa_buyAmt') ? (+document.getElementById('e_cpa_buyAmt').value || 0) : autoBuyAmt;
-  const rev        = adc ? Math.round(adc * comm / 100) : 0;
-  const agf        = adc ? Math.round(adc * ag   / 100) : 0;
-  const useActual  = isManual('e_cpa_buyAmt') || !!buyUnitEl?.dataset.manual;
-  const prf        = useActual ? (adc - buyAmt - agf) : (rev - agf);
-  const setAuto = (id, v) => { const el = document.getElementById(id); if (el && !el.dataset.manual) el.value = v !== '' ? v : ''; };
-  setAuto('e_cpa_adcost',  adc        || '');
-  setAuto('e_cpa_buyUnit', buyUnit    || '');
-  setAuto('e_cpa_buyAmt',  autoBuyAmt || '');
-  setAuto('e_cpa_rev',     rev        || '');
-  setAuto('e_cpa_profit',  adc ? prf  : '');
-  const adcFinal = isManual('e_cpa_adcost') ? (+document.getElementById('e_cpa_adcost').value || adc) : adc;
-  const billEl = document.getElementById('e_cpa_bill');
-  if (billEl) billEl.value = adcFinal ? adcFinal.toLocaleString() + '원' : '';
-}
+function calcCPAEdit() { _calcCPAByPrefix('e_cpa_'); }
 function calcDaPerf() {
   const imp    = +document.getElementById('p_imp')?.value    || 0;
   const click  = +document.getElementById('p_da_click')?.value || 0;
@@ -3069,7 +3045,7 @@ function openEdit() {
     setEl('e_cpa_fee_yn',   c.cpaFeeYn  || '포함');
     setEl('e_cpa_comm',     c.comm      || '');
     setEl('e_cpa_agrate',   c.agrate    || '');
-    // 수기입력 고정값 복원 (있으면 manual 표시, 없으면 자동계산) — null만 "미입력"으로 취급 (0 원 수동입력과 구분)
+    // 수기입력 고정값 복원 (있으면 manual 표시, 없으면 자동계산) — null만 "미입력"으로 취급 (일반상품 _restoreManual과 동일 기준, 0원 수동입력도 존중)
     const _restoreCpaManual = (id, val) => {
       const el = document.getElementById(id);
       if (!el) return;
