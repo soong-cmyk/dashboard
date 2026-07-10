@@ -315,7 +315,7 @@ function logout() {
   goScreen('login');
 }
 async function openLoginHistory() {
-  if (!currentUser?.isAdmin && currentUser?.id !== 'soongeun') return;
+  if (!currentUser?.isAdmin && currentUser?.id !== 'soongeun' && currentUser?.id !== 'jaehyun') return;
   const el = document.getElementById('login-history-list');
   if (el) el.innerHTML = '<div style="padding:20px;color:var(--text3);text-align:center;">불러오는 중...</div>';
   openModal('modalLoginHistory');
@@ -341,6 +341,61 @@ async function openLoginHistory() {
     if (el) el.innerHTML = '<div style="padding:20px;color:var(--danger);">불러오기 실패</div>';
   }
 }
+// ══════════════════════════════════════════
+// 사용현황 분석 (관리자 전용)
+// ══════════════════════════════════════════
+function usageSwitchTab(tab) {
+  document.querySelectorAll('#usage-tabs .view-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('usage-tab-' + tab)?.classList.add('active');
+  document.querySelectorAll('.usage-pane').forEach(p => p.style.display = 'none');
+  const pane = document.getElementById('usage-pane-' + tab);
+  if (pane) pane.style.display = '';
+  if (tab === 'login') renderUsageLoginPattern();
+}
+
+// 막대그래프 렌더링 헬퍼 — labels/values 배열을 받아 간단한 세로 막대차트 HTML을 그림
+function _renderUsageBarChart(container, labels, values) {
+  if (!container) return;
+  const max = Math.max(1, ...values);
+  container.innerHTML = `<div style="display:flex;align-items:flex-end;gap:6px;height:160px;">
+    ${labels.map((lbl, i) => {
+      const v = values[i] || 0;
+      const pct = Math.round((v / max) * 100);
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;height:100%;justify-content:flex-end;">
+        <span style="font-size:11px;color:var(--text2);font-weight:600;">${v || ''}</span>
+        <div title="${lbl}: ${v}건" style="width:100%;max-width:36px;background:var(--accent);border-radius:4px 4px 0 0;height:${Math.max(v ? 3 : 0, pct)}%;min-height:${v ? '2px' : '0'};"></div>
+        <span style="font-size:11px;color:var(--text3);">${lbl}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+async function renderUsageLoginPattern() {
+  const weekdayEl = document.getElementById('usage-login-weekday-chart');
+  const hourEl = document.getElementById('usage-login-hour-chart');
+  if (weekdayEl) weekdayEl.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px;font-size:13px;">불러오는 중...</div>';
+  if (!window._db) return;
+  try {
+    const snap = await window._db.collection('loginHistory').get();
+    const weekdayCounts = [0,0,0,0,0,0,0]; // 일~토
+    const hourCounts = new Array(24).fill(0);
+    snap.forEach(d => {
+      const r = d.data();
+      const dt = r.loginAt?.toDate ? r.loginAt.toDate() : null;
+      if (!dt) return;
+      weekdayCounts[dt.getDay()]++;
+      hourCounts[dt.getHours()]++;
+    });
+    const weekdayLabels = ['일','월','화','수','목','금','토'];
+    const hourLabels = Array.from({length:24}, (_,i) => String(i));
+    _renderUsageBarChart(weekdayEl, weekdayLabels, weekdayCounts);
+    _renderUsageBarChart(hourEl, hourLabels, hourCounts);
+  } catch(e) {
+    if (weekdayEl) weekdayEl.innerHTML = '<div style="text-align:center;color:var(--red);padding:32px;font-size:13px;">불러오기 실패</div>';
+    console.error('[사용현황] 로그인 패턴 로드 실패:', e);
+  }
+}
+
 function _updateUserUI() {
   if (!currentUser) return;
   const av = document.getElementById('sidebar-avatar');
@@ -354,6 +409,8 @@ function _updateUserUI() {
   const canManageUsers = currentUser.isAdmin || ['대표이사','이사','본부장'].includes(currentUser.rank);
   const navUsers = document.getElementById('nav-users');
   if (navUsers) navUsers.style.display = canManageUsers ? '' : 'none';
+  const navUsage = document.getElementById('nav-usage');
+  if (navUsage) navUsage.style.display = currentUser.isAdmin ? '' : 'none';
 }
 // ══════════════════════════════════════════
 // AVATAR POPOVER & PASSWORD CHANGE
@@ -793,11 +850,11 @@ function goScreen(name, skipPush) {
 
   // nav highlight
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',perf:'nav-perf',settlement:'nav-settlement',monthly:'nav-monthly',tax:'nav-tax',kpi:'nav-kpi',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',payment:'nav-payment','payment-detail':'nav-payment'};
+  const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',perf:'nav-perf',settlement:'nav-settlement',monthly:'nav-monthly',tax:'nav-tax',kpi:'nav-kpi',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',usage:'nav-usage',payment:'nav-payment','payment-detail':'nav-payment'};
   if (navIds[name]) document.getElementById(navIds[name])?.classList.add('active');
 
   // breadcrumb
-  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
+  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',usage:'사용현황',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
   if (labels[name]) {
     document.getElementById('breadcrumb').innerHTML = `<span class="cur">${labels[name]}</span>`;
   }
@@ -857,6 +914,7 @@ function goScreen(name, skipPush) {
     switchSellerTab(_sellerTab || 'adv');
   }
   if (name === 'users')  { _renderUserMgmtList(); }
+  if (name === 'usage')  { usageSwitchTab('login'); }
   if (name === 'payment') {
     const yEl = document.getElementById('pay-year');
     const mEl = document.getElementById('pay-month');
@@ -4209,7 +4267,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 // ESC로 모든 모달 닫기 (배경 클릭으로는 닫히지 않음)
 document.addEventListener('keydown', e => {
   // 로그인 기록 (admin 전용 비밀 단축키)
-  if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l') {
     e.preventDefault();
     openLoginHistory();
     return;

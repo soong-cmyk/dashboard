@@ -100,6 +100,9 @@
       <div class="nav-item" id="nav-users" onclick="goScreen('users')">
         <span class="nav-icon">👤</span>사용자 관리
       </div>
+      <div class="nav-item" id="nav-usage" onclick="goScreen('usage')">
+        <span class="nav-icon">📊</span>사용현황
+      </div>
     </nav>
     <div class="sidebar-user" style="flex-direction:column;align-items:flex-start;gap:10px;">
       <div
@@ -2072,6 +2075,49 @@
               <input type="file" id="restore-file-input" accept=".json" style="display:none;" onchange="restoreDB(this.files[0]); this.value='';">
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════
+         사용현황 분석 (관리자 전용)
+    ══════════════════════════════════ -->
+      <div class="screen" id="screen-usage">
+        <div class="view-tabs" id="usage-tabs" style="margin-bottom:14px;">
+          <button class="view-tab active" id="usage-tab-login" onclick="usageSwitchTab('login')">로그인 패턴</button>
+          <button class="view-tab" id="usage-tab-menu" onclick="usageSwitchTab('menu')">메뉴 이용</button>
+          <button class="view-tab" id="usage-tab-error" onclick="usageSwitchTab('error')">에러 현황</button>
+          <button class="view-tab" id="usage-tab-filter" onclick="usageSwitchTab('filter')">필터 이용</button>
+          <button class="view-tab" id="usage-tab-action" onclick="usageSwitchTab('action')">기능 시도</button>
+        </div>
+
+        <div class="usage-pane" id="usage-pane-login">
+          <div class="table-card">
+            <div class="table-header">
+              <span class="card-title" style="font-size:15px;font-weight:600;">요일별 로그인 횟수</span>
+            </div>
+            <div style="padding:20px;" id="usage-login-weekday-chart">
+              <div style="text-align:center;color:var(--text3);padding:32px;font-size:13px;">불러오는 중...</div>
+            </div>
+          </div>
+          <div class="table-card" style="margin-top:16px;">
+            <div class="table-header">
+              <span class="card-title" style="font-size:15px;font-weight:600;">시간대별 로그인 횟수</span>
+            </div>
+            <div style="padding:20px;" id="usage-login-hour-chart"></div>
+          </div>
+        </div>
+
+        <div class="usage-pane" id="usage-pane-menu" style="display:none;">
+          <div class="table-card"><div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">준비중입니다.</div></div>
+        </div>
+        <div class="usage-pane" id="usage-pane-error" style="display:none;">
+          <div class="table-card"><div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">준비중입니다.</div></div>
+        </div>
+        <div class="usage-pane" id="usage-pane-filter" style="display:none;">
+          <div class="table-card"><div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">준비중입니다.</div></div>
+        </div>
+        <div class="usage-pane" id="usage-pane-action" style="display:none;">
+          <div class="table-card"><div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">준비중입니다.</div></div>
         </div>
       </div>
 
