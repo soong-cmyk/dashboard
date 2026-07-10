@@ -351,6 +351,97 @@ function usageSwitchTab(tab) {
   const pane = document.getElementById('usage-pane-' + tab);
   if (pane) pane.style.display = '';
   if (tab === 'login') renderUsageLoginPattern();
+  if (tab === 'menu')  { _usagePopulateUserSel(); renderUsageMenuStats(); }
+  if (tab === 'error') renderUsageErrorStats();
+  if (tab === 'filter') renderUsageFilterStats();
+  if (tab === 'action') renderUsageActionStats();
+}
+
+async function renderUsageErrorStats() {
+  const tbody = document.getElementById('usage-error-tbody');
+  if (!tbody || !window._db) return;
+  tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:24px;">불러오는 중...</td></tr>';
+  try {
+    const snap = await window._db.collection('errorStatsDaily').get();
+    const rows = []; // { screen, label, count }
+    const idx = {};
+    snap.forEach(d => {
+      const data = d.data();
+      Object.keys(data).forEach(screen => {
+        Object.keys(data[screen]).forEach(label => {
+          const key = screen + '||' + label;
+          if (idx[key] == null) { idx[key] = rows.length; rows.push({ screen, label, count: 0 }); }
+          rows[idx[key]].count += data[screen][label] || 0;
+        });
+      });
+    });
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:24px;">에러 기록이 없습니다.</td></tr>'; return; }
+    rows.sort((a, b) => b.count - a.count);
+    tbody.innerHTML = rows.map(r => `<tr>
+      <td>${_escHtml(USAGE_SCREEN_LABELS[r.screen] || r.screen)}</td>
+      <td>${_escHtml(r.label)}</td>
+      <td style="text-align:right;color:var(--red);font-weight:600;">${r.count.toLocaleString()}건</td>
+    </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--red);padding:24px;">불러오기 실패</td></tr>';
+  }
+}
+
+const USAGE_SCREEN_LABELS = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',usage:'사용현황',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
+
+function _usagePopulateUserSel() {
+  const sel = document.getElementById('usage-menu-user-sel');
+  if (!sel || sel.dataset.init) return;
+  sel.innerHTML = '<option value="">전체</option>' +
+    USERS.filter(u => !u.isAdmin && u.id !== 'user').sort((a,b) => a.name.localeCompare(b.name,'ko'))
+      .map(u => `<option value="${u.id}">${_escHtml(u.name)}</option>`).join('');
+  sel.dataset.init = '1';
+}
+
+async function renderUsageMenuStats() {
+  const tbody = document.getElementById('usage-menu-tbody');
+  const userSel = document.getElementById('usage-menu-user-sel');
+  if (!tbody || !window._db) return;
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:24px;">불러오는 중...</td></tr>';
+  const selectedUserId = userSel?.value || '';
+  try {
+    const statsByScreen = {};
+    const _bump = (screen, add) => {
+      if (!statsByScreen[screen]) statsByScreen[screen] = { visitCount:0, totalDurationSec:0, totalLoadMs:0, loadSampleCount:0 };
+      const s = statsByScreen[screen];
+      s.visitCount += add.visitCount||0; s.totalDurationSec += add.totalDurationSec||0;
+      s.totalLoadMs += add.totalLoadMs||0; s.loadSampleCount += add.loadSampleCount||0;
+    };
+    if (!selectedUserId) {
+      const snap = await window._db.collection('screenStatsDaily').get();
+      snap.forEach(d => {
+        const data = d.data();
+        Object.keys(data).forEach(screen => _bump(screen, data[screen]));
+      });
+    } else {
+      const snap = await window._db.collection('screenVisits').where('userId', '==', selectedUserId).get();
+      snap.forEach(d => {
+        const r = d.data();
+        _bump(r.screen, { visitCount: 1, totalDurationSec: r.durationSec || 0 });
+      });
+    }
+    const screens = Object.keys(statsByScreen).sort((a,b) => statsByScreen[b].visitCount - statsByScreen[a].visitCount);
+    if (!screens.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:24px;">데이터가 없습니다.</td></tr>'; return; }
+    tbody.innerHTML = screens.map(screen => {
+      const s = statsByScreen[screen];
+      const avgDur = s.visitCount ? Math.round(s.totalDurationSec / s.visitCount) : 0;
+      const avgLoad = s.loadSampleCount ? Math.round(s.totalLoadMs / s.loadSampleCount) : null;
+      return `<tr>
+        <td>${_escHtml(USAGE_SCREEN_LABELS[screen] || screen)}</td>
+        <td style="text-align:right;">${s.visitCount.toLocaleString()}회</td>
+        <td style="text-align:right;">${avgDur.toLocaleString()}초</td>
+        <td style="text-align:right;">${avgLoad != null ? avgLoad.toLocaleString() + 'ms' : '—'}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--red);padding:24px;">불러오기 실패</td></tr>';
+    console.error('[사용현황] 메뉴 이용 통계 로드 실패:', e);
+  }
 }
 
 // 막대그래프 렌더링 헬퍼 — labels/values 배열을 받아 간단한 세로 막대차트 HTML을 그림
@@ -371,28 +462,289 @@ function _renderUsageBarChart(container, labels, values) {
 }
 
 async function renderUsageLoginPattern() {
-  const weekdayEl = document.getElementById('usage-login-weekday-chart');
   const hourEl = document.getElementById('usage-login-hour-chart');
-  if (weekdayEl) weekdayEl.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px;font-size:13px;">불러오는 중...</div>';
+  if (hourEl) hourEl.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px;font-size:13px;">불러오는 중...</div>';
   if (!window._db) return;
   try {
     const snap = await window._db.collection('loginHistory').get();
-    const weekdayCounts = [0,0,0,0,0,0,0]; // 일~토
     const hourCounts = new Array(24).fill(0);
     snap.forEach(d => {
       const r = d.data();
       const dt = r.loginAt?.toDate ? r.loginAt.toDate() : null;
       if (!dt) return;
-      weekdayCounts[dt.getDay()]++;
       hourCounts[dt.getHours()]++;
     });
-    const weekdayLabels = ['일','월','화','수','목','금','토'];
     const hourLabels = Array.from({length:24}, (_,i) => String(i));
-    _renderUsageBarChart(weekdayEl, weekdayLabels, weekdayCounts);
     _renderUsageBarChart(hourEl, hourLabels, hourCounts);
   } catch(e) {
-    if (weekdayEl) weekdayEl.innerHTML = '<div style="text-align:center;color:var(--red);padding:32px;font-size:13px;">불러오기 실패</div>';
+    if (hourEl) hourEl.innerHTML = '<div style="text-align:center;color:var(--red);padding:32px;font-size:13px;">불러오기 실패</div>';
     console.error('[사용현황] 로그인 패턴 로드 실패:', e);
+  }
+}
+
+// ── 메뉴 방문/체류시간/로딩시간 추적 ──
+let _usageCurScreen = null;
+let _usageSegStart  = null;  // 현재 활성 구간 시작 시각(performance.now 기준), 탭 비활성 중엔 null
+let _usageAccumMs   = 0;     // 아직 저장 안 한 누적 체류시간(ms)
+let _usageFlushTimer = null;
+
+function _usageDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// 화면 전환 시 호출 — 이전 화면 정리 후 새 화면 타이머 시작
+function _usageBeginVisit(screen, loadMs) {
+  _usageEndVisit();
+  if (currentUser?.isAdmin) return; // 관리자 사용기록은 집계에서 제외
+  _usageCurScreen = screen;
+  _usageSegStart  = document.hidden ? null : performance.now();
+  _usageAccumMs   = 0;
+  _usageLogLoad(screen, loadMs);
+  if (!_usageFlushTimer) _usageFlushTimer = setInterval(_usageFlushCurrent, 30000);
+}
+
+// 현재까지 누적된 체류시간을 DB에 반영 (탭 닫기 대비 주기적 호출)
+function _usageFlushCurrent() {
+  if (!_usageCurScreen) return;
+  if (_usageSegStart != null) {
+    _usageAccumMs += performance.now() - _usageSegStart;
+    _usageSegStart = performance.now();
+  }
+  if (_usageAccumMs < 500) return; // 0.5초 미만은 스킵
+  const sec = Math.round(_usageAccumMs / 1000);
+  _usageAccumMs = 0;
+  _usageWriteVisit(_usageCurScreen, sec);
+}
+
+// 화면 이탈(다른 화면으로 이동/로그아웃) 시 호출 — 마지막 구간까지 저장하고 타이머 정리
+function _usageEndVisit() {
+  if (!_usageCurScreen) return;
+  _usageFlushCurrent();
+  _usageCurScreen = null;
+  _usageSegStart  = null;
+}
+
+async function _usageWriteVisit(screen, durationSec) {
+  if (!window._db || !currentUser) return;
+  const now = new Date();
+  const date = _usageDateStr(now);
+  try {
+    await window._db.collection('screenVisits').add({
+      screen, userId: currentUser.id, enterAt: now, durationSec, date
+    });
+    const inc = firebase.firestore.FieldValue.increment;
+    await window._db.collection('screenStatsDaily').doc(date).set({
+      [screen]: { visitCount: inc(1), totalDurationSec: inc(durationSec) }
+    }, { merge: true });
+  } catch(e) { console.error('[사용현황] 방문기록 저장 실패:', e); }
+}
+
+async function _usageLogLoad(screen, loadMs) {
+  if (!window._db || loadMs == null || !currentUser) return;
+  const date = _usageDateStr(new Date());
+  try {
+    const inc = firebase.firestore.FieldValue.increment;
+    await window._db.collection('screenStatsDaily').doc(date).set({
+      [screen]: { totalLoadMs: inc(Math.round(loadMs)), loadSampleCount: inc(1) }
+    }, { merge: true });
+  } catch(e) { console.error('[사용현황] 로딩시간 저장 실패:', e); }
+}
+
+// 탭 비활성/활성 전환 시 체류시간 타이머 일시정지/재개 (자리비움이 체류시간에 안 잡히게)
+document.addEventListener('visibilitychange', () => {
+  if (!_usageCurScreen) return;
+  if (document.hidden) {
+    if (_usageSegStart != null) { _usageAccumMs += performance.now() - _usageSegStart; _usageSegStart = null; }
+  } else {
+    _usageSegStart = performance.now();
+  }
+});
+window.addEventListener('beforeunload', () => { _usageEndVisit(); });
+
+// ── 에러 발생 집계 ──
+// 기존 코드가 전부 console.error('[FB] ...실패:', e) 패턴을 쓰고 있어서,
+// 그 호출 자체를 가로채 자동 집계 — catch 블록을 일일이 손댈 필요 없고, 새로 추가되는 _fb 함수도 자동 반영됨
+(function() {
+  const _origConsoleError = console.error.bind(console);
+  console.error = function(...args) {
+    _origConsoleError(...args);
+    if (typeof args[0] === 'string' && args[0].startsWith('[FB]')) {
+      const label = args[0].replace(/^\[FB\]\s*/, '').replace(/\s*실패:?\s*$/, '').trim();
+      _usageLogError(label);
+    }
+  };
+})();
+
+async function _usageLogError(label) {
+  if (!window._db || currentUser?.isAdmin) return;
+  const screen = (window.location.hash || '').replace('#', '').split('/')[0] || 'unknown';
+  const date = _usageDateStr(new Date());
+  try {
+    const inc = firebase.firestore.FieldValue.increment;
+    await window._db.collection('errorStatsDaily').doc(date).set({
+      [screen]: { [label]: inc(1) }
+    }, { merge: true });
+  } catch(e) { /* 에러 집계 자체의 실패는 조용히 무시 (무한루프 방지) */ }
+}
+
+// ── 필터/검색 사용 패턴 집계 ──
+// 자유텍스트 검색은 내용 없이 사용횟수만, 드롭다운 필터는 선택값까지 집계
+const USAGE_FILTER_MAP = {
+  fCat:   { screen: 'campaigns', field: '카테고리' },
+  fProd:  { screen: 'campaigns', field: '상품' },
+  fOrg:   { screen: 'campaigns', field: '본부팀' },
+  fMgr:   { screen: 'campaigns', field: '담당자' },
+  fAdv:   { screen: 'campaigns', field: '매출처' },
+  fMedia: { screen: 'campaigns', field: '매체사' },
+  fQ:     { screen: 'campaigns', isSearch: true },
+
+  'stl-fScope': { screen: 'settlement', field: '구분' },
+  'stl-fCat':   { screen: 'settlement', field: '카테고리' },
+  'stl-fProd':  { screen: 'settlement', field: '상품' },
+  'stl-fOrg':   { screen: 'settlement', field: '본부팀' },
+  'stl-fOps':   { screen: 'settlement', field: '담당자' },
+  'stl-fAdv':   { screen: 'settlement', field: '매출처' },
+  'stl-fMedia': { screen: 'settlement', field: '매체사' },
+  'stl-fQ':     { screen: 'settlement', isSearch: true },
+
+  'tax-fManager': { screen: 'tax', field: '담당자' },
+  'tax-fCompany': { screen: 'tax', isSearch: true },
+};
+const _usageDebounceTimers = {};
+function _usageDebounce(key, fn, delay) {
+  clearTimeout(_usageDebounceTimers[key]);
+  _usageDebounceTimers[key] = setTimeout(fn, delay);
+}
+function _usageFilterListener(e) {
+  const cfg = USAGE_FILTER_MAP[e.target?.id];
+  if (!cfg || currentUser?.isAdmin) return;
+  if (cfg.isSearch) {
+    if (e.type !== 'input' || !e.target.value) return;
+    _usageDebounce('search_' + e.target.id, () => _usageLogFilter(cfg.screen, null, null, true), 800);
+  } else {
+    if (e.type !== 'change' || !e.target.value) return;
+    _usageLogFilter(cfg.screen, cfg.field, e.target.value, false);
+  }
+}
+document.addEventListener('change', _usageFilterListener);
+document.addEventListener('input', _usageFilterListener);
+
+async function _usageLogFilter(screen, field, value, isSearch) {
+  if (!window._db) return;
+  const date = _usageDateStr(new Date());
+  try {
+    const inc = firebase.firestore.FieldValue.increment;
+    const payload = isSearch
+      ? { [screen]: { searchTextUsedCount: inc(1) } }
+      : { [screen]: { filters: { [field]: { [value]: inc(1) } } } };
+    await window._db.collection('filterStatsDaily').doc(date).set(payload, { merge: true });
+  } catch(e) { /* 조용히 무시 */ }
+}
+
+async function renderUsageFilterStats() {
+  const container = document.getElementById('usage-filter-content');
+  if (!container || !window._db) return;
+  container.innerHTML = '<div class="table-card"><div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">불러오는 중...</div></div>';
+  try {
+    const snap = await window._db.collection('filterStatsDaily').get();
+    const agg = {};
+    snap.forEach(d => {
+      const data = d.data();
+      Object.keys(data).forEach(screen => {
+        if (!agg[screen]) agg[screen] = { searchTextUsedCount: 0, filters: {} };
+        agg[screen].searchTextUsedCount += data[screen].searchTextUsedCount || 0;
+        const filters = data[screen].filters || {};
+        Object.keys(filters).forEach(field => {
+          if (!agg[screen].filters[field]) agg[screen].filters[field] = {};
+          Object.keys(filters[field]).forEach(val => {
+            agg[screen].filters[field][val] = (agg[screen].filters[field][val] || 0) + filters[field][val];
+          });
+        });
+      });
+    });
+    const screens = Object.keys(agg);
+    if (!screens.length) { container.innerHTML = '<div class="table-card"><div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">데이터가 없습니다.</div></div>'; return; }
+    container.innerHTML = screens.map(screen => {
+      const s = agg[screen];
+      const fieldsHtml = Object.keys(s.filters).map(field => {
+        const top = Object.entries(s.filters[field]).sort((a,b) => b[1]-a[1]).slice(0,5);
+        return `<div style="margin-bottom:10px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;">${_escHtml(field)}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${top.map(([v,c]) => `<span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:3px 10px;">${_escHtml(v)} <b>${c}</b></span>`).join('')}
+          </div>
+        </div>`;
+      }).join('');
+      return `<div class="table-card" style="margin-bottom:16px;">
+        <div class="table-header"><span class="card-title" style="font-size:15px;font-weight:600;">${_escHtml(USAGE_SCREEN_LABELS[screen] || screen)}</span></div>
+        <div style="padding:16px 20px;">
+          <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">자유텍스트 검색 사용: <b style="color:var(--text);">${s.searchTextUsedCount.toLocaleString()}회</b></div>
+          ${fieldsHtml || '<div style="color:var(--text3);font-size:12px;">필터 사용 기록 없음</div>'}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    container.innerHTML = '<div class="table-card"><div style="padding:40px;text-align:center;color:var(--red);font-size:13px;">불러오기 실패</div></div>';
+  }
+}
+
+// ── 기능 시도(미완료 액션) 집계 ──
+// 세금계산서 자동생성/캠페인 등록 모달의 취소·X 버튼에서 호출 (저장 성공 경로는 원래 closeModal을 그대로 씀 → 안 잡힘)
+const USAGE_MODAL_CANCEL_LABEL = { modalTaxAutoGen: 'taxAutoGenAbandoned', modalReg: 'regModalCancelled' };
+function usageCancelModal(id) {
+  const label = USAGE_MODAL_CANCEL_LABEL[id];
+  if (label) _usageLogAction(label);
+  closeModal(id);
+}
+
+async function _usageLogAction(label) {
+  if (!window._db || currentUser?.isAdmin) return;
+  const date = _usageDateStr(new Date());
+  try {
+    const inc = firebase.firestore.FieldValue.increment;
+    await window._db.collection('actionStatsDaily').doc(date).set({ [label]: inc(1) }, { merge: true });
+  } catch(e) { /* 조용히 무시 */ }
+}
+
+const USAGE_ACTION_LABELS = {
+  taxAutoGenAbandoned: '세금계산서 자동생성 — 미완료(취소)',
+  regModalCancelled: '캠페인 등록모달 — 취소',
+  editModalCancelled: '캠페인 수정화면 — 취소',
+  perfTab_matrix: '성과분석 — 매체×카테고리 탭',
+  perfTab_time: '성과분석 — 시간대×카테고리 탭',
+  perfTab_month: '성과분석 — 월별×카테고리 탭',
+  perfTab_history: '성과분석 — 광고주 히스토리 탭',
+  perfMatrixSub_cat: '성과분석 — 매트릭스 내 카테고리별 보기',
+  perfMatrixSub_adv: '성과분석 — 매트릭스 내 광고주별 보기',
+  perfTimeSub_cat: '성과분석 — 시간대 내 카테고리별 보기',
+  perfTimeSub_adv: '성과분석 — 시간대 내 광고주별 보기',
+  stlView_adv: '정산 — 매출처별 탭',
+  stlView_media: '정산 — 매체사별 탭',
+  stlView_campaign: '정산 — 캠페인별 탭',
+  stlView_pc: '정산 — 퍼미션콜 탭',
+  stlView_cps: '정산 — CPS 탭',
+  stlView_agency: '정산 — 대행사별 탭',
+};
+
+async function renderUsageActionStats() {
+  const tbody = document.getElementById('usage-action-tbody');
+  if (!tbody || !window._db) return;
+  tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text3);padding:24px;">불러오는 중...</td></tr>';
+  try {
+    const snap = await window._db.collection('actionStatsDaily').get();
+    const totals = {};
+    snap.forEach(d => {
+      const data = d.data();
+      Object.keys(data).forEach(label => { totals[label] = (totals[label] || 0) + (data[label] || 0); });
+    });
+    const labels = Object.keys(totals).sort((a,b) => totals[b] - totals[a]);
+    if (!labels.length) { tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text3);padding:24px;">데이터가 없습니다.</td></tr>'; return; }
+    tbody.innerHTML = labels.map(l => `<tr>
+      <td>${_escHtml(USAGE_ACTION_LABELS[l] || l)}</td>
+      <td style="text-align:right;font-weight:600;">${totals[l].toLocaleString()}회</td>
+    </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--red);padding:24px;">불러오기 실패</td></tr>';
   }
 }
 
@@ -817,6 +1169,7 @@ function closeSidebar() {
 }
 
 function goScreen(name, skipPush) {
+  const _usagePerfStart = performance.now();
   // 세션 만료 체크 (로그인 화면 전환 시 제외)
   if (name !== 'login' && !checkAuth()) { goScreen('login', true); return; }
   // 현재 화면이 campaigns/settlement이면 필터 상태 저장 (뒤로가기 복원용)
@@ -833,7 +1186,7 @@ function goScreen(name, skipPush) {
 
   // 로그인 오버레이 처리
   const loginEl = document.getElementById('screen-login');
-  if (name === 'login') { if (loginEl) loginEl.style.display = 'flex'; return; }
+  if (name === 'login') { _usageEndVisit(); if (loginEl) loginEl.style.display = 'flex'; return; }
   if (loginEl) loginEl.style.display = 'none';
 
 
@@ -914,7 +1267,7 @@ function goScreen(name, skipPush) {
     switchSellerTab(_sellerTab || 'adv');
   }
   if (name === 'users')  { _renderUserMgmtList(); }
-  if (name === 'usage')  { usageSwitchTab('login'); }
+  if (name === 'usage')  { usageSwitchTab('menu'); }
   if (name === 'payment') {
     const yEl = document.getElementById('pay-year');
     const mEl = document.getElementById('pay-month');
@@ -948,6 +1301,7 @@ function goScreen(name, skipPush) {
   if (!skipPush) {
     history.pushState({ screen: name }, '', '#' + name);
   }
+  _usageBeginVisit(name, performance.now() - _usagePerfStart);
 }
 
 function openDetail(idx, skipPush) {
@@ -3421,6 +3775,7 @@ function submitEdit() {
 }
 
 function cancelEdit() {
+  _usageLogAction('editModalCancelled');
   document.querySelector('.topbar').style.display = '';
   const _cancelCampId = DATA[currentDetailIdx]?.id;
   if (_cancelCampId) history.replaceState({ screen: 'detail', id: _cancelCampId }, '', '#detail/' + _cancelCampId);
@@ -6425,6 +6780,7 @@ function resetStlFilter() {
 
 /** 보기 전환 */
 function stlSetView(v) {
+  _usageLogAction('stlView_' + v);
   stlView = v;
   ['campaign', 'adv', 'agency', 'media', 'pc', 'cps'].forEach(t => {
     const el = document.getElementById('stl-vt-' + t);
@@ -11327,6 +11683,7 @@ function _applyPerfDbToggleStyle() {
 }
 
 function perfSwitchTab(tab) {
+  _usageLogAction('perfTab_' + tab);
   _perfTab = tab;
   document.getElementById('perf-tab-matrix') ?.classList.toggle('active', tab === 'matrix');
   document.getElementById('perf-tab-time')   ?.classList.toggle('active', tab === 'time');
@@ -11473,6 +11830,7 @@ function _buildAdvCatColors(data) {
 }
 
 function perfMatrixSubSwitch(sub) {
+  _usageLogAction('perfMatrixSub_' + sub);
   _perfMatrixSub = sub;
   const catBtn = document.getElementById('perf-msub-cat');
   const advBtn = document.getElementById('perf-msub-adv');
@@ -11693,6 +12051,7 @@ function perfCloseCellPanel() {
 }
 
 function perfTimeSubSwitch(sub) {
+  _usageLogAction('perfTimeSub_' + sub);
   _perfTimeSub = sub;
   const catBtn = document.getElementById('perf-tsub-cat');
   const advBtn = document.getElementById('perf-tsub-adv');

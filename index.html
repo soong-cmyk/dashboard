@@ -2083,41 +2083,95 @@
     ══════════════════════════════════ -->
       <div class="screen" id="screen-usage">
         <div class="view-tabs" id="usage-tabs" style="margin-bottom:14px;">
-          <button class="view-tab active" id="usage-tab-login" onclick="usageSwitchTab('login')">로그인 패턴</button>
-          <button class="view-tab" id="usage-tab-menu" onclick="usageSwitchTab('menu')">메뉴 이용</button>
+          <button class="view-tab active" id="usage-tab-menu" onclick="usageSwitchTab('menu')">메뉴 이용</button>
           <button class="view-tab" id="usage-tab-error" onclick="usageSwitchTab('error')">에러 현황</button>
-          <button class="view-tab" id="usage-tab-filter" onclick="usageSwitchTab('filter')">필터 이용</button>
           <button class="view-tab" id="usage-tab-action" onclick="usageSwitchTab('action')">기능 시도</button>
+          <button class="view-tab" id="usage-tab-filter" onclick="usageSwitchTab('filter')">필터 이용</button>
+          <button class="view-tab" id="usage-tab-login" onclick="usageSwitchTab('login')">로그인 패턴</button>
         </div>
 
-        <div class="usage-pane" id="usage-pane-login">
+        <div class="usage-pane" id="usage-pane-login" style="display:none;">
           <div class="table-card">
-            <div class="table-header">
-              <span class="card-title" style="font-size:15px;font-weight:600;">요일별 로그인 횟수</span>
-            </div>
-            <div style="padding:20px;" id="usage-login-weekday-chart">
-              <div style="text-align:center;color:var(--text3);padding:32px;font-size:13px;">불러오는 중...</div>
-            </div>
-          </div>
-          <div class="table-card" style="margin-top:16px;">
             <div class="table-header">
               <span class="card-title" style="font-size:15px;font-weight:600;">시간대별 로그인 횟수</span>
             </div>
-            <div style="padding:20px;" id="usage-login-hour-chart"></div>
+            <div style="padding:20px;" id="usage-login-hour-chart">
+              <div style="text-align:center;color:var(--text3);padding:32px;font-size:13px;">불러오는 중...</div>
+            </div>
           </div>
         </div>
 
-        <div class="usage-pane" id="usage-pane-menu" style="display:none;">
-          <div class="table-card"><div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">준비중입니다.</div></div>
+        <div class="usage-pane" id="usage-pane-menu">
+          <div class="table-card">
+            <div class="table-header">
+              <span class="card-title" style="font-size:15px;font-weight:600;">메뉴 이용 현황</span>
+              <div style="flex:1;"></div>
+              <select class="form-sel" id="usage-menu-user-sel" onchange="renderUsageMenuStats()" style="width:160px;">
+                <option value="">전체</option>
+              </select>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table" style="font-size:13px;">
+                <thead>
+                  <tr>
+                    <th>화면</th>
+                    <th style="text-align:right;">방문횟수</th>
+                    <th style="text-align:right;">평균 체류시간</th>
+                    <th style="text-align:right;">평균 로딩시간</th>
+                  </tr>
+                </thead>
+                <tbody id="usage-menu-tbody">
+                  <tr><td colspan="4" style="text-align:center;color:var(--text3);padding:24px;">불러오는 중...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
         <div class="usage-pane" id="usage-pane-error" style="display:none;">
-          <div class="table-card"><div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">준비중입니다.</div></div>
+          <div class="table-card">
+            <div class="table-header">
+              <span class="card-title" style="font-size:15px;font-weight:600;">에러 발생 현황</span>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table" style="font-size:13px;">
+                <thead>
+                  <tr>
+                    <th>화면</th>
+                    <th>내용</th>
+                    <th style="text-align:right;">발생횟수</th>
+                  </tr>
+                </thead>
+                <tbody id="usage-error-tbody">
+                  <tr><td colspan="3" style="text-align:center;color:var(--text3);padding:24px;">불러오는 중...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
         <div class="usage-pane" id="usage-pane-filter" style="display:none;">
-          <div class="table-card"><div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">준비중입니다.</div></div>
+          <div id="usage-filter-content">
+            <div class="table-card"><div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">불러오는 중...</div></div>
+          </div>
         </div>
         <div class="usage-pane" id="usage-pane-action" style="display:none;">
-          <div class="table-card"><div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">준비중입니다.</div></div>
+          <div class="table-card">
+            <div class="table-header">
+              <span class="card-title" style="font-size:15px;font-weight:600;">기능 시도 현황</span>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table" style="font-size:13px;">
+                <thead>
+                  <tr>
+                    <th>항목</th>
+                    <th style="text-align:right;">횟수</th>
+                  </tr>
+                </thead>
+                <tbody id="usage-action-tbody">
+                  <tr><td colspan="2" style="text-align:center;color:var(--text3);padding:24px;">불러오는 중...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2545,7 +2599,7 @@
     <div class="modal" style="width:900px;max-width:96vw;">
       <div class="modal-head">
         <span class="modal-title" id="tax-gen-title">캠페인 선택 <span style="font-size:12px;color:var(--text3);font-weight:400;">1단계 / 2단계</span></span>
-        <button class="modal-close" onclick="closeModal('modalTaxAutoGen')">✕</button>
+        <button class="modal-close" onclick="usageCancelModal('modalTaxAutoGen')">✕</button>
       </div>
 
       <!-- STEP 1: 캠페인 선택 -->
@@ -2597,7 +2651,7 @@
           </table>
         </div>
         <div class="modal-foot">
-          <button class="btn btn-ghost" onclick="closeModal('modalTaxAutoGen')">취소</button>
+          <button class="btn btn-ghost" onclick="usageCancelModal('modalTaxAutoGen')">취소</button>
           <button class="btn btn-primary" onclick="taxGenNext()">다음 →</button>
         </div>
       </div>
@@ -2620,7 +2674,7 @@
   <div class="modal-overlay" id="modalReg">
     <div class="modal" style="width:1080px;max-width:96vw;">
       <div class="modal-head"><span class="modal-title">+ 캠페인 등록</span><button class="modal-close"
-          onclick="closeModal('modalReg')">✕</button></div>
+          onclick="usageCancelModal('modalReg')">✕</button></div>
       <div class="modal-body">
 
         <!-- 기본정보 + 수량/단가 가로 배치 -->
@@ -3010,7 +3064,7 @@
 
       </div>
       <div class="modal-foot">
-        <button class="btn btn-outline" onclick="closeModal('modalReg')">취소</button>
+        <button class="btn btn-outline" onclick="usageCancelModal('modalReg')">취소</button>
         <button class="btn btn-primary" onclick="submitReg()">캠페인 등록</button>
       </div>
     </div>
