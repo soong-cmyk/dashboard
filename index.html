@@ -73,7 +73,7 @@
         <span class="nav-icon">📑</span>세금계산서
       </div>
       <div class="nav-item" id="nav-kpi" onclick="goScreen('kpi')">
-<!--    <span class="nav-icon">🎯</span>KPI-->    
+     <span class="nav-icon">🎯</span>KPI
       </div>
 <!--
       <div class="nav-item" id="nav-pipeline" onclick="goScreen('pipeline')">
@@ -2389,6 +2389,26 @@
             </div>
           </div>
           <div id="kpi-org-table"></div>
+        </div>
+        <!-- ── BEP 관리 (관리자/이사/대표이사/본부장 전용) ── -->
+        <div id="kpi-bep-section" style="display:none;">
+          <div class="table-card" style="margin-bottom:16px;">
+            <div class="table-header" style="display:flex;align-items:center;gap:8px;">
+              <span class="card-title">KPI·BEP·영업이익 비교</span>
+              <button class="btn btn-outline btn-sm" id="bep-scenario-edit-btn" onclick="toggleBepScenarioEdit()" style="margin-left:auto;">수정</button>
+            </div>
+            <div id="bep-scenario-table"></div>
+          </div>
+          <div class="table-card" style="margin-bottom:16px;">
+            <div class="table-header" style="display:flex;align-items:center;gap:8px;">
+              <span class="card-title">월별 BEP 추이</span>
+              <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+                <select class="form-sel" id="bep-year" style="width:90px;" onchange="bepYearChange()"></select>
+                <button class="btn btn-outline btn-sm" id="bep-monthly-edit-btn" onclick="toggleBepMonthlyEdit()">수정</button>
+              </div>
+            </div>
+            <div id="bep-monthly-table"></div>
+          </div>
         </div>
       </div>
 

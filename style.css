@@ -850,3 +850,7 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
 .kpi-up   { color:var(--green); font-weight:700; }
 .kpi-down { color:var(--red);   font-weight:700; }
 .kpi-flat { color:var(--text3); }
+.bep-tbl { border-collapse:collapse; font-size:12px; }
+.bep-tbl th { padding:8px 10px; border:1px solid var(--border); background:var(--surface2); font-weight:600; color:var(--text2); white-space:nowrap; }
+.bep-tbl td { padding:7px 10px; border:1px solid var(--border); white-space:nowrap; }
+.bep-tbl tbody tr:hover td { background:var(--surface2); }

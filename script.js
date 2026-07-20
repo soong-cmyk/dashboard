@@ -4799,6 +4799,298 @@ function renderDashboard() {
 }
 
 // ══════════════════════════════════════════
+// BEP 관리 (KPI 메뉴)
+// ══════════════════════════════════════════
+// 표1: KPI/BEP/영업이익 비교 — 월BEP·As-is·매출KPI-1·매출KPI-2 4개 시나리오 고정 비교
+// 표2: 월별 BEP 추이 — 연도 내 12개월 시계열, 매출/매출원가/판관비만 입력받고 나머지는 자동계산
+// 계산: 매출이익 = 매출(취급고) - 매출원가 / 매출이익율 = 매출이익/매출 / 영업이익 = 매출이익-판관비 / 영업이익율 = 영업이익/매출
+let BEP_SCENARIO       = {};
+let BEP_MONTHLY        = {};
+let _bepYear           = String(new Date().getFullYear());
+let _bepScenarioUnsub  = null;
+let _bepMonthlyUnsub   = null;
+let _bepScenarioEdit   = false;
+let _bepMonthlyEdit    = false;
+let _bepInited         = false;
+
+const _BEP_COLS = [
+  { key: 'bep',  defLabel: '월 BEP',    border: 'var(--red)'    },
+  { key: 'asis', defLabel: 'As-is',     border: ''               },
+  { key: 'kpi1', defLabel: '매출KPI-1', border: 'var(--accent)' },
+  { key: 'kpi2', defLabel: '매출KPI-2', border: 'var(--accent)' },
+];
+
+function _bepCanEdit() { return _kpiCanEdit(); }
+
+function _bepDerive(turnover, cogs, sga) {
+  const t = turnover || 0, c = cogs || 0, s = sga || 0;
+  const profit     = t - c;
+  const profitRate = t ? profit / t : 0;
+  const opProfit   = profit - s;
+  const opRate     = t ? opProfit / t : 0;
+  return { turnover: t, cogs: c, sga: s, profit, profitRate, opProfit, opRate };
+}
+
+function _fmtBepWon(n) { return (n == null) ? '<span style="color:var(--text3)">—</span>' : Math.round(n).toLocaleString(); }
+function _fmtBepPct(r) { return Math.round(r * 100) + '%'; }
+
+function _bepMonthLabel(ym) {
+  if (!ym) return '';
+  const [y, m] = ym.split('-');
+  return `${y}년 ${parseInt(m)}월`;
+}
+function _bepMonthOptions(selected) {
+  const now = new Date();
+  const opts = [`<option value="">월 선택</option>`];
+  for (let i = 0; i < 36; i++) {
+    const d  = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    opts.push(`<option value="${ym}"${ym === selected ? ' selected' : ''}>${_bepMonthLabel(ym)}</option>`);
+  }
+  return opts.join('');
+}
+// 실제 캠페인 데이터에서 해당 월의 취급고(amt 합)·매출원가 집계 — 정산탭과 동일한 _stlAmt 기준
+// 매출원가는 buyAmt를 그대로 합산하지 않고 turnover-prf로 역산함: _stlAmt의 prf는 대행료(agFee) 차감 및
+// profitFixed 수동입력까지 반영된 "검증된" 매출이익 값이라(정산탭·KPI 실적 계산과 동일 기준),
+// 단순 amt-buyAmt로 계산하면 대행료가 안 빠져서 매출이익이 늘 과대계상되는 문제가 있었음
+function _bepCalcMonthActual(ym) {
+  let turnover = 0, profit = 0;
+  DATA.filter(c => c.status !== '삭제' && _stlHas(c) && (c.date || '').startsWith(ym))
+    .forEach(c => {
+      const stl = _stlAmt(c);
+      turnover += stl.amt || 0;
+      profit   += stl.prf || 0;
+    });
+  return { turnover, cogs: turnover - profit };
+}
+// As-is 헤더의 월 선택 드롭다운 — 수정모드 여부와 무관하게 항상 동작, 선택 즉시 실제 캠페인 데이터 반영+저장
+// (bep/kpi1/kpi2 필드는 건드리지 않도록 asis 필드만 merge 저장 — 다른 컬럼을 수정 중이던 입력값을 덮어쓰지 않음)
+async function bepAsisMonthChange() {
+  const sel = document.getElementById('bep_sc_asis_refmonth');
+  const ym  = sel?.value || '';
+  const { turnover, cogs } = ym ? _bepCalcMonthActual(ym) : { turnover: 0, cogs: 0 };
+  const sga = BEP_SCENARIO.asis?.sga || 0;
+  const asis = { refMonth: ym, turnover, cogs, sga };
+  if (!window._db) { toast('DB 연결 없음', 'err'); return; }
+  try {
+    await window._db.collection('settings').doc('bep_scenario').set({ asis }, { merge: true });
+    BEP_SCENARIO = { ...BEP_SCENARIO, asis };
+    renderBepScenarioTable();
+  } catch(e) {
+    toast('저장 실패: ' + e.message, 'err');
+  }
+}
+
+function _fbWatchBepScenario() {
+  if (_bepScenarioUnsub) { _bepScenarioUnsub(); _bepScenarioUnsub = null; }
+  if (!window._db) return;
+  _bepScenarioUnsub = window._db.collection('settings').doc('bep_scenario')
+    .onSnapshot(doc => {
+      BEP_SCENARIO = doc.exists ? doc.data() : {};
+      renderBepScenarioTable();
+    }, e => console.error('[FB] BEP 시나리오 구독 실패:', e));
+}
+
+function _fbWatchBepMonthly(year) {
+  if (_bepMonthlyUnsub) { _bepMonthlyUnsub(); _bepMonthlyUnsub = null; }
+  if (!window._db) return;
+  _bepMonthlyUnsub = window._db.collection('settings').doc('bep_monthly_' + year)
+    .onSnapshot(doc => {
+      BEP_MONTHLY = doc.exists ? doc.data() : { year, months: {} };
+      renderBepMonthlyTable();
+    }, e => console.error('[FB] BEP 월별 구독 실패:', e));
+}
+
+function _bepKpiInit() {
+  const sec = document.getElementById('kpi-bep-section');
+  if (sec) sec.style.display = _bepCanEdit() ? '' : 'none';
+  if (!_bepCanEdit() || _bepInited) return;
+  _bepInited = true;
+  const yr = document.getElementById('bep-year');
+  if (yr) {
+    const cy = new Date().getFullYear();
+    yr.innerHTML = [cy - 1, cy, cy + 1].map(y =>
+      `<option value="${y}"${String(y) === _bepYear ? ' selected' : ''}>${y}년</option>`).join('');
+  }
+  _fbWatchBepScenario();
+  _fbWatchBepMonthly(_bepYear);
+}
+
+function bepYearChange() {
+  _bepYear = document.getElementById('bep-year')?.value || String(new Date().getFullYear());
+  _bepMonthlyEdit = false;
+  _fbWatchBepMonthly(_bepYear);
+}
+
+// ── 표1: 시나리오 비교 ──
+function renderBepScenarioTable() {
+  const el = document.getElementById('bep-scenario-table');
+  if (!el) return;
+  const edit = _bepScenarioEdit;
+  const cols = _BEP_COLS.map(c => ({ ...c, val: BEP_SCENARIO[c.key] || {} }));
+  const derived = cols.map(c => _bepDerive(c.val.turnover, c.val.cogs, c.val.sga));
+
+  const thC    = 'padding:9px 12px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:12px;color:var(--text2);text-align:center;min-width:140px;';
+  const tdL    = 'padding:8px 12px;border:1px solid var(--border);font-weight:600;font-size:12px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
+  const tdV    = 'padding:8px 12px;border:1px solid var(--border);text-align:right;font-size:12px;';
+  const tdHiB  = 'padding:8px 12px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:700;background:#1f2937;';
+
+  // 구분(시나리오 카테고리) 라벨은 고정값 — 수정 불가. As-is는 헤더 자체가 월 선택 셀렉트박스(선택 즉시 실데이터 반영+저장)
+  const colHead = cols.map(c => {
+    const bd = c.border ? `border:2px solid ${c.border};` : '';
+    if (c.key === 'asis') {
+      return `<th style="${thC}${bd}padding:6px 8px;">
+        <select class="form-sel" id="bep_sc_asis_refmonth" style="width:100%;font-size:11px;padding:3px 4px;text-align:center;" onchange="bepAsisMonthChange()">${_bepMonthOptions(c.val.refMonth || '')}</select>
+      </th>`;
+    }
+    return `<th style="${thC}${bd}">${c.defLabel}</th>`;
+  }).join('');
+
+  // As-is 열은 월 선택으로만 채워지는 값이라 수동 입력 불가 — 항상 계산값만 표시
+  const inputRow = (field) => cols.map((c, i) => {
+    if (c.key === 'asis') return `<td style="${tdV}">${_fmtBepWon(derived[i][field])}</td>`;
+    if (!edit) return '';
+    return `<td style="${tdV}"><input type="number" class="form-input" style="width:100%;text-align:right;font-size:11px;padding:3px 4px;" id="bep_sc_${field}_${c.key}" value="${c.val[field] || ''}" step="1000000"></td>`;
+  }).join('');
+  const valRow = (field) => derived.map(d => `<td style="${tdV}">${_fmtBepWon(d[field])}</td>`).join('');
+
+  el.innerHTML = `<div style="overflow-x:auto;"><table class="bep-tbl" style="width:max-content;">
+    <thead><tr><th style="${thC}text-align:left;min-width:100px;">구분</th>${colHead}</tr></thead>
+    <tbody>
+      <tr><td style="${tdL}">매출(취급고)</td>${edit ? inputRow('turnover') : valRow('turnover')}</tr>
+      <tr><td style="${tdL}">매출원가</td>${edit ? inputRow('cogs') : valRow('cogs')}</tr>
+      <tr><td style="${tdL}">매출이익</td>${derived.map(d => `<td style="${tdHiB}color:#fff;">${_fmtBepWon(d.profit)}</td>`).join('')}</tr>
+      <tr><td style="${tdL}">매출이익율</td>${derived.map(d => `<td style="${tdV}">${_fmtBepPct(d.profitRate)}</td>`).join('')}</tr>
+      <tr><td style="${tdL}">판관비</td>${edit ? inputRow('sga') : valRow('sga')}</tr>
+      <tr><td style="${tdL}">영업이익</td>${derived.map(d => `<td style="${tdHiB}color:${d.opProfit>=0?'var(--green)':'var(--red)'};">${_fmtBepWon(d.opProfit)}</td>`).join('')}</tr>
+      <tr><td style="${tdL}">영업이익율</td>${derived.map(d => `<td style="${tdV}color:${d.opRate>=0?'var(--green)':'var(--red)'};font-weight:600;">${_fmtBepPct(d.opRate)}</td>`).join('')}</tr>
+    </tbody>
+  </table></div>`;
+}
+
+async function toggleBepScenarioEdit() {
+  if (!_bepCanEdit()) return;
+  const btn = document.getElementById('bep-scenario-edit-btn');
+  if (_bepScenarioEdit) {
+    if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
+    try {
+      const data = {};
+      _BEP_COLS.forEach(c => {
+        // As-is 열은 헤더의 월 선택으로만 채워짐(bepAsisMonthChange가 별도 저장) — 여기선 손대지 않고 기존 값 그대로 유지
+        if (c.key === 'asis') { data[c.key] = BEP_SCENARIO.asis || {}; return; }
+        data[c.key] = {
+          turnover: Math.round(+(document.getElementById(`bep_sc_turnover_${c.key}`)?.value) || 0),
+          cogs:     Math.round(+(document.getElementById(`bep_sc_cogs_${c.key}`)?.value)     || 0),
+          sga:      Math.round(+(document.getElementById(`bep_sc_sga_${c.key}`)?.value)      || 0),
+        };
+      });
+      if (!window._db) throw new Error('DB 연결 없음');
+      await window._db.collection('settings').doc('bep_scenario').set(data);
+      BEP_SCENARIO = data;
+      _bepScenarioEdit = false;
+      if (btn) { btn.disabled = false; btn.textContent = '수정'; btn.className = 'btn btn-outline btn-sm'; }
+      renderBepScenarioTable();
+      toast('저장 완료', 'ok');
+    } catch(e) {
+      toast('저장 실패: ' + e.message, 'err');
+      if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+    }
+  } else {
+    _bepScenarioEdit = true;
+    if (btn) { btn.textContent = '저장'; btn.className = 'btn btn-primary btn-sm'; }
+    renderBepScenarioTable();
+  }
+}
+
+// ── 표2: 월별 추이 ──
+function _bepMonthData(m) {
+  return (BEP_MONTHLY.months || {})[m] || null;
+}
+
+// 매출(취급고)·매출원가는 항상 실제 캠페인 데이터에서 자동 집계(수정 불가) — 판관비만 회사 공통비용이라 월별 수동 입력
+function renderBepMonthlyTable() {
+  const el = document.getElementById('bep-monthly-table');
+  if (!el) return;
+  const edit = _bepMonthlyEdit;
+  const now = new Date();
+  const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const rows = _KPI_MONTHS.map(m => {
+    const ym = `${_bepYear}-${m}`;
+    const isFuture = ym > curYM;
+    if (isFuture) return { m, isFuture, d: null, sgaVal: 150000000 };
+    const md = _bepMonthData(m);
+    const sgaVal = md?.sga != null ? md.sga : 150000000;
+    const { turnover, cogs } = _bepCalcMonthActual(ym);
+    return { m, isFuture, d: _bepDerive(turnover, cogs, sgaVal), sgaVal };
+  });
+
+  const thC   = 'padding:9px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;min-width:92px;';
+  const tdL   = 'padding:8px 10px;border:1px solid var(--border);font-weight:600;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;position:sticky;left:0;z-index:1;';
+  const tdV   = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:11px;';
+  const tdHiB = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:11px;font-weight:700;background:#1f2937;';
+  const tdDim = `${tdV}color:var(--text3);`;
+
+  const valCell = (r, field) => r.d ? `<td style="${tdV}">${_fmtBepWon(r.d[field])}</td>` : `<td style="${tdDim}">—</td>`;
+  const sgaCell = (r) => {
+    if (r.isFuture) return `<td style="${tdDim}">—</td>`;
+    if (edit) return `<td style="${tdV}"><input type="number" class="form-input" style="width:82px;text-align:right;font-size:11px;padding:3px 4px;" id="bep_mo_sga_${r.m}" value="${r.sgaVal}" step="1000000"></td>`;
+    return `<td style="${tdV}">${_fmtBepWon(r.d.sga)}</td>`;
+  };
+
+  el.innerHTML = `<div style="overflow-x:auto;"><table class="bep-tbl" style="width:max-content;">
+    <thead><tr>
+      <th style="${thC}text-align:left;position:sticky;left:0;z-index:2;">구분</th>
+      ${_KPI_MONTHS.map(m => `<th style="${thC}">${_KPI_ML[m]}</th>`).join('')}
+    </tr></thead>
+    <tbody>
+      <tr><td style="${tdL}">매출(취급고)</td>${rows.map(r => valCell(r, 'turnover')).join('')}</tr>
+      <tr><td style="${tdL}">매출원가</td>${rows.map(r => valCell(r, 'cogs')).join('')}</tr>
+      <tr><td style="${tdL}">매출이익</td>${rows.map(r => r.d ? `<td style="${tdHiB}color:#fff;">${_fmtBepWon(r.d.profit)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
+      <tr><td style="${tdL}">매출이익율</td>${rows.map(r => r.d ? `<td style="${tdV}">${_fmtBepPct(r.d.profitRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
+      <tr><td style="${tdL}">판관비</td>${rows.map(r => sgaCell(r)).join('')}</tr>
+      <tr><td style="${tdL}">영업이익</td>${rows.map(r => r.d ? `<td style="${tdHiB}color:${r.d.opProfit>=0?'var(--green)':'var(--red)'};">${_fmtBepWon(r.d.opProfit)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
+      <tr><td style="${tdL}">영업이익율</td>${rows.map(r => r.d ? `<td style="${tdV}color:${r.d.opRate>=0?'var(--green)':'var(--red)'};font-weight:600;">${_fmtBepPct(r.d.opRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
+    </tbody>
+  </table></div>`;
+}
+
+async function toggleBepMonthlyEdit() {
+  if (!_bepCanEdit()) return;
+  const btn = document.getElementById('bep-monthly-edit-btn');
+  if (_bepMonthlyEdit) {
+    if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
+    try {
+      const now = new Date();
+      const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const months = {};
+      _KPI_MONTHS.forEach(m => {
+        if (`${_bepYear}-${m}` > curYM) {
+          const existing = _bepMonthData(m);
+          if (existing) months[m] = existing;
+          return;
+        }
+        months[m] = { sga: Math.round(+(document.getElementById(`bep_mo_sga_${m}`)?.value) || 0) };
+      });
+      if (!window._db) throw new Error('DB 연결 없음');
+      await window._db.collection('settings').doc('bep_monthly_' + _bepYear).set({ year: _bepYear, months });
+      BEP_MONTHLY = { year: _bepYear, months };
+      _bepMonthlyEdit = false;
+      if (btn) { btn.disabled = false; btn.textContent = '수정'; btn.className = 'btn btn-outline btn-sm'; }
+      renderBepMonthlyTable();
+      toast('저장 완료', 'ok');
+    } catch(e) {
+      toast('저장 실패: ' + e.message, 'err');
+      if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+    }
+  } else {
+    _bepMonthlyEdit = true;
+    if (btn) { btn.textContent = '저장'; btn.className = 'btn btn-primary btn-sm'; }
+    renderBepMonthlyTable();
+  }
+}
+
+// ══════════════════════════════════════════
 // EXCEL EXPORT
 // ══════════════════════════════════════════
 
@@ -10581,7 +10873,7 @@ function _fbWatchCampaigns() {
     }
     if (sid === 'screen-monthly')   renderMonthly();
     if (sid === 'screen-perf')      initPerfScreen();
-    if (sid === 'screen-kpi')       renderKpi();
+    if (sid === 'screen-kpi')       { renderKpi(); renderBepMonthlyTable(); }
     if (sid === 'screen-adreport' && typeof _rptPopulateSeller === 'function') _rptPopulateSeller();
   }, e => console.error('[FB] 캠페인 구독 실패:', e));
 }
@@ -11269,6 +11561,7 @@ function initKpiScreen() {
     if (el) el.style.display = canEdit ? '' : 'none';
   });
   _fbWatchKpiTargets(_kpiYear);
+  _bepKpiInit();
 }
 
 function kpiYearChange() {
