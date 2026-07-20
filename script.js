@@ -462,21 +462,28 @@ function _renderUsageBarChart(container, labels, values) {
 }
 
 async function renderUsageLoginPattern() {
+  const weekdayEl = document.getElementById('usage-login-weekday-chart');
   const hourEl = document.getElementById('usage-login-hour-chart');
+  if (weekdayEl) weekdayEl.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px;font-size:13px;">불러오는 중...</div>';
   if (hourEl) hourEl.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px;font-size:13px;">불러오는 중...</div>';
   if (!window._db) return;
   try {
     const snap = await window._db.collection('loginHistory').get();
+    const weekdayCounts = [0,0,0,0,0,0,0]; // 일~토
     const hourCounts = new Array(24).fill(0);
     snap.forEach(d => {
       const r = d.data();
       const dt = r.loginAt?.toDate ? r.loginAt.toDate() : null;
       if (!dt) return;
+      weekdayCounts[dt.getDay()]++;
       hourCounts[dt.getHours()]++;
     });
+    const weekdayLabels = ['일','월','화','수','목','금','토'];
     const hourLabels = Array.from({length:24}, (_,i) => String(i));
+    _renderUsageBarChart(weekdayEl, weekdayLabels, weekdayCounts);
     _renderUsageBarChart(hourEl, hourLabels, hourCounts);
   } catch(e) {
+    if (weekdayEl) weekdayEl.innerHTML = '<div style="text-align:center;color:var(--red);padding:32px;font-size:13px;">불러오기 실패</div>';
     if (hourEl) hourEl.innerHTML = '<div style="text-align:center;color:var(--red);padding:32px;font-size:13px;">불러오기 실패</div>';
     console.error('[사용현황] 로그인 패턴 로드 실패:', e);
   }
@@ -8558,15 +8565,26 @@ function renderTaxList() {
     .filter(([, items]) => _groupMatches(items))
     .sort((a, b) => b[0] - a[0]);
 
+  // 수정발행 연결 조회용 — 검색/기간 필터에 걸러지지 않은 전체 groupMap 기준으로 조회해야
+  // (필터링된 groups로 조회하면 원본이 필터에 안 걸릴 때 "삭제된 건"으로 잘못 표시됨)
+  const _correctionOfMap = new Map(); // originGid → correctionGid
+  groupMap.forEach((items, gidKey) => {
+    const cof = items[0]?.correctionOf;
+    if (cof != null) _correctionOfMap.set(cof, gidKey);
+  });
+
   // 퀵필터 카운트 (필터 적용 전 전체 기준)
-  const unissuedCnt = groups.filter(([, items]) => items[0].taxStatus !== '완료').length;
-  const unpaidCnt   = groups.filter(([, items]) => items[0].paid !== '완료').length;
+  const unissuedCnt   = groups.filter(([, items]) => items[0].taxStatus !== '완료').length;
+  const unpaidCnt     = groups.filter(([, items]) => items[0].paid !== '완료').length;
+  const correctionCnt = groups.filter(([, items]) => items[0].correctionOf != null).length;
 
   // 퀵필터 적용
   const displayGroups = _taxQuickFilter === 'unissued'
     ? groups.filter(([, items]) => items[0].taxStatus !== '완료')
     : _taxQuickFilter === 'unpaid'
     ? groups.filter(([, items]) => items[0].paid !== '완료')
+    : _taxQuickFilter === 'correction'
+    ? groups.filter(([, items]) => items[0].correctionOf != null)
     : groups;
 
   // 요약 통계 (표시되는 그룹 기준)
@@ -8594,10 +8612,12 @@ function renderTaxList() {
   if (_el('tax-unpaid')) _el('tax-unpaid').textContent = totalUnpaid ? totalUnpaid.toLocaleString() : '—';
 
   // 퀵필터 카드 업데이트
-  if (_el('tax-unissued-cnt')) _el('tax-unissued-cnt').textContent = unissuedCnt + '건';
-  if (_el('tax-unpaid-cnt'))   _el('tax-unpaid-cnt').textContent   = unpaidCnt   + '건';
+  if (_el('tax-unissued-cnt'))   _el('tax-unissued-cnt').textContent   = unissuedCnt   + '건';
+  if (_el('tax-unpaid-cnt'))     _el('tax-unpaid-cnt').textContent     = unpaidCnt     + '건';
+  if (_el('tax-correction-cnt')) _el('tax-correction-cnt').textContent = correctionCnt + '건';
   _el('tax-card-unissued')?.classList.toggle('tax-qf-active', _taxQuickFilter === 'unissued');
   _el('tax-card-unpaid')?.classList.toggle('tax-qf-active', _taxQuickFilter === 'unpaid');
+  _el('tax-card-correction')?.classList.toggle('tax-qf-active', _taxQuickFilter === 'correction');
 
   const listEl = document.getElementById('tax-list');
   if (!listEl) return;
@@ -8619,14 +8639,21 @@ function renderTaxList() {
     const isCollapsed = _taxCollapsed.has(gid);
     const canDelete   = !!(currentUser?.isAdmin || currentUser?.name === (rep.createdBy || rep.manager));
     const canStatus   = ['wonjoon','yoonhee','admin'].includes(currentUser?.id);
+    const canCorrect  = canDelete && canStatus; // 수정발행 등록 — 완료 처리 권한자만 (완료건을 다루는 민감한 동작이라 canDelete보다 엄격하게)
     const canPaid     = true;
     const supplySum   = dispItems.reduce((s, t) => s + (t.supplyAmt || 0), 0);
     const vatSum      = dispItems.reduce((s, t) => s + (t.vatAmt    || 0), 0);
     const unpaidVal   = rep.unpaid != null ? rep.unpaid : null;
-    const modItem     = items.find(t => t.modifiedAfterIssue);
-    const modBadge    = modItem
-      ? `<span style="font-size:10px;font-weight:600;color:#d97706;background:#fffbeb;border:1px solid #fde68a;padding:2px 7px;border-radius:10px;white-space:nowrap;margin-left:6px;">발행 후 변경 · ${(modItem.modifiedAfterIssueDate||'').slice(5).replace('-','/')}</span>`
-      : '';
+    // 수정발행 체인 — 이 그룹을 원본으로 하는 수정발행 건(자식), 이 그룹이 수정발행인 경우 원본(부모)
+    // (검색/기간 필터에 안 걸리는 전체 groupMap 기준으로 조회 — groups는 현재 필터가 적용된 부분집합이라 오탐 발생 가능)
+    const childCorrectionGid = _correctionOfMap.get(gid);
+    const isCorrection       = rep.correctionOf != null;
+    const parentExists       = isCorrection && groupMap.has(rep.correctionOf);
+    const linkBadge = `${childCorrectionGid != null
+        ? `<span class="tax-corr-link" onclick="event.stopPropagation();_taxScrollToGroup(${childCorrectionGid})" style="cursor:pointer;font-size:10px;font-weight:600;color:#d97706;background:#fffbeb;border:1px solid #fde68a;padding:2px 7px;border-radius:10px;white-space:nowrap;margin-left:6px;">수정발행됨 → ${_taxGroupLabel(childCorrectionGid)} 바로가기</span>`
+        : ''}${isCorrection
+        ? `<span class="tax-corr-link" onclick="event.stopPropagation();_taxScrollToGroup(${rep.correctionOf})" style="cursor:pointer;font-size:10px;font-weight:600;color:#d97706;background:#fffbeb;border:1px solid #fde68a;padding:2px 7px;border-radius:10px;white-space:nowrap;margin-left:6px;">${parentExists ? _taxGroupLabel(rep.correctionOf) : '(삭제된 건)'} 건 수정발행</span>`
+        : ''}`;
 
     const _makeRow = (t, canDel) => {
       const camp = DATA.find(c => c.id === t.campaignId);
@@ -8704,7 +8731,7 @@ function renderTaxList() {
           <div class="tax-card-head-main" style="display:grid;grid-template-columns:170px 1px 1fr;grid-template-rows:auto auto;gap:0;">
             <!-- [1,1]: 번호 -->
             <div style="grid-column:1;grid-row:1;padding-right:40px;padding-bottom:4px;white-space:nowrap;align-self:center;">
-              <span style="font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-light);padding:2px 0px;border-radius:10px;white-space:nowrap;">${_taxGroupLabel(gid)}</span>${modBadge}
+              <span style="font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-light);padding:2px 0px;border-radius:10px;white-space:nowrap;">${_taxGroupLabel(gid)}</span>${linkBadge}
             </div>
             <!-- 세로선: 두 행 전체 -->
             <div style="grid-column:2;grid-row:1/span 2;background:black;margin:0 16px;"></div>
@@ -8744,7 +8771,9 @@ function renderTaxList() {
               <span style="color:var(--border);">|</span>
               ${(rep.createdBy||rep.manager) ? `<span class="tax-card-manager">요청자: ${_escHtml(rep.createdBy||rep.manager)}</span>` : ''}
               <div style="flex:1;"></div>
-              ${canDelete ? `<button class="btn btn-ghost btn-sm" onclick="taxEditGroup(${gid})">수정</button>` : ''}
+              ${isDone
+                ? (canCorrect && childCorrectionGid == null ? `<button class="btn btn-ghost btn-sm" onclick="openTaxCorrectionReg(${gid})">수정발행 등록</button>` : '')
+                : (canDelete ? `<button class="btn btn-ghost btn-sm" onclick="taxEditGroup(${gid})">수정</button>` : '')}
               ${canDelete ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="deleteGroup(${gid})">삭제</button>` : ''}
             </div>
           </div>
@@ -8762,11 +8791,33 @@ function taxToggleCollapse(gid) {
   renderTaxList();
 }
 
+// 원본↔수정발행 "바로가기" — 퀵필터 때문에 대상 카드가 안 보일 수 있어 필터부터 해제 후 스크롤
+function _taxScrollToGroup(gid) {
+  if (_taxQuickFilter !== null) { _taxQuickFilter = null; renderTaxList(); }
+  requestAnimationFrame(() => {
+    const el = document.querySelector(`.tax-card[data-gid="${gid}"]`);
+    if (!el) { toast('해당 건을 찾을 수 없습니다.', 'warn'); return; }
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.style.transition = 'background-color 0.3s';
+    el.style.backgroundColor = 'var(--primary-light)';
+    setTimeout(() => { el.style.backgroundColor = ''; }, 1500);
+  });
+}
+
 // ── 삭제 ──
 async function deleteTax(id) {
-  if (!confirm('이 캠페인 항목을 삭제하시겠습니까?')) return;
   const t = TAX_DATA.find(x => x.id === id);
   if (!t) return;
+  // 이 항목이 그룹의 마지막 남은 항목인데, 그 그룹을 원본으로 하는 수정발행 요청이 있으면 삭제 불가
+  // (그룹 자체가 사라지면 수정발행 건의 원본 연결이 끊어지므로)
+  const gid = _taxGroupId(t);
+  const groupRowCount = TAX_DATA.filter(x => _taxGroupId(x) === gid).length;
+  const hasDependents  = TAX_DATA.some(x => x.correctionOf === gid);
+  if (hasDependents && groupRowCount <= 1) {
+    alert('이 건을 원본으로 하는 수정발행 요청이 있어, 이 그룹의 마지막 남은 항목은 삭제할 수 없습니다.');
+    return;
+  }
+  if (!confirm('이 캠페인 항목을 삭제하시겠습니까?')) return;
   const { campaignId, taxType } = t;
   const idx = TAX_DATA.findIndex(x => x.id === id);
   if (idx !== -1) TAX_DATA.splice(idx, 1);
@@ -8788,6 +8839,14 @@ async function deleteTax(id) {
 }
 
 async function deleteGroup(gid) {
+  // 이 건을 원본으로 하는 수정발행 요청이 있으면 삭제 불가 (연결이 끊어지는 것 방지)
+  const dependentGids = new Set(
+    TAX_DATA.filter(t => t.correctionOf === gid).map(t => _taxGroupId(t))
+  );
+  if (dependentGids.size > 0) {
+    alert(`이 건을 원본으로 하는 수정발행 요청이 있어 삭제할 수 없습니다. (연결된 수정발행: ${dependentGids.size}건)`);
+    return;
+  }
   if (!confirm('이 발행요청 전체를 삭제하시겠습니까?')) return;
   const toDelete = TAX_DATA.filter(t => _taxGroupId(t) === gid);
   toDelete.forEach(t => {
@@ -8847,10 +8906,6 @@ async function taxGroupToggleStatus(gid) {
   const newStatus = isDone ? '' : '완료';
   for (const t of items) {
     t.taxStatus = newStatus;
-    if (newStatus === '완료') {
-      t.modifiedAfterIssue = false;
-      t.modifiedAfterIssueDate = null;
-    }
     await _fbSaveTax(t);
     // 정산 탭 invoiceOut 동기화 (광고주 타입만)
     if (t.campaignId && (t.taxType === 'adv' || !t.taxType)) {
@@ -8969,7 +9024,7 @@ function _taxRegRenderChips() {
       <td style="font-size:12px;color:var(--text2);padding:5px 6px;">${_taxMonthLabel(c)}</td>
       <td style="font-size:12px;color:var(--text2);padding:5px 6px;">${_escHtml(c.product||'—')}</td>
       <td style="font-size:12px;font-weight:600;padding:5px 6px;">${_escHtml(_cName(c))}</td>
-      <td style="font-size:12px;padding:5px 6px;text-align:right;color:var(--text2);">${supply ? supply.toLocaleString() : '—'}</td>
+      <td style="font-size:12px;padding:5px 6px;text-align:right;color:var(--text2);">${supply ? _fmtMoney(supply) : '—'}</td>
       <td style="font-size:12px;padding:5px 6px;color:var(--text2);">${_escHtml(c.ops||'—')}</td>
       <td style="padding:5px 4px;text-align:center;"><button type="button" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:14px;line-height:1;padding:0 4px;" onmousedown="taxRegCampRemove('${cid}')">×</button></td>
     </tr>`;
@@ -9065,10 +9120,18 @@ function openTaxReg(gid) {
   const now = new Date();
   const isNew = gid === null;
   document.getElementById('tax-edit-gid').value   = gid != null ? gid : '';
+  document.getElementById('tax-r-correction-of').value = '';
+  const campLinkSection = document.getElementById('tax-r-camp-link-section');
+  if (campLinkSection) campLinkSection.style.display = '';
+  const originBanner = document.getElementById('tax-r-origin-banner');
+  if (originBanner) originBanner.style.display = 'none';
+  const addRowBtn = document.getElementById('tax-r-addrow-btn');
+  if (addRowBtn) addRowBtn.style.display = '';
   document.getElementById('tax-r-reqDate').value  = isNew ? now.toISOString().slice(0, 10) : '';
   document.getElementById('tax-r-company').value  = '';
   document.getElementById('tax-r-bizName').value  = '';
   document.getElementById('tax-r-taxType').value  = 'adv';
+  document.getElementById('tax-r-taxType').disabled = false;
   document.getElementById('tax-r-issueDate').value = '';
   document.getElementById('tax-r-payDue').value   = '';
   document.getElementById('tax-r-payin-date').value = '';
@@ -9116,6 +9179,72 @@ function openTaxReg(gid) {
   }
   taxManualCalcTotal();
   openModal('modalTaxReg');
+}
+
+// 수정발행 등록 — 완료된 그룹(originGid)을 원본으로 하는 새 그룹을 만드는 흐름 진입점.
+// 원본은 절대 수정하지 않음 (필드 프리필만 하고, 저장 시 완전히 새 groupId로 저장됨).
+function openTaxCorrectionReg(originGid) {
+  if (!['wonjoon','yoonhee','admin'].includes(currentUser?.id)) { toast('수정발행 등록 권한이 없습니다.', 'err'); return; }
+  const originItems = TAX_DATA.filter(t => _taxGroupId(t) === originGid);
+  if (!originItems.length) return;
+  const originRep  = originItems[0];
+  const originMain = originItems.filter(t => !t.isRef);
+  const originDisp = originMain.length ? originMain : originItems;
+  const originSum  = originDisp.reduce((s, t) => s + (t.supplyAmt || 0), 0);
+
+  openTaxReg(null); // 기본 폼 초기화 재사용 (빈 행 1개 추가됨)
+  document.getElementById('tax-r-correction-of').value = originGid;
+  document.getElementById('tax-r-company').value = originRep.company || '';
+  document.getElementById('tax-r-bizName').value = originRep.bizName || '';
+  document.getElementById('tax-r-taxType').value = originRep.taxType || 'adv';
+  document.getElementById('tax-r-taxType').disabled = true; // 발행구분은 원본과 항상 동일해야 하므로 잠금
+  const mgr = document.getElementById('tax-r-manager');
+  if (mgr) mgr.value = originRep.manager || '';
+
+  const campLinkSection = document.getElementById('tax-r-camp-link-section');
+  if (campLinkSection) campLinkSection.style.display = 'none';
+  const originBanner = document.getElementById('tax-r-origin-banner');
+  if (originBanner) originBanner.style.display = 'flex';
+  const originLabelEl = document.getElementById('tax-r-origin-label');
+  if (originLabelEl) originLabelEl.textContent = `${_taxGroupLabel(originGid)} ${originRep.company || ''}`;
+  const originAmtEl = document.getElementById('tax-r-origin-amt');
+  if (originAmtEl) originAmtEl.textContent = originSum.toLocaleString();
+  const diffEl = document.getElementById('tax-r-corr-diff');
+  if (diffEl) { diffEl.value = ''; diffEl.dataset.originAmt = originSum; }
+  const finalEl = document.getElementById('tax-r-corr-final');
+  if (finalEl) finalEl.value = '';
+  // 항목을 여러 줄 추가하면 차액/최종금액 입력칸(첫 행에만 반영)과 실제 저장 합계가 어긋날 수 있어 잠금
+  const addRowBtn = document.getElementById('tax-r-addrow-btn');
+  if (addRowBtn) addRowBtn.style.display = 'none';
+
+  document.getElementById('taxRegTitle').textContent = '수정발행 등록';
+  openModal('modalTaxReg');
+}
+
+// 차액/최종금액 입력칸 — 한쪽을 입력하면 반대쪽을 자동 계산하고, 항목 테이블 첫 행 공급가액에 반영
+function taxCorrDiffChange() {
+  const diffEl  = document.getElementById('tax-r-corr-diff');
+  const finalEl = document.getElementById('tax-r-corr-final');
+  const originAmt = +diffEl.dataset.originAmt || 0;
+  if (diffEl.value === '') { finalEl.value = ''; _taxApplyCorrAmountToFirstRow(0); return; }
+  const diff = +diffEl.value || 0;
+  finalEl.value = originAmt + diff;
+  _taxApplyCorrAmountToFirstRow(diff);
+}
+function taxCorrFinalChange() {
+  const diffEl  = document.getElementById('tax-r-corr-diff');
+  const finalEl = document.getElementById('tax-r-corr-final');
+  const originAmt = +diffEl.dataset.originAmt || 0;
+  if (finalEl.value === '') { diffEl.value = ''; _taxApplyCorrAmountToFirstRow(0); return; }
+  const finalV = +finalEl.value || 0;
+  const diff = finalV - originAmt;
+  diffEl.value = diff;
+  _taxApplyCorrAmountToFirstRow(diff);
+}
+function _taxApplyCorrAmountToFirstRow(diff) {
+  const firstRowSupply = document.querySelector('#tax-r-rows .tax-r-row .tax-r-row-supply');
+  if (firstRowSupply) firstRowSupply.value = diff || '';
+  taxManualCalcTotal();
 }
 
 function taxManualAddRow(rowData) {
@@ -9194,21 +9323,44 @@ async function saveTaxReg() {
   const paidChk   = document.getElementById('tax-r-paid')?.checked || false;
   const payInDate = _v('tax-r-payin-date') || null;
   const editGid   = parseInt(_v('tax-edit-gid')) || null;
+  const correctionOf = parseInt(_v('tax-r-correction-of')) || null;
   const isNew     = !editGid;
   if (!company) { alert('업체명을 입력해주세요.'); return; }
   const rows = [...document.querySelectorAll('#tax-r-rows .tax-r-row')];
   if (!rows.length) { alert('항목을 하나 이상 입력해주세요.'); return; }
+  // 완료된 그룹은 일반 수정 경로로 절대 들어오면 안 됨 (수정발행 등록으로만 처리) — 방어적 가드
+  if (!isNew && !correctionOf) {
+    const targetGroup = TAX_DATA.filter(t => _taxGroupId(t) === editGid);
+    if (targetGroup.length && targetGroup[0].taxStatus === '완료') {
+      alert('완료된 세금계산서는 직접 수정할 수 없습니다. "수정발행 등록"을 이용해주세요.');
+      return;
+    }
+  }
+  // 수정발행 등록 — 저장 전 최종 확인 (잘못된 원본 선택/금액 실수 방지)
+  if (correctionOf) {
+    if (!['wonjoon','yoonhee','admin'].includes(currentUser?.id)) { toast('수정발행 등록 권한이 없습니다.', 'err'); return; }
+    const originItemsChk = TAX_DATA.filter(t => _taxGroupId(t) === correctionOf);
+    if (!originItemsChk.length) { alert('원본 발행 건을 찾을 수 없습니다. 다시 시도해주세요.'); return; }
+    const originMainChk  = originItemsChk.filter(t => !t.isRef);
+    const originDispChk  = originMainChk.length ? originMainChk : originItemsChk;
+    const originAmtChk   = originDispChk.reduce((s, t) => s + (t.supplyAmt || 0), 0);
+    const newAmtChk      = rows.reduce((s, tr) => s + (parseFloat(tr.querySelector('.tax-r-row-supply')?.value) || 0), 0);
+    const netChk         = originAmtChk + newAmtChk;
+    const ok = confirm(
+      `원본 ${_taxGroupLabel(correctionOf)} ${originItemsChk[0].company || ''} · 원본금액 ${originAmtChk.toLocaleString()}원을 수정발행하시겠습니까?\n\n` +
+      `차액: ${newAmtChk >= 0 ? '+' : ''}${newAmtChk.toLocaleString()}원\n` +
+      `예상 순액: ${netChk.toLocaleString()}원\n\n` +
+      `원본은 그대로 유지되고, 새 발행 건이 별도로 등록됩니다.`
+    );
+    if (!ok) return;
+  }
   if (_saveBtn) { _saveBtn.disabled = true; _saveBtn.textContent = '저장 중…'; }
   try {
   const groupId   = isNew ? _taxNextGroupId() : editGid;
   const createdBy = isNew ? (currentUser?.name || '') :
     (TAX_DATA.find(t => _taxGroupId(t) === editGid)?.createdBy || currentUser?.name || '');
   const existingForEdit = isNew ? [] : TAX_DATA.filter(t => _taxGroupId(t) === editGid);
-  const wasIssuedReg    = !isNew && existingForEdit.length > 0 && existingForEdit[0].taxStatus === '완료';
-  const hadModBadgeReg  = !isNew && existingForEdit.some(t => t.modifiedAfterIssue);
-  const prevModDateReg  = existingForEdit.find(t => t.modifiedAfterIssue)?.modifiedAfterIssueDate || null;
-  const taxStatus       = (isNew || wasIssuedReg) ? '' : (existingForEdit[0]?.taxStatus || '');
-  const todayReg        = new Date().toISOString().slice(0, 10);
+  const taxStatus       = isNew ? '' : (existingForEdit[0]?.taxStatus || '');
   const oldLinkedCids = !isNew ? [...new Set(existingForEdit.filter(t => t.campaignId).map(t => t.campaignId))] : [];
   let nextId = _taxNextId();
   const saved = [];
@@ -9222,7 +9374,7 @@ async function saveTaxReg() {
     const memo    = (tr.querySelector('.tax-r-row-memo')?.value  || '').trim();
     saved.push({
       id: nextId++, groupId, campaignId: _taxRegLinkedCamps[0] || null, createdBy, taxType, manager, month,
-      reqDate, issueDate, taxStatus,
+      reqDate, issueDate, taxStatus, correctionOf,
       payDue:    paidChk ? '' : payDue,
       paid:      paidChk ? '완료' : null,
       payInDate: paidChk ? payInDate : null,
@@ -9230,11 +9382,10 @@ async function saveTaxReg() {
       company, bizName, content,
       supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
       contactEmail: email, memo,
-      modifiedAfterIssue: wasIssuedReg || hadModBadgeReg,
-      modifiedAfterIssueDate: wasIssuedReg ? todayReg : (hadModBadgeReg ? prevModDateReg : null),
     });
   }
   // 연결된 캠페인: 참조 항목(isRef) 생성 + 이중발행 방지 플래그 (다중 지원)
+  // (수정발행 등록 모드에서는 _taxRegLinkedCamps가 항상 비어있어 이 루프가 실행되지 않음 — 캠페인 재연결 안 함)
   const refItems = [];
   for (const linkedCid of _taxRegLinkedCamps) {
     const lc = DATA.find(x => x.id === linkedCid);
@@ -9244,7 +9395,7 @@ async function saveTaxReg() {
     refItems.push({ lc, refItem: {
       id: nextId++, groupId, campaignId: linkedCid, isRef: true,
       createdBy, taxType, manager, month: _taxMonthLabel(lc),
-      reqDate, issueDate, taxStatus,
+      reqDate, issueDate, taxStatus, correctionOf,
       payDue: paidChk ? '' : payDue,
       paid: paidChk ? '완료' : null,
       payInDate: paidChk ? payInDate : null,
@@ -9873,6 +10024,13 @@ function taxEditGroup(gid) {
 
 async function confirmTaxEdit() {
   if (!_taxEditGid) return;
+  // 기존 레코드 파악 (아직 삭제하지 않음)
+  const existing = TAX_DATA.filter(t => _taxGroupId(t) === _taxEditGid);
+  // 완료된 그룹은 일반 수정 경로로 절대 들어오면 안 됨 (수정발행 등록으로만 처리) — 방어적 가드
+  if (existing.length > 0 && existing[0].taxStatus === '완료') {
+    alert('완료된 세금계산서는 직접 수정할 수 없습니다. "수정발행 등록"을 이용해주세요.');
+    return;
+  }
   const _saveBtn = document.querySelector('#tax-gen-step2 .modal-foot .btn-primary');
   if (_saveBtn) { _saveBtn.disabled = true; _saveBtn.textContent = '저장 중…'; }
   try {
@@ -9887,14 +10045,8 @@ async function confirmTaxEdit() {
   const taxType   = card.dataset.taxtype   || 'adv';
   const company   = card.dataset.company   || '';
 
-  // 기존 레코드 파악 (아직 삭제하지 않음)
-  const existing = TAX_DATA.filter(t => _taxGroupId(t) === _taxEditGid);
   const origMap  = {};
   existing.forEach(t => { origMap[t.id] = t; });
-  const wasIssued   = existing.length > 0 && existing[0].taxStatus === '완료';
-  const hadModBadge = existing.some(t => t.modifiedAfterIssue);
-  const prevModDate = existing.find(t => t.modifiedAfterIssue)?.modifiedAfterIssueDate || null;
-  const today = new Date().toISOString().slice(0, 10);
 
   const groupId = _taxEditGid;
   const commonFields = {
@@ -9932,9 +10084,7 @@ async function confirmTaxEdit() {
       vatAmt: Math.round(supply * 1.1),
       contactEmail: email, memo,
       bizName: taxType === 'adv' ? company : (MEDIA_DATA.find(mm => mm.company === company)?.invoiceTo || company),
-      taxStatus: wasIssued ? '' : (origItem?.taxStatus || ''),
-      modifiedAfterIssue: wasIssued || hadModBadge,
-      modifiedAfterIssueDate: wasIssued ? today : (hadModBadge ? prevModDate : null),
+      taxStatus: origItem?.taxStatus || '',
     });
   }
 
@@ -9960,9 +10110,7 @@ async function confirmTaxEdit() {
       contactEmail: origItem.contactEmail || '',
       memo:         origItem.memo         || '',
       bizName,
-      taxStatus: wasIssued ? '' : (origItem.taxStatus || ''),
-      modifiedAfterIssue: wasIssued || hadModBadge,
-      modifiedAfterIssueDate: wasIssued ? today : (hadModBadge ? prevModDate : null),
+      taxStatus: origItem.taxStatus || '',
     });
   }
 
@@ -12538,6 +12686,8 @@ function renderPerfHistory() {
   function _endOfMonth(d)  { return new Date(d.getFullYear(), d.getMonth()+1, 0); }
   function _startOfQuarter(d){ const q=Math.floor(d.getMonth()/3); return new Date(d.getFullYear(), q*3, 1); }
   function _endOfQuarter(d)  { const q=Math.floor(d.getMonth()/3); return new Date(d.getFullYear(), q*3+3, 0); }
+  function _startOfYear(d) { return new Date(d.getFullYear(), 0, 1); }
+  function _endOfYear(d)   { return new Date(d.getFullYear(), 11, 31); }
 
   function _presetRange(key) {
     const today = _sod(new Date());
@@ -12552,6 +12702,7 @@ function renderPerfHistory() {
       case 'thisquarter': return { s:_startOfQuarter(today), e:_endOfQuarter(today) };
       case 'lastquarter': { const lqs=new Date(today.getFullYear(), Math.floor(today.getMonth()/3)*3-3, 1); return { s:lqs, e:_endOfQuarter(lqs) }; }
       case 'nextquarter': { const nqs=new Date(today.getFullYear(), Math.floor(today.getMonth()/3)*3+3, 1); return { s:nqs, e:_endOfQuarter(nqs) }; }
+      case 'thisyear':    return { s:_startOfYear(today), e:_endOfYear(today) };
     }
     return null;
   }
