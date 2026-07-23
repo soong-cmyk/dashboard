@@ -198,6 +198,8 @@ const PIPELINE_BUDGET_DATA = {
 // USERS & AUTH
 // ══════════════════════════════════════════
 const USERS = [];
+// 직급 레벨: 숫자가 낮을수록 높은 직급 (1=대표이사 ~ 6=일반)
+const RANK_LEVEL = { '대표이사':1, '이사':2, '본부장':3, '실장':4, '팀장':5, '일반':6 };
 // 본부-팀 구조 (드롭다운용)
 const ORG_STRUCTURE = [
   { bonbu:'1본부', teams:['1팀','2팀','3팀'] },
@@ -770,6 +772,8 @@ function _updateUserUI() {
   if (navUsers) navUsers.style.display = canManageUsers ? '' : 'none';
   const navUsage = document.getElementById('nav-usage');
   if (navUsage) navUsage.style.display = currentUser.isAdmin ? '' : 'none';
+  const navKpi = document.getElementById('nav-kpi');
+  if (navKpi) navKpi.style.display = (RANK_LEVEL[currentUser.rank || '일반'] >= 1) ? '' : 'none'; // 전체 직급 열람 가능
 }
 // ══════════════════════════════════════════
 // AVATAR POPOVER & PASSWORD CHANGE
@@ -843,7 +847,7 @@ function _renderUserMgmtList() {
     if (b.id === 'wonjoon') return 1;
     const bonbuIdx = u => { const i = ORG_STRUCTURE.findIndex(o => o.bonbu === u.bonbu); return i < 0 ? 99 : i; };
     const deptIdx  = u => { const o = ORG_STRUCTURE.find(o => o.bonbu === u.bonbu); if (!o) return 99; const i = o.teams.indexOf(u.dept); return i < 0 ? 99 : i; };
-    const RANK_ORDER = ['이사','본부장','팀장','일반'];
+    const RANK_ORDER = ['이사','본부장','실장','팀장','일반'];
     const rankIdx = u => { const i = RANK_ORDER.indexOf(u.rank || '일반'); return i < 0 ? 99 : i; };
     return rankIdx(a) - rankIdx(b) || bonbuIdx(a) - bonbuIdx(b) || deptIdx(a) - deptIdx(b) || a.name.localeCompare(b.name, 'ko');
   });
@@ -871,7 +875,7 @@ function enterUserEdit(uid) {
   document.getElementById(`udept-cell-${uid}`).innerHTML =
     `<select class="form-input" id="uedit-dept-${uid}" style="width:70px;">${_deptOptsHtml(u.bonbu, u.dept)}</select>`;
   // 직급 셀 → select
-  const rankOpts = ['이사','본부장','팀장','일반'].map(r =>
+  const rankOpts = ['이사','본부장','실장','팀장','일반'].map(r =>
     `<option value="${r}" ${(u.rank||'일반') === r ? 'selected' : ''}>${r}</option>`).join('');
   document.getElementById(`urank-cell-${uid}`).innerHTML =
     `<select class="form-input" id="uedit-rank-${uid}" style="width:70px;">${rankOpts}</select>`;
@@ -4821,6 +4825,8 @@ const _BEP_COLS = [
 ];
 
 function _bepCanEdit() { return _kpiCanEdit(); }
+// 열람은 실장/팀장까지 허용(레벨 5 이하), 편집권한(_bepCanEdit)은 기존과 동일하게 유지
+function _bepCanView() { return !!(currentUser?.isAdmin || RANK_LEVEL[currentUser?.rank || '일반'] <= 5); }
 
 function _bepDerive(turnover, cogs, sga) {
   const t = turnover || 0, c = cogs || 0, s = sga || 0;
@@ -4903,8 +4909,12 @@ function _fbWatchBepMonthly(year) {
 
 function _bepKpiInit() {
   const sec = document.getElementById('kpi-bep-section');
-  if (sec) sec.style.display = _bepCanEdit() ? '' : 'none';
-  if (!_bepCanEdit() || _bepInited) return;
+  if (sec) sec.style.display = _bepCanView() ? '' : 'none';
+  const scEditBtn = document.getElementById('bep-scenario-edit-btn');
+  if (scEditBtn) scEditBtn.style.display = _bepCanEdit() ? '' : 'none';
+  const moEditBtn = document.getElementById('bep-monthly-edit-btn');
+  if (moEditBtn) moEditBtn.style.display = _bepCanEdit() ? '' : 'none';
+  if (!_bepCanView() || _bepInited) return;
   _bepInited = true;
   const yr = document.getElementById('bep-year');
   if (yr) {
@@ -4946,9 +4956,10 @@ function renderBepScenarioTable() {
     return `<th style="${thC}${bd}">${c.defLabel}</th>`;
   }).join('');
 
-  // As-is 열은 월 선택으로만 채워지는 값이라 수동 입력 불가 — 항상 계산값만 표시
+  // As-is 열의 매출/매출원가는 월 선택으로만 채워지는 자동계산값이라 수동 입력 불가.
+  // 판관비(sga)는 캠페인 데이터에서 끌어올 수 없는 회사 공통비용이라 As-is 열도 예외적으로 수동 입력 유지.
   const inputRow = (field) => cols.map((c, i) => {
-    if (c.key === 'asis') return `<td style="${tdV}">${_fmtBepWon(derived[i][field])}</td>`;
+    if (c.key === 'asis' && field !== 'sga') return `<td style="${tdV}">${_fmtBepWon(derived[i][field])}</td>`;
     if (!edit) return '';
     return `<td style="${tdV}"><input type="number" class="form-input" style="width:100%;text-align:right;font-size:11px;padding:3px 4px;" id="bep_sc_${field}_${c.key}" value="${c.val[field] || ''}" step="1000000"></td>`;
   }).join('');
@@ -4976,8 +4987,15 @@ async function toggleBepScenarioEdit() {
     try {
       const data = {};
       _BEP_COLS.forEach(c => {
-        // As-is 열은 헤더의 월 선택으로만 채워짐(bepAsisMonthChange가 별도 저장) — 여기선 손대지 않고 기존 값 그대로 유지
-        if (c.key === 'asis') { data[c.key] = BEP_SCENARIO.asis || {}; return; }
+        if (c.key === 'asis') {
+          // 매출/매출원가/기준월은 헤더의 월 선택으로만 채워짐(bepAsisMonthChange가 별도 저장) — 기존 값 유지.
+          // 판관비만 캠페인 데이터로 못 끌어오는 값이라 여기서도 입력칸을 두고 같이 저장.
+          data[c.key] = {
+            ...(BEP_SCENARIO.asis || {}),
+            sga: Math.round(+(document.getElementById('bep_sc_sga_asis')?.value) || 0),
+          };
+          return;
+        }
         data[c.key] = {
           turnover: Math.round(+(document.getElementById(`bep_sc_turnover_${c.key}`)?.value) || 0),
           cogs:     Math.round(+(document.getElementById(`bep_sc_cogs_${c.key}`)?.value)     || 0),
@@ -8753,6 +8771,13 @@ function _taxGroupId(t) {
   // 하위호환: groupId 없는 기존 항목은 id를 groupId로 사용
   return t.groupId != null ? t.groupId : t.id;
 }
+// 수정발행 등록 권한 = 관리자 또는 본인이 요청한 건(createdBy/manager 일치) — 삭제 권한(canDelete)과 동일 기준
+function _taxCanCorrectGroup(gid) {
+  const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
+  if (!items.length) return false;
+  const rep = items.find(t => !t.isRef) || items[0];
+  return !!(currentUser?.isAdmin || currentUser?.name === (rep.createdBy || rep.manager));
+}
 function _taxMonthLabel(c) {
   if (!c.date) return '';
   return `${c.date.slice(0,4)}년${parseInt(c.date.slice(5,7))}월`;
@@ -8865,23 +8890,28 @@ function renderTaxList() {
     if (cof != null) _correctionOfMap.set(cof, gidKey);
   });
 
-  // 퀵필터 카운트 (필터 적용 전 전체 기준)
-  const unissuedCnt   = groups.filter(([, items]) => items[0].taxStatus !== '완료').length;
-  const unpaidCnt     = groups.filter(([, items]) => items[0].paid !== '완료').length;
+  // 수정발행으로 대체(취소)된 건 — 다른 그룹이 이 그룹을 correctionOf로 참조하면 이 그룹은 더 이상 유효하지 않음.
+  // 최종금액=덮어쓰기 모델이라, 대체된 원본은 집계(합계/건수)에서 완전히 제외해야 이중계상이 안 됨.
+  const _isSuperseded = gid => _correctionOfMap.has(gid);
+
+  // 퀵필터 카운트 (필터 적용 전 전체 기준, 대체된 건 제외)
+  const unissuedCnt   = groups.filter(([gid, items]) => !_isSuperseded(gid) && items[0].taxStatus !== '완료').length;
+  const unpaidCnt     = groups.filter(([gid, items]) => !_isSuperseded(gid) && items[0].paid !== '완료').length;
   const correctionCnt = groups.filter(([, items]) => items[0].correctionOf != null).length;
 
   // 퀵필터 적용
   const displayGroups = _taxQuickFilter === 'unissued'
-    ? groups.filter(([, items]) => items[0].taxStatus !== '완료')
+    ? groups.filter(([gid, items]) => !_isSuperseded(gid) && items[0].taxStatus !== '완료')
     : _taxQuickFilter === 'unpaid'
-    ? groups.filter(([, items]) => items[0].paid !== '완료')
+    ? groups.filter(([gid, items]) => !_isSuperseded(gid) && items[0].paid !== '완료')
     : _taxQuickFilter === 'correction'
     ? groups.filter(([, items]) => items[0].correctionOf != null)
     : groups;
 
-  // 요약 통계 (표시되는 그룹 기준)
+  // 요약 통계 — 대체(취소)된 원본은 제외하고, 남아있는 최종 확정 금액만 합산
   let totalSupply = 0, totalVat = 0, totalUnpaid = 0;
-  displayGroups.forEach(([, items]) => {
+  displayGroups.forEach(([gid, items]) => {
+    if (_isSuperseded(gid)) return;
     const mainItems = items.filter(t => !t.isRef);
     const calcItems = mainItems.length ? mainItems : items; // 카드 표시와 동일 기준
     calcItems.forEach(t => {
@@ -8892,10 +8922,10 @@ function renderTaxList() {
       calcItems.forEach(t => { totalUnpaid += t.vatAmt || 0; });
   });
 
-  const _v = n => n ? n.toLocaleString() : '—';
+  const _v = n => n ? _fmtMoney(n) : '—';
   const _el = id => document.getElementById(id);
-  const issuedCnt  = displayGroups.filter(([, items]) => items[0].taxStatus === '완료').length;
-  const paidCnt    = displayGroups.filter(([, items]) => items[0].paid === '완료').length;
+  const issuedCnt  = displayGroups.filter(([gid, items]) => !_isSuperseded(gid) && items[0].taxStatus === '완료').length;
+  const paidCnt    = displayGroups.filter(([gid, items]) => !_isSuperseded(gid) && items[0].paid === '완료').length;
   const totalGroups = new Set(TAX_DATA.map(t => _taxGroupId(t))).size;
   if (_el('tax-cnt'))     _el('tax-cnt').innerHTML        = `${displayGroups.length}건 <span style="font-size:13px;font-weight:400;color:var(--text3);">/ 전체 ${totalGroups}건</span>`;
   if (_el('tax-cnt-sub')) _el('tax-cnt-sub').textContent = `발행 ${issuedCnt}건 · 입금완료 ${paidCnt}건`;
@@ -8909,7 +8939,8 @@ function renderTaxList() {
   if (_el('tax-correction-cnt')) _el('tax-correction-cnt').textContent = correctionCnt + '건';
   _el('tax-card-unissued')?.classList.toggle('tax-qf-active', _taxQuickFilter === 'unissued');
   _el('tax-card-unpaid')?.classList.toggle('tax-qf-active', _taxQuickFilter === 'unpaid');
-  _el('tax-card-correction')?.classList.toggle('tax-qf-active', _taxQuickFilter === 'correction');
+  const chipCorr = _el('tax-chip-correction');
+  if (chipCorr) chipCorr.className = _taxQuickFilter === 'correction' ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm';
 
   const listEl = document.getElementById('tax-list');
   if (!listEl) return;
@@ -8931,7 +8962,7 @@ function renderTaxList() {
     const isCollapsed = _taxCollapsed.has(gid);
     const canDelete   = !!(currentUser?.isAdmin || currentUser?.name === (rep.createdBy || rep.manager));
     const canStatus   = ['wonjoon','yoonhee','admin'].includes(currentUser?.id);
-    const canCorrect  = canDelete && canStatus; // 수정발행 등록 — 완료 처리 권한자만 (완료건을 다루는 민감한 동작이라 canDelete보다 엄격하게)
+    const canCorrect  = canDelete; // 수정발행 등록 — 관리자 또는 본인 요청건이면 가능 (완료 처리 권한(canStatus)과는 별개)
     const canPaid     = true;
     const supplySum   = dispItems.reduce((s, t) => s + (t.supplyAmt || 0), 0);
     const vatSum      = dispItems.reduce((s, t) => s + (t.vatAmt    || 0), 0);
@@ -8939,13 +8970,16 @@ function renderTaxList() {
     // 수정발행 체인 — 이 그룹을 원본으로 하는 수정발행 건(자식), 이 그룹이 수정발행인 경우 원본(부모)
     // (검색/기간 필터에 안 걸리는 전체 groupMap 기준으로 조회 — groups는 현재 필터가 적용된 부분집합이라 오탐 발생 가능)
     const childCorrectionGid = _correctionOfMap.get(gid);
+    const isSuperseded       = childCorrectionGid != null; // 수정발행으로 대체(취소)된 건 — 금액은 더 이상 유효하지 않음
     const isCorrection       = rep.correctionOf != null;
     const parentExists       = isCorrection && groupMap.has(rep.correctionOf);
-    const linkBadge = `${childCorrectionGid != null
-        ? `<span class="tax-corr-link" onclick="event.stopPropagation();_taxScrollToGroup(${childCorrectionGid})" style="cursor:pointer;font-size:10px;font-weight:600;color:#d97706;background:#fffbeb;border:1px solid #fde68a;padding:2px 7px;border-radius:10px;white-space:nowrap;margin-left:6px;">수정발행됨 → ${_taxGroupLabel(childCorrectionGid)} 바로가기</span>`
-        : ''}${isCorrection
-        ? `<span class="tax-corr-link" onclick="event.stopPropagation();_taxScrollToGroup(${rep.correctionOf})" style="cursor:pointer;font-size:10px;font-weight:600;color:#d97706;background:#fffbeb;border:1px solid #fde68a;padding:2px 7px;border-radius:10px;white-space:nowrap;margin-left:6px;">${parentExists ? _taxGroupLabel(rep.correctionOf) : '(삭제된 건)'} 건 수정발행</span>`
-        : ''}`;
+    // backwardBadge(원본 표시) → [1,1] 번호 옆, forwardBadge(바로가기) → [1,2] 상태 줄. 서로 다른 위치라 둘 다 있어도 안 겹침.
+    const backwardBadge = isCorrection
+        ? (parentExists ? `<span class="tax-corr-link" onclick="event.stopPropagation();openTaxLinkedInfoModal(${rep.correctionOf})" style="cursor:pointer;font-size:10px;font-weight:600;color:#d97706;background:#fffbeb;border:1px solid #fde68a;padding:2px 7px;border-radius:10px;white-space:nowrap;">${_taxGroupLabel(rep.correctionOf)} 건의 수정발행</span>` : `<span style="font-size:10px;font-weight:600;color:var(--text3);background:var(--surface2);border:1px solid var(--border);padding:2px 7px;border-radius:10px;white-space:nowrap;">(삭제된 건)의 수정발행</span>`)
+        : '';
+    const forwardBadge = childCorrectionGid != null
+        ? `<span class="tax-corr-link" onclick="event.stopPropagation();openTaxLinkedInfoModal(${childCorrectionGid})" style="cursor:pointer;font-size:10px;font-weight:600;color:#d97706;background:#fffbeb;border:1px solid #fde68a;padding:2px 7px;border-radius:10px;white-space:nowrap;">수정발행됨 → ${_taxGroupLabel(childCorrectionGid)} 바로가기</span>`
+        : '';
 
     const _makeRow = (t, canDel) => {
       const camp = DATA.find(c => c.id === t.campaignId);
@@ -9017,18 +9051,20 @@ function renderTaxList() {
       </div>`;
 
     cards.push(`
-      <div class="tax-card" data-gid="${gid}">
+      <div class="tax-card" data-gid="${gid}"${isSuperseded ? ' style="opacity:0.55;"' : ''}>
         <div class="tax-card-head">
           <div class="tax-card-toggle" onclick="taxToggleCollapse(${gid})">${isCollapsed ? '▶' : '▼'}</div>
           <div class="tax-card-head-main" style="display:grid;grid-template-columns:170px 1px 1fr;grid-template-rows:auto auto;gap:0;">
-            <!-- [1,1]: 번호 -->
-            <div style="grid-column:1;grid-row:1;padding-right:40px;padding-bottom:4px;white-space:nowrap;align-self:center;">
-              <span style="font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-light);padding:2px 0px;border-radius:10px;white-space:nowrap;">${_taxGroupLabel(gid)}</span>${linkBadge}
+            <!-- [1,1]: 번호 + 원본 표시(수정발행인 경우) -->
+            <div style="grid-column:1;grid-row:1;padding-right:40px;padding-bottom:4px;white-space:nowrap;display:flex;align-items:center;gap:6px;">
+              <span style="font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-light);padding:2px 0px;border-radius:10px;white-space:nowrap;">${_taxGroupLabel(gid)}</span>
+              ${backwardBadge}
             </div>
             <!-- 세로선: 두 행 전체 -->
             <div style="grid-column:2;grid-row:1/span 2;background:black;margin:0 16px;"></div>
-            <!-- [1,2]: 세발·입금·요청자·날짜들 -->
+            <!-- [1,2]: 수정발행 바로가기·세발·입금·요청자·날짜들 (좌측 정렬) -->
             <div style="grid-column:3;grid-row:1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--text2);padding-bottom:4px;">
+              ${forwardBadge}
               <div style="display:flex;align-items:center;gap:6px;">
                 <span style="font-size:11px;color:var(--text3);">세발</span>
                 <span style="display:inline-flex;align-items:center;justify-content:center;width:52px;">
@@ -9049,17 +9085,17 @@ function renderTaxList() {
               <span>요청일 <span style="color:var(--text1);">${rep.reqDate||'—'}</span></span>
               <span style="color:var(--border);">|</span>
               <span>입금예정 <span style="color:var(--text1);">${rep.payDue||'—'}</span></span>
-              <div style="flex:1;"></div>
               ${refItems.length ? `<button class="btn btn-ghost btn-sm" onclick="taxToggleRef('${refItems.map(t=>t.id).join(',')}')">참조 캠페인 ${refItems.length}건 ▾</button>` : ''}
             </div>
             <!-- [2,1]: 업체명 -->
-            <div style="grid-column:1;grid-row:2;padding-right:40px;white-space:nowrap;align-self:center;">
+            <div style="grid-column:1;grid-row:2;padding-right:40px;white-space:nowrap;display:flex;align-items:center;">
               <span class="tax-card-company">${_escHtml(rep.company||'(업체명 없음)')}</span>
             </div>
             <!-- [2,2]: 공급가·부가세포함·수정/삭제 -->
             <div style="grid-column:3;grid-row:2;display:flex;align-items:center;gap:10px;">
-              <span style="font-size:12px;color:var(--text2);">공급가 <b style="color:var(--text1);">${supplySum.toLocaleString()}</b></span>
-              <span style="font-size:12px;color:var(--text2);">부가세포함 <b style="color:var(--text1);">${vatSum.toLocaleString()}</b></span>
+              <span style="font-size:12px;color:var(--text2);${isSuperseded ? 'text-decoration:line-through;' : ''}">공급가 <b style="color:var(--text1);">${supplySum.toLocaleString()}</b></span>
+              <span style="font-size:12px;color:var(--text2);${isSuperseded ? 'text-decoration:line-through;' : ''}">부가세포함 <b style="color:var(--text1);">${vatSum.toLocaleString()}</b></span>
+              ${isSuperseded ? `<span style="font-size:11px;font-weight:600;color:var(--red);">취소됨(집계 제외)</span>` : ''}
               <span style="color:var(--border);">|</span>
               ${(rep.createdBy||rep.manager) ? `<span class="tax-card-manager">요청자: ${_escHtml(rep.createdBy||rep.manager)}</span>` : ''}
               <div style="flex:1;"></div>
@@ -9096,6 +9132,62 @@ function _taxScrollToGroup(gid) {
   });
 }
 
+// 원본↔수정발행 뱃지 클릭 시 — 리스트를 벗어나지 않고 연결된 건의 정보를 바로 확인
+function openTaxLinkedInfoModal(gid) {
+  const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
+  if (!items.length) { toast('해당 건을 찾을 수 없습니다.', 'warn'); return; }
+  const mainItems  = items.filter(t => !t.isRef).sort((a, b) => a.id - b.id);
+  const dispItems  = mainItems.length ? mainItems : items.slice().sort((a, b) => a.id - b.id);
+  const rep        = dispItems[0];
+  const supplySum  = dispItems.reduce((s, t) => s + (t.supplyAmt || 0), 0);
+  const vatSum     = dispItems.reduce((s, t) => s + (t.vatAmt    || 0), 0);
+  const isDone     = rep.taxStatus === '완료';
+  const isPaid     = rep.paid === '완료';
+
+  const rowsHtml = dispItems.map(t => `
+    <tr>
+      <td style="padding:5px 8px;border:1px solid var(--border);font-size:12px;">${_escHtml(t.month || '—')}</td>
+      <td style="padding:5px 8px;border:1px solid var(--border);font-size:12px;">${_escHtml(t.content || '—')}</td>
+      <td style="padding:5px 8px;border:1px solid var(--border);font-size:12px;text-align:right;">${(t.supplyAmt || 0).toLocaleString()}</td>
+    </tr>`).join('');
+
+  const mId = 'modalTaxLinkedInfo';
+  let mEl = document.getElementById(mId);
+  if (!mEl) { mEl = document.createElement('div'); mEl.id = mId; mEl.className = 'modal-overlay'; document.body.appendChild(mEl); }
+  mEl.style.zIndex = '200';
+  mEl.innerHTML = `<div class="modal" style="width:560px;max-width:94vw;">
+    <div class="modal-head">
+      <span class="modal-title">${_taxGroupLabel(gid)} 발행 정보</span>
+      <button class="modal-close" onclick="closeModal('${mId}')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;flex-wrap:wrap;gap:6px 20px;font-size:12px;color:var(--text2);">
+        <span>업체명 <b style="color:var(--text1);">${_escHtml(rep.company || '—')}</b></span>
+        <span>발행구분 <b style="color:var(--text1);">${rep.taxType === 'media' ? '매체' : '광고주'}</b></span>
+        <span>담당자 <b style="color:var(--text1);">${_escHtml(rep.createdBy || rep.manager || '—')}</b></span>
+        <span>요청일 <b style="color:var(--text1);">${rep.reqDate || '—'}</b></span>
+        <span>발행일 <b style="color:var(--text1);">${rep.issueDate || '—'}</b></span>
+        <span>세발 <b style="color:${isDone ? 'var(--green)' : 'var(--text1)'};">${isDone ? '완료' : '미완료'}</b></span>
+        <span>입금 <b style="color:${isPaid ? 'var(--green)' : 'var(--text1)'};">${isPaid ? '완료' : '미완료'}</b></span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="padding:5px 8px;border:1px solid var(--border);background:var(--surface2);font-size:11px;color:var(--text2);">집행월</th>
+          <th style="padding:5px 8px;border:1px solid var(--border);background:var(--surface2);font-size:11px;color:var(--text2);">품목</th>
+          <th style="padding:5px 8px;border:1px solid var(--border);background:var(--surface2);font-size:11px;color:var(--text2);">공급가액</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div style="text-align:right;font-size:12px;color:var(--text2);">공급가액 합계 <b style="color:var(--text1);">${supplySum.toLocaleString()}</b>원 · 부가세포함 <b style="color:var(--text1);">${vatSum.toLocaleString()}</b>원</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('${mId}')">닫기</button>
+      <button class="btn btn-primary" onclick="closeModal('${mId}');_taxScrollToGroup(${gid})">카드로 이동</button>
+    </div>
+  </div>`;
+  openModal(mId);
+}
+
 // ── 삭제 ──
 async function deleteTax(id) {
   const t = TAX_DATA.find(x => x.id === id);
@@ -9106,10 +9198,10 @@ async function deleteTax(id) {
   const groupRowCount = TAX_DATA.filter(x => _taxGroupId(x) === gid).length;
   const hasDependents  = TAX_DATA.some(x => x.correctionOf === gid);
   if (hasDependents && groupRowCount <= 1) {
-    alert('이 건을 원본으로 하는 수정발행 요청이 있어, 이 그룹의 마지막 남은 항목은 삭제할 수 없습니다.');
+    alert(`${_taxGroupLabel(gid)} 건을 원본으로 하는 수정발행 요청이 있어, 이 그룹의 마지막 남은 항목은 삭제할 수 없습니다.`);
     return;
   }
-  if (!confirm('이 캠페인 항목을 삭제하시겠습니까?')) return;
+  if (!confirm(`${_taxGroupLabel(gid)} 항목을 삭제하시겠습니까?`)) return;
   const { campaignId, taxType } = t;
   const idx = TAX_DATA.findIndex(x => x.id === id);
   if (idx !== -1) TAX_DATA.splice(idx, 1);
@@ -9136,10 +9228,10 @@ async function deleteGroup(gid) {
     TAX_DATA.filter(t => t.correctionOf === gid).map(t => _taxGroupId(t))
   );
   if (dependentGids.size > 0) {
-    alert(`이 건을 원본으로 하는 수정발행 요청이 있어 삭제할 수 없습니다. (연결된 수정발행: ${dependentGids.size}건)`);
+    alert(`${_taxGroupLabel(gid)} 건을 원본으로 하는 수정발행 요청이 있어 삭제할 수 없습니다. (연결된 수정발행: ${dependentGids.size}건)`);
     return;
   }
-  if (!confirm('이 발행요청 전체를 삭제하시겠습니까?')) return;
+  if (!confirm(`${_taxGroupLabel(gid)} 발행요청 전체를 삭제하시겠습니까?`)) return;
   const toDelete = TAX_DATA.filter(t => _taxGroupId(t) === gid);
   toDelete.forEach(t => {
     const idx = TAX_DATA.findIndex(x => x.id === t.id);
@@ -9415,10 +9507,6 @@ function openTaxReg(gid) {
   document.getElementById('tax-r-correction-of').value = '';
   const campLinkSection = document.getElementById('tax-r-camp-link-section');
   if (campLinkSection) campLinkSection.style.display = '';
-  const originBanner = document.getElementById('tax-r-origin-banner');
-  if (originBanner) originBanner.style.display = 'none';
-  const addRowBtn = document.getElementById('tax-r-addrow-btn');
-  if (addRowBtn) addRowBtn.style.display = '';
   document.getElementById('tax-r-reqDate').value  = isNew ? now.toISOString().slice(0, 10) : '';
   document.getElementById('tax-r-company').value  = '';
   document.getElementById('tax-r-bizName').value  = '';
@@ -9475,14 +9563,12 @@ function openTaxReg(gid) {
 
 // 수정발행 등록 — 완료된 그룹(originGid)을 원본으로 하는 새 그룹을 만드는 흐름 진입점.
 // 원본은 절대 수정하지 않음 (필드 프리필만 하고, 저장 시 완전히 새 groupId로 저장됨).
+// 금액은 일반 등록과 동일하게 품목/공급가액을 직접 입력 — 공급가액에 음수를 넣으면 상계(차감), 양수면 추가청구.
 function openTaxCorrectionReg(originGid) {
-  if (!['wonjoon','yoonhee','admin'].includes(currentUser?.id)) { toast('수정발행 등록 권한이 없습니다.', 'err'); return; }
+  if (!_taxCanCorrectGroup(originGid)) { toast('수정발행 등록 권한이 없습니다.', 'err'); return; }
   const originItems = TAX_DATA.filter(t => _taxGroupId(t) === originGid);
   if (!originItems.length) return;
   const originRep  = originItems[0];
-  const originMain = originItems.filter(t => !t.isRef);
-  const originDisp = originMain.length ? originMain : originItems;
-  const originSum  = originDisp.reduce((s, t) => s + (t.supplyAmt || 0), 0);
 
   openTaxReg(null); // 기본 폼 초기화 재사용 (빈 행 1개 추가됨)
   document.getElementById('tax-r-correction-of').value = originGid;
@@ -9495,48 +9581,9 @@ function openTaxCorrectionReg(originGid) {
 
   const campLinkSection = document.getElementById('tax-r-camp-link-section');
   if (campLinkSection) campLinkSection.style.display = 'none';
-  const originBanner = document.getElementById('tax-r-origin-banner');
-  if (originBanner) originBanner.style.display = 'flex';
-  const originLabelEl = document.getElementById('tax-r-origin-label');
-  if (originLabelEl) originLabelEl.textContent = `${_taxGroupLabel(originGid)} ${originRep.company || ''}`;
-  const originAmtEl = document.getElementById('tax-r-origin-amt');
-  if (originAmtEl) originAmtEl.textContent = originSum.toLocaleString();
-  const diffEl = document.getElementById('tax-r-corr-diff');
-  if (diffEl) { diffEl.value = ''; diffEl.dataset.originAmt = originSum; }
-  const finalEl = document.getElementById('tax-r-corr-final');
-  if (finalEl) finalEl.value = '';
-  // 항목을 여러 줄 추가하면 차액/최종금액 입력칸(첫 행에만 반영)과 실제 저장 합계가 어긋날 수 있어 잠금
-  const addRowBtn = document.getElementById('tax-r-addrow-btn');
-  if (addRowBtn) addRowBtn.style.display = 'none';
 
   document.getElementById('taxRegTitle').textContent = '수정발행 등록';
   openModal('modalTaxReg');
-}
-
-// 차액/최종금액 입력칸 — 한쪽을 입력하면 반대쪽을 자동 계산하고, 항목 테이블 첫 행 공급가액에 반영
-function taxCorrDiffChange() {
-  const diffEl  = document.getElementById('tax-r-corr-diff');
-  const finalEl = document.getElementById('tax-r-corr-final');
-  const originAmt = +diffEl.dataset.originAmt || 0;
-  if (diffEl.value === '') { finalEl.value = ''; _taxApplyCorrAmountToFirstRow(0); return; }
-  const diff = +diffEl.value || 0;
-  finalEl.value = originAmt + diff;
-  _taxApplyCorrAmountToFirstRow(diff);
-}
-function taxCorrFinalChange() {
-  const diffEl  = document.getElementById('tax-r-corr-diff');
-  const finalEl = document.getElementById('tax-r-corr-final');
-  const originAmt = +diffEl.dataset.originAmt || 0;
-  if (finalEl.value === '') { diffEl.value = ''; _taxApplyCorrAmountToFirstRow(0); return; }
-  const finalV = +finalEl.value || 0;
-  const diff = finalV - originAmt;
-  diffEl.value = diff;
-  _taxApplyCorrAmountToFirstRow(diff);
-}
-function _taxApplyCorrAmountToFirstRow(diff) {
-  const firstRowSupply = document.querySelector('#tax-r-rows .tax-r-row .tax-r-row-supply');
-  if (firstRowSupply) firstRowSupply.value = diff || '';
-  taxManualCalcTotal();
 }
 
 function taxManualAddRow(rowData) {
@@ -9630,19 +9677,17 @@ async function saveTaxReg() {
   }
   // 수정발행 등록 — 저장 전 최종 확인 (잘못된 원본 선택/금액 실수 방지)
   if (correctionOf) {
-    if (!['wonjoon','yoonhee','admin'].includes(currentUser?.id)) { toast('수정발행 등록 권한이 없습니다.', 'err'); return; }
+    if (!_taxCanCorrectGroup(correctionOf)) { toast('수정발행 등록 권한이 없습니다.', 'err'); return; }
     const originItemsChk = TAX_DATA.filter(t => _taxGroupId(t) === correctionOf);
     if (!originItemsChk.length) { alert('원본 발행 건을 찾을 수 없습니다. 다시 시도해주세요.'); return; }
     const originMainChk  = originItemsChk.filter(t => !t.isRef);
     const originDispChk  = originMainChk.length ? originMainChk : originItemsChk;
     const originAmtChk   = originDispChk.reduce((s, t) => s + (t.supplyAmt || 0), 0);
-    const newAmtChk      = rows.reduce((s, tr) => s + (parseFloat(tr.querySelector('.tax-r-row-supply')?.value) || 0), 0);
-    const netChk         = originAmtChk + newAmtChk;
+    // 입력값은 차액이 아니라 최종금액 — 기존건은 취소(대체)되고 이 금액이 이 건의 새 확정금액이 됨
+    const finalAmtChk    = rows.reduce((s, tr) => s + (parseFloat(tr.querySelector('.tax-r-row-supply')?.value) || 0), 0);
     const ok = confirm(
-      `원본 ${_taxGroupLabel(correctionOf)} ${originItemsChk[0].company || ''} · 원본금액 ${originAmtChk.toLocaleString()}원을 수정발행하시겠습니까?\n\n` +
-      `차액: ${newAmtChk >= 0 ? '+' : ''}${newAmtChk.toLocaleString()}원\n` +
-      `예상 순액: ${netChk.toLocaleString()}원\n\n` +
-      `원본은 그대로 유지되고, 새 발행 건이 별도로 등록됩니다.`
+      `원본 ${_taxGroupLabel(correctionOf)} ${originItemsChk[0].company || ''} 건(${originAmtChk.toLocaleString()}원)을 취소하고,\n` +
+      `최종금액 ${finalAmtChk.toLocaleString()}원으로 재발행하시겠습니까?`
     );
     if (!ok) return;
   }
@@ -11016,7 +11061,7 @@ function _populateMediaSelects() {
 }
 
 function _populateSalesSelects() {
-  const RANK_ORDER = ['이사','본부장','팀장','일반'];
+  const RANK_ORDER = ['이사','본부장','실장','팀장','일반'];
   const salesUsers = USERS
     .filter(u => !u.isAdmin && u.id !== 'user')
     .sort((a, b) => {

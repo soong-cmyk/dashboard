@@ -72,9 +72,10 @@
       <div class="nav-item" id="nav-tax" onclick="goScreen('tax')">
         <span class="nav-icon">📑</span>세금계산서
       </div>
-      <div class="nav-item" id="nav-kpi" onclick="goScreen('kpi')">
+<!--      <div class="nav-item" id="nav-kpi" onclick="goScreen('kpi')">
      <span class="nav-icon">🎯</span>KPI
       </div>
+-->
 <!--
       <div class="nav-item" id="nav-pipeline" onclick="goScreen('pipeline')">
         <span class="nav-icon">📈</span>영업 리포트
@@ -2322,6 +2323,7 @@
             <option value="">요청자 전체</option>
           </select>
           <input class="form-input" id="tax-fCompany" placeholder="업체명 / 캠페인명 / ID 검색" oninput="renderTaxList()" style="width:160px;">
+          <button class="btn btn-outline btn-sm" id="tax-chip-correction" onclick="setTaxQuickFilter('correction')" style="border-radius:14px;">수정발행건만 <span id="tax-correction-cnt">—</span></button>
           <button class="btn btn-ghost btn-sm" onclick="resetTaxFilter()">✕ 초기화</button>
           <div style="flex:1;"></div>
           <button class="btn btn-ghost btn-sm" id="btn-tax-delete-log" style="display:none;color:var(--red);" onclick="openTaxDeleteLog()">삭제이력</button>
@@ -2329,7 +2331,7 @@
           <button class="btn btn-primary btn-sm" onclick="openTaxAutoGen()">+ 캠페인에서 가져오기</button>
         </div>
         <!-- 요약 카드 -->
-        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:16px;">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px;">
           <div class="stat-card" onclick="setTaxQuickFilter(null)" style="cursor:pointer;"><div class="stat-label">건수</div><div class="stat-val" id="tax-cnt">—</div><div class="stat-sub" id="tax-cnt-sub">—</div></div>
           <div class="stat-card">
             <div class="stat-label">공급가액 합계</div>
@@ -2346,11 +2348,6 @@
             <div class="stat-label">입금 미완료</div>
             <div class="stat-val" id="tax-unpaid-cnt" style="color:var(--red);font-size:20px;font-weight:700;">—</div>
             <div class="stat-sub" id="tax-unpaid-sub">클릭하여 필터</div>
-          </div>
-          <div class="stat-card" id="tax-card-correction" onclick="setTaxQuickFilter('correction')" style="cursor:pointer;">
-            <div class="stat-label">수정발행건</div>
-            <div class="stat-val" id="tax-correction-cnt" style="font-size:20px;font-weight:700;">—</div>
-            <div class="stat-sub">클릭하여 필터</div>
           </div>
         </div>
         <!-- 카드 목록 -->
@@ -2531,22 +2528,6 @@
             </div>
           </div>
           <div id="tax-r-camp-chips" style="display:none;margin-top:6px;"></div>
-        </div>
-        <!-- 수정발행 원본 정보 (수정발행 등록 모드 전용) -->
-        <div id="tax-r-origin-banner" style="display:none;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;flex-direction:column;gap:8px;">
-          <div style="font-size:12px;color:var(--text2);">🔗 원본: <b id="tax-r-origin-label" style="color:var(--text1);"></b> · 공급가액 <b id="tax-r-origin-amt" style="color:var(--text1);"></b>원</div>
-          <div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;">
-            <div>
-              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">차액 (원본 대비, +추가/−상계)</label>
-              <input type="number" class="form-input" id="tax-r-corr-diff" placeholder="예: -200000" style="font-size:12px;padding:5px 8px;width:160px;" oninput="taxCorrDiffChange()">
-            </div>
-            <div style="font-size:14px;color:var(--text3);padding-bottom:8px;">=</div>
-            <div>
-              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">수정 후 최종금액</label>
-              <input type="number" class="form-input" id="tax-r-corr-final" placeholder="예: 800000" style="font-size:12px;padding:5px 8px;width:160px;" oninput="taxCorrFinalChange()">
-            </div>
-          </div>
-          <div style="font-size:11px;color:var(--text3);">둘 중 아무 칸이나 입력하면 나머지가 자동 계산되고, 아래 첫 항목의 공급가액에 반영됩니다.</div>
         </div>
         <!-- 수정 모드 안내 -->
         <div id="tax-reg-edit-notice" style="display:none;font-size:12px;color:var(--orange,#d97706);background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 14px;">
@@ -3579,6 +3560,7 @@
               <option value="대표이사">대표이사</option>
               <option value="이사">이사</option>
               <option value="본부장">본부장</option>
+              <option value="실장">실장</option>
               <option value="팀장">팀장</option>
               <option value="일반" selected>일반</option>
             </select>
