@@ -201,10 +201,8 @@ function _rptCalcKPI(campaigns) {
   const base = actual || qty;
   const ctr  = (hasClicks && base > 0) ? (clicks / base * 100) : null;
 
-  // 총 광고비 (sellUnit × qty - disc)
-  const adCost = campaigns.reduce((s, c) => {
-    return s + ((c.sellUnit || 0) * (c.qty || 0)) - (c.disc || 0);
-  }, 0);
+  // 총 광고비 (정산 로직 재사용, 상품별 분기 일원화)
+  const adCost = campaigns.reduce((s, c) => s + _campAdcost(c), 0);
 
   // 파생 지표
   const cpm = (base > 0 && adCost > 0) ? (adCost / base * 1000) : null;
@@ -549,7 +547,7 @@ function _rptRenderTable(campaigns) {
   const sorted = [...campaigns].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   tbody.innerHTML = sorted.map(c => {
-    const adCost = ((c.sellUnit || 0) * (c.qty || 0)) - (c.disc || 0);
+    const adCost = _campAdcost(c);
     return `
       <tr onclick="openDetailFromReport('${c.id}')">
         <td class="td-dim">${(c.date || '').slice(0, 10)}</td>

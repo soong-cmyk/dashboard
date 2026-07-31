@@ -1760,12 +1760,7 @@ function renderTable(data) {
 
   // 카운트
   document.getElementById('shownCnt').textContent = total;
-  const totalAdc = data.reduce((s, c) => {
-    if (['DA','IPTV'].includes(c.product)) return s + (c.daAdcost || 0);
-    if (c.product === 'CPA') return s + (c.adcostFixed || (c.db || c.qty || 0) * (c.sellUnit || 0));
-    const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
-    return s + base * (c.sellUnit||0);
-  }, 0);
+  const totalAdc = data.reduce((s, c) => s + _campAdcost(c), 0);
   const adcEl = document.getElementById('shownAdc');
   if (adcEl) adcEl.textContent = totalAdc
     ? (totalAdc >= 100000000 ? (totalAdc/100000000).toFixed(2).replace(/\.?0+$/,'')+'억원' : (totalAdc/10000).toFixed(2).replace(/\.?0+$/,'')+'만원')
@@ -1805,7 +1800,7 @@ function renderTable(data) {
       <td class="td-dim">${c.product}</td>
       <td class="td-dim">${c.ops || '—'}</td>
       <td class="td-num td-r">${(c.qty||0).toLocaleString()}</td>
-      <td class="td-num td-r">${(()=>{ const adc = ['DA','IPTV'].includes(c.product) ? (c.daAdcost||0) : c.product==='CPA' ? (c.adcostFixed||(c.db||c.qty||0)*(c.sellUnit||0)) : (c.adcostFixed || (()=>{ const base=(c.sellBillBase||c.billBase||'actual')==='sched'?(c.qty||0)-(c.svc||0):(c.actual?(c.actual-(c.svc||0)):(c.qty||0)-(c.svc||0)); return base*(c.sellUnit||0); })()); return adc?(adc>=10000?(adc/10000).toFixed(0)+'만':_fmtMoney(adc))+'원':'<span style="color:var(--text3)">—</span>';})()}</td>
+      <td class="td-num td-r">${(()=>{ const adc = _campAdcost(c); return adc?(adc>=10000?(adc/10000).toFixed(0)+'만':_fmtMoney(adc))+'원':'<span style="color:var(--text3)">—</span>';})()}</td>
       <td class="td-num td-r">${c.clicks!=null?c.clicks.toLocaleString():'<span style="color:var(--text3)">—</span>'}</td>
       <td class="td-num td-r">${(()=>{ const v=c.ctr; if(v==null)return '<span style="color:var(--text3)">—</span>'; const n=typeof v==='string'?parseFloat(v):v; return isNaN(n)?'<span style="color:var(--text3)">—</span>':n.toFixed(2)+'%'; })()}</td>
       <td><span class="badge b-${c.status}">${c.status}</span></td>
@@ -4306,11 +4301,7 @@ function _updateCalMeta() {
   });
 
   const totalQty = visible.reduce((s, c) => s + (c.actual || c.qty || 0), 0);
-  const totalAdc = visible.reduce((s, c) => {
-    if (['DA','IPTV'].includes(c.product)) return s + (c.daAdcost || 0);
-    const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0) - (c.svc||0) : (c.actual ? c.actual - (c.svc||0) : (c.qty||0) - (c.svc||0));
-    return s + (c.adcostFixed || base * (c.sellUnit || 0));
-  }, 0);
+  const totalAdc = visible.reduce((s, c) => s + _campAdcost(c), 0);
   const qtyEl = document.getElementById('calMetaQty');
   const cntEl = document.getElementById('calMetaCnt');
   const adcEl = document.getElementById('calMetaAdc');
@@ -4741,18 +4732,7 @@ function renderDashboard() {
   const campCnt  = statData.length;
   const sentQty  = statData.filter(c => c.sent).reduce((s, c) => s + (c.actual || c.qty || 0), 0);
   const totalQty = statData.reduce((s, c) => s + (c.qty || 0), 0);
-  const statAdc  = statData.reduce((s, c) => {
-    let adc = 0;
-    if (['DA','IPTV'].includes(c.product)) {
-      adc = c.daAdcost || 0;
-    } else if (c.product === 'CPA') {
-      adc = c.adcostFixed || (c.db || c.qty || 0) * (c.sellUnit || 0);
-    } else {
-      const base = (c.sellBillBase||c.billBase||'actual') === 'sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
-      adc = c.adcostFixed || base * (c.sellUnit || 0);
-    }
-    return s + adc;
-  }, 0);
+  const statAdc  = statData.reduce((s, c) => s + _campAdcost(c), 0);
 
   const lbl = selMonth ? `${+selMonth}월` : `${thisYear}년`;
   const campLbl = document.getElementById('dash-camp-lbl');
@@ -5787,13 +5767,7 @@ function renderMonthly() {
   // ── 1열: 요약 블록 ──────────────────────────
   const totalQty    = src.reduce((s,c) => s+(c.qty||0), 0);
   const totalActual = src.reduce((s,c) => s+(c.actual||0), 0);
-  const totalAdc    = src.reduce((s,c) => {
-    if (['DA','IPTV'].includes(c.product)) return s + (c.daAdcost || 0);
-    if (c.product === 'CPA') return s + (c.adcostFixed || (c.db || c.qty || 0) * (c.sellUnit || 0));
-    if (c.product === '퍼미션콜') return s + (c.pcAgree || 0) * (c.pcAdvUnit || 0);
-    const base = (c.sellBillBase||c.billBase||'actual')==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
-    return s + (c.adcostFixed || base*(c.sellUnit||0));
-  }, 0);
+  const totalAdc    = src.reduce((s,c) => s + _campAdcost(c), 0);
   const fmtAdc = v => v >= 100000000 ? (v/100000000).toFixed(2).replace(/\.?0+$/,'')+'억원' : (v/10000).toFixed(2).replace(/\.?0+$/,'')+'만원';
   document.getElementById('mly-stats').innerHTML = [
     ['집행건수',    src.length,           '건',  null],
@@ -7025,6 +6999,23 @@ function _stlAmt(c) {
   const prf     = c.profitFixed  ?? Math.round(amt - buyAmt - agFee);
   const prfRate = amt > 0 ? (prf / amt * 100) : 0;
   return { actual: sellQty, buyActual: buyQty, qty, disc, eu, adc, amt, adcVat, buyAmt, buyVat, stlRate, agFee, prf, prfRate };
+}
+
+/**
+ * 캠페인 광고비 단일 계산 함수 (조회·집계 화면 공용)
+ * - 정산 로직(_stlAmt)을 재사용하여 상품별 분기를 일원화
+ * - CPS만 예외: adc는 최종정산매출(거래액)이므로 amt(총 CPS 수수료)를 사용
+ * - 문자류는 매출단가 기준(adc) 유지 — 할인단가는 정산 화면에서만 반영
+ * - _stlHas는 qty/sellUnit(또는 db/qty) 존재 여부만 보기 때문에, 그 기준 필드가 0인데
+ *   adcostFixed(광고비 수동입력)만 넣어둔 캠페인을 누락시킨다 → _stlAmt와 동일한 판정으로 우회
+ */
+function _campAdcost(c) {
+  if (c.product === 'CPA' && c.adcostFixed) return c.adcostFixed;
+  if (!['DA','IPTV','퍼미션콜','CPS','CPA'].includes(c.product) && c.adcostFixed != null) return c.adcostFixed;
+  if (!_stlHas(c)) return 0;
+  const a = _stlAmt(c);
+  if (c.product === 'CPS') return a.amt || 0;  // 총 CPS 수수료
+  return a.adc || 0;                            // 매출단가 기준
 }
 
 /** 정산 동적 필터 드롭다운 채우기 (매출처·담당자·본부·팀) */
