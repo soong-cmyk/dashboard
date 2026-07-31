@@ -316,12 +316,20 @@
             <option>병의원</option>
             <option>기타</option>
           </select>
-          <select class="f-sel" id="calFilterMedia" onchange="renderCalendar()">
-            <option value="">매체사</option>
-          </select>
-          <select class="f-sel" id="calFilterCompany" onchange="renderCalendar()">
-            <option value="">광고주/대행사 </option>
-          </select>
+          <div class="combo-wrap" id="calFilterMedia_wrap" style="width:120px;flex-shrink:0;">
+            <input type="text" class="f-sel" id="calFilterMedia_text" placeholder="매체사" autocomplete="off" style="width:100%;padding-right:22px;"
+              oninput="fcRender('calFilterMedia')" onfocus="fcOpen('calFilterMedia')" onblur="fcClose('calFilterMedia')">
+            <input type="hidden" id="calFilterMedia">
+            <span class="combo-clear" onmousedown="event.preventDefault();fcClearFilter('calFilterMedia')">✕</span>
+            <div class="combo-list" id="combo-calFilterMedia-list"></div>
+          </div>
+          <div class="combo-wrap" id="calFilterCompany_wrap" style="width:140px;flex-shrink:0;">
+            <input type="text" class="f-sel" id="calFilterCompany_text" placeholder="광고주/대행사" autocomplete="off" style="width:100%;padding-right:22px;"
+              oninput="fcRender('calFilterCompany')" onfocus="fcOpen('calFilterCompany')" onblur="fcClose('calFilterCompany')">
+            <input type="hidden" id="calFilterCompany">
+            <span class="combo-clear" onmousedown="event.preventDefault();fcClearFilter('calFilterCompany')">✕</span>
+            <div class="combo-list" id="combo-calFilterCompany-list"></div>
+          </div>
           <select class="f-sel" id="calFilterBrand" onchange="renderCalendar()">
             <option value="">브랜드</option>
           </select>
@@ -466,12 +474,20 @@
             <option value="">담당자</option>
           </select>
            <div class="f-div"></div>
-          <select class="f-sel" id="fAdv" onchange="applyFilter()">
-            <option value="">광고주/대행사</option>
-          </select>
-          <select class="f-sel" id="fMedia" onchange="applyFilter()">
-            <option value="">매체사</option>
-          </select>
+          <div class="combo-wrap" id="fAdv_wrap" style="width:140px;flex-shrink:0;">
+            <input type="text" class="f-sel" id="fAdv_text" placeholder="광고주/대행사" autocomplete="off" style="width:100%;padding-right:22px;"
+              oninput="fcRender('fAdv')" onfocus="fcOpen('fAdv')" onblur="fcClose('fAdv')">
+            <input type="hidden" id="fAdv">
+            <span class="combo-clear" onmousedown="event.preventDefault();fcClearFilter('fAdv')">✕</span>
+            <div class="combo-list" id="combo-fAdv-list"></div>
+          </div>
+          <div class="combo-wrap" id="fMedia_wrap" style="width:120px;flex-shrink:0;">
+            <input type="text" class="f-sel" id="fMedia_text" placeholder="매체사" autocomplete="off" style="width:100%;padding-right:22px;"
+              oninput="fcRender('fMedia')" onfocus="fcOpen('fMedia')" onblur="fcClose('fMedia')">
+            <input type="hidden" id="fMedia">
+            <span class="combo-clear" onmousedown="event.preventDefault();fcClearFilter('fMedia')">✕</span>
+            <div class="combo-list" id="combo-fMedia-list"></div>
+          </div>
           <div class="f-div"></div>
           <div id="drp-trigger" onclick="drpOpen()" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:13px;color:var(--text1);white-space:nowrap;user-select:none;">
             <span id="drp-label">기간 선택</span>
@@ -1478,12 +1494,20 @@
             <option value="">담당자</option>
           </select>
           <div class="f-div"></div>
-          <select class="f-sel" id="stl-fAdv" onchange="renderSettlement()">
-            <option value="">광고주/대행사</option>
-          </select>
-          <select class="f-sel" id="stl-fMedia" onchange="renderSettlement()">
-            <option value="">매체사</option>
-          </select>
+          <div class="combo-wrap" id="stl-fAdv_wrap" style="width:140px;flex-shrink:0;">
+            <input type="text" class="f-sel" id="stl-fAdv_text" placeholder="광고주/대행사" autocomplete="off" style="width:100%;padding-right:22px;"
+              oninput="fcRender('stl-fAdv')" onfocus="fcOpen('stl-fAdv')" onblur="fcClose('stl-fAdv')">
+            <input type="hidden" id="stl-fAdv">
+            <span class="combo-clear" onmousedown="event.preventDefault();fcClearFilter('stl-fAdv')">✕</span>
+            <div class="combo-list" id="combo-stl-fAdv-list"></div>
+          </div>
+          <div class="combo-wrap" id="stl-fMedia_wrap" style="width:120px;flex-shrink:0;">
+            <input type="text" class="f-sel" id="stl-fMedia_text" placeholder="매체사" autocomplete="off" style="width:100%;padding-right:22px;"
+              oninput="fcRender('stl-fMedia')" onfocus="fcOpen('stl-fMedia')" onblur="fcClose('stl-fMedia')">
+            <input type="hidden" id="stl-fMedia">
+            <span class="combo-clear" onmousedown="event.preventDefault();fcClearFilter('stl-fMedia')">✕</span>
+            <div class="combo-list" id="combo-stl-fMedia-list"></div>
+          </div>
           <input class="f-sel" id="stl-fQ" type="text" placeholder="캠페인명 / ID / 매출처 검색" oninput="renderSettlement()" style="width:170px;">
           <div style="flex:1;"></div>
           <span class="f-reset" onclick="resetStlFilter()">✕ 초기화</span>

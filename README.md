@@ -105,187 +105,10 @@ dashboard/
 
 ---
 
-## Firebase 구조
+## DB 구조
 
-| 컬렉션 | 문서 키 | 설명 |
-|--------|---------|------|
-| `campaigns` | `c.id` (예: `C-2026-0047`) | 캠페인 전체 데이터 |
-| `pipeline` | `p.id` (예: `P-2026-0001`) | 영업 파이프라인 딜 |
-| `history` | `entry.id` (타임스탬프 기반) | 캠페인 수정 이력 |
-| `sellers` | `s.company` (슬래시→언더스코어) | 매출처(광고주/대행사) |
-| `media` | `m.company` (슬래시→언더스코어) | 매체사 |
-| `users` | `u.id` (로그인 아이디) | 사용자 계정 |
-| `taxInvoices` | `t.id` (숫자) | 세금계산서 발행요청 |
-| `notifications` | `notif_[timestamp]_[random]` | 사용자 알림 |
-| `settings/pipeline_targets` | 단일 문서 | 파이프라인 월별 목표 |
-| `invoiceImages` | `campaignId` | 매입계산서 첨부 이미지 |
-
-### 시작 시 실시간 구독 순서 (script.js 하단)
-```
-_fbWatchCampaigns()         → DATA[]           (onSnapshot)
-_fbWatchPipeline()          → PIPELINE_DATA[]  (onSnapshot)
-_fbLoadPipelineTargets()    → PIPELINE_BUDGET_DATA
-_fbWatchSellers()           → SELLER_DATA[]    (onSnapshot)
-_fbWatchMedia()             → MEDIA_DATA[]     (onSnapshot)
-_fbWatchUsers()             → USERS[]          (onSnapshot)
-_fbWatchTax()               → TAX_DATA[]       (onSnapshot)
-_fbWatchNotifications()     → NOTIFICATIONS[]  (onSnapshot, 로그인 사용자 본인 알림만)
-```
-
----
-
-## 데이터 모델
-
-### 캠페인 (`DATA` → `campaigns`)
-
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `id` | string | `C-YYYY-NNNN` 형식 |
-| `promo` | string | 광고목적/프로모션 테마 |
-| `regDate` | string | 등록일시 (`YYYY-MM-DD HH:mm`) |
-| `cat` | string | 카테고리 |
-| `date` | string | 발송 예약일시 (DA: 노출 시작일, CPA: 발송 시작일) |
-| `dateEnd` | string | 종료일 (`YYYY-MM-DD`, DA·CPA 전용) |
-| `media` | string | 매체사명 |
-| `product` | string | SMS / MMS / LMS / DA / CPA / 퍼미션콜 |
-| `qty` | number | 발송 예약 수량 |
-| `svc` | number | 서비스 수량 |
-| `actual` | number | 실발송 수량 |
-| `clicks` | number | 클릭수 |
-| `ctr` | number | 클릭률(%) |
-| `db` | number | DB등록수 |
-| `status` | string | 부킹확정 / 테스트완료 / 성과입력대기 / 성과입력완료 |
-| `testOk` | boolean | 테스트 수신 확인 여부 |
-| `sent` | boolean | 실발송 확인 여부 |
-| `ops` | string | 운영 담당자 이름 |
-| `dept` | string | 담당 부서 (`1본부 1팀` 형식) |
-| `seller` | string | 매출처 회사명 |
-| `content` | string | 브랜드명 |
-| `adv` | string | 광고주명 |
-| `sellUnit` | number | 매출 단가 (원/건) |
-| `buyUnit` | number | 매입 단가 (원/건) |
-| `disc` | number | 할인 금액 (원) |
-| `comm` | number | 수수료율(%) |
-| `agrate` | number | 대행수수료율(%) |
-| `target` | string | 타겟 조건 |
-| `msg` | string | 발송 문구 (검수전) |
-| `msgFinal` | string | 발송 문구 (검수완료) |
-| `note` | string | 특기사항 |
-| `invoiceOut` | boolean | 매출 세금계산서 발행 여부 |
-| `invoiceIn` | string | 매입 세금계산서 상태 |
-| `payIn` | boolean | 입금 완료 여부 |
-| `regUser` | string | 등록한 사용자 id |
-| `daAdcost` | number | DA 광고비 |
-| `pcAdvUnit` | number | 퍼미션콜 광고주 단가 |
-| `pcOhcCost` | number | 퍼미션콜 OHC 비용 |
-| `pcAgree` | number | 퍼미션콜 동의건수 |
-| `pcInflow` | number | 퍼미션콜 유입수 |
-
-> 캠페인명은 저장 필드 없이 `_cName(c)` 함수로 실시간 계산: **브랜드_매체** 형식
-
-### 세금계산서 (`TAX_DATA` → `taxInvoices`)
-
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `id` | number | 고유 ID |
-| `groupId` | number | 같은 발행요청 묶음 ID (`T-XXX` 표시 기준) |
-| `taxType` | string | `adv`(광고주) / `media`(매체) |
-| `company` | string | 발행 대상 업체명 |
-| `bizName` | string | 법인 상호명 |
-| `campaignId` | string | 연결된 캠페인 ID |
-| `month` | string | 발송월 (`YYYY년M월`) |
-| `content` | string | 세금계산서 내용 |
-| `supplyAmt` | number | 공급가액 |
-| `vatAmt` | number | 부가세포함 금액 |
-| `reqDate` | string | 발행요청일 (`YYYY-MM-DD`) |
-| `issueDate` | string | 발행일 |
-| `payDue` | string | 입금예정일 |
-| `taxStatus` | string | `''`(미발행) / `완료`(발행완료) |
-| `paid` | string | `''`(미처리) / `완료`(입금완료) |
-| `unpaid` | number | 미수 금액 |
-| `contactEmail` | string | 담당자 이름/이메일 |
-| `memo` | string | 메모 |
-| `createdBy` | string | 등록자 이름 |
-| `manager` | string | 담당자 이름 |
-
-> 그룹번호: `_taxGroupLabel(gid)` → `T-001` 형식으로 카드에 표시
-
-### 알림 (`NOTIFICATIONS` → `notifications`)
-
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `id` | string | `notif_[timestamp]_[random]` |
-| `toUserId` | string | 수신자 user ID |
-| `fromUserName` | string | 발생시킨 사람 이름 |
-| `type` | string | `tax_issue` / `tax_issue_cancel` / `tax_payment` / `tax_payment_cancel` / `tax_new` |
-| `body` | string | 알림 본문 텍스트 |
-| `createdAt` | string | ISO 8601 생성일시 |
-| `read` | boolean | 읽음 여부 |
-
-**알림 발생 조건:**
-
-| 타입 | 트리거 | 수신자 |
-|------|--------|--------|
-| `tax_issue` | 세금계산서 세발 완료 처리 | 요청 담당자 |
-| `tax_issue_cancel` | 세발 완료 취소 | 요청 담당자 |
-| `tax_payment` | 입금 완료 처리 | 요청 담당자 |
-| `tax_payment_cancel` | 입금 완료 취소 | 요청 담당자 |
-| `tax_new` | 세금계산서 신규 등록 | `wonjoon` 고정 |
-
-### 파이프라인 (`PIPELINE_DATA` → `pipeline`)
-
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `id` | string | `P-YYYY-NNNN` 형식 |
-| `stage` | string | MAKEUP / POTENTIAL / COMMITMENT / ACTUAL |
-| `bonbu` | string | 본부 |
-| `dept` | string | 팀 |
-| `month` | string | 해당 월 (`YYYY-MM`) |
-| `cat` | string | 카테고리 |
-| `seller` | string | 매출처 회사명 |
-| `brand` | string | 브랜드명 |
-| `media` | string | 예상 매체 |
-| `product` | string | SMS / MMS / LMS 등 |
-| `estQty` | number | 예상 수량 |
-| `estAmt` | number | 예상 금액 (직접 입력 시) |
-| `memo` | string | 메모 |
-| `tags` | string[] | 태그 목록 |
-| `archived` | boolean | 아카이브 여부 |
-| `convertedCampaignId` | string | 전환된 캠페인 ID |
-| `createdAt` | string | 생성일시 |
-
-### 매출처 (`SELLER_DATA` → `sellers`)
-
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `company` | string | 회사명 (문서 키) |
-| `type` | string | 광고주 / 대행사 / 랩사 |
-| `agrate` | number | 대행료율% (대행사·랩사) |
-| `brands` | object[] | `[{name, cat}]` — 하위 브랜드 목록 |
-
-### 매체사 (`MEDIA_DATA` → `media`)
-
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `company` | string | 매체사명 (문서 키) |
-| `unit` | number | 기본 단가 (원/건) |
-| `active` | boolean | 활성 여부 |
-| `contact` | string | 담당자 |
-| `tel` | string | 연락처 |
-| `payDay` | string | 지급일 (선입금 여부 포함) |
-
-### 사용자 (`USERS` → `users`)
-
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `id` | string | 로그인 아이디 (문서 키) |
-| `pw` | string | 비밀번호 |
-| `name` | string | 이름 |
-| `bonbu` | string | 본부 |
-| `dept` | string | 팀 |
-| `rank` | string | 일반 / 본부장 / 이사 / 대표이사 |
-| `isAdmin` | boolean | 관리자 여부 |
-| `perms` | object | `{ops: bool}` |
+Firestore 컬렉션·필드 상세 명세는 **[DB_SCHEMA.md](./DB_SCHEMA.md)** 참고.
+(컬렉션 목록, 필드별 타입·의미, 상품별 분기 규칙, 계산 함수 사용법 등)
 
 ---
 
@@ -405,7 +228,8 @@ MMS·LMS·PUSH·카톡MSG 기준 CTR 성과를 다각도로 분석하는 화면 
 | 함수 | 설명 |
 |------|------|
 | `_cName(c)` | 캠페인명 생성: `브랜드_매체` |
-| `_stlAmt(c)` | 정산 금액 계산 (상품별 분기) |
+| `_stlAmt(c)` / `_stlHas(c)` | 정산 금액 계산 (상품별 분기) / 정산 가능 여부 |
+| `_campAdcost(c)` | 조회·집계 화면 공용 광고비 (`_stlAmt` 재사용, CPS만 총수수료 반환) |
 | `_taxGroupLabel(gid)` | 세금계산서 그룹번호: `T-001` 형식 |
 | `_notifBody(type, company, content, count, gid)` | 알림 본문 텍스트 생성 |
 | `calcReg()` / `calcEdit()` | 등록/수정 폼 금액 자동 계산 |
@@ -480,6 +304,34 @@ MMS·LMS·PUSH·카톡MSG 기준 CTR 성과를 다각도로 분석하는 화면 
 ---
 
 ## 변경 이력
+
+### 2026-07
+
+| 날짜 | 분류 | 내용 |
+|------|------|------|
+| 07-31 | 버그수정 | 정산 화면 퍼미션콜 탭에 매체사·광고주 필터, CPS 탭에 매체사 필터가 아예 적용 안 되던 버그 수정 (두 탭이 공용 필터링 로직을 안 쓰고 자체 구현하면서 누락) |
+| 07-31 | 개선 | 캠페인목록·정산·캘린더의 광고주/대행사·매체사 필터를 드롭다운에서 텍스트 검색형 콤보박스로 교체 — 입력창 클릭 시 전체 목록, 타이핑하면 실시간으로 좁혀짐. "전체" 항목과 ✕ 초기화 버튼 추가 |
+| 07-31 | 버그수정 | 광고비 계산식 대시보드·캘린더·캠페인목록·월별발송량·광고주리포트 5곳 중복 제거, `_campAdcost()`로 통일 — 퍼미션콜·CPS 캠페인 광고비가 0원으로 집계되던 버그 수정 |
+| 07-23 | 개선 | 직급에 `실장`·`팀장` 추가, `RANK_LEVEL` 숫자 매핑(1=대표이사~6=일반) 도입 |
+| 07-23 | 개선 | KPI 메뉴 열람 권한을 전체 직급으로 개방 (편집 권한은 대표이사·이사·본부장으로 유지) |
+| 07-23 | 개선 | KPI 메뉴 BEP 섹션(시나리오비교·월별추이) 열람 권한을 실장·팀장까지 확대 |
+| 07-23 | 버그수정 | 세금계산서 수정발행 금액모델을 "차액 가산"에서 "최종금액으로 대체"로 수정 — 원본은 취소 처리되어 집계(합계·건수)에서 제외, 카드도 취소선+흐림 처리로 구분 |
+| 07-23 | 개선 | 세금계산서 수정발행 등록 권한을 계정 화이트리스트 방식에서 본인 요청건 기준으로 완화 |
+| 07-23 | 개선 | 세금계산서 삭제 확인창에 삭제 대상 그룹번호(`T-XXX`) 표시 |
+| 07-20 | 신규 | 세금계산서 수정발행 기능 추가 — 완료건 수정 시 원본은 그대로 두고 새 그룹으로 분리 발행, 원본은 삭제이력에 기록 후 취소 처리 |
+| 07-20 | 신규 | KPI 메뉴에 BEP(손익분기점) 관리 섹션 추가 — 취급고 기준 시나리오 비교(월BEP/As-is/매출KPI) + 월별 추이 표 |
+| 07-10 | 신규 | 사용현황 분석 메뉴 신설 (관리자 전용) — 로그인 시간대 패턴 탭 구현 |
+| 07-10 | 신규 | 사용현황 분석 에러 현황·필터 이용·기능 시도 탭 구현, 탭 순서를 중요도순으로 재배치 |
+| 07-09 | 개선 | 캠페인 상세보기의 광고비/실청구/매입액/이익 계산을 정산탭(`_stlAmt`)과 동일한 로직으로 통일 (CPA에서 두 화면 수치가 어긋나던 문제 해결) |
+| 07-09 | 버그수정 | CPA 수정 저장 시 수동입력 아닌 확정(Fixed) 필드가 `null` 대신 `0`으로 저장되어 상세보기 계산이 깨지던 버그 수정 |
+| 07-09 | 버그수정 | CPS 브레인큐브 수익금(`profitFixed`) 수동입력이 등록/수정 시 저장되지 않던 버그 수정 |
+| 07-09 | 개선 | 캠페인 수정 이력 추적 범위를 일부 고정 필드에서 전체 필드로 확장 |
+| 07-09 | 버그수정 | CPA 수정화면 실시간계산 버그 수정 — 등록화면과 중복 작성돼있던 별도 공식 대신 동일 함수 재사용 |
+| 07-02 | 버그수정 | 세금계산서 신규 등록 실패 시 `taxAdvReq` 플래그가 잔류하던 버그 수정 — 레코드 저장 성공 후에만 플래그 세팅 |
+| 07-02 | 버그수정 | 세금계산서 수정 시 저장 실패해도 기존 데이터가 보존되도록 삭제→저장 순서를 저장→삭제로 변경 |
+| 07-02 | 개선 | 세금계산서 선택 합계 계산을 `parseInt` → `Number`로 변경 (반올림 제거) |
+
+---
 
 ### 2026-06
 

@@ -1832,30 +1832,9 @@ function changePageSize(val) { PAGE_SIZE = +val; currentPage = 1; renderTable(fi
 function _populateAdvFilter() {
   const btnDel = document.getElementById('btn-deleted-list');
   if (btnDel) btnDel.style.display = (currentUser?.isAdmin || currentUser?.id === 'wonjoon') ? '' : 'none';
-  const sel = document.getElementById('fAdv');
-  if (!sel) return;
-  const { bonbu, team } = _parseOrgFilter(document.getElementById('fOrg')?.value || '');
-  const mgr = document.getElementById('fMgr')?.value || '';
-  let advList;
-  if (bonbu || team || mgr) {
-    advList = [...new Set(
-      DATA.filter(c => {
-        if (mgr && c.ops !== mgr) return false;
-        if (bonbu || team) {
-          const u = USERS.find(u => u.name === c.ops);
-          if (bonbu && (!u || u.bonbu !== bonbu)) return false;
-          if (team  && (!u || u.dept  !== team))  return false;
-        }
-        return true;
-      }).map(c => c.seller || c.adv || '').filter(Boolean)
-    )].sort((a, b) => a.localeCompare(b, 'ko'));
-  } else {
-    advList = SELLER_DATA.map(s => s.company);
-  }
-  const current = sel.value;
-  sel.innerHTML = '<option value="">광고주/대행사</option>' +
-    advList.map(v => `<option value="${_escHtml(v)}">${_escHtml(v)}</option>`).join('');
-  sel.value = advList.includes(current) ? current : '';
+  const hidden = document.getElementById('fAdv');
+  if (!hidden) return;
+  if (!_fAdvItems().includes(hidden.value)) _fcClear('fAdv');
 }
 function _campOrgFilterChange() { _populateAdvFilter(); applyFilter(); }
 
@@ -1947,6 +1926,8 @@ function _restoreFilterState(screen) {
       const el = document.getElementById(id);
       if (el) el.value = s[id] || '';
     });
+    const fAdvText = document.getElementById('fAdv_text');     if (fAdvText)   fAdvText.value   = s.fAdv   || '';
+    const fMediaText = document.getElementById('fMedia_text'); if (fMediaText) fMediaText.value = s.fMedia || '';
     activeStatus = s.activeStatus || 'all';
     document.querySelectorAll('#screen-campaigns .board').forEach(b => b.classList.remove('active-board'));
     const boardEl = document.getElementById('board-' + activeStatus);
@@ -1969,6 +1950,8 @@ function _restoreFilterState(screen) {
     _set('stl-fAdv',    s.fAdv);
     _set('stl-fOps',    s.fOps);
     _set('stl-fOrg',    s.fOrg);
+    _set('stl-fMedia_text', s.fMedia);
+    _set('stl-fAdv_text',   s.fAdv);
     stlView = s.stlView || 'media';
     ['campaign','adv','agency','media','pc','cps'].forEach(t => {
       const el = document.getElementById('stl-vt-' + t);
@@ -1981,6 +1964,7 @@ function _restoreFilterState(screen) {
 
 function resetFilter() {
   ['fCat','fProd','fMedia','fMgr','fAdv','fOrg'].forEach(id => { const el = document.getElementById(id); if (el) el.value=''; });
+  _fcClear('fAdv'); _fcClear('fMedia');
   document.getElementById('fQ').value='';
   const now = new Date();
   document.getElementById('fFrom').value = _dateKey(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -2420,6 +2404,166 @@ function comboClose(name) {
 
 function comboAddNew(name) {
   _comboConfig(name).onAddNew();
+}
+
+// ══════════════════════════════════════════
+// 필터 콤보박스 (광고주/대행사·매체사 필터를 텍스트 검색형으로) — 등록폼 콤보와 별도 엔진
+// 필터 바가 overflow-x:auto라 절대배치 드롭다운이 잘리므로, 화면 좌표 기준 고정배치로 표시
+// ══════════════════════════════════════════
+function _fAdvItems() {
+  const { bonbu, team } = _parseOrgFilter(document.getElementById('fOrg')?.value || '');
+  const mgr = document.getElementById('fMgr')?.value || '';
+  if (bonbu || team || mgr) {
+    return [...new Set(
+      DATA.filter(c => {
+        if (mgr && c.ops !== mgr) return false;
+        if (bonbu || team) {
+          const u = USERS.find(u => u.name === c.ops);
+          if (bonbu && (!u || u.bonbu !== bonbu)) return false;
+          if (team  && (!u || u.dept  !== team))  return false;
+        }
+        return true;
+      }).map(c => c.seller || c.adv || '').filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, 'ko'));
+  }
+  return SELLER_DATA.map(s => s.company);
+}
+
+function _stlAdvItems() {
+  const { bonbu, team } = _parseOrgFilter(document.getElementById('stl-fOrg')?.value || '');
+  const ops = document.getElementById('stl-fOps')?.value || '';
+  if (bonbu || team || ops) {
+    return [...new Set(
+      DATA.filter(c => {
+        if (ops && c.ops !== ops) return false;
+        if (bonbu || team) {
+          const u = USERS.find(u => u.name === c.ops);
+          if (bonbu && (!u || u.bonbu !== bonbu)) return false;
+          if (team  && (!u || u.dept  !== team))  return false;
+        }
+        return true;
+      }).map(c => c.seller || c.adv || '').filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, 'ko'));
+  }
+  return [...new Set(DATA.map(c => c.seller || c.adv || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+}
+
+function _calCompanyItems() {
+  return [...new Set(DATA.map(c => _cCompany(c)).filter(Boolean))].sort();
+}
+
+function _fcConfig(name) {
+  return {
+    fAdv:   { textId:'fAdv_text',   hiddenId:'fAdv',   listId:'combo-fAdv-list',   getItems:_fAdvItems, onSelect:() => applyFilter() },
+    fMedia: { textId:'fMedia_text', hiddenId:'fMedia', listId:'combo-fMedia-list', getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => applyFilter() },
+    'stl-fAdv':   { textId:'stl-fAdv_text',   hiddenId:'stl-fAdv',   listId:'combo-stl-fAdv-list',   getItems:_stlAdvItems, onSelect:() => renderSettlement() },
+    'stl-fMedia': { textId:'stl-fMedia_text', hiddenId:'stl-fMedia', listId:'combo-stl-fMedia-list', getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => renderSettlement() },
+    calFilterCompany: { textId:'calFilterCompany_text', hiddenId:'calFilterCompany', listId:'combo-calFilterCompany-list', getItems:_calCompanyItems, onSelect:() => renderCalendar() },
+    calFilterMedia:   { textId:'calFilterMedia_text',   hiddenId:'calFilterMedia',   listId:'combo-calFilterMedia-list',   getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => renderCalendar() },
+  }[name];
+}
+
+const FC_NAMES = ['fAdv','fMedia','stl-fAdv','stl-fMedia','calFilterCompany','calFilterMedia'];
+const FC_ALL_LABEL = '전체';
+
+function fcCloseAll() {
+  FC_NAMES.forEach(name => {
+    const el = document.getElementById(_fcConfig(name).listId);
+    if (el) el.style.display = 'none';
+  });
+}
+// 드롭다운 목록 자체를 스크롤하는 건 무시 — 필터바/페이지 스크롤일 때만 닫음
+window.addEventListener('scroll', e => {
+  if (e.target instanceof Element && e.target.closest('.combo-list')) return;
+  fcCloseAll();
+}, true);
+
+function fcOpen(name) {
+  // 포커스 시엔 이전 선택값으로 좁혀진 목록 대신 항상 전체 목록부터 보여줌
+  const textEl = document.getElementById(_fcConfig(name).textId);
+  if (textEl) textEl.select();
+  _fcRenderList(name, '');
+}
+
+function fcRender(name) {
+  const textEl = document.getElementById(_fcConfig(name).textId);
+  const q = (textEl?.value || '').trim().toLowerCase();
+  _fcRenderList(name, q);
+}
+
+function _fcRenderList(name, q) {
+  fcCloseAll();
+  const cfg = _fcConfig(name);
+  const textEl = document.getElementById(cfg.textId);
+  const listEl = document.getElementById(cfg.listId);
+  if (!textEl || !listEl) return;
+  const items = cfg.getItems();
+  const filtered = q ? items.filter(it => it.toLowerCase().includes(q)) : items;
+
+  listEl.innerHTML = '';
+  const allDiv = document.createElement('div');
+  allDiv.className = 'combo-item combo-all';
+  allDiv.textContent = FC_ALL_LABEL;
+  allDiv.addEventListener('mousedown', e => { e.preventDefault(); fcSelect(name, ''); });
+  listEl.appendChild(allDiv);
+
+  if (filtered.length) {
+    filtered.forEach(val => {
+      const div = document.createElement('div');
+      div.className = 'combo-item';
+      div.textContent = val;
+      div.addEventListener('mousedown', e => { e.preventDefault(); fcSelect(name, val); });
+      listEl.appendChild(div);
+    });
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'combo-empty';
+    empty.textContent = '검색 결과 없음';
+    listEl.appendChild(empty);
+  }
+
+  // 필터 바(.filter-bar)가 overflow-x:auto라 절대배치는 잘리므로 화면 좌표 기준 고정배치
+  const rect = textEl.getBoundingClientRect();
+  listEl.style.position = 'fixed';
+  listEl.style.top   = (rect.bottom + 3) + 'px';
+  listEl.style.left  = rect.left + 'px';
+  listEl.style.width = rect.width + 'px';
+  listEl.style.right = 'auto';
+  listEl.style.display = 'block';
+}
+
+function fcSelect(name, val) {
+  const cfg = _fcConfig(name);
+  document.getElementById(cfg.textId).value = val;
+  document.getElementById(cfg.hiddenId).value = val;
+  document.getElementById(cfg.listId).style.display = 'none';
+  cfg.onSelect();
+}
+
+function fcClose(name) {
+  setTimeout(() => {
+    const cfg = _fcConfig(name);
+    const listEl = document.getElementById(cfg.listId);
+    if (listEl) listEl.style.display = 'none';
+    const textEl = document.getElementById(cfg.textId);
+    const hiddenEl = document.getElementById(cfg.hiddenId);
+    if (textEl && hiddenEl) textEl.value = hiddenEl.value;
+  }, 150);
+}
+
+/** 입력창 옆 ✕ 버튼 — 드롭다운 열 필요 없이 바로 전체로 초기화 */
+function fcClearFilter(name) {
+  _fcClear(name);
+  _fcConfig(name).onSelect();
+  document.getElementById(_fcConfig(name).textId)?.focus();
+  fcOpen(name);
+}
+
+/** 필터 콤보 값+표시텍스트 동시 초기화 (populate/reset 함수 공용) */
+function _fcClear(name) {
+  const cfg = _fcConfig(name);
+  const h = document.getElementById(cfg.hiddenId); if (h) h.value = '';
+  const t = document.getElementById(cfg.textId);   if (t) t.value = '';
 }
 
 function openAdvRegModal(comboName) {
@@ -4186,15 +4330,11 @@ function openCalPreview(idx) {
 }
 
 function _populateCalFilters() {
-  const companies = [...new Set(DATA.map(c => _cCompany(c)).filter(Boolean))].sort();
+  const companies = _calCompanyItems();
   const brands    = [...new Set(DATA.map(c => c.content).filter(Boolean))].sort();
-  const compSel  = document.getElementById('calFilterCompany');
-  const brandSel = document.getElementById('calFilterBrand');
-  if (compSel) {
-    const cur = compSel.value;
-    compSel.innerHTML = '<option value="">광고주/대행사</option>' +
-      companies.map(s => `<option${s===cur?' selected':''}>${s}</option>`).join('');
-  }
+  const compHidden = document.getElementById('calFilterCompany');
+  const brandSel   = document.getElementById('calFilterBrand');
+  if (compHidden && !companies.includes(compHidden.value)) _fcClear('calFilterCompany');
   if (brandSel) {
     const cur = brandSel.value;
     brandSel.innerHTML = '<option value="">브랜드</option>' +
@@ -4216,6 +4356,7 @@ function _populateCalFilters() {
 function resetCalFilters() {
   ['calFilterCat','calFilterMedia','calFilterCompany','calFilterBrand','calFilterOrg']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  _fcClear('calFilterMedia'); _fcClear('calFilterCompany');
   renderCalendar();
 }
 
@@ -7022,29 +7163,7 @@ function _campAdcost(c) {
 function _stlPopulateDynFilters() {
   // 광고주/대행사 — 본부/팀·담당자 선택 시 해당 범위 캠페인의 광고주만 표시
   const advEl = document.getElementById('stl-fAdv');
-  if (advEl) {
-    const { bonbu, team } = _parseOrgFilter(document.getElementById('stl-fOrg')?.value || '');
-    const ops = document.getElementById('stl-fOps')?.value || '';
-    let advList;
-    if (bonbu || team || ops) {
-      advList = [...new Set(
-        DATA.filter(c => {
-          if (ops && c.ops !== ops) return false;
-          if (bonbu || team) {
-            const u = USERS.find(u => u.name === c.ops);
-            if (bonbu && (!u || u.bonbu !== bonbu)) return false;
-            if (team  && (!u || u.dept  !== team))  return false;
-          }
-          return true;
-        }).map(c => c.seller || c.adv || '').filter(Boolean)
-      )].sort((a, b) => a.localeCompare(b, 'ko'));
-    } else {
-      advList = [...new Set(DATA.map(c => c.seller || c.adv || '').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
-    }
-    const cur = advEl.value;
-    advEl.innerHTML = '<option value="">광고주/대행사</option>' + advList.map(v=>`<option value="${_escHtml(v)}">${_escHtml(v)}</option>`).join('');
-    advEl.value = advList.includes(cur) ? cur : '';
-  }
+  if (advEl && !_stlAdvItems().includes(advEl.value)) _fcClear('stl-fAdv');
   // 담당자 (ops)
   const opsEl = document.getElementById('stl-fOps');
   if (opsEl) {
@@ -7075,6 +7194,7 @@ function resetStlFilter() {
     const el = document.getElementById(id);
     if (el) el.value = id === 'stl-fScope' ? 'settled' : '';
   });
+  _fcClear('stl-fMedia'); _fcClear('stl-fAdv');
   const qEl = document.getElementById('stl-fQ');
   if (qEl) qEl.value = '';
   stlView = 'adv';
@@ -7650,6 +7770,8 @@ function renderSettlement() {
 function renderStlPermCall(container) {
   const cat      = document.getElementById('stl-fCat')?.value   || '';
   const ops      = document.getElementById('stl-fOps')?.value   || '';
+  const media    = document.getElementById('stl-fMedia')?.value || '';
+  const adv      = document.getElementById('stl-fAdv')?.value   || '';
   const { bonbu, team } = _parseOrgFilter(document.getElementById('stl-fOrg')?.value || '');
   const selYear  = document.getElementById('stl-year')?.value   || '';
   const selMonth = document.getElementById('stl-month')?.value  || '';
@@ -7658,6 +7780,8 @@ function renderStlPermCall(container) {
     if (c.product !== '퍼미션콜') return false;
     if (cat  && c.cat  !== cat)  return false;
     if (ops  && c.ops  !== ops)  return false;
+    if (media && c.media !== media) return false;
+    if (adv   && (c.seller || c.adv || '') !== adv) return false;
     if (team || bonbu) {
       const u = USERS.find(u => u.name === c.ops);
       if (bonbu && (!u || u.bonbu !== bonbu)) return false;
@@ -7737,6 +7861,7 @@ function renderStlCpsView(container) {
   const cat     = document.getElementById('stl-fCat')?.value   || '';
   const ops     = document.getElementById('stl-fOps')?.value   || '';
   const adv     = document.getElementById('stl-fAdv')?.value   || '';
+  const media   = document.getElementById('stl-fMedia')?.value || '';
   const { bonbu, team } = _parseOrgFilter(document.getElementById('stl-fOrg')?.value || '');
   const selYear  = document.getElementById('stl-year')?.value  || '';
   const selMonth = document.getElementById('stl-month')?.value || '';
@@ -7746,6 +7871,7 @@ function renderStlCpsView(container) {
     if (cat && c.cat !== cat) return false;
     if (ops && c.ops !== ops) return false;
     if (adv && (c.seller || c.adv || '') !== adv) return false;
+    if (media && c.media !== media) return false;
     if (team || bonbu) {
       const u = USERS.find(u => u.name === c.ops);
       if (bonbu && (!u || u.bonbu !== bonbu)) return false;
@@ -11041,13 +11167,11 @@ async function _fbDeleteMedia(company) {
   catch(e) { console.error('[FB] 매체사 삭제 실패:', e); }
 }
 function _populateMediaSelects() {
-  const opts = MEDIA_DATA.map(m => `<option value="${m.company}">${m.company}</option>`).join('');
+  const companies = MEDIA_DATA.map(m => m.company);
   ['fMedia', 'calFilterMedia', 'stl-fMedia'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const cur = el.value;
-    el.innerHTML = '<option value="">매체사</option>' + opts;
-    if (cur) el.value = cur;
+    const hidden = document.getElementById(id);
+    if (!hidden) return;
+    if (!companies.includes(hidden.value)) _fcClear(id);
   });
 }
 

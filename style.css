@@ -421,12 +421,17 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
 
 /* ── COMBOBOX ── */
 .combo-wrap{position:relative;}
+.combo-wrap input[type="text"]{cursor:text;}
+.combo-clear{display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:11px;color:var(--text3);line-height:1;padding:2px;}
+.combo-clear:hover{color:var(--text1);}
+.combo-wrap input[type="text"]:not(:placeholder-shown) ~ .combo-clear{display:block;}
 .combo-list{position:absolute;top:calc(100% + 3px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);z-index:300;max-height:200px;overflow-y:auto;display:none;}
 .combo-item{padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text);}
 .combo-item:hover{background:var(--accent-light);}
 .combo-add{padding:8px 12px;cursor:pointer;font-size:12px;color:var(--accent);font-weight:600;border-top:1px solid var(--border);display:flex;align-items:center;gap:4px;}
 .combo-add:hover{background:var(--accent-light);}
 .combo-empty{padding:8px 12px;font-size:12px;color:var(--text3);}
+.combo-all{color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);}
 
 /* ── KANBAN / PIPELINE ── */
 .kanban-board{display:flex;gap:14px;overflow-x:auto;align-items:flex-start;padding-bottom:12px;}
@@ -785,8 +790,8 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
 
   /* 행2: 필터 셀렉트 — 기본 숨김, 필터 토글 시 펼침 */
   #calFilterCat,
-  #calFilterMedia,
-  #calFilterCompany,
+  #calFilterMedia_wrap,
+  #calFilterCompany_wrap,
   #calFilterSales,
   .cal-reset-btn {
     display: none;
@@ -794,8 +799,8 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
     flex: 1 1 calc(50% - 4px);
   }
   .cal-header.filter-open #calFilterCat,
-  .cal-header.filter-open #calFilterMedia,
-  .cal-header.filter-open #calFilterCompany,
+  .cal-header.filter-open #calFilterMedia_wrap,
+  .cal-header.filter-open #calFilterCompany_wrap,
   .cal-header.filter-open #calFilterSales { display: flex; }
   .cal-header.filter-open .cal-reset-btn  { display: flex; }
 
