@@ -9602,18 +9602,27 @@ function taxRegCampSelect(cid) {
       if (monSel  && dateParts[1])                   monSel.value  = parseInt(dateParts[1]);
       const contentEl = firstRow.querySelector('.tax-r-row-content');
       if (contentEl && !contentEl.value) contentEl.value = _taxContentAuto(c);
-      const supplyEl = firstRow.querySelector('.tax-r-row-supply');
-      if (supplyEl && !supplyEl.value) {
-        const stl = _stlAmt(c);
-        const amt = taxType === 'media' ? stl.buyAmt : stl.amt;
-        if (amt > 0) { supplyEl.value = amt; taxManualCalcTotal(); }
-      }
     }
   }
+  _taxRegSyncLinkedSupply();
 }
 function taxRegCampRemove(cid) {
   _taxRegLinkedCamps = _taxRegLinkedCamps.filter(x => x !== cid);
   _taxRegRenderChips();
+  _taxRegSyncLinkedSupply();
+}
+// 연결된 캠페인이 여러 건이면 첫 행의 공급가액을 그 캠페인들의 합계로 채움
+function _taxRegSyncLinkedSupply() {
+  if (!_taxRegLinkedCamps.length) return;
+  const taxType = document.getElementById('tax-r-taxType')?.value || 'adv';
+  const total = _taxRegLinkedCamps.reduce((s, cid) => {
+    const c = DATA.find(x => x.id === cid);
+    if (!c) return s;
+    const stl = _stlAmt(c);
+    return s + (taxType === 'media' ? (stl.buyAmt || 0) : (stl.amt || 0));
+  }, 0);
+  const supplyEl = document.querySelector('#tax-r-rows .tax-r-row .tax-r-row-supply');
+  if (supplyEl && total > 0) { supplyEl.value = total; taxManualCalcTotal(); }
 }
 
 // ── 수동 등록/수정 모달 ──
@@ -9748,7 +9757,7 @@ function taxManualCalcTotal() {
   const supplyEl = document.getElementById('tax-r-supply-total');
   const vatEl    = document.getElementById('tax-r-vat-total');
   if (supplyEl) supplyEl.textContent = total.toLocaleString();
-  if (vatEl)    vatEl.textContent    = Math.round(total * 1.1).toLocaleString();
+  if (vatEl)    vatEl.value          = Math.floor(total * 1.1).toLocaleString();
 }
 
 function taxManualPaidChange(chk) {
@@ -9834,7 +9843,7 @@ async function saveTaxReg() {
       payInDate: paidChk ? payInDate : null,
       unpaid:    paidChk ? 0 : null,
       company, bizName, content,
-      supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
+      supplyAmt: supply, vatAmt: Math.floor(supply * 1.1),
       contactEmail: email, memo,
     });
   }
@@ -9855,7 +9864,7 @@ async function saveTaxReg() {
       payInDate: paidChk ? payInDate : null,
       unpaid: paidChk ? 0 : null,
       company, bizName, content: _taxContentAuto(lc),
-      supplyAmt: refAmt, vatAmt: Math.round(refAmt * 1.1),
+      supplyAmt: refAmt, vatAmt: Math.floor(refAmt * 1.1),
       contactEmail: '', memo: ''
     }});
   }
@@ -9903,6 +9912,7 @@ let _taxGenAdvSet   = new Set();
 let _taxGenMediaSet = new Set();
 
 function openTaxAutoGen() {
+  _taxEditGid = null; // 이전 수정발행 세션이 취소/X/ESC로 종료돼 남아있을 수 있는 상태 초기화
   _taxGenAdvSet   = new Set(TAX_DATA.filter(t => t.campaignId && (t.taxType === 'adv' || !t.taxType)).map(t => t.campaignId));
   _taxGenMediaSet = new Set(TAX_DATA.filter(t => t.campaignId && t.taxType === 'media').map(t => t.campaignId));
   _taxGenEligible = DATA.filter(c => {
@@ -10041,12 +10051,13 @@ function taxGenBulkType(type) {
 
 function taxGenUpdateTotal() {
   let total = 0;
-  document.querySelectorAll('.tax-gen-chk:checked').forEach(chk => {
+  const checked = document.querySelectorAll('.tax-gen-chk:checked');
+  checked.forEach(chk => {
     const typeEl = chk.closest('tr')?.querySelector('.tax-gen-type');
     if (typeEl && typeEl.value) total += Number(chk.dataset.supply) || 0;
   });
   const el = document.getElementById('tax-gen-total');
-  if (el) el.innerHTML = `선택 합계 <b>${total ? total.toLocaleString() : '0'}</b>원`;
+  if (el) el.innerHTML = `선택 <b>${checked.length}</b>건 · 합계 <b>${total ? total.toLocaleString() : '0'}</b>원`;
 }
 
 function taxGenNext() {
@@ -10094,6 +10105,7 @@ function taxGenNext() {
       const supplyFn = c => taxType === 'media' ? (_stlAmt(c).buyAmt || 0) : (_stlAmt(c).amt || 0);
       const supplyTotal = campaigns.reduce((s, c) => s + supplyFn(c), 0);
       const typeLabel = taxType === 'adv' ? '광고주' : '매체';
+      const bizName = taxType === 'adv' ? company : (MEDIA_DATA.find(mm => mm.company === company)?.invoiceTo || company);
 
       // 대표 월 (첫 캠페인 기준)
       const repMonth = _taxMonthLabel(campaigns[0]);
@@ -10118,7 +10130,8 @@ function taxGenNext() {
 
       cards.push(`<div class="tax-gen-group-card" data-gi="${gi}" data-company="${_escHtml(company)}" data-taxtype="${taxType}" style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;">
         <div style="background:var(--surface2);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <span style="font-weight:700;font-size:14px;">${_escHtml(company)}</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text3);">업체명 <input type="text" class="form-input tax-gen-company" style="font-size:13px;font-weight:700;padding:3px 6px;width:140px;" value="${_escHtml(company)}"></span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text3);">법인 상호명(매입처명) <input type="text" class="form-input tax-gen-bizname" style="font-size:12px;padding:3px 6px;width:140px;" value="${_escHtml(bizName)}"></span>
           <span style="font-size:11px;color:var(--primary,#1a73e8);background:rgba(26,115,232,.1);padding:2px 8px;border-radius:20px;font-weight:600;">${typeLabel}</span>
           <span style="font-size:12px;color:var(--text2);">캠페인 ${campaigns.length}건 · 참조 공급가액 ${supplyTotal.toLocaleString()}원</span>
           <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
@@ -10163,7 +10176,7 @@ function taxGenNext() {
           </table>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;margin-bottom:16px;">
             <button class="btn btn-ghost btn-sm" onclick="taxGenManualAddRow(${gi},${repYear},${repMon})">+ 항목 추가</button>
-            <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-${gi}">${supplyTotal ? supplyTotal.toLocaleString() : '0'}</b>원 &nbsp;·&nbsp; 부가세포함 <b id="tax-gen-m-vat-${gi}">${supplyTotal ? Math.round(supplyTotal*1.1).toLocaleString() : '0'}</b>원</span>
+            <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-${gi}">${supplyTotal ? supplyTotal.toLocaleString() : '0'}</b>원 &nbsp;·&nbsp; 부가세포함 <input type="text" id="tax-gen-m-vat-${gi}" class="form-input" style="width:90px;display:inline-block;text-align:right;font-size:12px;padding:2px 6px;" value="${supplyTotal ? Math.round(supplyTotal*1.1).toLocaleString() : '0'}">원</span>
           </div>
 
           <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.4px;margin-bottom:6px;">불러온 캠페인 (참조) <span style="color:var(--primary,#1a73e8);font-weight:700;">${campaigns.length}건</span></div>
@@ -10189,6 +10202,8 @@ function taxGenNext() {
   document.getElementById('tax-gen-step1').style.display = 'none';
   document.getElementById('tax-gen-step2').style.display = '';
   document.getElementById('tax-gen-title').innerHTML = '정보 입력 <span style="font-size:12px;color:var(--text3);font-weight:400;">2단계 / 2단계</span>';
+  _taxEditGid = null; // 신규 등록 흐름 — 이전 수정발행 세션 상태가 남아있으면 안 됨
+  _taxSetStep2Footer('new');
 }
 
 function taxGenPrev() {
@@ -10289,7 +10304,7 @@ function taxGenManualCalcTotal(gi) {
   const supplyEl = document.getElementById(`tax-gen-m-supply-${gi}`);
   const vatEl    = document.getElementById(`tax-gen-m-vat-${gi}`);
   if (supplyEl) supplyEl.textContent = total.toLocaleString();
-  if (vatEl)    vatEl.textContent    = Math.round(total * 1.1).toLocaleString();
+  if (vatEl)    vatEl.value          = Math.floor(total * 1.1).toLocaleString();
 }
 
 function taxToggleRef(ids) {
@@ -10412,7 +10427,8 @@ function taxEditGroup(gid) {
     </div>
     <div class="tax-gen-group-card" data-gi="0" data-company="${_escHtml(company)}" data-taxtype="${taxType}" data-pay-in-date="${isPaid ? (rep.payInDate||'') : ''}" style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;">
       <div style="background:var(--surface2);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span style="font-weight:700;font-size:14px;">${_escHtml(company)}</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text3);">업체명 <input type="text" class="form-input tax-gen-company" style="font-size:13px;font-weight:700;padding:3px 6px;width:140px;" value="${_escHtml(company)}"></span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text3);">법인 상호명(매입처명) <input type="text" class="form-input tax-gen-bizname" style="font-size:12px;padding:3px 6px;width:140px;" value="${_escHtml(rep.bizName || company)}"></span>
         <span style="font-size:11px;color:var(--primary,#1a73e8);background:rgba(26,115,232,.1);padding:2px 8px;border-radius:20px;font-weight:600;">${typeLabel}</span>
         <span style="font-size:12px;color:var(--text2);">캠페인 ${refItems.length}건 · 참조 공급가액 ${refTotal.toLocaleString()}원</span>
         <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
@@ -10449,7 +10465,7 @@ function taxEditGroup(gid) {
         </table>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;margin-bottom:16px;">
           <button class="btn btn-ghost btn-sm" onclick="taxGenManualAddRow(0,${repYear},${repMon})">+ 항목 추가</button>
-          <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-0">${manualTotal.toLocaleString()}</b>원 &nbsp;·&nbsp; 부가세포함 <b id="tax-gen-m-vat-0">${Math.round(manualTotal*1.1).toLocaleString()}</b>원</span>
+          <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-0">${manualTotal.toLocaleString()}</b>원 &nbsp;·&nbsp; 부가세포함 <input type="text" id="tax-gen-m-vat-0" class="form-input" style="width:90px;display:inline-block;text-align:right;font-size:12px;padding:2px 6px;" value="${Math.floor(manualTotal*1.1).toLocaleString()}">원</span>
         </div>
 
         <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.4px;margin-bottom:6px;">불러온 캠페인 (참조)</div>
@@ -10497,7 +10513,8 @@ async function confirmTaxEdit() {
   const paidChk   = card.querySelector('.tax-gen-paid-chk')?.checked || false;
   const payInDate = card.dataset.payInDate || null;
   const taxType   = card.dataset.taxtype   || 'adv';
-  const company   = card.dataset.company   || '';
+  const company   = card.querySelector('.tax-gen-company')?.value.trim() || card.dataset.company || '';
+  const cardBizName = card.querySelector('.tax-gen-bizname')?.value.trim() || '';
 
   const origMap  = {};
   existing.forEach(t => { origMap[t.id] = t; });
@@ -10505,6 +10522,7 @@ async function confirmTaxEdit() {
   const groupId = _taxEditGid;
   const commonFields = {
     groupId, taxType, company,
+    correctionOf: existing[0]?.correctionOf ?? null,
     reqDate:    commonReq,
     issueDate:  issDate,
     payDue:     paidChk ? '' : payDue,
@@ -10535,9 +10553,9 @@ async function confirmTaxEdit() {
       createdBy: currentUser?.name || '',
       manager: origItem?.manager || '',
       month, content, supplyAmt: supply,
-      vatAmt: Math.round(supply * 1.1),
+      vatAmt: Math.floor(supply * 1.1),
       contactEmail: email, memo,
-      bizName: taxType === 'adv' ? company : (MEDIA_DATA.find(mm => mm.company === company)?.invoiceTo || company),
+      bizName: cardBizName || (taxType === 'adv' ? company : (MEDIA_DATA.find(mm => mm.company === company)?.invoiceTo || company)),
       taxStatus: origItem?.taxStatus || '',
     });
   }
@@ -10549,9 +10567,9 @@ async function confirmTaxEdit() {
     const origItem = origTid ? origMap[origTid] : null;
     if (!origItem?.campaignId) continue;
     const camp = DATA.find(c => c.id === origItem.campaignId);
-    const bizName = taxType === 'adv'
+    const bizName = cardBizName || (taxType === 'adv'
       ? (camp?.seller || camp?.adv || company)
-      : (MEDIA_DATA.find(mm => mm.company === camp?.media)?.invoiceTo || camp?.media || company);
+      : (MEDIA_DATA.find(mm => mm.company === camp?.media)?.invoiceTo || camp?.media || company));
     newItems.push({
       id: nextNewId++, ...commonFields,
       campaignId: origItem.campaignId, isRef: true,
@@ -10598,8 +10616,9 @@ async function confirmTaxAutoGen() {
     const payDue        = card.querySelector('.tax-gen-paydue')?.value || '';
     const paidChk       = card.querySelector('.tax-gen-paid-chk')?.checked || false;
     const payInDate     = card.dataset.payInDate || null;
-    const cardCompany   = card.dataset.company   || '';
+    const cardCompany   = card.querySelector('.tax-gen-company')?.value.trim() || card.dataset.company || '';
     const cardTaxType   = card.dataset.taxtype   || 'adv';
+    const cardBizName   = card.querySelector('.tax-gen-bizname')?.value.trim() || '';
     const manualRows    = [...card.querySelectorAll('.tax-gen-manual-row')];
     const campRows      = [...card.querySelectorAll('.tax-gen-camp-row')];
     if (!manualRows.length && !campRows.length) continue;
@@ -10625,8 +10644,8 @@ async function confirmTaxAutoGen() {
         paid:      paidChk ? '완료' : null,
         payInDate: paidChk ? (payInDate || null) : null,
         unpaid:    paidChk ? 0 : null,
-        company: cardCompany, bizName: cardTaxType === 'adv' ? cardCompany : (MEDIA_DATA.find(mm => mm.company === cardCompany)?.invoiceTo || cardCompany),
-        content, supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
+        company: cardCompany, bizName: cardBizName || (cardTaxType === 'adv' ? cardCompany : (MEDIA_DATA.find(mm => mm.company === cardCompany)?.invoiceTo || cardCompany)),
+        content, supplyAmt: supply, vatAmt: Math.floor(supply * 1.1),
         contactEmail: email, memo
       };
       TAX_DATA.push(t);
@@ -10648,8 +10667,8 @@ async function confirmTaxAutoGen() {
       const email    = tr.querySelector('.tax-gen-email')?.value.trim() || '';
       const memo     = tr.querySelector('.tax-gen-memo')?.value.trim()  || '';
       const mediaRec = MEDIA_DATA.find(m => m.company === c.media);
-      const company  = taxType==='adv' ? (c.seller||c.adv||'') : (c.media || '');
-      const bizName  = taxType==='adv' ? (c.seller||c.adv||'') : (mediaRec?.invoiceTo || c.media || '');
+      const company  = cardCompany || (taxType==='adv' ? (c.seller||c.adv||'') : (c.media || ''));
+      const bizName  = cardBizName || (taxType==='adv' ? (c.seller||c.adv||'') : (mediaRec?.invoiceTo || c.media || ''));
 
       const t = {
         id: _taxNextId(), groupId,
@@ -10664,7 +10683,7 @@ async function confirmTaxAutoGen() {
         payInDate: paidChk ? (payInDate || null) : null,
         unpaid:    paidChk ? 0 : null,
         company, content: _taxContentAuto(c), bizName,
-        supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
+        supplyAmt: supply, vatAmt: Math.floor(supply * 1.1),
         contactEmail: email, memo,
         isRef: manualRows.length > 0 ? true : undefined
       };
