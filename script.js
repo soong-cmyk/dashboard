@@ -7059,10 +7059,10 @@ window.addEventListener('hashchange', () => {
 /** 정산 데이터 표시 여부 (상품별 기준 필드 다름) */
 function _stlHas(c) {
   if (['DA','IPTV'].includes(c.product))        return !!c.daAdcost;
-  if (c.product === 'CPA')       return !!(c.db || c.qty);
+  if (c.product === 'CPA')       return !!(c.db || c.qty || c.adcostFixed);
   if (c.product === 'CPS')       return !!c.cpsFinalSales;
   if (c.product === '퍼미션콜')  return !!c.pcAdvUnit || !!c.pcAgree;
-  return !!(c.sellUnit && c.qty);
+  return !!((c.sellUnit && c.qty) || c.adcostFixed != null || c.amtFixed != null);
 }
 
 /** 실발송수량(actual) 기준 정산 금액 계산 */
