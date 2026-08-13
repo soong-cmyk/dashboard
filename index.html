@@ -3406,6 +3406,10 @@
             <label class="form-label">회사명 <span class="req">*</span></label>
             <input type="text" class="form-input" id="sel-company" placeholder="회사명 입력">
           </div>
+          <div class="fg" style="flex:1;max-width:150px;">
+            <label class="form-label">업무 시작일</label>
+            <input type="date" class="form-input" id="sel-start-date">
+          </div>
         </div>
         <!-- 대행사 전용 -->
         <div id="sel-agency-fields" style="display:none;">
@@ -3432,7 +3436,16 @@
             </select>
             <button class="btn btn-primary btn-sm" id="sel-brand-add-btn" onclick="addSellerBrand()">추가</button>
           </div>
-          <div id="sel-brand-list" style="min-height:28px;"></div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead>
+              <tr style="color:var(--text3);border-bottom:1px solid var(--border);">
+                <th style="text-align:left;padding:5px 4px;font-weight:500;">브랜드</th>
+                <th style="text-align:left;padding:5px 4px;font-weight:500;width:70px;">카테고리</th>
+                <th style="width:50px;"></th>
+              </tr>
+            </thead>
+            <tbody id="sel-brand-list"></tbody>
+          </table>
         </div>
       </div>
       <div class="modal-foot">

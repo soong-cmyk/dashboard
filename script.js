@@ -6354,9 +6354,7 @@ function deleteMedia() {
 // ══════════════════════════════════════════
 let sellerEditIdx = null;
 let sellerPendingCombo = null;
-let sellerBrands = [];
-let _brandRenames = [];   // [{old, new}] — 모달 1회 편집 중 발생한 브랜드명 변경 추적
-let _editingBrandName = null; // 현재 수정 중인 브랜드 구 이름
+let sellerBrands = []; // {name, cat, _origName} — _origName은 저장 시 브랜드명 변경분(rename) 판별용, Firestore에는 안 씀
 let _sellerTab = 'adv'; // 'adv' | 'agency'
 
 function switchSellerTab(tab) {
@@ -6537,18 +6535,13 @@ function openSellerModal(idx, defaultType) {
   sellerEditIdx = idx ?? null;
   const d = {type: defaultType || '광고주', company:'', agrate:0, brands:[]};
   const s = idx != null ? SELLER_DATA[idx] : d;
-  sellerBrands = [...(s.brands || [])];
-  _brandRenames = [];
-  _editingBrandName = null;
-  const _addBtn  = document.getElementById('sel-brand-add-btn');
-  const _saveBtn = document.getElementById('sel-save-btn');
-  if (_addBtn)  _addBtn.textContent = '추가';
-  if (_saveBtn) { _saveBtn.disabled = false; _saveBtn.style.opacity = ''; }
+  sellerBrands = (s.brands || []).map(b => ({ name: b.name || b, cat: b.cat || '', _origName: b.name || b }));
   document.getElementById('sel-title').textContent = idx != null ? '매출처 수정' : '매출처 등록';
   document.getElementById('sel-del-btn').style.display = idx != null ? '' : 'none';
   document.getElementById('sel-type').value    = s.type || defaultType || '광고주';
   document.getElementById('sel-company').value = s.company || '';
   document.getElementById('sel-agrate').value  = s.agrate || '';
+  document.getElementById('sel-start-date').value = s.startDate || '';
   document.getElementById('sel-brand-input').value = '';
   selTypeChange();
   renderSellerBrands();
@@ -6562,21 +6555,39 @@ function selTypeChange() {
   document.getElementById('sel-adv-fields').style.display   = '';
 }
 
+const SELLER_BRAND_CATS = ['분양', '교육', '뷰티', '수송', '금융', '병의원', '기타'];
+
 function renderSellerBrands() {
   const el = document.getElementById('sel-brand-list');
   if (!el) return;
   if (!sellerBrands.length) {
-    el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:4px 0;">추가된 브랜드 없음</div>';
+    el.innerHTML = '<tr><td colspan="3" style="color:var(--text3);font-size:12px;padding:8px 4px;">추가된 브랜드 없음</td></tr>';
     return;
   }
   el.innerHTML = sellerBrands.map((b, i) => {
-    const name = b.name || b, cat = b.cat || '';
-    return `<span class="tag" style="display:inline-flex;align-items:center;gap:4px;margin:2px 2px 2px 0;">
-      ${_escHtml(name)}${cat?`<span style="font-size:11px;color:var(--text3);">(${cat})</span>`:''}
-      <span style="cursor:pointer;color:var(--accent);font-size:12px;line-height:1;" title="수정" onclick="editSellerBrand(${i})">✏</span>
-      <span style="cursor:pointer;color:var(--text2);font-size:14px;line-height:1;" title="삭제" onclick="removeSellerBrand(${i})">×</span>
-    </span>`;
+    const catOpts = `<option value="">선택</option>` + SELLER_BRAND_CATS.map(c =>
+      `<option value="${c}" ${b.cat === c ? 'selected' : ''}>${c}</option>`).join('');
+    return `<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:2px;">
+        <input type="text" class="form-input" value="${_escHtml(b.name)}" oninput="_sellerBrandNameInput(${i}, this.value)"
+          style="border:none;background:transparent;padding:5px 4px;width:100%;font-size:12px;">
+      </td>
+      <td style="padding:2px;">
+        <select class="form-sel" onchange="_sellerBrandCatChange(${i}, this.value)"
+          style="border:none;background:transparent;padding:5px 2px;width:100%;font-size:12px;">${catOpts}</select>
+      </td>
+      <td style="padding:5px 4px;text-align:center;white-space:nowrap;">
+        <span style="cursor:pointer;color:var(--text2);font-size:14px;" title="삭제" onclick="removeSellerBrand(${i})">×</span>
+      </td>
+    </tr>`;
   }).join('');
+}
+
+function _sellerBrandNameInput(i, val) {
+  if (sellerBrands[i]) sellerBrands[i].name = val;
+}
+function _sellerBrandCatChange(i, val) {
+  if (sellerBrands[i]) sellerBrands[i].cat = val;
 }
 
 function addSellerBrand() {
@@ -6585,18 +6596,10 @@ function addSellerBrand() {
   const val = (inp.value || '').trim();
   if (!val) return;
   if (!cat) { toast('⚠ 카테고리를 선택해주세요', 'warn'); return; }
-  if (sellerBrands.find(b => (b.name || b) === val)) { toast('이미 추가된 브랜드입니다', 'warn'); return; }
-  if (_editingBrandName && _editingBrandName !== val) {
-    _brandRenames.push({ old: _editingBrandName, new: val });
-  }
-  _editingBrandName = null;
-  sellerBrands.push({name: val, cat});
+  if (sellerBrands.find(b => b.name === val)) { toast('이미 추가된 브랜드입니다', 'warn'); return; }
+  sellerBrands.push({ name: val, cat, _origName: null }); // 신규 브랜드는 원래 이름이 없어 rename 추적 대상이 아님
   inp.value = '';
   renderSellerBrands();
-  const addBtn  = document.getElementById('sel-brand-add-btn');
-  const saveBtn = document.getElementById('sel-save-btn');
-  if (addBtn)  addBtn.textContent = '추가';
-  if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; }
 }
 
 function removeSellerBrand(i) {
@@ -6604,29 +6607,14 @@ function removeSellerBrand(i) {
   renderSellerBrands();
 }
 
-function editSellerBrand(i) {
-  const b = sellerBrands[i];
-  if (!b) return;
-  _editingBrandName = b.name || b;
-  const inp = document.getElementById('sel-brand-input');
-  const catSel = document.getElementById('sel-brand-cat');
-  if (inp) inp.value = b.name || b;
-  if (catSel && b.cat) catSel.value = b.cat;
-  sellerBrands.splice(i, 1);
-  renderSellerBrands();
-  const addBtn  = document.getElementById('sel-brand-add-btn');
-  const saveBtn = document.getElementById('sel-save-btn');
-  if (addBtn)  addBtn.textContent = '수정';
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = '0.4'; }
-  if (inp) inp.focus();
-}
-
 function saveSeller() {
   const type    = document.getElementById('sel-type').value;
   const company = document.getElementById('sel-company').value.trim();
   if (!company) { toast('⚠ 회사명을 입력해주세요', 'warn'); return; }
   const agrate  = +document.getElementById('sel-agrate').value || 0;
-  const obj = { type, company, agrate, brands: [...sellerBrands] };
+  const startDate = document.getElementById('sel-start-date').value || '';
+  const brandRenames = sellerBrands.filter(b => b._origName && b._origName !== b.name).map(b => ({ old: b._origName, new: b.name }));
+  const obj = { type, company, agrate, startDate, brands: sellerBrands.map(b => ({ name: b.name, cat: b.cat })) };
   const oldCompany = sellerEditIdx != null ? SELLER_DATA[sellerEditIdx]?.company : null;
   if (sellerEditIdx != null) SELLER_DATA[sellerEditIdx] = obj;
   else SELLER_DATA.push(obj);
@@ -6647,8 +6635,8 @@ function saveSeller() {
   }
 
   // 브랜드명 변경 → 관련 캠페인 content 일괄 업데이트
-  if (_brandRenames.length > 0) {
-    _brandRenames.forEach(({old: oldName, new: newName}) => {
+  if (brandRenames.length > 0) {
+    brandRenames.forEach(({old: oldName, new: newName}) => {
       DATA.forEach(c => {
         if ((c.seller === company || c.adv === company) && c.content === oldName) {
           c.content = newName;
@@ -6661,8 +6649,6 @@ function saveSeller() {
 
   if (campUpdateCount > 0) toast(`✓ 저장되었습니다 (관련 캠페인 ${campUpdateCount}건 업데이트)`, 'ok');
   else toast('✓ 저장되었습니다', 'ok');
-  _brandRenames = [];
-  _editingBrandName = null;
 
   const pendingCombo = sellerPendingCombo;
   sellerPendingCombo = null;
