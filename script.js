@@ -7150,6 +7150,20 @@ function _stlAmt(c) {
 }
 
 /**
+ * 세금계산서 참조 캠페인의 공급가액 — 발행완료 전에는 캠페인의 "현재" 정산 데이터로 매번 다시 계산(라이브)해서
+ * 캠페인 정보가 나중에 채워지면 자동으로 반영되고, 발행완료(taxStatus==='완료') 후에는 등록 당시 저장된
+ * supplyAmt를 그대로 고정(스냅샷) — 이미 발행된 세금계산서 금액은 이후 캠페인 수정과 무관하게 유지돼야 함.
+ */
+function _taxRefSupplyAmt(t) {
+  if (!t || !t.isRef || !t.campaignId) return t?.supplyAmt || 0;
+  if (t.taxStatus === '완료') return t.supplyAmt || 0;
+  const c = DATA.find(x => x.id === t.campaignId);
+  if (!c) return t.supplyAmt || 0;
+  const stl = _stlAmt(c);
+  return (t.taxType === 'media' ? stl.buyAmt : stl.amt) || 0;
+}
+
+/**
  * 캠페인 광고비 단일 계산 함수 (조회·집계 화면 공용)
  * - 정산 로직(_stlAmt)을 재사용하여 상품별 분기를 일원화
  * - CPS만 예외: adc는 최종정산매출(거래액)이므로 amt(총 CPS 수수료)를 사용
@@ -8938,6 +8952,19 @@ function _taxCampaignPending(c) {
 // ── 세금계산서 필터/렌더 ──
 var _taxQuickFilter = null; // 'unissued' | 'unpaid' | null
 let _taxRegLinkedCamps = []; // 수동등록 모달 — 연결된 캠페인 ID 배열
+let _taxPage = 1;
+const TAX_PAGE_SIZE = 20;
+function taxGoPage(n) { _taxPage = n; renderTaxList(); }
+function taxPrevPageGroup() {
+  const curGroup = Math.ceil(_taxPage / 10);
+  if (curGroup > 1) taxGoPage((curGroup - 2) * 10 + 1);
+}
+function taxNextPageGroup() {
+  const curGroup = Math.ceil(_taxPage / 10);
+  const totalPages = Math.max(1, Math.ceil(TAX_DATA.length / TAX_PAGE_SIZE));
+  const nextFirst = curGroup * 10 + 1;
+  if (nextFirst <= totalPages) taxGoPage(nextFirst);
+}
 
 function resetTaxFilter() {
   _taxQuickFilter = 'unissued';
@@ -8989,12 +9016,13 @@ function renderTaxList() {
   });
 
   // 그룹 단위 필터링 (어느 항목이라도 조건에 맞으면 그룹 전체 유지)
-  const _groupMatches = (items) => {
+  const _groupMatches = (items, gid) => {
     const rep = items[0];
     if (year    && !(rep.month || '').includes(year+'년')) return false;
     if (month   && !(rep.month || '').includes(parseInt(month)+'월')) return false;
     if (manager && rep.createdBy !== manager) return false;
     if (company) {
+      if (_taxGroupLabel(gid).toLowerCase().includes(company)) return true;
       return items.some(t => {
         const lc = t.campaignId ? DATA.find(c => c.id === t.campaignId) : null;
         const lName   = lc ? (_cName(lc)||'').toLowerCase() : '';
@@ -9010,7 +9038,7 @@ function renderTaxList() {
   };
   // 그룹 정렬: groupId 내림차순 (새로 생긴 그룹이 위)
   const groups = [...groupMap.entries()]
-    .filter(([, items]) => _groupMatches(items))
+    .filter(([gid, items]) => _groupMatches(items, gid))
     .sort((a, b) => b[0] - a[0]);
 
   // 수정발행 연결 조회용 — 검색/기간 필터에 걸러지지 않은 전체 groupMap 기준으로 조회해야
@@ -9046,7 +9074,7 @@ function renderTaxList() {
     const mainItems = items.filter(t => !t.isRef);
     const calcItems = mainItems.length ? mainItems : items; // 카드 표시와 동일 기준
     calcItems.forEach(t => {
-      totalSupply += t.supplyAmt || 0;
+      totalSupply += _taxRefSupplyAmt(t);
       totalVat    += t.vatAmt    || 0;
     });
     if (items[0].taxStatus === '완료' && items[0].paid !== '완료')
@@ -9077,13 +9105,40 @@ function renderTaxList() {
   if (!listEl) return;
   if (!displayGroups.length) {
     listEl.innerHTML = `<div class="tax-card-empty">해당 조건의 세금계산서가 없습니다.</div>`;
+    const pgInfoEmpty = document.getElementById('tax-pg-info');
+    if (pgInfoEmpty) pgInfoEmpty.textContent = '— / —';
+    const pgBtnsEmpty = document.getElementById('tax-pg-btns');
+    if (pgBtnsEmpty) pgBtnsEmpty.innerHTML = '';
     return;
+  }
+
+  // 페이지네이션 — 요약 통계(totalSupply 등)는 필터된 전체 기준, 카드 목록만 페이지 단위로 자름
+  const taxTotalPages = Math.max(1, Math.ceil(displayGroups.length / TAX_PAGE_SIZE));
+  if (_taxPage > taxTotalPages) _taxPage = taxTotalPages;
+  const pageStart = (_taxPage - 1) * TAX_PAGE_SIZE;
+  const pageGroups = displayGroups.slice(pageStart, pageStart + TAX_PAGE_SIZE);
+
+  const pgInfo = document.getElementById('tax-pg-info');
+  if (pgInfo) pgInfo.textContent = `${pageStart + 1} – ${Math.min(pageStart + TAX_PAGE_SIZE, displayGroups.length)} / ${displayGroups.length}건`;
+  const pgBtns = document.getElementById('tax-pg-btns');
+  if (pgBtns) {
+    const PG_WIN = 10;
+    const curGroup    = Math.ceil(_taxPage / PG_WIN);
+    const totalGroups = Math.ceil(taxTotalPages / PG_WIN);
+    const groupStart  = (curGroup - 1) * PG_WIN + 1;
+    const groupEnd    = Math.min(curGroup * PG_WIN, taxTotalPages);
+    let html = `<button class="pg-btn" onclick="taxPrevPageGroup()" ${curGroup===1?'disabled':''}>‹</button>`;
+    for (let p = groupStart; p <= groupEnd; p++) {
+      html += `<button class="pg-btn${p===_taxPage?' active':''}" onclick="taxGoPage(${p})">${p}</button>`;
+    }
+    html += `<button class="pg-btn" onclick="taxNextPageGroup()" ${curGroup===totalGroups?'disabled':''}>›</button>`;
+    pgBtns.innerHTML = html;
   }
 
   const _dateDisp = v => v ? v.replace(/-/g, '.').slice(2) : '—'; // 2026-04-22 → 26.04.22
 
   const cards = [];
-  displayGroups.forEach(([gid, items]) => {
+  pageGroups.forEach(([gid, items]) => {
     const mainItems = items.filter(t => !t.isRef).sort((a, b) => a.id - b.id);
     const refItems  = items.filter(t =>  t.isRef).sort((a, b) => a.id - b.id);
     const dispItems = mainItems.length ? mainItems : items.slice().sort((a, b) => a.id - b.id);
@@ -9095,7 +9150,7 @@ function renderTaxList() {
     const canStatus   = ['wonjoon','yoonhee','admin'].includes(currentUser?.id);
     const canCorrect  = canDelete; // 수정발행 등록 — 관리자 또는 본인 요청건이면 가능 (완료 처리 권한(canStatus)과는 별개)
     const canPaid     = true;
-    const supplySum   = dispItems.reduce((s, t) => s + (t.supplyAmt || 0), 0);
+    const supplySum   = dispItems.reduce((s, t) => s + _taxRefSupplyAmt(t), 0);
     const vatSum      = dispItems.reduce((s, t) => s + (t.vatAmt    || 0), 0);
     const unpaidVal   = rep.unpaid != null ? rep.unpaid : null;
     // 수정발행 체인 — 이 그룹을 원본으로 하는 수정발행 건(자식), 이 그룹이 수정발행인 경우 원본(부모)
@@ -9117,12 +9172,13 @@ function renderTaxList() {
       const campName = t.content || (camp ? _cName(camp) : '—');
       const mgr = t.manager || '—';
       const monthShort = (t.month || '').replace(/\d+년/, '');
+      const liveSupply = _taxRefSupplyAmt(t);
       return `<tr>
         <td style="padding:7px 10px 7px 10px;white-space:nowrap;">${t.issueDate||'—'}</td>
         <td style="width:150px;min-width:150px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escHtml(t.bizName||'—')}</td>
         <td style="font-weight:500;">${_escHtml(campName)}</td>
         <td style="color:var(--text2);">${_escHtml(mgr)}</td>
-        <td class="td-r">${t.supplyAmt ? t.supplyAmt.toLocaleString() : '—'}</td>
+        <td class="td-r">${liveSupply ? liveSupply.toLocaleString() : '—'}</td>
         <td class="td-r" style="font-weight:600;">${t.vatAmt ? t.vatAmt.toLocaleString() : '—'}</td>
         <td style="color:var(--text2);">${_escHtml(t.contactEmail||'—')}</td>
         <td class="tax-memo-cell" data-memo="${_escHtml(t.memo||'')}"
@@ -9189,6 +9245,7 @@ function renderTaxList() {
             <!-- [1,1]: 번호 + 원본 표시(수정발행인 경우) -->
             <div style="grid-column:1;grid-row:1;padding-right:40px;padding-bottom:4px;white-space:nowrap;display:flex;align-items:center;gap:6px;">
               <span style="font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-light);padding:2px 0px;border-radius:10px;white-space:nowrap;">${_taxGroupLabel(gid)}</span>
+              <span style="font-size:11px;color:${rep.taxType === 'adv' ? 'var(--primary,#1a73e8)' : '#7c3aed'};background:${rep.taxType === 'adv' ? 'rgba(26,115,232,.1)' : 'rgba(124,58,237,.1)'};padding:2px 8px;border-radius:20px;font-weight:600;">${rep.taxType === 'adv' ? '광고주' : '매체'}</span>
               ${backwardBadge}
             </div>
             <!-- 세로선: 두 행 전체 -->
@@ -9270,7 +9327,7 @@ function openTaxLinkedInfoModal(gid) {
   const mainItems  = items.filter(t => !t.isRef).sort((a, b) => a.id - b.id);
   const dispItems  = mainItems.length ? mainItems : items.slice().sort((a, b) => a.id - b.id);
   const rep        = dispItems[0];
-  const supplySum  = dispItems.reduce((s, t) => s + (t.supplyAmt || 0), 0);
+  const supplySum  = dispItems.reduce((s, t) => s + _taxRefSupplyAmt(t), 0);
   const vatSum     = dispItems.reduce((s, t) => s + (t.vatAmt    || 0), 0);
   const isDone     = rep.taxStatus === '완료';
   const isPaid     = rep.paid === '완료';
@@ -9279,7 +9336,7 @@ function openTaxLinkedInfoModal(gid) {
     <tr>
       <td style="padding:5px 8px;border:1px solid var(--border);font-size:12px;">${_escHtml(t.month || '—')}</td>
       <td style="padding:5px 8px;border:1px solid var(--border);font-size:12px;">${_escHtml(t.content || '—')}</td>
-      <td style="padding:5px 8px;border:1px solid var(--border);font-size:12px;text-align:right;">${(t.supplyAmt || 0).toLocaleString()}</td>
+      <td style="padding:5px 8px;border:1px solid var(--border);font-size:12px;text-align:right;">${_taxRefSupplyAmt(t).toLocaleString()}</td>
     </tr>`).join('');
 
   const mId = 'modalTaxLinkedInfo';
@@ -9630,6 +9687,16 @@ function taxRegCampRemove(cid) {
   _taxRegRenderChips();
 }
 
+// 발행구분(광고주/매체)에 따라 업체명·법인상호명 라벨의 의미가 달라져서(예: "매입처명"은 매체용에만 맞는 표현)
+// 헷갈리지 않도록 선택값에 맞춰 라벨을 바꿔준다.
+function _taxTypeLabelSync() {
+  const isAdv = (document.getElementById('tax-r-taxType')?.value || 'adv') === 'adv';
+  const companyLbl = document.getElementById('tax-r-company-label');
+  if (companyLbl) companyLbl.textContent = isAdv ? '광고주명' : '매체사명';
+  const bizNameLbl = document.getElementById('tax-r-bizName-label');
+  if (bizNameLbl) bizNameLbl.textContent = isAdv ? '법인 상호명(세금계산서 등록명)' : '법인 상호명(매입처명)';
+}
+
 // ── 수동 등록/수정 모달 ──
 function openTaxReg(gid) {
   const now = new Date();
@@ -9643,6 +9710,7 @@ function openTaxReg(gid) {
   document.getElementById('tax-r-bizName').value  = '';
   document.getElementById('tax-r-taxType').value  = 'adv';
   document.getElementById('tax-r-taxType').disabled = false;
+  _taxTypeLabelSync();
   document.getElementById('tax-r-issueDate').value = '';
   document.getElementById('tax-r-payDue').value   = '';
   document.getElementById('tax-r-payin-date').value = '';
@@ -9672,6 +9740,7 @@ function openTaxReg(gid) {
     document.getElementById('tax-r-company').value   = rep.company   || '';
     document.getElementById('tax-r-bizName').value   = rep.bizName   || '';
     document.getElementById('tax-r-taxType').value   = rep.taxType   || 'adv';
+    _taxTypeLabelSync();
     document.getElementById('tax-r-issueDate').value = rep.issueDate || '';
     if (rep.paid === '완료') {
       paidChk.checked = true;
@@ -9707,6 +9776,7 @@ function openTaxCorrectionReg(originGid) {
   document.getElementById('tax-r-bizName').value = originRep.bizName || '';
   document.getElementById('tax-r-taxType').value = originRep.taxType || 'adv';
   document.getElementById('tax-r-taxType').disabled = true; // 발행구분은 원본과 항상 동일해야 하므로 잠금
+  _taxTypeLabelSync();
   const mgr = document.getElementById('tax-r-manager');
   if (mgr) mgr.value = originRep.manager || '';
 
@@ -10320,10 +10390,11 @@ function taxToggleRef(ids) {
       : `<span style="font-weight:500;">${_escHtml(nm)}</span>`;
     return `<tr>
       <td style="padding:8px 10px;white-space:nowrap;color:var(--text2);">${month||'—'}</td>
+      <td style="padding:8px 10px;white-space:nowrap;color:var(--text2);" class="f-mono">${_escHtml(t.campaignId||'—')}</td>
       <td style="padding:8px 10px;">${nmCell}</td>
       <td style="padding:8px 10px;color:var(--text2);">${_escHtml(camp?.product||'—')}</td>
       <td style="padding:8px 10px;color:var(--text2);">${_escHtml(t.manager||'—')}</td>
-      <td style="padding:8px 10px;text-align:right;">${t.supplyAmt ? t.supplyAmt.toLocaleString() : '—'}</td>
+      <td style="padding:8px 10px;text-align:right;">${(() => { const s = _taxRefSupplyAmt(t); return s ? s.toLocaleString() : '—'; })()}</td>
     </tr>`;
   }).join('');
 
@@ -10331,7 +10402,7 @@ function taxToggleRef(ids) {
   overlay.className = 'modal-overlay open';
   overlay.style.cssText = 'z-index:300;';
   overlay.innerHTML = `
-    <div class="modal" style="width:600px;max-width:94vw;">
+    <div class="modal" style="width:700px;max-width:94vw;">
       <div class="modal-head">
         <span class="modal-title">참조 캠페인 ${items.length}건</span>
         <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
@@ -10341,6 +10412,7 @@ function taxToggleRef(ids) {
           <thead>
             <tr style="background:var(--surface2);color:var(--text3);font-size:11px;">
               <th style="padding:8px 10px;text-align:left;font-weight:500;">월</th>
+              <th style="padding:8px 10px;text-align:left;font-weight:500;">캠페인ID</th>
               <th style="padding:8px 10px;text-align:left;font-weight:500;">캠페인명</th>
               <th style="padding:8px 10px;text-align:left;font-weight:500;">상품</th>
               <th style="padding:8px 10px;text-align:left;font-weight:500;">담당자</th>
@@ -10371,7 +10443,7 @@ function taxEditGroup(gid) {
   const isPaid      = rep.paid === '완료';
   const manualItems = items.filter(t => !t.isRef).sort((a, b) => a.id - b.id);
   const refItems    = items.filter(t =>  t.isRef).sort((a, b) => a.id - b.id);
-  const refTotal    = refItems.reduce((s, t) => s + (t.supplyAmt||0), 0);
+  const refTotal    = refItems.reduce((s, t) => s + _taxRefSupplyAmt(t), 0);
   const manualTotal = manualItems.reduce((s, t) => s + (t.supplyAmt||0), 0);
 
   const now  = new Date();
@@ -10402,7 +10474,7 @@ function taxEditGroup(gid) {
   const refRowsHtml = refItems.map(t => {
     const camp = DATA.find(c => c.id === t.campaignId);
     const campName = camp ? _cName(camp) : (t.content||'—');
-    const supply = t.supplyAmt || 0;
+    const supply = _taxRefSupplyAmt(t);
     return `<tr data-tid="${t.id}" class="tax-gen-camp-row">
       <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_escHtml(t.month||'—')}</td>
       <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_escHtml(camp?.product||'—')}</td>

@@ -2352,7 +2352,7 @@
           <select class="form-sel" id="tax-fManager" onchange="renderTaxList()" style="width:110px;">
             <option value="">요청자 전체</option>
           </select>
-          <input class="form-input" id="tax-fCompany" placeholder="업체명 / 캠페인명 / ID 검색" oninput="renderTaxList()" style="width:160px;">
+          <input class="form-input" id="tax-fCompany" placeholder="업체명 / 캠페인명 / ID / T번호 검색" oninput="renderTaxList()" style="width:160px;">
           <button class="btn btn-outline btn-sm" id="tax-chip-correction" onclick="setTaxQuickFilter('correction')" style="border-radius:14px;">수정발행건만 <span id="tax-correction-cnt">—</span></button>
           <button class="btn btn-ghost btn-sm" onclick="resetTaxFilter()">✕ 초기화</button>
           <div style="flex:1;"></div>
@@ -2382,6 +2382,10 @@
         </div>
         <!-- 카드 목록 -->
         <div id="tax-list"></div>
+        <div class="pagination" style="justify-content:flex-end;">
+          <span class="pg-info" id="tax-pg-info">— / —</span>
+          <div class="pg-btns" id="tax-pg-btns"></div>
+        </div>
       </div>
 
       <!-- ══════════════════════════════════
@@ -2576,21 +2580,21 @@
         <!-- 카드 -->
         <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
           <!-- 업체 정보 행 -->
-          <div style="background:var(--surface2);padding:10px 14px;display:grid;grid-template-columns:1fr 1fr 130px;gap:8px;align-items:end;">
-            <div>
-              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">업체명</label>
-              <input class="form-input" id="tax-r-company" placeholder="업체명" style="font-size:12px;padding:5px 8px;">
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">법인 상호명(매입처명)</label>
-              <input class="form-input" id="tax-r-bizName" placeholder="법인 상호명(매입처명)" style="font-size:12px;padding:5px 8px;">
-            </div>
+          <div style="background:var(--surface2);padding:10px 14px;display:grid;grid-template-columns:130px 1fr 1fr;gap:8px;align-items:end;">
             <div>
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">발행구분</label>
-              <select class="form-sel" id="tax-r-taxType" style="font-size:12px;padding:5px 8px;width:100%;">
+              <select class="form-sel" id="tax-r-taxType" onchange="_taxTypeLabelSync()" style="font-size:12px;padding:5px 8px;width:100%;">
                 <option value="adv">광고주</option>
                 <option value="media">매체</option>
               </select>
+            </div>
+            <div>
+              <label id="tax-r-company-label" style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">광고주명</label>
+              <input class="form-input" id="tax-r-company" placeholder="업체명" style="font-size:12px;padding:5px 8px;">
+            </div>
+            <div>
+              <label id="tax-r-bizName-label" style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">법인 상호명(세금계산서 등록명)</label>
+              <input class="form-input" id="tax-r-bizName" placeholder="법인 상호명" style="font-size:12px;padding:5px 8px;">
             </div>
           </div>
           <!-- 날짜 / 담당자 / 입금완료 행 -->
