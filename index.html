@@ -75,6 +75,9 @@
       <div class="nav-item" id="nav-kpi" onclick="goScreen('kpi')">
      <span class="nav-icon">🎯</span>KPI
       </div>
+      <div class="nav-item" id="nav-projectlog" onclick="goScreen('projectlog')">
+        <span class="nav-icon">✎</span>프로젝트일지
+      </div>
 
 <!--
       <div class="nav-item" id="nav-pipeline" onclick="goScreen('pipeline')">
@@ -82,9 +85,11 @@
       </div>
 -->     
 
+<!--
         <div class="nav-item" id="nav-adreport" onclick="goScreen('adreport')">
           <span class="nav-icon">📄</span>광고주 리포트
         </div>
+-->
 
 <!--
       <div class="nav-item" id="nav-payment" onclick="goScreen('payment')">
@@ -559,7 +564,8 @@
               <div class="step">성과입력대기</div>
               <div class="step">성과입력완료</div>
             </div>
-            <button class="btn btn-ghost btn-sm" onclick="openHistory()">⏱ 이력</button>
+            <button class="btn btn-ghost btn-sm" onclick="openHistory()">⏱ 수정 이력</button>
+            <button class="btn btn-ghost btn-sm" onclick="plOpenCampaignLogs(DATA[currentDetailIdx]?.id)">✎ 일지</button>
              <button class="btn btn-ghost btn-sm" id="btn-detail-rpt"
               onclick="openReportForCampaign(DATA[currentDetailIdx]?.id)">📄 리포트</button> 
             <button class="btn btn-ghost btn-sm" id="btn-detail-copy" onclick="openCopyCampaign()">📋 복사 등록</button>
@@ -2434,6 +2440,11 @@
       </div>
 
       <!-- ══════════════════════════════════
+           프로젝트일지
+      ══════════════════════════════════ -->
+      <div class="screen" id="screen-projectlog"></div>
+
+      <!-- ══════════════════════════════════
            성과분석
       ══════════════════════════════════ -->
       <div class="screen" id="screen-perf">
@@ -4123,6 +4134,7 @@
 <script src="script.js"></script>
 <!-- report.js 불러오기 -->
 <script src="report.js"></script>
+<script src="projectlog.js"></script>
 
 <!-- ── 날짜 범위 피커 backdrop + 팝업 ── -->
 <div id="drp-backdrop" style="display:none;position:fixed;inset:0;z-index:8999;"></div>

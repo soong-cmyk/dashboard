@@ -389,7 +389,7 @@ async function renderUsageErrorStats() {
   }
 }
 
-const USAGE_SCREEN_LABELS = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',usage:'사용현황',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
+const USAGE_SCREEN_LABELS = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI',projectlog:'프로젝트일지',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',usage:'사용현황',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
 
 function _usagePopulateUserSel() {
   const sel = document.getElementById('usage-menu-user-sel');
@@ -1214,11 +1214,11 @@ function goScreen(name, skipPush) {
 
   // nav highlight
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',perf:'nav-perf',settlement:'nav-settlement',monthly:'nav-monthly',tax:'nav-tax',kpi:'nav-kpi',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',usage:'nav-usage',payment:'nav-payment','payment-detail':'nav-payment'};
+  const navIds = {dashboard:'nav-dashboard',calendar:'nav-calendar',campaigns:'nav-campaigns',perf:'nav-perf',settlement:'nav-settlement',monthly:'nav-monthly',tax:'nav-tax',kpi:'nav-kpi',projectlog:'nav-projectlog',pipeline:'nav-pipeline',adreport:'nav-adreport',media:'nav-media','media-detail':'nav-media',seller:'nav-seller',users:'nav-users',usage:'nav-usage',payment:'nav-payment','payment-detail':'nav-payment'};
   if (navIds[name]) document.getElementById(navIds[name])?.classList.add('active');
 
   // breadcrumb
-  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',usage:'사용현황',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
+  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI',projectlog:'프로젝트일지',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',usage:'사용현황',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
   if (labels[name]) {
     document.getElementById('breadcrumb').innerHTML = `<span class="cur">${labels[name]}</span>`;
   }
@@ -1254,6 +1254,7 @@ function goScreen(name, skipPush) {
   if (name === 'dashboard') renderDashboard();
   if (name === 'perf') initPerfScreen();
   if (name === 'kpi')  initKpiScreen();
+  if (name === 'projectlog' && typeof plInit === 'function') plInit();
   if (name === 'pipeline') initPipelineScreen();
   if (name === 'adreport') {
     if (!skipPush) { rptReset(); effReset(); }
@@ -5813,8 +5814,8 @@ function _renderInvInImgList() {
 let _lbImgs = [];
 let _lbIdx  = 0;
 
-function openLightbox(idx) {
-  _lbImgs = [..._invoiceInPendingImgs];
+function openLightbox(idx, imgs) {
+  _lbImgs = imgs ? [...imgs] : [..._invoiceInPendingImgs];
   _lbIdx  = idx;
   _lbRender();
   const el = document.getElementById('modalLightbox');
@@ -6994,6 +6995,12 @@ window.addEventListener('popstate', (e) => {
   } else if (state.screen === 'payment-detail') {
     if (state.payIdx != null) openPaymentDetail(state.payIdx, true);
     else goScreen('payment', true);
+  } else if (state.screen === 'projectlog-detail' || state.screen === 'projectlog') {
+    // 프로젝트로그 광고주/매체 상세 뒤로가기 → 진입 당시 탭(plSwitchTab이 replaceState로 기록)의 목록으로
+    PL_STATE.advDetailCompany = null;
+    PL_STATE.mediaDetailCompany = null;
+    _plPendingTab = state.plTab || null;
+    goScreen('projectlog', true);
   } else {
     goScreen(state.screen, true);
   }
@@ -7157,6 +7164,13 @@ function _campAdcost(c) {
   const a = _stlAmt(c);
   if (c.product === 'CPS') return a.amt || 0;  // 총 CPS 수수료
   return a.adc || 0;                            // 매출단가 기준
+}
+
+/** 캠페인 매출이익 단일 계산 함수 (_campAdcost와 동일한 패턴 — 정산 로직 재사용 + 수동입력 우선) */
+function _campProfit(c) {
+  if (!['DA','IPTV','퍼미션콜','CPS','CPA'].includes(c.product) && c.profitFixed != null) return c.profitFixed;
+  if (!_stlHas(c)) return 0;
+  return _stlAmt(c).prf || 0;
 }
 
 /** 정산 동적 필터 드롭다운 채우기 (매출처·담당자·본부·팀) */

@@ -103,8 +103,8 @@ body{font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystem
 .b-성과입력,.b-성과입력완료{background:var(--purple-bg);color:#5f3dc4;}
 
 /* ── PROGRESS ── */
-.prog-wrap{background:var(--border);border-radius:6px;height:8px;overflow:hidden;margin-top:6px;}
-.prog-fill{height:100%;border-radius:6px;transition:width .5s ease;}
+.prog-wrap{background:var(--border);border-radius:6px;height:8px;overflow:hidden;margin-top:0px;}
+.prog-fill{display:inline-block;vertical-align:top;height:100%;border-radius:6px;transition:width .5s ease;}
 
 /* ── TABLE ── */
 .table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
@@ -118,6 +118,7 @@ tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:.12s;}
 tbody tr:last-child{border-bottom:none;}
 tbody tr:hover{background:#f5f7ff;}
 tbody td{padding:12px 14px;white-space:nowrap;}
+tfoot td{padding:12px 14px;white-space:nowrap;border-top:1px solid var(--border);}
 .td-num{font-family:'Noto Sans KR',monospace;font-size:12px;color:var(--text2);}
 .td-bold{font-weight:600;}
 .td-dim{color:var(--text2);}
