@@ -506,6 +506,13 @@ function _plInjectStyles() {
   const css = `
 ${badgeCss}
 .pg-btn.disabled{opacity:.35;cursor:default;pointer-events:none;}
+#pl-f-open.pl-toggle-on,#pl-f-important.pl-toggle-on{outline:2px solid var(--accent);background:var(--accent-light);}
+/* 보기 전용 모달 — ㄴ추가/✕삭제/파일첨부/링크추가 등 조작 버튼은 아예 안 보이게(눌러도 반응 없는 게 더 헷갈림) */
+#pl-e-block.pl-readonly .pl-subadd,
+#pl-e-block.pl-readonly .pl-x,
+#pl-e-block.pl-readonly .pl-edit-addbtn,
+#pl-e-block.pl-readonly .pl-edit-rmbtn,
+#pl-e-block.pl-readonly .pl-paste-zone{display:none;}
 .pl-st-open{display:inline-block;background:var(--red-bg);color:var(--red);border:1px solid #ffc9c9;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:800;}
 .pl-st-done{display:inline-block;background:var(--green-bg);color:var(--green);border:1px solid #b2f2bb;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:800;}
 .pl-st-late{display:inline-block;background:var(--surface2);color:var(--text3);border:1px solid var(--border);padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;}
@@ -600,6 +607,25 @@ function _plMediaNames() {
 function _plWriterNames() {
   return [...new Set(USERS.map(u => u.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
 }
+// 이름 목록을 "최근에 일지가 작성된 순"으로 정렬 — 필터 콤보에서 자주 찾는 항목이 위로 오도록.
+// 일지가 한 번도 없는 이름은 맨 뒤로 밀리되, 그 안에서는 가나다순 유지.
+function _plSortByRecentLog(names, fieldFn) {
+  const lastDate = {};
+  PL_LOGS.forEach(l => {
+    const key = fieldFn(l);
+    if (key && (!lastDate[key] || l.logDate > lastDate[key])) lastDate[key] = l.logDate;
+  });
+  return names.slice().sort((a, b) => {
+    const da = lastDate[a], db = lastDate[b];
+    if (da && db) return db.localeCompare(da);
+    if (da) return -1;
+    if (db) return 1;
+    return a.localeCompare(b, 'ko');
+  });
+}
+function _plSellerNamesRecent()  { return _plSortByRecentLog(_plSellerNames(),  l => l.seller); }
+function _plProjectNamesRecent() { return _plSortByRecentLog(_plProjectNames(), l => l.content); }
+function _plMediaNamesRecent()   { return _plSortByRecentLog(_plMediaNames(),   l => l.media); }
 
 function plSwitchTab(name) {
   PL_STATE.tab = name;
@@ -621,7 +647,7 @@ function _plComboSetup(inputId, listId, sourceFn, onChange) {
   const change = typeof onChange === 'function' ? onChange : () => {};
   const render = () => {
     const q = input.value.trim().toLowerCase();
-    const items = sourceFn().filter(v => !q || v.toLowerCase().includes(q)).slice(0, 20);
+    const items = sourceFn().filter(v => !q || v.toLowerCase().includes(q)); // .combo-list가 자체 스크롤(max-height)이라 개수 제한 불필요
     if (!items.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
     list.innerHTML = items.map((v, i) => `<div class="combo-item" data-i="${i}">${_escHtml(v)}</div>`).join('');
     list.style.display = 'block';
@@ -748,6 +774,10 @@ function _plBuildPagination(total, page, totalPages) {
 function _plCanDeleteLog(log) {
   return !!(currentUser?.isAdmin || log.writerId === currentUser?.id);
 }
+// 수정 권한 = 삭제 권한과 동일 기준(작성자 본인·관리자) — 그 외에는 조회만 가능
+function _plCanEditLog(log) {
+  return !!(currentUser?.isAdmin || log.writerId === currentUser?.id);
+}
 
 function _plRenderDetailRow(log, colspan, q) {
   colspan = colspan || 10;
@@ -761,15 +791,117 @@ function _plRenderDetailRow(log, colspan, q) {
   const color = (PL_TYPE_COLOR[log.logType] || {}).fg || 'var(--border)';
   const delBtn = _plCanDeleteLog(log)
     ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();plDeleteLog('${log.id}')">삭제</button>` : '';
+  // 진행중 이슈는 완료 처리 버튼을, 이미 완료된 이슈는 연결된 해결 기록(threadId로 역참조)을,
+  // 반대로 이 로그 자체가 해결 기록이면(threadId 보유) 원본 이슈로 가는 역링크를 보여준다.
+  // 날짜를 앞에 두고 화살표를 이동 대상 텍스트 바로 뒤에 붙여야 "무엇을 누르면 어디로 가는지"가 헷갈리지 않는다.
+  const _plLinkLine = (dateStr, label, text, targetId) => {
+    const d = _escHtml((dateStr || '').slice(2).replace(/-/g, '.'));
+    return `<div class="pl-resolve-link" style="font-size:12px;color:var(--text2);margin-bottom:6px;padding:6px 8px;background:var(--surface2);border-radius:6px;cursor:pointer;" onclick="event.stopPropagation();plOpenEdit('${targetId}')"><span class="f-mono">${d}</span> · ${label}: ${_escHtml(text || '')} <span style="color:var(--accent);font-weight:600;">보기 →</span></div>`;
+  };
+  let resolveHtml = '';
+  if (log.state === '진행중') {
+    resolveHtml = `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();plOpenResolveModal('${log.id}')">✓ 완료 처리</button>`;
+  } else if (log.state === '완료') {
+    const resolution = PL_LOGS.find(l => l.threadId === log.id);
+    if (resolution) resolveHtml = _plLinkLine(resolution.logDate, '해결', resolution.summary, resolution.id);
+  }
+  let threadHtml = '';
+  if (log.threadId) {
+    const origIssue = PL_LOGS.find(l => l.id === log.threadId);
+    if (origIssue) threadHtml = _plLinkLine(origIssue.logDate, '이슈', origIssue.summary, origIssue.id);
+  }
   return `<tr class="pl-lg-det"><td colspan="${colspan}"><div class="pl-detbox" style="border-left-color:${color};">
+    ${threadHtml}
     <div style="font-size:13px;font-weight:600;margin-bottom:6px;white-space:pre-line;">${_plHighlight(log.summary || '', q)}</div>
     <div class="pl-lgsub">${subRows}</div>
+    ${log.state === '완료' ? resolveHtml : ''}
     <div class="pl-detfoot">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
-      <div style="display:flex;gap:6px;">${delBtn}<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenEdit('${log.id}')">수정</button></div>
+      <div style="display:flex;gap:6px;">${log.state === '진행중' ? resolveHtml : ''}${delBtn}<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenEdit('${log.id}')">${_plCanEditLog(log) ? '수정' : '보기'}</button></div>
     </div>
     <div data-pl-comments-for="${log.id}" onclick="event.stopPropagation();">${_plCommentsHtml(log.id)}</div>
   </div></td></tr>`;
+}
+
+// ── 이슈 완료 처리(해결 기록) — 원본 이슈 state를 조용히 덮어쓰는 대신, 해결 내용을 별도 로그(threadId로 원본 연결)로
+// 남겨서 "이슈 → 해결"이 추적 가능한 스레드가 되게 한다. threadId는 기존 스키마에 있던 미사용 필드를 재활용.
+let _plResolveTargetId = null;
+
+function _plBuildResolveModalShell() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'pl-modal-resolve';
+  overlay.innerHTML = `
+    <div class="modal sm" style="width:440px;max-width:96vw;">
+      <div class="modal-head">
+        <span class="modal-title">✓ 완료 처리</span>
+        <button class="modal-close" onclick="closeModal('pl-modal-resolve')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-hint" style="margin-bottom:8px;" id="pl-resolve-target-summary"></div>
+        <label class="form-label" style="margin-bottom:6px;display:block;">해결 내용</label>
+        <textarea class="form-input" id="pl-resolve-text" rows="4" placeholder="어떻게 해결됐는지 적어주세요" style="width:100%;resize:vertical;"></textarea>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-primary btn-sm" onclick="_plSaveResolution()">저장</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+function plOpenResolveModal(logId) {
+  const log = PL_LOGS.find(l => l.id === logId);
+  if (!log) return;
+  _plResolveTargetId = logId;
+  if (!document.getElementById('pl-modal-resolve')) _plBuildResolveModalShell();
+  const targetEl = document.getElementById('pl-resolve-target-summary');
+  if (targetEl) targetEl.textContent = `대상: ${log.summary || ''}`;
+  const textEl = document.getElementById('pl-resolve-text');
+  if (textEl) textEl.value = '';
+  openModal('pl-modal-resolve');
+}
+async function _plSaveResolution() {
+  const logId = _plResolveTargetId;
+  const orig = PL_LOGS.find(l => l.id === logId);
+  if (!orig) return;
+  const text = (document.getElementById('pl-resolve-text')?.value || '').trim();
+  if (!text) { toast('해결 내용을 입력해주세요', 'err'); return; }
+  const btn = document.querySelector('#pl-modal-resolve .modal-foot .btn-primary');
+  if (btn) btn.disabled = true;
+  try {
+    const now = new Date().toISOString();
+    const resolutionDoc = {
+      id: _plNextLogIdSeq()(),
+      logDate: _plTodayStr(), writer: currentUser?.name || '', writerId: currentUser?.id || '',
+      bonbu: currentUser?.bonbu || '', dept: currentUser?.dept || '',
+      scope: orig.scope, seller: orig.seller || null, content: orig.content || null,
+      campaignId: orig.campaignId || null, media: orig.media || null, product: orig.product || null,
+      logType: '대응', state: null,
+      summary: text.slice(0, 60), detail: [],
+      progress: null, important: false, shared: false,
+      hasImages: false, links: [], threadId: logId, createdAt: now, updatedAt: now,
+    };
+    resolutionDoc.searchText = _plBuildSearchText(resolutionDoc);
+    await _plDb('projectLogs').doc(resolutionDoc.id).set(resolutionDoc);
+    await _plLogHistoryCreate(resolutionDoc.id);
+
+    const updatedOrig = Object.assign({}, orig, { state: '완료', updatedAt: now });
+    await _plDb('projectLogs').doc(orig.id).set(updatedOrig);
+    await _plDb('projectLogHistory').add({
+      logId: orig.id, changedBy: currentUser?.name || '', changedAt: now,
+      changes: [{ field: 'state', label: '상태', before: '진행중', after: '완료' }],
+    });
+    if (orig.writerId && orig.writerId !== currentUser?.id) {
+      const subject = _plNotifySubject(orig);
+      _fbSaveNotification(orig.writerId, 'pl_resolved', `${currentUser?.name || ''}님이 "${subject}" ${orig.logType} 일지를 완료 처리했습니다.`);
+    }
+    closeModal('pl-modal-resolve');
+    toast('✓ 완료 처리되었습니다', 'ok');
+  } catch (e) {
+    console.error('[projectlog] 완료 처리 실패', e);
+    toast('완료 처리 중 오류가 발생했습니다', 'err');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // ── 댓글 UI (로그 아코디언 공통 — 로그탭·G·D 전부 공유) ──
@@ -897,6 +1029,12 @@ function _plRenderRows() {
   const filtered = _plGetFiltered();
   const q = (document.getElementById('pl-search')?.value || '').trim();
 
+  // 퀵필터 카드 카운트 — 다른 필터와 무관하게 전체 기준(진행중/중요 총량)으로 보여줘서 "지금 몇 건 밀려있나"가 바로 보이게
+  const openCntEl = document.getElementById('pl-open-cnt');
+  if (openCntEl) openCntEl.textContent = PL_LOGS.filter(l => l.state === '진행중').length;
+  const impCntEl = document.getElementById('pl-important-cnt');
+  if (impCntEl) impCntEl.textContent = PL_LOGS.filter(l => l.important).length;
+
   const typeCounts = {};
   filtered.forEach(l => { typeCounts[l.logType] = (typeCounts[l.logType] || 0) + 1; });
   const topTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 4)
@@ -921,10 +1059,14 @@ function _plRenderRows() {
 
 function _plBuildLogTabSkeleton(container) {
   container.innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button class="btn btn-outline btn-sm" id="pl-f-open" onclick="_plToggleBtn('pl-f-open')" style="background:#fff;border-color:#ffc9c9;color:var(--red);">🔴 진행중 <b id="pl-open-cnt">—</b>건</button>
+      <button class="btn btn-outline btn-sm" id="pl-f-important" onclick="_plToggleBtn('pl-f-important')" style="background:#fff;border-color:#ffec99;color:#f08c00;">★ 중요 <b id="pl-important-cnt">—</b>건</button>
+    </div>
     <div class="filter-bar" style="margin-bottom:12px;overflow:visible;">
-      <input type="date" class="f-date" id="pl-date-from" onchange="_plPage=1;_plRenderRows();">
+      <input type="date" class="f-date" id="pl-date-from" onchange="_plPage=1;_plRenderRows();" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       <span class="form-hint">~</span>
-      <input type="date" class="f-date" id="pl-date-to" onchange="_plPage=1;_plRenderRows();">
+      <input type="date" class="f-date" id="pl-date-to" onchange="_plPage=1;_plRenderRows();" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       <input type="text" class="f-search" id="pl-search" placeholder="검색어" style="width:160px;" oninput="_plPage=1;_plRenderRows();">
       <div class="combo-wrap" style="width:120px;">
         <input type="text" class="f-search" id="pl-f-seller" placeholder="🔍 광고주" style="width:120px;">
@@ -944,8 +1086,6 @@ function _plBuildLogTabSkeleton(container) {
         <input type="text" class="f-search" id="pl-f-writer" placeholder="🔍 작성자" style="width:100px;">
         <div class="combo-list" id="pl-f-writer-list" style="display:none;"></div>
       </div>
-      <button class="btn btn-ghost btn-sm" id="pl-f-important" onclick="_plToggleBtn('pl-f-important')">★ 중요</button>
-      <button class="btn btn-ghost btn-sm" id="pl-f-open" onclick="_plToggleBtn('pl-f-open')" style="border-color:#ffc9c9;color:var(--red);">진행중만</button>
       <span class="f-reset" onclick="plResetLogFilter()">초기화</span>
     </div>
 
@@ -977,9 +1117,9 @@ function _plBuildLogTabSkeleton(container) {
   });
 
   const _plLogFilterChange = () => { _plPage = 1; _plRenderRows(); };
-  _plComboSetup('pl-f-seller',  'pl-f-seller-list',  _plSellerNames,  _plLogFilterChange);
-  _plComboSetup('pl-f-project', 'pl-f-project-list', _plProjectNames, _plLogFilterChange);
-  _plComboSetup('pl-f-media',   'pl-f-media-list',   _plMediaNames,   _plLogFilterChange);
+  _plComboSetup('pl-f-seller',  'pl-f-seller-list',  _plSellerNamesRecent,  _plLogFilterChange);
+  _plComboSetup('pl-f-project', 'pl-f-project-list', _plProjectNamesRecent, _plLogFilterChange);
+  _plComboSetup('pl-f-media',   'pl-f-media-list',   _plMediaNamesRecent,   _plLogFilterChange);
   _plComboSetup('pl-f-writer',  'pl-f-writer-list',  _plWriterNames,  _plLogFilterChange);
 
   const typeSel = document.getElementById('pl-f-type');
@@ -1055,7 +1195,7 @@ function _plBuildWriteModalShell() {
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <span class="modal-title">✎ 일지 작성</span>
           <span class="form-hint" id="pl-w-who"></span>
-          <input type="date" class="form-input f-mono" id="pl-w-date" style="width:150px;font-weight:700;">
+          <input type="date" class="form-input f-mono" id="pl-w-date" style="width:150px;font-weight:700;" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
         </div>
         <button class="modal-close" onclick="plCloseWrite()">✕</button>
       </div>
@@ -1811,7 +1951,7 @@ function _plBuildEditModalShell() {
     <div class="modal sm" style="width:600px;max-width:96vw;">
       <div class="modal-head">
         <div>
-          <div class="modal-title">✎ 일지 수정</div>
+          <div class="modal-title" style="display:flex;align-items:center;gap:8px;"><span id="pl-e-title">✎ 일지 수정</span> <span id="pl-e-delbtn-head"></span></div>
           <div id="pl-e-badges" style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;align-items:center;"></div>
         </div>
         <button class="modal-close" onclick="closeModal('pl-modal-edit')">✕</button>
@@ -1820,7 +1960,7 @@ function _plBuildEditModalShell() {
         <div id="pl-e-block"></div>
       </div>
       <div class="modal-foot">
-        <span class="form-hint">수정은 전원 가능(변경 이력 자동 기록) · 삭제는 본인·관리자만</span>
+        <span class="form-hint" id="pl-e-foothint">수정은 작성자·관리자만 가능 (변경 이력 자동 기록)</span>
         <div style="margin-left:auto;display:flex;gap:8px;" id="pl-e-footbtns"></div>
       </div>
     </div>`;
@@ -2075,16 +2215,16 @@ function _plEditAttachHtml() {
   const imgsHtml = (d.images || []).map((src, i) => `
     <div style="position:relative;display:inline-block;">
       <img src="${src}" onclick="_plEditOpenLightbox(${i})" style="width:44px;height:36px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:zoom-in;">
-      <span onclick="_plEditImgRemove(${i})" style="position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;background:#e53;color:#fff;font-size:9px;line-height:15px;text-align:center;cursor:pointer;">✕</span>
+      <span class="pl-edit-rmbtn" onclick="_plEditImgRemove(${i})" style="position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;background:#e53;color:#fff;font-size:9px;line-height:15px;text-align:center;cursor:pointer;">✕</span>
     </div>`).join('');
   return `<div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
     <div style="display:flex;align-items:center;gap:8px;"><label class="form-label" style="width:70px;">매체</label>${mediaField}</div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <label class="form-label" style="width:70px;">이미지</label>${imgsHtml}
-      <label class="tag" style="cursor:pointer;border-style:dashed;color:var(--text3);">📁 첨부<input type="file" accept="image/*" multiple style="display:none;" onchange="_plEditImgFileSelect(this)"></label>
+      <label class="tag pl-edit-addbtn" style="cursor:pointer;border-style:dashed;color:var(--text3);">📁 첨부<input type="file" accept="image/*" multiple style="display:none;" onchange="_plEditImgFileSelect(this)"></label>
       <span class="pl-paste-zone" tabindex="0" style="border:1px dashed var(--border2);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--text3);cursor:text;outline:none;" onclick="this.focus()">여기 클릭 후 Ctrl+V</span>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><label class="form-label" style="width:70px;">링크</label>${linksHtml}<span class="tag" style="cursor:pointer;border-style:dashed;color:var(--text3);" onclick="_plEditAddLink()">＋ 링크</span></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><label class="form-label" style="width:70px;">링크</label>${linksHtml}<span class="tag pl-edit-addbtn" style="cursor:pointer;border-style:dashed;color:var(--text3);" onclick="_plEditAddLink()">＋ 링크</span></div>
   </div>`;
 }
 function _plEditAddLink() { if (!_plEditDraft.links) _plEditDraft.links = []; _plEditDraft.links.push({ label: '', url: '' }); _plRenderEditModal(); }
@@ -2159,10 +2299,29 @@ function _plRenderEditModal() {
       </div>
     </div>`;
   }
+  // 수정 권한 없으면(작성자·관리자가 아니면) 조회만 가능하도록 잠금 — 저장 버튼 숨김 + 입력요소 전부 비활성화
+  const canEdit = _plCanEditLog({ writerId: d.writerId });
   const footEl = document.getElementById('pl-e-footbtns');
-  if (footEl) {
+  if (footEl) footEl.innerHTML = canEdit ? `<button class="btn btn-primary btn-sm" onclick="plSaveEdit()">저장</button>` : '';
+  const delHeadEl = document.getElementById('pl-e-delbtn-head');
+  if (delHeadEl) {
     const canDel = _plCanDeleteLog({ writerId: d.writerId });
-    footEl.innerHTML = `${canDel ? `<button class="btn btn-danger btn-sm" onclick="plDeleteLogFromEdit()">삭제</button>` : ''}<button class="btn btn-primary btn-sm" onclick="plSaveEdit()">저장</button>`;
+    delHeadEl.innerHTML = canDel ? `<button class="btn btn-danger btn-sm" onclick="plDeleteLogFromEdit()">삭제</button>` : '';
+  }
+  const titleEl = document.getElementById('pl-e-title');
+  if (titleEl) titleEl.textContent = canEdit ? '✎ 일지 수정' : '👁 일지 보기';
+  const hintEl = document.getElementById('pl-e-foothint');
+  if (hintEl) hintEl.textContent = canEdit ? '수정은 작성자·관리자만 가능 (변경 이력 자동 기록)' : '';
+  if (!canEdit && blockEl) {
+    // "ㄴ 추가" 같은 컨트롤은 <button>이 아니라 onclick 달린 <span>/<div>라 disabled로는 안 막혀서,
+    // 블록 전체를 pointer-events:none으로 눌러 어떤 요소든 클릭 자체가 안 먹히게 하고,
+    // 조작 전용 버튼들(ㄴ추가·✕삭제·첨부·링크추가 등)은 pl-readonly 클래스로 아예 안 보이게 한다.
+    blockEl.style.pointerEvents = 'none';
+    blockEl.classList.add('pl-readonly');
+    blockEl.querySelectorAll('input, select, textarea, button').forEach(el => { el.disabled = true; });
+  } else if (blockEl) {
+    blockEl.style.pointerEvents = '';
+    blockEl.classList.remove('pl-readonly');
   }
 }
 
@@ -3137,9 +3296,9 @@ function _plBuildCampaignTabSkeleton(content) {
       <div class="combo-wrap" style="width:110px;"><input type="text" class="f-search" id="pl-camp-seller" placeholder="🔍 광고주" style="width:110px;"><div class="combo-list" id="pl-camp-seller-list" style="display:none;"></div></div>
       <div class="combo-wrap" style="width:100px;"><input type="text" class="f-search" id="pl-camp-media" placeholder="🔍 매체" style="width:100px;"><div class="combo-list" id="pl-camp-media-list" style="display:none;"></div></div>
       <select class="f-sel" id="pl-camp-product" onchange="_plCampTabState.page=1;_plRenderCampaignRows();"><option value="">상품 전체</option>${_plProductOptionsHtml()}</select>
-      <input type="date" class="f-date" id="pl-camp-from" onchange="_plCampTabState.page=1;_plRenderCampaignRows();">
+      <input type="date" class="f-date" id="pl-camp-from" onchange="_plCampTabState.page=1;_plRenderCampaignRows();" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       <span class="form-hint">~</span>
-      <input type="date" class="f-date" id="pl-camp-to" onchange="_plCampTabState.page=1;_plRenderCampaignRows();">
+      <input type="date" class="f-date" id="pl-camp-to" onchange="_plCampTabState.page=1;_plRenderCampaignRows();" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       <select class="f-sel" id="pl-camp-status" onchange="_plCampTabState.page=1;_plRenderCampaignRows();"><option value="">상태 전체</option>${_plStatusOptionsHtml()}</select>
       <select class="f-sel" id="pl-camp-record" onchange="_plCampTabState.page=1;_plRenderCampaignRows();"><option value="">기록 전체</option><option value="has">기록있음</option><option value="none">기록없음</option></select>
       <select class="f-sel" id="pl-camp-sort" style="margin-left:auto;" onchange="_plRenderCampaignRows();"><option value="recent">정렬: 최근 기록순</option><option value="date">정렬: 발송일순</option></select>
@@ -3414,7 +3573,7 @@ function _plDateItemHtml(l) {
       <div style="font-size:13px;">${starHtml}<span class="badge pl-lg-${l.logType}" style="margin-right:4px;">${_escHtml(l.logType)}</span>${mediaHtml}${_escHtml(l.summary || '')}${progText}</div>
       ${subHtml}
     </div>
-    <span class="pl-x" style="flex-shrink:0;font-size:11px;color:var(--accent);cursor:pointer;" onclick="plOpenEdit('${l.id}')">[수정/삭제]</span>
+    <span class="pl-x" style="flex-shrink:0;font-size:11px;color:var(--accent);cursor:pointer;" onclick="plOpenEdit('${l.id}')">${_plCanEditLog(l) ? '[수정/삭제]' : '[보기]'}</span>
   </div>`;
 }
 let _plDateOrgFilter = '';
@@ -3489,7 +3648,7 @@ function _plBuildDateTabSkeleton(content) {
   content.innerHTML = `
     <div class="filter-bar" style="margin-bottom:14px;overflow:visible;">
       <button class="btn btn-ghost btn-sm" onclick="_plDateNav(-1)">← 전날</button>
-      <input type="date" class="f-date f-mono" style="font-weight:700;" id="pl-date-picker" value="${_escHtml(_plDateTabDate)}" onchange="_plDatePick(this.value)">
+      <input type="date" class="f-date f-mono" style="font-weight:700;" id="pl-date-picker" value="${_escHtml(_plDateTabDate)}" onchange="_plDatePick(this.value)" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       <button class="btn btn-ghost btn-sm" onclick="_plDateNav(1)">다음날 →</button>
       <button class="btn btn-outline btn-sm" onclick="_plDateToday()">오늘</button>
       <select class="f-sel" id="pl-date-org" onchange="_plDateOrgChange(this.value)">
