@@ -6334,6 +6334,7 @@ function saveMedia() {
   if (pendingCombo) {
     comboSelect(pendingCombo, obj.company);
   }
+  if (typeof _plHandlePendingNewTarget === 'function') _plHandlePendingNewTarget('media', obj.company);
 }
 
 function deleteMedia() {
@@ -6656,6 +6657,7 @@ function saveSeller() {
   renderSellerList();
   _populateAdvFilter();
   if (pendingCombo) comboSelect(pendingCombo, obj.company);
+  if (typeof _plHandlePendingNewTarget === 'function') _plHandlePendingNewTarget('seller', obj.company);
 }
 
 function deleteSellerItem() {

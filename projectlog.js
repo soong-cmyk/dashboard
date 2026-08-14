@@ -80,7 +80,10 @@ const PL_DRAFT_KEY = 'pl_draft_' + (currentUser?.id || 'anon');
 // 상태
 // ══════════════════════════════════════════════════════════
 
+// PL_LOGS는 여러 구독(최근 N개월 기본 + 필요할 때 여는 광고주/매체/전체 구독)의 결과를 합친 파생 배열이다.
+// 원본은 _plLogsMap(id→doc)에 쌓이고, 구독이 새로 들어올 때마다 PL_LOGS를 다시 정렬해서 만든다.
 let PL_LOGS = [];
+let _plLogsMap = new Map();
 let PL_STATE = {
   tab: 'date',                // 'date' | 'log' | 'advertiser' | 'campaign' | 'media'
   advDetailCompany: null,    // 광고주 탭에서 상세 화면으로 드릴다운했을 때만 값 존재
@@ -161,21 +164,58 @@ document.addEventListener('click', e => {
 // 데이터 구독
 // ══════════════════════════════════════════════════════════
 
+// 일지가 계속 쌓이면 컬렉션 전체를 매번 구독하는 게 부담스러워져서(초기로딩 느려짐·Firestore 읽기비용 증가),
+// 기본은 최근 몇 개월만 실시간 구독하고, 광고주상세/매체상세처럼 "그 대상의 전체 이력"이 꼭 필요한 화면에
+// 들어갈 때만 그 범위를 추가로 구독한다. 자유 텍스트 검색은 범위를 특정할 수 없어서 그때는 전체를 연다.
+const PL_RECENT_MONTHS = 2;
+function _plRecentCutoff() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - PL_RECENT_MONTHS);
+  return d.toISOString().slice(0, 10);
+}
+function _plApplySnapshot(snap) {
+  snap.docChanges().forEach(ch => {
+    if (ch.type === 'removed') _plLogsMap.delete(ch.doc.id);
+    else _plLogsMap.set(ch.doc.id, ch.doc.data());
+  });
+  PL_LOGS = [..._plLogsMap.values()].sort((a, b) => (b.logDate || '').localeCompare(a.logDate || '')
+                                                  || (b.createdAt || '').localeCompare(a.createdAt || ''));
+  if (document.getElementById('screen-projectlog')?.classList.contains('active')) {
+    if (typeof plRenderActiveTab === 'function') plRenderActiveTab();
+  }
+}
 function _plWatchLogs() {
   if (_plWatchStarted || !window._db) return;
   _plWatchStarted = true;
   try {
-    _plDb('projectLogs').onSnapshot(snap => {
-      PL_LOGS = snap.docs.map(d => d.data());
-      PL_LOGS.sort((a, b) => (b.logDate || '').localeCompare(a.logDate || '')
-                          || (b.createdAt || '').localeCompare(a.createdAt || ''));
-      if (document.getElementById('screen-projectlog')?.classList.contains('active')) {
-        if (typeof plRenderActiveTab === 'function') plRenderActiveTab();
-      }
-    }, err => console.error('[projectlog] 구독 오류', err));
+    _plDb('projectLogs').where('logDate', '>=', _plRecentCutoff())
+      .onSnapshot(_plApplySnapshot, err => console.error('[projectlog] 구독 오류', err));
   } catch (e) {
     console.error('[projectlog] 구독 실패', e);
   }
+}
+let _plWatchedCompanies = new Set();
+let _plWatchedMedia = new Set();
+let _plFullyWatching = false;
+// 광고주상세(G화면)는 ①연간요약 등에서 그 광고주의 전체 이력이 있어야 정확히 계산되므로, 진입 시 그 범위를
+// 통째로 별도 구독한다(이미 전체를 보고 있으면 또 열 필요 없음). 한 번 연 구독은 세션 동안 유지.
+function _plEnsureCompanyLoaded(company) {
+  if (!company || _plFullyWatching || _plWatchedCompanies.has(company) || !window._db) return;
+  _plWatchedCompanies.add(company);
+  _plDb('projectLogs').where('seller', '==', company)
+    .onSnapshot(_plApplySnapshot, err => console.error('[projectlog] 광고주별 구독 오류', err));
+}
+function _plEnsureMediaLoaded(media) {
+  if (!media || _plFullyWatching || _plWatchedMedia.has(media) || !window._db) return;
+  _plWatchedMedia.add(media);
+  _plDb('projectLogs').where('media', '==', media)
+    .onSnapshot(_plApplySnapshot, err => console.error('[projectlog] 매체별 구독 오류', err));
+}
+// 자유 텍스트 검색은 광고주/매체로 범위를 좁힐 수 없어서(어느 필드에 매칭될지 모름) 이 시점엔 전체를 연다.
+function _plEnsureFullyLoaded() {
+  if (_plFullyWatching || !window._db) return;
+  _plFullyWatching = true;
+  _plDb('projectLogs').onSnapshot(_plApplySnapshot, err => console.error('[projectlog] 전체 구독 오류', err));
 }
 
 // ── 댓글 구독 (로그와 분리 — 로그 목록 전체 리렌더를 피하기 위함) ──
@@ -315,8 +355,8 @@ function _plRenderShell() {
           <button class="view-tab" id="pl-vt-date" onclick="plSwitchTab('date')">일자별</button>
           <button class="view-tab" id="pl-vt-log" onclick="plSwitchTab('log')">일지</button>
           <button class="view-tab" id="pl-vt-advertiser" onclick="plSwitchTab('advertiser')">광고주</button>
-          <button class="view-tab" id="pl-vt-campaign" onclick="plSwitchTab('campaign')">캠페인</button>
           <button class="view-tab" id="pl-vt-media" onclick="plSwitchTab('media')">매체</button>
+          <button class="view-tab" id="pl-vt-campaign" onclick="plSwitchTab('campaign')">캠페인</button>
         </div>
         <button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="plOpenXlsxImport()">📥 엑셀 업로드</button>
         <button class="btn btn-primary btn-sm" onclick="plOpenWrite()">+ 일지 작성</button>
@@ -789,8 +829,7 @@ function _plRenderDetailRow(log, colspan, q) {
   const imgNote = log.hasImages ? `<span class="pl-thumb" style="cursor:zoom-in;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')">🖼</span>` : '';
   const hasAttach = links || imgNote;
   const color = (PL_TYPE_COLOR[log.logType] || {}).fg || 'var(--border)';
-  const delBtn = _plCanDeleteLog(log)
-    ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();plDeleteLog('${log.id}')">삭제</button>` : '';
+  // 목록의 삭제 버튼은 없애고 수정 모달 안의 삭제 버튼으로 통일 — 수정/삭제 모달 하나로 합쳐서 진입점을 단순화
   // 진행중 이슈는 완료 처리 버튼을, 이미 완료된 이슈는 연결된 해결 기록(threadId로 역참조)을,
   // 반대로 이 로그 자체가 해결 기록이면(threadId 보유) 원본 이슈로 가는 역링크를 보여준다.
   // 날짜를 앞에 두고 화살표를 이동 대상 텍스트 바로 뒤에 붙여야 "무엇을 누르면 어디로 가는지"가 헷갈리지 않는다.
@@ -817,7 +856,7 @@ function _plRenderDetailRow(log, colspan, q) {
     ${log.state === '완료' ? resolveHtml : ''}
     <div class="pl-detfoot">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
-      <div style="display:flex;gap:6px;">${log.state === '진행중' ? resolveHtml : ''}${delBtn}<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenEdit('${log.id}')">${_plCanEditLog(log) ? '수정' : '보기'}</button></div>
+      <div style="display:flex;gap:6px;">${log.state === '진행중' ? resolveHtml : ''}<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenEdit('${log.id}')">${_plCanEditLog(log) ? '수정/삭제' : '보기'}</button></div>
     </div>
     <div data-pl-comments-for="${log.id}" onclick="event.stopPropagation();">${_plCommentsHtml(log.id)}</div>
   </div></td></tr>`;
@@ -1004,6 +1043,13 @@ function _plRenderLogRow(log, q, ctx) {
   const stateHtml = log.state === '진행중' ? ' <span class="pl-st-open">진행중</span>' : (log.state === '완료' ? ' <span class="pl-st-done">완료</span>' : '');
   const isLate = !!(log.logDate && log.createdAt && Math.abs((new Date(log.createdAt) - new Date(log.logDate)) / 86400000) >= 3);
   const lateHtml = isLate ? ' <span class="pl-st-late">소급</span>' : '';
+  // 내용 첫 줄 끝에 첨부/링크 여부만 아이콘으로 표시 — 펼치지 않아도 있는지 정도는 바로 보이게
+  const attachIconsHtml = (log.hasImages ? `<span style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁</span>` : '')
+    + ((log.links && log.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${log.links.length}개">🔗</span>` : '');
+  // 하위 기록(ㄴ)도 접힌 상태에서 같이 보이게 — 펼쳐야만 보이던 걸 목록에서 바로 확인 가능하도록
+  const subLinesHtml = (log.detail || []).filter(d => (d.text || '').trim()).map(d =>
+    `<div style="font-size:11px;color:var(--text2);white-space:normal;padding:1px 0;"><span style="color:var(--text3);">ㄴ</span> ${d.label ? `<b>${_plHighlight(d.label, q)}</b> ` : ''}${_plHighlight(d.text, q)}</div>`
+  ).join('');
 
   const progHtml = log.progress != null
     ? `<span class="prog-wrap" style="width:46px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}</span>`
@@ -1017,7 +1063,7 @@ function _plRenderLogRow(log, q, ctx) {
     <td>${campCell}</td>
     <td>${mediaCell}</td>
     <td><span class="badge pl-lg-${log.logType}">${_escHtml(log.logType)}</span></td>
-    <td>${starHtml}${contentHtml}${stateHtml}${lateHtml}${cmtBadgeHtml}</td>
+    <td><div>${starHtml}${contentHtml}${attachIconsHtml}${stateHtml}${lateHtml}${cmtBadgeHtml}</div>${subLinesHtml}</td>
     <td class="td-c" style="vertical-align:middle;">${progHtml}</td>
     <td>${_escHtml(log.writer || '—')}</td>
   </tr>`;
@@ -1026,6 +1072,16 @@ function _plRenderLogRow(log, q, ctx) {
 }
 
 function _plRenderRows() {
+  // 검색/필터가 최근 구독 범위 밖을 가리키면 그때 필요한 범위를 추가로 구독한다.
+  // - 광고주/매체 필터가 걸려있으면 그 범위만(가벼움), 자유 텍스트나 그보다 이전 날짜 필터면 범위를 특정할 수 없어 전체를 연다.
+  const searchVal = (document.getElementById('pl-search')?.value || '').trim();
+  const dateFromVal = document.getElementById('pl-date-from')?.value || '';
+  const sellerFilterVal = document.getElementById('pl-f-seller')?.value.trim() || '';
+  const mediaFilterVal = document.getElementById('pl-f-media')?.value.trim() || '';
+  if (sellerFilterVal) _plEnsureCompanyLoaded(sellerFilterVal);
+  if (mediaFilterVal) _plEnsureMediaLoaded(mediaFilterVal);
+  if (searchVal || (dateFromVal && dateFromVal < _plRecentCutoff())) _plEnsureFullyLoaded();
+
   const filtered = _plGetFiltered();
   const q = (document.getElementById('pl-search')?.value || '').trim();
 
@@ -1321,8 +1377,14 @@ function _plBlockSearch(bi, query) {
     `<div class="combo-item" onmousedown="_plBlockPick(${bi},${ri})">${_escHtml(r.label)} <span class="pl-ctype">${_escHtml(r.sub)}</span></div>`
   ).join('');
   const trimmed = (query || '').trim();
-  if (trimmed && !results.some(r => r.type === 'internal' && r.label === trimmed)) {
-    html += `<div class="combo-add" onmousedown="_plBlockPickNewInternal(${bi})">＋ "${_escHtml(trimmed)}" 새 내부 업무로 추가</div>`;
+  if (trimmed) {
+    // 검색에 안 걸리면 세 갈래로 새로 만들 수 있게 — 내부업무는 즉석 추가(마스터데이터 없음),
+    // 광고주/매체사는 매출처관리·매체관리에 정식 등록해야 하는 데이터라 등록 모달을 띄운다.
+    if (!results.some(r => r.type === 'internal' && r.label === trimmed)) {
+      html += `<div class="combo-add" onmousedown="_plBlockPickNewInternal(${bi})">＋ "${_escHtml(trimmed)}" 새 내부 업무로 추가</div>`;
+    }
+    html += `<div class="combo-add" onmousedown="_plBlockPickNewSeller(${bi})">＋ "${_escHtml(trimmed)}" 광고주로 추가 (매출처 등록)</div>`;
+    html += `<div class="combo-add" onmousedown="_plBlockPickNewMedia(${bi})">＋ "${_escHtml(trimmed)}" 매체사로 추가 (매체 등록)</div>`;
   }
   if (!html) { list.style.display = 'none'; return; }
   list.innerHTML = html;
@@ -1352,6 +1414,45 @@ function _plBlockPickNewInternal(bi) {
   const list = document.getElementById(`pl-tgt-list-${bi}`);
   if (list) list.style.display = 'none';
   _plRenderWriteModal();
+}
+// 광고주/매체사는 마스터데이터(SELLER_DATA/MEDIA_DATA)라 즉석 추가 대신 정식 등록 모달을 띄운다.
+// 저장되면 script.js의 saveSeller()/saveMedia()가 _plHandlePendingNewTarget()을 호출해 이 블록에 자동 반영.
+let _plPendingNewTarget = null;
+function _plBlockPickNewSeller(bi) {
+  const block = _plDraft.blocks[bi];
+  const q = (block?.searchQuery || '').trim();
+  if (!q) return;
+  const list = document.getElementById(`pl-tgt-list-${bi}`);
+  if (list) list.style.display = 'none';
+  _plPendingNewTarget = { bi, kind: 'seller' };
+  openSellerModal(null, '광고주');
+  const companyEl = document.getElementById('sel-company');
+  if (companyEl) companyEl.value = q;
+}
+function _plBlockPickNewMedia(bi) {
+  const block = _plDraft.blocks[bi];
+  const q = (block?.searchQuery || '').trim();
+  if (!q) return;
+  const list = document.getElementById(`pl-tgt-list-${bi}`);
+  if (list) list.style.display = 'none';
+  _plPendingNewTarget = { bi, kind: 'media' };
+  openMediaModal(null);
+  const companyEl = document.getElementById('med-company');
+  if (companyEl) companyEl.value = q;
+}
+function _plHandlePendingNewTarget(kind, company) {
+  if (!_plPendingNewTarget || _plPendingNewTarget.kind !== kind || !company) return;
+  const block = _plDraft.blocks[_plPendingNewTarget.bi];
+  _plPendingNewTarget = null;
+  if (!block) return;
+  if (kind === 'seller') {
+    block.scope = 'advertiser'; block.seller = company; block.content = null;
+    block.campaignId = null; block.media = null; block.product = null;
+  } else if (kind === 'media') {
+    block.scope = 'media'; block.seller = null; block.content = null;
+    block.campaignId = null; block.media = company; block.product = null;
+  }
+  if (document.getElementById('pl-modal-write')?.classList.contains('open')) _plRenderWriteModal();
 }
 
 function _plBlockSetProject(bi, value) {
@@ -1447,7 +1548,15 @@ function _plRenderBlockHtml(block, bi) {
   const targetLabel = _plBlockTargetLabel(block);
   const subLabel = _plBlockSubLabel(block);
   const isInternal = block.scope === 'internal';
-  const itemsHtml = block.items.map((it, ii) => _plRenderItemHtml(block, bi, ii, it)).join('');
+  // campaign/media scope는 매체가 블록 단위로 고정돼있어 항목별로 다를 수 없으므로 그룹핑 자체가 의미 없음(첫 항목에만 표시).
+  // 그 외 scope는 연속된 항목의 매체값이 같으면 매체 행을 생략해서 "매체 하나에 항목 여러 개" 모양으로 묶어 보이게 한다.
+  const groupableMedia = block.scope !== 'campaign' && block.scope !== 'media';
+  let prevMedia;
+  const itemsHtml = block.items.map((it, ii) => {
+    const showMediaRow = !groupableMedia ? (ii === 0) : (ii === 0 || it.media !== prevMedia);
+    if (groupableMedia) prevMedia = it.media;
+    return _plRenderItemHtml(block, bi, ii, it, showMediaRow);
+  }).join('');
   return `<div class="pl-block" data-bi="${bi}">
     <div class="pl-bhead">
       <div class="combo-wrap" style="position:relative;">
@@ -1463,7 +1572,8 @@ function _plRenderBlockHtml(block, bi) {
     </div>
     <div class="pl-bbody">
       ${itemsHtml}
-      <div class="pl-add" onclick="_plAddItem(${bi})">＋ 항목 추가</div>
+      <div class="pl-add" onclick="_plAddItem(${bi})">＋ 항목 추가${groupableMedia ? ' (같은 매체)' : ''}</div>
+      ${groupableMedia ? `<div class="pl-add" onclick="_plAddMediaGroup(${bi})">＋ 매체 추가</div>` : ''}
     </div>
   </div>`;
 }
@@ -1485,12 +1595,12 @@ function _plItemMediaField(block, bi, ii, it) {
 }
 
 // ── 항목 / ㄴ 하위줄 ──
-function _plRenderItemHtml(block, bi, ii, it) {
+function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
   const typeOpts = PL_LOG_TYPES.map(t => `<option value="${t}" ${it.logType === t ? 'selected' : ''}>${t}</option>`).join('');
   const ph = PL_SUMMARY_PH[it.logType] || '';
   const subHtml = (it.detail || []).map((d, di) => _plRenderSubHtml(bi, ii, di, d, it.logType)).join('');
   return `<div class="pl-item" data-bi="${bi}" data-ii="${ii}">
-    <div class="pl-media-row">${_plItemMediaField(block, bi, ii, it)}</div>
+    ${showMediaRow ? `<div class="pl-media-row">${_plItemMediaField(block, bi, ii, it)}</div>` : ''}
     <div class="pl-irow">
       <select class="pl-mini" style="font-weight:700;" onchange="_plItemTypeChange(${bi},${ii},this.value)">${typeOpts}</select>
       <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(ph)}" value="${_escHtml(it.summary || '')}"
@@ -1593,6 +1703,17 @@ function _plItemTypeChange(bi, ii, val) {
   _plRenderWriteModal();
 }
 function _plAddItem(bi) {
+  const block = _plDraft.blocks[bi];
+  if (!block) return;
+  const newItem = _plEmptyItem();
+  // 직전 항목과 같은 매체로 이어서 작성하는 경우가 흔해서, 매체값을 그대로 이어받는다(다르면 매체 행을 눌러 바꾸면 됨).
+  const lastItem = block.items[block.items.length - 1];
+  if (lastItem) newItem.media = lastItem.media;
+  block.items.push(newItem);
+  _plRenderWriteModal();
+}
+// "+ 매체 추가" — 항목추가와 달리 매체를 빈 값으로 시작해서, 새 매체 행부터 다시 그룹을 시작하게 한다.
+function _plAddMediaGroup(bi) {
   const block = _plDraft.blocks[bi];
   if (!block) return;
   block.items.push(_plEmptyItem());
@@ -2191,7 +2312,9 @@ function _plEditMetaHtml() {
         </div>
       </div>
       <div class="fg"><label class="form-label">작성 정보</label>
-        <div class="form-hint" style="padding-top:8px;">${_escHtml(d.writer || '')} · ${_escHtml(d.bonbu || '')} ${_escHtml(d.dept || '')} · <span class="f-mono">${_escHtml(d.logDate || '')}${d.createdAt ? ' ' + (() => { const t = new Date(d.createdAt); return String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0'); })() : ''}</span></div>
+        <div class="form-hint" style="padding-top:8px;">${_escHtml(d.writer || '')} · ${_escHtml(d.bonbu || '')} ${_escHtml(d.dept || '')} · <span class="f-mono">${_escHtml(d.logDate || '')}${d.createdAt ? ' ' + (() => { const t = new Date(d.createdAt); return String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0'); })() : ''}</span>
+          <span class="pl-x" style="margin-left:6px;" onclick="plOpenHistoryModal('${d.id}')">이력 보기</span>
+        </div>
       </div>
     </div>
     ${_plEditAttachHtml()}
@@ -2350,6 +2473,49 @@ function _plDiffFields(orig, updated) {
   if (!!orig.important !== !!updated.important) changes.push({ field: 'important', label: '중요', before: orig.important ? '예' : '아니오', after: updated.important ? '예' : '아니오' });
   if (!!orig.shared !== !!updated.shared) changes.push({ field: 'shared', label: '공유', before: orig.shared ? '예' : '아니오', after: updated.shared ? '예' : '아니오' });
   return changes;
+}
+
+// ── 수정 이력 모달 — projectLogHistory에는 계속 쌓이고 있었지만 지금까지 이걸 보여주는 화면이 없었음 ──
+function _plBuildHistoryModalShell() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'pl-modal-history';
+  overlay.innerHTML = `
+    <div class="modal sm" style="width:480px;max-width:96vw;">
+      <div class="modal-head">
+        <span class="modal-title">🕘 수정 이력</span>
+        <button class="modal-close" onclick="closeModal('pl-modal-history')">✕</button>
+      </div>
+      <div class="modal-body" id="pl-history-body" style="max-height:60vh;overflow-y:auto;"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+async function plOpenHistoryModal(logId) {
+  if (!document.getElementById('pl-modal-history')) _plBuildHistoryModalShell();
+  const bodyEl = document.getElementById('pl-history-body');
+  if (bodyEl) bodyEl.innerHTML = '<div class="form-hint" style="padding:20px;text-align:center;">불러오는 중…</div>';
+  openModal('pl-modal-history');
+  try {
+    const snap = await _plDb('projectLogHistory').where('logId', '==', logId).get();
+    const entries = snap.docs.map(d => d.data()).sort((a, b) => (b.changedAt || '').localeCompare(a.changedAt || ''));
+    if (!bodyEl) return;
+    if (!entries.length) { bodyEl.innerHTML = '<div class="form-hint" style="padding:20px;text-align:center;">이력이 없습니다.</div>'; return; }
+    bodyEl.innerHTML = entries.map(e => {
+      const when = (e.changedAt || '').replace('T', ' ').slice(2, 16).replace(/-/g, '.');
+      const changesHtml = (e.changes || []).map(c =>
+        c.field === '_create'
+          ? `<div style="font-size:12px;color:var(--text2);">${_escHtml(c.label)}</div>`
+          : `<div style="font-size:12px;color:var(--text2);"><b>${_escHtml(c.label)}</b>: ${_escHtml(c.before || '(없음)')} → ${_escHtml(c.after || '(없음)')}</div>`
+      ).join('');
+      return `<div style="padding:8px 0;border-bottom:1px dashed var(--border);">
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px;">${_escHtml(e.changedBy || '—')} <span class="form-hint f-mono" style="font-weight:400;">${_escHtml(when)}</span></div>
+        ${changesHtml}
+      </div>`;
+    }).join('');
+  } catch (err) {
+    console.error('[projectlog] 이력 조회 실패', err);
+    if (bodyEl) bodyEl.innerHTML = '<div class="form-hint" style="padding:20px;text-align:center;color:var(--red);">불러오기 실패</div>';
+  }
 }
 
 async function plSaveEdit() {
@@ -2548,6 +2714,7 @@ function plOpenAdvertiserDetail(company) {
   PL_STATE.tab = 'advertiser';
   PL_STATE.advDetailCompany = company;
   _plUpdateTabButtons();
+  _plEnsureCompanyLoaded(company); // ①연간요약 등은 이 광고주의 전체 이력이 있어야 정확해서 진입 시 별도 구독
   plRenderActiveTab();
   history.pushState({ screen: 'projectlog-detail', plTab: 'advertiser' }, '', '#projectlog');
 }
@@ -3346,6 +3513,8 @@ function plRenderCampaignTab() {
     _plBuildCampaignTabSkeleton(content);
     content.dataset.plTab = 'campaign';
   }
+  // 이 탭은 "기록없음 캠페인 찾기"처럼 전체를 훑어보는 용도라 최근 구독 범위만으론 기록 개수가 부정확해짐 — 전체 구독 필요
+  _plEnsureFullyLoaded();
   _plRenderCampaignRows();
 }
 
@@ -3445,6 +3614,7 @@ function plOpenMediaDetail(company) {
   PL_STATE.tab = 'media';
   PL_STATE.mediaDetailCompany = company;
   _plUpdateTabButtons();
+  _plEnsureMediaLoaded(company); // 매체지식(시스템제약·매체회신)은 전체 이력을 봐야 해서 진입 시 별도 구독
   plRenderActiveTab();
   history.pushState({ screen: 'projectlog-detail', plTab: 'media' }, '', '#projectlog');
 }
