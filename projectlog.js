@@ -2971,7 +2971,7 @@ function _plGRenderAnnual() {
       <div class="table-header">
         <span class="card-title">① 연간 요약 — ${_escHtml(year)}년</span>
         ${companyGoal?.value ? `<span style="font-size:11.5px;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;margin-left:10px;">전체 목표 <b>${_fmtMoney(companyGoal.value)}</b> · 실적 ${_fmtMoney(totalAdcost)} (${(totalAdcost / companyGoal.value * 100).toFixed(1)}%)</span>` : ''}
-        <button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="plOpenGoalModal()">🎯 목표 설정</button>
+        ${_plCanEditGoal() ? `<button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="plOpenGoalModal()">🎯 목표 설정</button>` : ''}
       </div>
       <div class="table-wrap"><table style="width:100%;">
         <thead><tr><th>프로젝트</th><th>집행월</th><th>광고상품</th><th class="td-r">취급고</th><th class="td-r">요청수량</th><th class="td-r">발송수량</th><th>수익율</th><th>담당자</th><th class="td-r">기록</th></tr></thead>
@@ -2981,6 +2981,9 @@ function _plGRenderAnnual() {
 }
 
 // ── 목표 설정 모달 (광고주 전체 + 브랜드별, 연도 단위) ──
+function _plCanEditGoal() {
+  return !!(currentUser?.isAdmin || RANK_LEVEL[currentUser?.rank || '일반'] <= 4);
+}
 let _plGoalModalYear = null; // G화면의 연도 선택기와는 별개 — 모달 안에서만 오가는 연도
 
 function _plBuildGoalModalShell() {
@@ -3009,6 +3012,7 @@ function _plGoalYearOptions() {
 }
 function plOpenGoalModal() {
   if (!_plGCompany) return;
+  if (!_plCanEditGoal()) { toast('목표 설정 권한이 없습니다', 'err'); return; }
   if (!document.getElementById('pl-modal-goal')) _plBuildGoalModalShell();
   _plGoalModalYear = _plGState.year;
   const companyEl = document.getElementById('pl-goal-company');
@@ -3064,6 +3068,7 @@ function _plRenderGoalModalBody() {
   `;
 }
 async function _plSaveGoalModal() {
+  if (!_plCanEditGoal()) { toast('목표 설정 권한이 없습니다', 'err'); return; }
   const company = _plGCompany;
   const year = _plGoalModalYear;
   const btn = document.querySelector('#pl-modal-goal .modal-foot .btn-primary');
@@ -3119,7 +3124,7 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year) {
   return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
       <span style="font-size:10.5px;font-weight:700;color:var(--text2);">월별 목표</span>
-      <span class="pl-x" style="font-size:11px;color:var(--accent);cursor:pointer;" onclick="plOpenMonthlyGoalModal('${_escHtml(brandKey)}','${_escHtml(brandLabel)}')">✎ 수정</span>
+      ${_plCanEditGoal() ? `<span class="pl-x" style="font-size:11px;color:var(--accent);cursor:pointer;" onclick="plOpenMonthlyGoalModal('${_escHtml(brandKey)}','${_escHtml(brandLabel)}')">✎ 수정</span>` : ''}
     </div>
     <table style="width:100%;border-collapse:collapse;">
       <thead><tr>${heads}</tr></thead>
@@ -3149,6 +3154,7 @@ function _plBuildMonthlyGoalModalShell() {
 }
 function plOpenMonthlyGoalModal(brandKey, brandLabel) {
   if (!_plGCompany) return;
+  if (!_plCanEditGoal()) { toast('목표 설정 권한이 없습니다', 'err'); return; }
   _plMonthlyGoalModalBrand = brandKey;
   if (!document.getElementById('pl-modal-monthlygoal')) _plBuildMonthlyGoalModalShell();
   const year = _plGState.year;
@@ -3171,6 +3177,7 @@ function plOpenMonthlyGoalModal(brandKey, brandLabel) {
   openModal('pl-modal-monthlygoal');
 }
 async function _plSaveMonthlyGoalModal() {
+  if (!_plCanEditGoal()) { toast('목표 설정 권한이 없습니다', 'err'); return; }
   const brandKey = _plMonthlyGoalModalBrand;
   const btn = document.querySelector('#pl-modal-monthlygoal .modal-foot .btn-primary');
   if (btn) btn.disabled = true;
