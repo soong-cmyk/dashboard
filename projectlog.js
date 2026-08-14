@@ -217,6 +217,14 @@ function _plEnsureFullyLoaded() {
   _plFullyWatching = true;
   _plDb('projectLogs').onSnapshot(_plApplySnapshot, err => console.error('[projectlog] 전체 구독 오류', err));
 }
+let _plWatchedDates = new Set();
+// 일자별 탭은 최근 구독 범위보다 예전 날짜로도 자유롭게 넘어갈 수 있어서, 그 날짜가 범위 밖이면 그 하루치만 따로 구독한다.
+function _plEnsureDateLoaded(dateStr) {
+  if (!dateStr || _plFullyWatching || dateStr >= _plRecentCutoff() || _plWatchedDates.has(dateStr) || !window._db) return;
+  _plWatchedDates.add(dateStr);
+  _plDb('projectLogs').where('logDate', '==', dateStr)
+    .onSnapshot(_plApplySnapshot, err => console.error('[projectlog] 날짜별 구독 오류', err));
+}
 
 // ── 댓글 구독 (로그와 분리 — 로그 목록 전체 리렌더를 피하기 위함) ──
 let PL_COMMENTS = [];
@@ -3785,17 +3793,17 @@ function _plDateGroupedData(dateStr) {
   });
   const writers = [...byWriter.keys()].sort((a, b) => (a || '').localeCompare(b || '', 'ko'));
   return writers.map(writer => {
+    // PL_LOGS 자체는 최신순(createdAt 내림차순)이라, 그 순서 그대로 Map에 넣으면 블록이 "처음 등장한 순서"로
+    // 삽입되면서 결과적으로 가장 나중에 쓴 블록이 맨 위로 온다(항목 sort는 블록 내부에만 적용돼 블록 순서엔 영향 없음).
+    // 블록 순서·항목 순서 둘 다 작성 순서(오름차순)대로 보이게 하려면 그룹핑 전에 미리 오름차순으로 뒤집어야 한다.
+    const writerLogsAsc = byWriter.get(writer).slice().sort((x, y) => (x.createdAt || '').localeCompare(y.createdAt || ''));
     const byBlock = new Map();
-    byWriter.get(writer).forEach(l => {
+    writerLogsAsc.forEach(l => {
       const key = `${l.scope}::${l.seller || ''}::${l.content || ''}::${l.campaignId || ''}::${l.media || ''}`;
       if (!byBlock.has(key)) byBlock.set(key, { scope: l.scope, seller: l.seller, content: l.content, campaignId: l.campaignId, media: l.media, items: [] });
       byBlock.get(key).items.push(l);
     });
-    // PL_LOGS 자체는 최신순(createdAt 내림차순)으로 정렬돼있어서, 하루 안에서는 먼저 쓴 게 위로 오게 여기서 뒤집어준다
-    const blocks = [...byBlock.values()].map(b => {
-      b.items.sort((x, y) => (x.createdAt || '').localeCompare(y.createdAt || ''));
-      return b;
-    });
+    const blocks = [...byBlock.values()];
     return { writer, blocks };
   });
 }
@@ -3845,6 +3853,7 @@ function _plRenderDateBody() {
   if (!bodyEl) return;
   const pickerEl = document.getElementById('pl-date-picker');
   if (pickerEl) pickerEl.value = _plDateTabDate;
+  _plEnsureDateLoaded(_plDateTabDate); // 기본 구독 범위보다 예전 날짜면 그 하루치를 따로 불러옴
 
   const grouped = _plDateGroupedData(_plDateTabDate);
   const totalLogs = grouped.reduce((s, g) => s + g.blocks.reduce((s2, b) => s2 + b.items.length, 0), 0);
