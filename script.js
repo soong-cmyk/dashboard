@@ -10790,10 +10790,10 @@ function _notifBody(type, company, content, count, gid) {
   return '';
 }
 
-async function _fbSaveNotification(toUserId, type, body) {
+async function _fbSaveNotification(toUserId, type, body, meta) {
   if (!window._db || !toUserId) return;
   const id = 'notif_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
-  const notif = { id, toUserId, type, body, createdAt: new Date().toISOString(), read: false };
+  const notif = { id, toUserId, type, body, meta: meta || {}, createdAt: new Date().toISOString(), read: false };
   try { await window._db.collection('notifications').doc(id).set(notif); }
   catch(e) { console.error('[FB] 알림 저장 실패:', e); }
 }
@@ -10836,9 +10836,14 @@ function _renderNotifList() {
     el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:40px 0;">알림이 없습니다.</div>';
     return;
   }
+  // 일지 관련 알림(pl_*)에만 로그ID가 있으면 그 로그로 바로 이동하는 지름길 버튼을 붙인다.
+  // 다른 타입(세금계산서 등)은 대상 화면이 제각각이라 전체 알림에 클릭 동작을 일괄로 주지 않았다.
+  const PL_NOTIF_TYPES = new Set(['pl_comment', 'pl_resolved', 'pl_edit', 'pl_related', 'pl_mention']);
   el.innerHTML = NOTIFICATIONS.map(n => {
     const dt = n.createdAt ? new Date(n.createdAt) : null;
     const timeStr = dt ? `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}` : '';
+    const logId = PL_NOTIF_TYPES.has(n.type) ? n.meta?.logId : null;
+    const jumpBtn = logId ? `<span style="flex-shrink:0;color:var(--accent);font-weight:700;cursor:pointer;font-size:12px;" onclick="event.stopPropagation();closeModal('modalNotif');plJumpToLog('${logId}')">일지 보기 →</span>` : '';
     return `<div style="display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);${n.read ? '' : 'background:var(--primary-light);'}">
       <div style="flex-shrink:0;margin-top:4px;">
         <div style="width:8px;height:8px;border-radius:50%;background:${n.read ? 'var(--border)' : 'var(--primary)'};"></div>
@@ -10847,6 +10852,7 @@ function _renderNotifList() {
         <div style="font-size:13px;color:var(--text1);line-height:1.5;">${_escHtml(n.body)}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:3px;">${timeStr}</div>
       </div>
+      ${jumpBtn}
     </div>`;
   }).join('');
 }

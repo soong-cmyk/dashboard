@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>프로젝트일지 기능 설명서</title>
+<style>
+  :root{
+    --paper:#F3F4F0;
+    --paper2:#EAEBE4;
+    --card:#FCFCFA;
+    --ink:#1E2230;
+    --ink2:#565C6B;
+    --ink3:#8A8F9C;
+    --line:#DBDCD4;
+    --line-soft:#E7E8E1;
+    --accent:#33527A;
+    --accent-soft:#E4EAF1;
+    --accent-ink:#20395A;
+    --red:#c92a2a; --red-bg:#fff5f5;
+    --orange:#d9480f; --orange-bg:#fff4e6;
+    --green:#2b8a3e; --green-bg:#ebfbee;
+    --purple:#9c36b5; --purple-bg:#f8f0fc;
+    --indigo:#5f3dc4; --indigo-bg:#f3f0ff;
+    --teal:#0ca678; --teal-bg:#e6fcf5;
+    --yellow:#997404; --yellow-bg:#fff9db;
+    --cyan:#0b7285; --cyan-bg:#e3fafc;
+    --blue:#1864ab; --blue-bg:#e7f5ff;
+    --grey:#495057; --grey-bg:#eceef0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#14161B; --paper2:#1A1D24; --card:#1D2029;
+      --ink:#E8E9ED; --ink2:#AAAEBA; --ink3:#70747F;
+      --line:#2B2E38; --line-soft:#23262F;
+      --accent:#7EA3D6; --accent-soft:#212B3B; --accent-ink:#BFD4EE;
+      --red-bg:#3A1F1F; --orange-bg:#3A2A1A; --green-bg:#1B2E20; --purple-bg:#2C1F33;
+      --indigo-bg:#241F3A; --teal-bg:#123329; --yellow-bg:#332B0F; --cyan-bg:#12292E; --blue-bg:#182838; --grey-bg:#22252C;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Segoe UI",sans-serif;
+    font-size:15px;
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;}
+  ::selection{background:var(--accent-soft);}
+
+  .sheet{max-width:800px;margin:0 auto;padding:56px 28px 120px;}
+
+  .letterhead{
+    border-bottom:2px solid var(--ink);
+    padding-bottom:18px;
+    margin-bottom:8px;
+  }
+  .letterhead .kicker{
+    font-family:ui-monospace,"SFMono-Regular",Consolas,monospace;
+    font-size:11.5px;
+    letter-spacing:.09em;
+    color:var(--ink3);
+    text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  .letterhead h1{
+    font-size:27px;
+    font-weight:800;
+    letter-spacing:-.01em;
+    margin:0 0 6px;
+    text-wrap:balance;
+  }
+  .letterhead .sub{
+    font-size:14.5px;
+    color:var(--ink2);
+    margin:0;
+  }
+  .meta-row{
+    display:flex; flex-wrap:wrap; gap:0;
+    margin-top:20px;
+    border-top:1px solid var(--line);
+  }
+  .meta-cell{
+    flex:1 1 140px;
+    padding:9px 14px 9px 0;
+    border-right:1px solid var(--line-soft);
+  }
+  .meta-cell:last-child{border-right:none;}
+  .meta-cell .k{
+    font-size:10.5px; color:var(--ink3); letter-spacing:.04em;
+    margin-bottom:3px; font-family:ui-monospace,monospace;
+  }
+  .meta-cell .v{font-size:13px; font-weight:600; color:var(--ink);}
+
+  .toc{
+    margin:30px 0 44px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:16px 20px;
+  }
+  .toc-title{font-size:11px; color:var(--ink3); letter-spacing:.08em; margin-bottom:10px; font-family:ui-monospace,monospace;}
+  .toc ol{margin:0; padding:0 0 0 1.1em; columns:2; column-gap:24px;}
+  .toc li{font-size:13px; margin-bottom:6px; color:var(--ink2); break-inside:avoid;}
+  .toc a{color:var(--ink2); text-decoration:none;}
+  .toc a:hover{color:var(--accent); text-decoration:underline;}
+
+  section{margin:46px 0;}
+  section:first-of-type{margin-top:0;}
+  .sec-head{
+    display:flex; align-items:baseline; gap:10px;
+    margin-bottom:16px;
+    padding-bottom:10px;
+    border-bottom:1px solid var(--line);
+  }
+  .sec-num{
+    font-family:ui-monospace,monospace;
+    font-size:13px; color:var(--accent); font-weight:700;
+  }
+  .sec-head h2{font-size:18.5px; margin:0; font-weight:800; letter-spacing:-.01em;}
+  h3{font-size:15px; font-weight:700; margin:26px 0 10px;}
+  p{margin:0 0 12px; color:var(--ink);}
+  ul.plain, ol.plain{margin:0 0 14px; padding-left:1.3em;}
+  ul.plain li, ol.plain li{margin-bottom:6px;}
+  strong{color:var(--ink); font-weight:700;}
+  .note{
+    font-size:13px; color:var(--ink2);
+    background:var(--paper2); border-left:3px solid var(--accent);
+    padding:10px 14px; border-radius:0 4px 4px 0; margin:14px 0;
+  }
+
+  .tbl-wrap{overflow-x:auto; margin:14px 0; border:1px solid var(--line); border-radius:6px;}
+  table{width:100%; border-collapse:collapse; font-size:13px; background:var(--card);}
+  th{
+    text-align:left; font-size:11px; letter-spacing:.03em; color:var(--ink3);
+    font-weight:600; padding:9px 12px; border-bottom:1px solid var(--line);
+    background:var(--paper2); white-space:nowrap;
+  }
+  td{padding:10px 12px; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--ink2);}
+  tr:last-child td{border-bottom:none;}
+  td.strong{color:var(--ink); font-weight:600;}
+  td .mono{font-size:12px;}
+
+  .badge{
+    display:inline-block; font-size:11px; font-weight:700; padding:2px 8px;
+    border-radius:3px; white-space:nowrap;
+  }
+  .b-운영{background:var(--grey-bg); color:var(--grey);}
+  .b-요청{background:var(--cyan-bg); color:var(--cyan);}
+  .b-제안{background:var(--blue-bg); color:var(--blue);}
+  .b-이슈{background:var(--red-bg); color:var(--red);}
+  .b-대응{background:var(--orange-bg); color:var(--orange);}
+  .b-결과{background:var(--green-bg); color:var(--green);}
+  .b-피드백{background:var(--purple-bg); color:var(--purple);}
+  .b-회고{background:var(--indigo-bg); color:var(--indigo);}
+  .b-자료{background:var(--teal-bg); color:var(--teal);}
+  .b-시스템제약{background:var(--yellow-bg); color:var(--yellow);}
+
+  .flow{
+    display:flex; align-items:stretch; gap:0; margin:22px 0;
+    font-size:12.8px;
+  }
+  .flow-step{
+    flex:1; background:var(--card); border:1px solid var(--line); border-radius:6px;
+    padding:12px 14px; position:relative;
+  }
+  .flow-step .fs-k{font-family:ui-monospace,monospace; font-size:10px; color:var(--ink3); margin-bottom:5px;}
+  .flow-step .fs-t{font-weight:700; margin-bottom:4px;}
+  .flow-step .fs-d{color:var(--ink2); font-size:12px;}
+  .flow-arrow{
+    flex:0 0 30px; display:flex; align-items:center; justify-content:center;
+    color:var(--ink3); font-size:16px;
+  }
+  @media (max-width:640px){
+    .flow{flex-direction:column;}
+    .flow-arrow{flex-direction:row; transform:rotate(90deg); padding:2px 0;}
+  }
+
+  .perm-yes{color:var(--green); font-weight:700;}
+  .perm-no{color:var(--ink3);}
+  .perm-cond{color:var(--orange); font-weight:600;}
+
+  .foot{
+    margin-top:70px; padding-top:16px; border-top:1px solid var(--line);
+    font-size:11.5px; color:var(--ink3); display:flex; justify-content:space-between;
+    font-family:ui-monospace,monospace;
+  }
+
+  code.inline{
+    font-family:ui-monospace,monospace; font-size:12px;
+    background:var(--paper2); padding:1px 5px; border-radius:3px; color:var(--accent-ink);
+  }
+
+  @media print{
+    body{background:#fff;}
+    .toc a{text-decoration:none;}
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <div class="letterhead">
+    <div class="kicker">Internal Feature Memo · 사내 기능 보고</div>
+    <h1>프로젝트일지 기능 설명서</h1>
+    <p class="sub">화면 구성, 기록 분류, 권한 체계와 사용 가이드</p>
+    <div class="meta-row">
+      <div class="meta-cell"><div class="k">DOCUMENT</div><div class="v">기능 설명서 v1.1</div></div>
+      <div class="meta-cell"><div class="k">MENU</div><div class="v">프로젝트일지</div></div>
+      <div class="meta-cell"><div class="k">DATE</div><div class="v">2026-08-18</div></div>
+      <div class="meta-cell"><div class="k">STATUS</div><div class="v">운영 중</div></div>
+    </div>
+  </div>
+
+  <div class="toc">
+    <div class="toc-title">CONTENTS</div>
+    <ol>
+      <li><a href="#screens">화면 구성 — 6개 탭</a></li>
+      <li><a href="#types">기록 분류 체계</a></li>
+      <li><a href="#mediaknow">매체 지식 자동 집계</a></li>
+      <li><a href="#issue">이슈 → 대응 추적</a></li>
+      <li><a href="#collab">댓글·관련자·알림·수정이력</a></li>
+      <li><a href="#perm">권한 체계</a></li>
+      <li><a href="#link">기존 화면과의 연동</a></li>
+      <li><a href="#howto">실무자 사용 가이드</a></li>
+    </ol>
+  </div>
+
+  <section id="screens">
+    <div class="sec-head"><span class="sec-num">01</span><h2>화면 구성 — 6개 탭</h2></div>
+    <p>메뉴에 진입하면 <strong>일자별</strong> 탭이 기본으로 뜨고, 총 6개 탭을 오가며 같은 데이터를 다른 각도로 봅니다. <strong>나의 일지</strong> 탭은 나머지 5개(일자별~캠페인)와 구분되도록 탭바에서 별도 그룹으로 오른쪽에 분리되어 있습니다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th style="width:90px;">탭</th><th>보여주는 것</th><th>주로 쓰는 상황</th></tr></thead>
+        <tbody>
+          <tr><td class="strong">일자별</td><td>선택한 날짜에 작성된 모든 일지를 작성자별·건별로, <strong>작성한 순서 그대로</strong> 모아 보여줌. 항목을 클릭하면 '일지' 탭과 동일하게 그 자리에서 펼쳐져 첨부·댓글까지 확인 가능</td><td>"오늘/어제 우리 팀이 뭘 했는지" 훑어볼 때</td></tr>
+          <tr><td class="strong">일지</td><td>전체 일지를 표로, 필터(광고주·매체·분류·진행중·중요)와 검색·페이지네이션 포함</td><td>특정 조건으로 과거 기록을 찾을 때</td></tr>
+          <tr><td class="strong">나의 일지</td><td>내가 작성했거나 관련자로 등록된 일지, 댓글에서 내가 멘션된 일지를 각각 섹션으로 모아 보여줌. 자체 검색창 포함</td><td>내 업무 현황을 한 번에 확인하거나, 나와 관련된 걸 놓치지 않고 챙길 때</td></tr>
+          <tr><td class="strong">광고주</td><td>광고주별 드릴다운 — 연간 취급고 요약·목표 대비 현황·월별 추이·해당 광고주 일지 전체</td><td>광고주 미팅 준비, 연간 실적 리뷰</td></tr>
+          <tr><td class="strong">매체</td><td>매체별 드릴다운 — 광고주 탭과 동일한 구조를 매체 기준으로</td><td>매체 재계약·조건 협의 준비</td></tr>
+          <tr><td class="strong">캠페인</td><td>특정 캠페인에 귀속된 일지 아카이브 조회</td><td>과거 캠페인 분쟁·재개 시 근거 확인</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">화면 상단 <strong>+ 일지 작성</strong>으로 신규 작성, <strong>📥 엑셀 업로드</strong>로 과거 기록을 일괄로 옮겨올 수 있습니다. 목록의 <span class="mono">📁</span>(이미지)·<span class="mono">🔗</span>(링크)·<span class="mono">👤</span>(관련자)·<span class="mono">💬</span>(댓글) 옆 숫자로, 펼치지 않아도 몇 개 있는지 바로 확인할 수 있습니다.</div>
+  </section>
+
+  <section id="types">
+    <div class="sec-head"><span class="sec-num">02</span><h2>기록 분류 체계</h2></div>
+    <p>일지를 쓸 때 아래 10가지 중 하나로 분류합니다. 분류에 따라 입력 항목(예: '이슈'는 상황/원인/영향)이 자동으로 달라져, 매번 무엇을 써야 할지 고민하지 않아도 되게 했습니다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th style="width:80px;">분류</th><th>쓰는 상황</th><th>예시</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge b-운영">운영</span></td><td>정기적인 진행 상황 공유</td><td class="mono">8월 소재 2종 전달, 방학 선물 문구 확정</td></tr>
+          <tr><td><span class="badge b-요청">요청</span></td><td>광고주·매체로부터 받은 요청</td><td class="mono">국민카드 준회원 타겟 조회 가능 범위 문의</td></tr>
+          <tr><td><span class="badge b-제안">제안</span></td><td>우리가 먼저 제시한 안</td><td class="mono">8월 문자 10만건 부킹 제안 — 단가 50만원 기준</td></tr>
+          <tr><td><span class="badge b-이슈">이슈</span></td><td>문제 상황 — 등록 시 자동으로 <strong>진행중</strong> 상태</td><td class="mono">0709 캠페인 모수 부족 → 조건 확장 필요</td></tr>
+          <tr><td><span class="badge b-대응">대응</span></td><td>이슈·요청에 대한 조치·의사결정</td><td class="mono">발송시간 14시→11시 변경 협의 완료</td></tr>
+          <tr><td><span class="badge b-결과">결과</span></td><td>집행 결과·지표</td><td class="mono">발송 49,800 / CTR 1.8%</td></tr>
+          <tr><td><span class="badge b-피드백">피드백</span></td><td>광고주·매체가 준 평가</td><td class="mono">CTR 개선은 인정, 발송량 미달 보완 요청</td></tr>
+          <tr><td><span class="badge b-회고">회고</span></td><td>다음을 위한 잘된 점/문제점 정리</td><td class="mono">부킹 전 모수 확인 누락 → D-14 사전조회 원칙</td></tr>
+          <tr><td><span class="badge b-자료">자료</span></td><td>참고 자료 위치 기록</td><td class="mono">공용드라이브 : 업무폴더 D:\단비교육</td></tr>
+          <tr><td><span class="badge b-시스템제약">시스템제약</span></td><td>매체·플랫폼의 구조적 제약</td><td class="mono">KT는 동일 광고주 주 1회 발송만 허용</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px;color:var(--ink2);">이 중 <strong>중요</strong> 표시를 켠 일지는 '일지' 탭 상단의 중요 필터로 모아볼 수 있습니다.</p>
+  </section>
+
+  <section id="mediaknow">
+    <div class="sec-head"><span class="sec-num">03</span><h2>매체 지식 자동 집계</h2></div>
+    <p>매체는 담당자가 바뀌어도 "이 매체는 원래 이렇다"는 지식은 계속 남아야 합니다. <strong>프로젝트일지 &gt; 매체</strong> 탭에서 특정 매체를 클릭하면, 그 매체와 관련된 일지 중에서 <strong>시스템제약</strong>과 <strong>매체회신</strong>만 따로 뽑아 상세 화면 맨 위에 자동으로 모아 보여줍니다. 전체 일지를 뒤지지 않아도, 그 매체를 처음 맡는 담당자가 "이 매체는 뭘 조심해야 하는지 · 과거에 뭐라고 답했는지"를 바로 확인할 수 있게 하기 위한 장치입니다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th style="width:150px;">자동 집계 카드</th><th>모이는 조건</th><th>표시되는 내용</th></tr></thead>
+        <tbody>
+          <tr><td class="strong">⚠ 시스템 제약</td><td>일지 작성 시 대상을 그 <strong>매체</strong>로 지정하고, 유형을 <span class="badge b-시스템제약">시스템제약</span>으로 선택</td><td>작성일 + 일지 요약 내용 그대로 (예: KT는 동일 광고주 주 1회 발송만 허용)</td></tr>
+          <tr><td class="strong">💬 매체 회신</td><td>대상을 그 <strong>매체</strong>로 지정하고, 유형을 <span class="badge b-이슈">이슈</span> 또는 <span class="badge b-대응">대응</span>으로 선택 → 하위기록(<span class="mono">ㄴ</span>)에서 라벨을 <strong>"매체 회신"</strong>으로 선택</td><td>원래 무엇을 문의했는지(상위 일지 요약) + 매체가 회신한 내용</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px;color:var(--ink2);">매체 목록 표에도 매체별 <strong>시스템제약 · 매체회신 건수</strong>가 열로 표시돼, 상세로 들어가지 않아도 어느 매체에 주의할 이력이 많은지 한눈에 파악할 수 있습니다.</p>
+  </section>
+
+  <section id="issue">
+    <div class="sec-head"><span class="sec-num">04</span><h2>이슈 → 대응 추적</h2></div>
+    <p>'이슈'로 등록한 일지는 처리되기 전까지 <strong>진행중</strong> 상태로 남아 놓치지 않고 추적됩니다. '일지' 탭 상단의 <strong>🔴 진행중</strong> 필터로 지금 미해결 상태인 이슈만 모아볼 수 있습니다.</p>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="fs-k">STEP 1</div>
+        <div class="fs-t">이슈 등록</div>
+        <div class="fs-d">문제 발생 시 '이슈'로 작성 → 상태 <span class="mono">진행중</span> 자동 부여</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="fs-k">STEP 2</div>
+        <div class="fs-t">진행중 노출</div>
+        <div class="fs-d">'일지' 탭 진행중 필터·해당 일지 카드에 계속 표시</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="fs-k">STEP 3</div>
+        <div class="fs-t">완료 처리</div>
+        <div class="fs-d">✓ 완료 처리 클릭 → 해결 내용을 새 기록으로 작성</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="fs-k">STEP 4</div>
+        <div class="fs-t">연결 보존</div>
+        <div class="fs-d">원본 이슈는 그대로 두고, 완료 기록에서 원본으로 역참조 링크 제공</div>
+      </div>
+    </div>
+    <p style="font-size:13px;">원본을 고쳐 쓰지 않고 완료 기록을 별도로 붙이는 이유는, <strong>"처음에 뭐라고 판단했었는지"</strong> 자체도 나중에 되짚어볼 가치가 있는 기록이기 때문입니다.</p>
+  </section>
+
+  <section id="collab">
+    <div class="sec-head"><span class="sec-num">05</span><h2>댓글 · 관련자 · 알림 · 수정이력</h2></div>
+    <ul class="plain">
+      <li><strong>댓글</strong> — 일지 하나에 실시간으로 의견을 주고받을 수 있습니다. 목록에서 댓글 수 배지가 즉시 갱신됩니다. <span class="mono">@이름</span>을 입력하면 이름 자동완성 목록이 뜨고(방향키로 고르고 Enter로 확정 가능), 멘션된 이름은 댓글에 굵게 강조 표시되며 해당 사람에게 알림이 갑니다.</li>
+      <li><strong>관련자</strong> — 회의 참석자를 추가하듯, 일지 작성·수정 화면에서 이름을 검색해 여러 명을 관련자로 등록할 수 있습니다. 직접 작성하지 않았어도 그 업무에 참여한 사람을 명시적으로 남겨두기 위한 용도입니다. 등록되면 본인에게 알림이 가고, 목록에는 👤N 배지로 몇 명인지 바로 보입니다.</li>
+      <li><strong>알림</strong> — 내가 쓴 일지에 댓글이 달리거나, 수정되거나, 이슈가 완료 처리되거나, 관련자로 등록되거나, 댓글에서 멘션되면 상단 🔔 알림으로 전달됩니다. 일지 관련 알림에는 <strong>"일지 보기 →"</strong> 버튼이 붙어, 클릭 한 번으로 어느 화면에 있었든 그 일지가 있는 '일지' 탭으로 이동해 자동으로 펼쳐지고 스크롤됩니다.</li>
+      <li><strong>수정 이력</strong> — 모든 수정은 자동으로 이력이 남고, 일지 상세에서 "무엇이 언제 누구에 의해 어떻게 바뀌었는지" 그대로 열람할 수 있습니다.</li>
+    </ul>
+  </section>
+
+  <section id="perm">
+    <div class="sec-head"><span class="sec-num">06</span><h2>권한 체계</h2></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>행위</th><th>일반 직원</th><th>실장급 이상<span class="mono" style="font-weight:400;">(실장·본부장·이사·대표)</span></th><th>관리자</th></tr></thead>
+        <tbody>
+          <tr><td class="strong">일지 작성 · 조회</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td></tr>
+          <tr><td class="strong">본인 일지 수정 · 삭제</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td></tr>
+          <tr><td class="strong">타인 일지 수정 · 삭제</td><td class="perm-no">보기만 가능</td><td class="perm-no">보기만 가능</td><td class="perm-yes">가능</td></tr>
+          <tr><td class="strong">광고주 목표 설정 / 월별 목표 수정</td><td class="perm-no">불가</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px;color:var(--ink2);">목표 설정 권한은 팀장 이하(직급 레벨 5·6)를 제외하고 실장급 이상으로 최근 제한했습니다 — 연간·월별 취급고 목표는 조직 단위 의사결정이라 판단해서입니다.</p>
+  </section>
+
+  <section id="link">
+    <div class="sec-head"><span class="sec-num">07</span><h2>기존 화면과의 연동</h2></div>
+    <ul class="plain">
+      <li><strong>캠페인 상세 화면</strong> — 상단에 <code class="inline">✎ 일지</code> 버튼을 추가해, 그 캠페인에 달린 일지를 바로 조회할 수 있습니다.</li>
+      <li><strong>엑셀 업로드</strong> — 시스템 도입 이전 기록이나 외부에 흩어져 있던 메모를 양식에 맞춰 일괄로 가져올 수 있습니다.</li>
+    </ul>
+  </section>
+
+  <section id="howto">
+    <div class="sec-head"><span class="sec-num">08</span><h2>실무자 사용 가이드</h2></div>
+    <h3>이럴 때 남기면 됩니다</h3>
+    <ul class="plain">
+      <li>광고주·매체와 전화·메신저로 뭔가를 합의했을 때 → <span class="badge b-대응">대응</span></li>
+      <li>캠페인 진행 중 문제가 생겼을 때, 아직 안 풀렸어도 일단 → <span class="badge b-이슈">이슈</span></li>
+      <li>다음 캠페인을 위해 이번에 배운 게 있을 때 → <span class="badge b-회고">회고</span></li>
+      <li>담당자 교체·인수인계 직전 → 해당 광고주 탭에서 최근 일지를 먼저 훑어보기</li>
+    </ul>
+    <h3>대상 지정이 헷갈릴 때</h3>
+    <p style="font-size:13.5px;">캠페인이 이미 등록돼 있으면 <strong>캠페인</strong>으로, 아직 캠페인화 안 된 협의 단계면 <strong>프로젝트(브랜드)</strong>로, 광고주 전체에 걸친 이야기면 <strong>광고주 전반</strong>으로 잡으면 됩니다. 매체와의 조건 협의는 <strong>매체 전반</strong>, 그 외 사내 논의는 <strong>내부업무</strong>로 남깁니다.</p>
+    <div class="note">작성 시 대상을 검색해서 찾을 수 없으면(신규 광고주·매체), 그 자리에서 바로 등록하고 이어서 일지를 쓸 수 있습니다.</div>
+  </section>
+
+  <div class="foot">
+    <span>프로젝트일지 v1.1</span>
+    <span>2026-08-18</span>
+  </div>
+
+</div>
+</body>
+</html>
