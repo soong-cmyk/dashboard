@@ -776,7 +776,7 @@ function _updateUserUI() {
   const navUsage = document.getElementById('nav-usage');
   if (navUsage) navUsage.style.display = currentUser.isAdmin ? '' : 'none';
   const navKpi = document.getElementById('nav-kpi');
-  if (navKpi) navKpi.style.display = (RANK_LEVEL[currentUser.rank || '일반'] >= 1) ? '' : 'none'; // 전체 직급 열람 가능
+  if (navKpi) navKpi.style.display = ['soongeun', 'admin', 'jaehuyn'].includes(currentUser.id) ? '' : 'none';
 }
 // ══════════════════════════════════════════
 // AVATAR POPOVER & PASSWORD CHANGE
@@ -11201,7 +11201,7 @@ function _renderNotifList() {
   }
   // 일지 관련 알림(pl_*)에만 로그ID가 있으면 그 로그로 바로 이동하는 지름길 버튼을 붙인다.
   // 다른 타입(세금계산서 등)은 대상 화면이 제각각이라 전체 알림에 클릭 동작을 일괄로 주지 않았다.
-  const PL_NOTIF_TYPES = new Set(['pl_comment', 'pl_resolved', 'pl_edit', 'pl_related', 'pl_mention']);
+  const PL_NOTIF_TYPES = new Set(['pl_comment', 'pl_resolved', 'pl_response', 'pl_edit', 'pl_related', 'pl_mention']);
   el.innerHTML = NOTIFICATIONS.map(n => {
     const dt = n.createdAt ? new Date(n.createdAt) : null;
     const timeStr = dt ? `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}` : '';

@@ -413,26 +413,31 @@ const _PL_MINE_THEAD = `<tr>
           <th style="width:90px;">프로젝트</th><th style="width:90px;">캠페인</th><th style="width:70px;">매체</th><th style="width:60px;">유형</th>
           <th>내용</th><th style="width:56px;">진척률</th><th style="width:70px;">작성자</th>
         </tr>`;
+// 작성기록이 많아지면 두 표를 세로로 쌓아둔 게 스크롤이 너무 길어져서, 서브탭으로 하나씩만 보여준다.
+let _plMineSubTab = 'written'; // 'written' | 'involved'
 function _plBuildMineTabSkeleton(content) {
   content.innerHTML = `
     <div class="filter-bar" style="margin-bottom:14px;">
+      <div class="view-tabs">
+        <button class="view-tab${_plMineSubTab === 'written' ? ' active' : ''}" id="pl-mine-vt-written" onclick="_plMineSwitchSubTab('written')">내가 작성한 일지</button>
+        <button class="view-tab${_plMineSubTab === 'involved' ? ' active' : ''}" id="pl-mine-vt-involved" onclick="_plMineSwitchSubTab('involved')">관련자·멘션</button>
+      </div>
       <input type="text" class="f-search" id="pl-mine-search" placeholder="검색어" style="width:160px;" oninput="_plRenderMineBody()">
     </div>
-    <div class="table-card" style="margin-bottom:14px;">
-      <div class="table-header"><span class="card-title">내가 작성했거나 관련자로 등록된 일지</span><span class="table-count" id="pl-mine-count"></span></div>
+    <div class="table-card">
+      <div class="table-header"><span class="card-title" id="pl-mine-title">내가 작성한 일지</span><span class="table-count" id="pl-mine-count"></span></div>
       <div class="table-wrap"><table class="pl-lgt" style="width:100%;">
         <thead>${_PL_MINE_THEAD}</thead>
         <tbody id="pl-mine-tbody"></tbody>
       </table></div>
     </div>
-    <div class="table-card">
-      <div class="table-header"><span class="card-title">댓글에서 멘션됨</span><span class="table-count" id="pl-mine-mention-count"></span></div>
-      <div class="table-wrap"><table class="pl-lgt" style="width:100%;">
-        <thead>${_PL_MINE_THEAD}</thead>
-        <tbody id="pl-mine-mention-tbody"></tbody>
-      </table></div>
-    </div>
   `;
+}
+function _plMineSwitchSubTab(tab) {
+  _plMineSubTab = tab;
+  document.getElementById('pl-mine-vt-written')?.classList.toggle('active', tab === 'written');
+  document.getElementById('pl-mine-vt-involved')?.classList.toggle('active', tab === 'involved');
+  _plRenderMineBody();
 }
 function _plRenderMineBody() {
   // 최근 구독 범위보다 오래된 내 이력도 다 보여야 하는 탭이라 전체를 열어둔다.
@@ -442,26 +447,33 @@ function _plRenderMineBody() {
   const q = (document.getElementById('pl-mine-search')?.value || '').trim();
   const matchesQ = l => _plTokenMatchNormalized(_plNormalizeSearch(l.searchText || ''), q);
 
-  const mineLogs = PL_LOGS.filter(l => (l.writerId === myId || (l.related || []).some(r => r.id === myId)) && matchesQ(l));
+  // "내가 작성한 것"(책임 소재)과 "남이 나를 끌어들인 것"(관련자 등록·멘션 — 참고로 챙길 것)을
+  // 서로 겹치지 않게 나눈다. 내가 쓴 일지에 남이 나를 관련자로 넣거나 멘션했더라도 작성 쪽에만 표시.
+  const writtenLogs = PL_LOGS.filter(l => l.writerId === myId && matchesQ(l));
+  const mentionLogIds = new Set(PL_COMMENTS.filter(c => (c.mentions || []).some(m => m.id === myId)).map(c => c.logId));
+  const involvedLogs = PL_LOGS.filter(l => l.writerId !== myId
+    && ((l.related || []).some(r => r.id === myId) || mentionLogIds.has(l.id)) && matchesQ(l));
+
+  // 탭 버튼에도 건수를 같이 보여줘서, 안 보고 있는 쪽이 몇 건인지도 바로 알 수 있게
+  const writtenBtn = document.getElementById('pl-mine-vt-written');
+  if (writtenBtn) writtenBtn.textContent = `내가 작성한 일지 (${writtenLogs.length})`;
+  const involvedBtn = document.getElementById('pl-mine-vt-involved');
+  if (involvedBtn) involvedBtn.textContent = `관련자·멘션 (${involvedLogs.length})`;
+
+  const isInvolved = _plMineSubTab === 'involved';
+  const active = isInvolved ? involvedLogs : writtenLogs;
+  const ctx = isInvolved ? 'minemention' : 'mine';
+  const titleEl = document.getElementById('pl-mine-title');
+  if (titleEl) titleEl.textContent = isInvolved ? '관련자로 등록되었거나 멘션된 일지' : '내가 작성한 일지';
+
   const tbody = document.getElementById('pl-mine-tbody');
   if (tbody) {
-    tbody.innerHTML = mineLogs.length
-      ? mineLogs.map(l => _plRenderLogRow(l, q, 'mine')).join('')
+    tbody.innerHTML = active.length
+      ? active.map(l => _plRenderLogRow(l, q, ctx)).join('')
       : `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text3);font-size:13px;">조건에 맞는 일지가 없습니다.</td></tr>`;
   }
   const cntEl = document.getElementById('pl-mine-count');
-  if (cntEl) cntEl.innerHTML = `<b>${mineLogs.length}</b>건`;
-
-  const mentionLogIds = new Set(PL_COMMENTS.filter(c => (c.mentions || []).some(m => m.id === myId)).map(c => c.logId));
-  const mentionLogs = PL_LOGS.filter(l => mentionLogIds.has(l.id) && matchesQ(l));
-  const mtbody = document.getElementById('pl-mine-mention-tbody');
-  if (mtbody) {
-    mtbody.innerHTML = mentionLogs.length
-      ? mentionLogs.map(l => _plRenderLogRow(l, q, 'minemention')).join('')
-      : `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text3);font-size:13px;">조건에 맞는 일지가 없습니다.</td></tr>`;
-  }
-  const mcntEl = document.getElementById('pl-mine-mention-count');
-  if (mcntEl) mcntEl.innerHTML = `<b>${mentionLogs.length}</b>건`;
+  if (cntEl) cntEl.innerHTML = `<b>${active.length}</b>건`;
 }
 function plRenderMineTab() {
   const content = document.getElementById('pl-tab-content');
@@ -824,6 +836,7 @@ ${badgeCss}
 .pl-mini{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;color:var(--text);width:100%;outline:none;}
 .pl-pct{text-align:right;font-family:'JetBrains Mono',Consolas,monospace;padding-right:16px;}
 .pl-pct-wrap{position:relative;}
+.pl-pct-wrap::after{content:'*';position:absolute;top:-3px;right:-2px;color:var(--red);font-size:12px;font-weight:700;}
 .pl-pct-wrap .pl-pct-suffix{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text3);pointer-events:none;}
 .pl-opt{display:flex;align-items:center;gap:7px;margin-top:9px;padding-top:9px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text3);cursor:pointer;flex-wrap:wrap;}
 .pl-opt b{color:var(--accent);font-weight:700;}
@@ -1024,32 +1037,45 @@ function plResetLogFilter() {
   _plRenderRows();
 }
 
-// 알림의 "일지 보기 →" 지름길 — 일지 탭에서 해당 로그를 찾아 펼치고 스크롤한다. 최근 구독 범위보다
-// 오래된 로그일 수 있어 전체를 미리 열어두고(_plEnsureFullyLoaded), 도착할 때까지 짧게 재시도한다.
+// 알림의 "일지 보기 →" 지름길 — "나의 일지" 탭에서 해당 로그를 찾아 펼치고 스크롤한다. 알림을 받는
+// 사람은 항상 작성자·관련자·멘션 대상 중 하나라(알림 발송 로직 자체가 이 셋에게만 감), 그 로그는
+// 100% "나의 일지"의 두 섹션 중 하나에 있다는 게 보장된다 — "일지" 탭(페이지네이션 필요)보다 단순하다.
+// 최근 구독 범위보다 오래된 로그일 수 있어 전체를 미리 열어두고(_plEnsureFullyLoaded), 렌더 후 실제로
+// 그 행이 DOM에 나타났는지 확인하며 도착할 때까지 짧게 재시도한다(댓글 멘션 목록은 별도 구독이라 로그
+// 자체보다 늦게 도착할 수 있어서, PL_LOGS 존재 여부만으로는 부족함).
 async function plJumpToLog(logId) {
   if (!logId) return;
   const onScreen = document.getElementById('screen-projectlog')?.classList.contains('active');
   // skipPush=true 필수 — false로 부르면 location.hash 변경이 hashchange 리스너를 다시 트리거해
   // goScreen('projectlog', true)가 한 번 더 실행되고, 그때는 _plPendingTab이 이미 null로 소비돼서
   // 'date' 탭(오늘)으로 덮어써버린다. 다른 화면에 있다가 점프할 때만 재현되던 버그.
-  if (!onScreen) { _plPendingTab = 'log'; goScreen('projectlog', true); }
-  else { plSwitchTab('log'); }
+  if (!onScreen) { _plPendingTab = 'mine'; goScreen('projectlog', true); }
+  else { plSwitchTab('mine'); }
   _plEnsureFullyLoaded();
-  plResetLogFilter();
+  const searchEl = document.getElementById('pl-mine-search');
+  if (searchEl) searchEl.value = '';
   let tries = 0;
   const tryScroll = () => {
-    const idx = PL_LOGS.findIndex(l => l.id === logId);
-    if (idx < 0) {
+    // 서브탭 하나만 렌더되므로, 로그가 로딩된 뒤에는 그게 속한 쪽(작성/관련·멘션)으로 미리 전환해둬야
+    // 엉뚱한 탭을 보고 있다가 못 찾는 일이 없다.
+    const log = PL_LOGS.find(l => l.id === logId);
+    if (log) {
+      _plMineSubTab = (log.writerId === currentUser?.id) ? 'written' : 'involved';
+      document.getElementById('pl-mine-vt-written')?.classList.toggle('active', _plMineSubTab === 'written');
+      document.getElementById('pl-mine-vt-involved')?.classList.toggle('active', _plMineSubTab === 'involved');
+    }
+    _plExpanded.add(logId);
+    _plRenderMineBody();
+    const rowEl = document.getElementById(`pl-row-${logId}`);
+    if (!rowEl) {
       if (++tries < 15) { setTimeout(tryScroll, 300); }
       else toast('일지를 찾을 수 없습니다(삭제되었을 수 있습니다)', 'err');
       return;
     }
-    _plPage = Math.floor(idx / PL_PAGE_SIZE) + 1;
-    _plExpanded.add(logId);
-    _plRenderRows();
     setTimeout(() => {
-      const rowEl = document.getElementById(`pl-row-${logId}`);
-      if (rowEl) { rowEl.scrollIntoView({ block: 'center', behavior: 'smooth' }); rowEl.classList.add('pl-jump-flash'); setTimeout(() => rowEl.classList.remove('pl-jump-flash'), 1500); }
+      rowEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      rowEl.classList.add('pl-jump-flash');
+      setTimeout(() => rowEl.classList.remove('pl-jump-flash'), 1500);
     }, 60);
   };
   setTimeout(tryScroll, 200);
@@ -1078,12 +1104,14 @@ function _plBuildPagination(total, page, totalPages) {
   return `<span class="pg-info">${start}~${end} / ${total}건</span><div class="pg-btns">${_plPageBtnsHtml(page, totalPages, '_plGoPage')}</div>`;
 }
 
+// 삭제는 수정보다 되돌리기 어려운(연결된 이슈 스레드가 끊기는 등) 액션이라 작성자·관리자로 좁게 유지.
 function _plCanDeleteLog(log) {
   return !!(currentUser?.isAdmin || log.writerId === currentUser?.id);
 }
-// 수정 권한 = 삭제 권한과 동일 기준(작성자 본인·관리자) — 그 외에는 조회만 가능
+// 수정은 팀이 같이 관리하는 기록이라는 전제로 로그인한 사람 전부에게 개방 — 누가 뭘 바꿨는지는
+// 삭제와 달리 변경 이력(projectLogHistory)에 필드 단위로 항상 남으니 사고 나면 추적 가능.
 function _plCanEditLog(log) {
-  return !!(currentUser?.isAdmin || log.writerId === currentUser?.id);
+  return !!currentUser;
 }
 
 // 링크 태그는 원본 URL을 그대로 onclick에 박아넣으면 따옴표 포함 시 마크업이 깨질 수 있어,
@@ -1121,7 +1149,7 @@ function _plEnsureImageCountBadge(logId) {
 // 두 화면이 서로 다른 UI(모달 vs 펼침)를 쓰면 헷갈린다는 피드백에 따라, 펼쳤을 때 보이는 모습을 통일했다.
 // compact=true(일자별 뷰 전용) — 요약·하위기록·이슈/해결 역링크는 접힌 줄에 이미 나와 있어 중복이라 빼고,
 // 이미지·링크·수정버튼(.pl-detfoot)과 댓글만 보여준다.
-function _plDetailBoxHtml(log, q, compact) {
+function _plDetailBoxHtml(log, q, compact, readOnly) {
   const links = (log.links || []).map((l, li) => `<span class="tag" style="cursor:pointer;" onclick="event.stopPropagation();_plOpenDetailLink('${log.id}',${li})" title="새 탭에서 열기">🔗 ${_escHtml(l.label || l.url || '')}</span>`).join(' ');
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
   const imgNote = log.hasImages ? `<span id="pl-detimgcnt-${log.id}" class="pl-thumb" style="cursor:zoom-in;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '';
@@ -1129,44 +1157,52 @@ function _plDetailBoxHtml(log, q, compact) {
   const hasAttach = links || imgNote || relatedHtml;
   const color = (PL_TYPE_COLOR[log.logType] || {}).fg || 'var(--border)';
   // 목록의 삭제 버튼은 없애고 수정 모달 안의 삭제 버튼으로 통일 — 수정/삭제 모달 하나로 합쳐서 진입점을 단순화
-  // 진행중 이슈는 완료 처리 버튼을 pl-detfoot 안에 보여준다.
-  const resolveHtml = log.state === '진행중'
-    ? `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();plOpenResolveModal('${log.id}')">✓ 완료 처리</button>`
+  // 진행중 이슈는 대응 기록 버튼을 pl-detfoot 안에 보여준다 — 완료 처리는 그 모달 안 체크박스로 흡수돼서
+  // (버튼 두 개였던 걸 하나로 합침) 이슈 → 대응(여러 번) → 해결이 한 세트로 남는 구조는 그대로 유지된다.
+  const responseHtml = (log.state === '진행중' && !readOnly)
+    ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenResponseModal('${log.id}')">+ 대응 기록</button>`
     : '';
+  const editBtnHtml = readOnly ? '' : `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenEdit('${log.id}')">수정</button>`;
   const detfootHtml = `<div class="pl-detfoot">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${relatedHtml}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
-      <div style="display:flex;gap:6px;">${resolveHtml}<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenEdit('${log.id}')">${_plCanEditLog(log) ? '수정/삭제' : '보기'}</button></div>
+      <div style="display:flex;gap:6px;">${responseHtml}${editBtnHtml}</div>
     </div>`;
   const commentsHtml = `<div data-pl-comments-for="${log.id}" onclick="event.stopPropagation();">${_plCommentsHtml(log.id)}</div>`;
+  // 이 로그(주로 이슈)에 달린 대응·해결 기록을 전부 시간순으로 나열 — "+ 대응 기록"을 몇 번 남기다가
+  // 마지막에 "완료 처리"로 마무리해도, 전부 threadId로 같은 이슈를 가리키므로(체인이 아니라 방사형)
+  // 한 세트로 묶어 보여줄 수 있다. 반대로 이 로그 자체가 대응/해결 기록이면(threadId 보유) 원본 이슈로
+  // 가는 역링크를 보여준다. 날짜를 앞에 두고 화살표를 이동 대상 텍스트 바로 뒤에 붙여야 "무엇을 누르면
+  // 어디로 가는지"가 헷갈리지 않는다. compact(일자별 뷰)에서도 보여야 해서 조기 return 이전에 계산한다.
+  const _plLinkLine = (dateStr, label, text, targetId, action) => {
+    const d = _escHtml((dateStr || '').slice(2).replace(/-/g, '.'));
+    return `<div class="pl-resolve-link" style="font-size:12px;color:var(--text2);margin-bottom:6px;padding:6px 8px;background:var(--surface2);border-radius:6px;cursor:pointer;" onclick="event.stopPropagation();${action || 'plOpenEdit'}('${targetId}')"><span class="f-mono">${d}</span> · ${label}: ${_escHtml(text || '')} <span style="color:var(--accent);font-weight:600;">보기 →</span></div>`;
+  };
+  const threadChildren = PL_LOGS.filter(l => l.threadId === log.id)
+    .slice().sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  let threadChildrenHtml = '';
+  if (threadChildren.length) {
+    threadChildrenHtml = `<div style="margin-bottom:6px;">
+      <div class="form-hint" style="font-weight:700;margin-bottom:4px;">🔗 관련 기록 (${threadChildren.length})</div>
+      ${threadChildren.map(c => _plLinkLine(c.logDate, c.isResolution ? '해결' : '대응', c.summary, c.id)).join('')}
+    </div>`;
+  }
+  let threadHtml = '';
+  if (log.threadId) {
+    const origIssue = PL_LOGS.find(l => l.id === log.threadId);
+    if (origIssue) threadHtml = _plLinkLine(origIssue.logDate, '이슈', origIssue.summary, origIssue.id, '_plOpenIssueView');
+  }
   if (compact) {
-    return `<div class="pl-detbox" style="border-left-color:${color};">${detfootHtml}${commentsHtml}</div>`;
+    return `<div class="pl-detbox" style="border-left-color:${color};">${threadHtml}${threadChildrenHtml}${detfootHtml}${commentsHtml}</div>`;
   }
   const subRowsArr = (log.detail || []).filter(d => (d.text || '').trim());
   const subRows = subRowsArr.length
     ? subRowsArr.map(d => `<span class="pl-m">ㄴ</span><span class="pl-l">${_plHighlight(d.label || '', q)}</span><span>${_plHighlight(d.text, q)}</span>`).join('')
     : `<span class="form-hint" style="grid-column:1/-1;">하위 기록이 없습니다.</span>`;
-  // 이미 완료된 이슈는 연결된 해결 기록(threadId로 역참조)을, 반대로 이 로그 자체가 해결 기록이면
-  // (threadId 보유) 원본 이슈로 가는 역링크를 보여준다. 날짜를 앞에 두고 화살표를 이동 대상 텍스트 바로
-  // 뒤에 붙여야 "무엇을 누르면 어디로 가는지"가 헷갈리지 않는다.
-  const _plLinkLine = (dateStr, label, text, targetId) => {
-    const d = _escHtml((dateStr || '').slice(2).replace(/-/g, '.'));
-    return `<div class="pl-resolve-link" style="font-size:12px;color:var(--text2);margin-bottom:6px;padding:6px 8px;background:var(--surface2);border-radius:6px;cursor:pointer;" onclick="event.stopPropagation();plOpenEdit('${targetId}')"><span class="f-mono">${d}</span> · ${label}: ${_escHtml(text || '')} <span style="color:var(--accent);font-weight:600;">보기 →</span></div>`;
-  };
-  let doneResolveHtml = '';
-  if (log.state === '완료') {
-    const resolution = PL_LOGS.find(l => l.threadId === log.id);
-    if (resolution) doneResolveHtml = _plLinkLine(resolution.logDate, '해결', resolution.summary, resolution.id);
-  }
-  let threadHtml = '';
-  if (log.threadId) {
-    const origIssue = PL_LOGS.find(l => l.id === log.threadId);
-    if (origIssue) threadHtml = _plLinkLine(origIssue.logDate, '이슈', origIssue.summary, origIssue.id);
-  }
   return `<div class="pl-detbox" style="border-left-color:${color};">
     ${threadHtml}
     <div style="font-size:13px;font-weight:600;margin-bottom:6px;white-space:pre-line;">${_plHighlight(log.summary || '', q)}</div>
     <div class="pl-lgsub">${subRows}</div>
-    ${doneResolveHtml}
+    ${threadChildrenHtml}
     ${detfootHtml}
     ${commentsHtml}
   </div>`;
@@ -1175,85 +1211,130 @@ function _plRenderDetailRow(log, colspan, q) {
   colspan = colspan || 10;
   return `<tr class="pl-lg-det"><td colspan="${colspan}">${_plDetailBoxHtml(log, q)}</td></tr>`;
 }
-
-// ── 이슈 완료 처리(해결 기록) — 원본 이슈 state를 조용히 덮어쓰는 대신, 해결 내용을 별도 로그(threadId로 원본 연결)로
-// 남겨서 "이슈 → 해결"이 추적 가능한 스레드가 되게 한다. threadId는 기존 스키마에 있던 미사용 필드를 재활용.
-let _plResolveTargetId = null;
-
-function _plBuildResolveModalShell() {
+// 대응/해결 기록에서 원본 이슈를 "확인"만 하고 싶을 때 수정 모달(작성 폼)을 여는 대신 쓰는 읽기 전용
+// 요약 모달 — 이슈 원문 + 그 이슈에 달린 모든 대응/해결 타임라인(_plDetailBoxHtml의 threadChildrenHtml)을
+// 한 화면에서 보여준다. 실제로 손대야 하면 하단 "이슈 수정" 버튼으로 수정 모달로 넘어간다.
+function _plOpenIssueView(issueId) {
+  const issue = PL_LOGS.find(l => l.id === issueId);
+  if (!issue) return;
+  if (!document.getElementById('pl-modal-issueview')) _plBuildIssueViewModalShell();
+  document.getElementById('pl-iv-body').innerHTML = _plDetailBoxHtml(issue, '', false, true);
+  const editBtn = document.getElementById('pl-iv-editbtn');
+  if (editBtn) editBtn.onclick = () => { closeModal('pl-modal-issueview'); plOpenEdit(issueId); };
+  openModal('pl-modal-issueview');
+}
+function _plBuildIssueViewModalShell() {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
-  overlay.id = 'pl-modal-resolve';
+  overlay.id = 'pl-modal-issueview';
   overlay.innerHTML = `
-    <div class="modal sm" style="width:440px;max-width:96vw;">
+    <div class="modal" style="width:640px;max-width:96vw;">
       <div class="modal-head">
-        <span class="modal-title">✓ 완료 처리</span>
-        <button class="modal-close" onclick="closeModal('pl-modal-resolve')">✕</button>
+        <span class="modal-title">🔍 이슈 확인</span>
+        <button class="modal-close" onclick="closeModal('pl-modal-issueview')">✕</button>
       </div>
-      <div class="modal-body">
-        <div class="form-hint" style="margin-bottom:8px;" id="pl-resolve-target-summary"></div>
-        <label class="form-label" style="margin-bottom:6px;display:block;">해결 내용</label>
-        <textarea class="form-input" id="pl-resolve-text" rows="4" placeholder="어떻게 해결됐는지 적어주세요" style="width:100%;resize:vertical;"></textarea>
-      </div>
+      <div class="modal-body" style="background:var(--bg);max-height:70vh;overflow-y:auto;" id="pl-iv-body"></div>
       <div class="modal-foot">
-        <button class="btn btn-primary btn-sm" onclick="_plSaveResolution()">저장</button>
+        <button class="btn btn-outline" id="pl-iv-editbtn">✎ 이슈 수정</button>
+        <button class="btn btn-primary" onclick="closeModal('pl-modal-issueview')">닫기</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
 }
-function plOpenResolveModal(logId) {
-  const log = PL_LOGS.find(l => l.id === logId);
-  if (!log) return;
-  _plResolveTargetId = logId;
-  if (!document.getElementById('pl-modal-resolve')) _plBuildResolveModalShell();
-  const targetEl = document.getElementById('pl-resolve-target-summary');
-  if (targetEl) targetEl.textContent = `대상: ${log.summary || ''}`;
-  const textEl = document.getElementById('pl-resolve-text');
-  if (textEl) textEl.value = '';
-  openModal('pl-modal-resolve');
+
+// ── 이슈 대응 기록 / 완료 처리 — 원본 이슈 state를 조용히 덮어쓰는 대신, 대응·해결 내용을 별도
+// 로그(threadId로 원본 연결)로 남겨서 "이슈 → 대응 → 대응 → 해결"이 추적 가능한 한 세트로 남게 한다.
+// threadId는 기존 스키마에 있던 미사용 필드를 재활용. 체인이 아니라 방사형 — 대응이 몇 개든 전부
+// threadId가 원본 이슈 하나를 가리키므로 조회가 단순하다(PL_LOGS.filter(l=>l.threadId===이슈ID)).
+// 대응·해결도 이미지/링크/관련자 첨부가 필요할 수 있어서, 단순 textarea 모달 대신 수정 모달(pl-modal-edit)
+// 을 그대로 재사용한다 — _plEditDraft.newFor에 {parentId}를 넣어두면 plSaveEdit()이 "기존 로그 수정" 대신
+// "새 로그 생성"으로 분기한다. 대응/완료는 예전엔 버튼 두 개(모드가 열 때 고정)였는데, 저장 시점에 체크박스
+// (resolveChecked)로 결정하도록 합쳐서 버튼 하나("+ 대응 기록")로도 완료 처리까지 가능하게 했다.
+function plOpenResponseModal(logId) { _plOpenResponseDraft(logId); }
+function _plOpenResponseDraft(parentId) {
+  const orig = PL_LOGS.find(l => l.id === parentId);
+  if (!orig) { toast('일지를 찾을 수 없습니다', 'err'); return; }
+  _plEditDraft = {
+    id: null, logDate: _plTodayStr(), writer: currentUser?.name || '', writerId: currentUser?.id || '',
+    bonbu: currentUser?.bonbu || '', dept: currentUser?.dept || '', createdAt: null,
+    scope: orig.scope, seller: orig.seller, content: orig.content,
+    campaignId: orig.campaignId, media: orig.media, product: orig.product,
+    logType: '대응', summary: '', progress: null,
+    detail: [], links: [], related: [], images: [],
+    important: false, shared: false, state: null, searchQuery: '',
+    resolveChecked: false,
+    newFor: { parentId },
+  };
+  if (!document.getElementById('pl-modal-edit')) _plBuildEditModalShell();
+  _plRenderEditModal();
+  openModal('pl-modal-edit');
 }
-async function _plSaveResolution() {
-  const logId = _plResolveTargetId;
-  const orig = PL_LOGS.find(l => l.id === logId);
-  if (!orig) return;
-  const text = (document.getElementById('pl-resolve-text')?.value || '').trim();
-  if (!text) { toast('해결 내용을 입력해주세요', 'err'); return; }
-  const btn = document.querySelector('#pl-modal-resolve .modal-foot .btn-primary');
-  if (btn) btn.disabled = true;
+async function _plSaveNewResponse() {
+  const d = _plEditDraft;
+  const { parentId } = d.newFor;
+  const mode = d.resolveChecked ? 'resolve' : 'response';
+  const orig = PL_LOGS.find(l => l.id === parentId);
+  if (!orig) { toast('원본을 찾을 수 없습니다', 'err'); return; }
+  if (!(d.summary || '').trim()) { alert('내용을 입력해주세요.'); return; }
+  if ((d.summary || '').length > 60) { alert('내용은 60자 이하로 입력해주세요.'); return; }
+  if (d.progress === '' || d.progress == null) { alert('진척률을 입력해주세요.'); return; }
+  {
+    const p = Number(d.progress);
+    if (isNaN(p) || p < 0 || p > 100) { alert('진척률은 0~100 사이여야 합니다.'); return; }
+  }
+  const saveBtn = document.querySelector('#pl-modal-edit .btn-primary');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중…'; }
   try {
+    const detail = (d.detail || []).filter(x => (x.text || '').trim()).map(x => ({ label: x.label || '', text: x.text.trim() }));
+    const progress = (d.progress === '' || d.progress == null) ? null : Math.max(0, Math.min(100, parseInt(d.progress, 10) || 0));
+    const images = (d.images || []).filter(Boolean);
     const now = new Date().toISOString();
-    const resolutionDoc = {
+    const newDoc = {
       id: _plNextLogIdSeq()(),
       logDate: _plTodayStr(), writer: currentUser?.name || '', writerId: currentUser?.id || '',
       bonbu: currentUser?.bonbu || '', dept: currentUser?.dept || '',
-      scope: orig.scope, seller: orig.seller || null, content: orig.content || null,
-      campaignId: orig.campaignId || null, media: orig.media || null, product: orig.product || null,
-      logType: '대응', state: null,
-      summary: text.slice(0, 60), detail: [],
-      progress: null, important: false, shared: false,
-      hasImages: false, imageCount: 0, links: [], related: [], threadId: logId, createdAt: now, updatedAt: now,
+      scope: d.scope, seller: d.seller || null, content: d.content || null,
+      campaignId: d.campaignId || null, media: d.media || null, product: d.product || null,
+      logType: d.logType || '대응', state: null, isResolution: mode === 'resolve',
+      summary: d.summary.trim().slice(0, 60), detail, progress,
+      important: !!d.important, shared: !!d.shared,
+      hasImages: images.length > 0, imageCount: images.length,
+      links: (d.links || []).filter(l => (l.label || l.url || '').trim()),
+      related: (d.related || []).map(r => ({ id: r.id, name: r.name })),
+      threadId: parentId, createdAt: now, updatedAt: now,
     };
-    resolutionDoc.searchText = _plBuildSearchText(resolutionDoc);
-    await _plDb('projectLogs').doc(resolutionDoc.id).set(resolutionDoc);
-    await _plLogHistoryCreate(resolutionDoc.id);
+    newDoc.searchText = _plBuildSearchText(newDoc);
+    await _plDb('projectLogs').doc(newDoc.id).set(newDoc);
+    await _plLogHistoryCreate(newDoc.id);
+    if (images.length) await _plSaveLogImages(newDoc.id, images);
 
-    const updatedOrig = Object.assign({}, orig, { state: '완료', updatedAt: now });
-    await _plDb('projectLogs').doc(orig.id).set(updatedOrig);
-    await _plDb('projectLogHistory').add({
-      logId: orig.id, changedBy: currentUser?.name || '', changedAt: now,
-      changes: [{ field: 'state', label: '상태', before: '진행중', after: '완료' }],
-    });
+    if (mode === 'resolve') {
+      const updatedOrig = Object.assign({}, orig, { state: '완료', updatedAt: now });
+      await _plDb('projectLogs').doc(orig.id).set(updatedOrig);
+      await _plDb('projectLogHistory').add({
+        logId: orig.id, changedBy: currentUser?.name || '', changedAt: now,
+        changes: [{ field: 'state', label: '상태', before: '진행중', after: '완료' }],
+      });
+    }
     if (orig.writerId && orig.writerId !== currentUser?.id) {
       const subject = _plNotifySubject(orig);
-      _fbSaveNotification(orig.writerId, 'pl_resolved', `${currentUser?.name || ''}님이 "${subject}" ${orig.logType} 일지를 완료 처리했습니다.`, { logId: orig.id });
+      if (mode === 'resolve') {
+        _fbSaveNotification(orig.writerId, 'pl_resolved', `${currentUser?.name || ''}님이 "${subject}" ${orig.logType} 일지를 완료 처리했습니다.`, { logId: orig.id });
+      } else {
+        _fbSaveNotification(orig.writerId, 'pl_response', `${currentUser?.name || ''}님이 "${subject}" 이슈에 대응을 기록했습니다: ${newDoc.summary.slice(0, 40)}`, { logId: orig.id });
+      }
     }
-    closeModal('pl-modal-resolve');
-    toast('✓ 완료 처리되었습니다', 'ok');
+    // 관련자 알림 — 새로 만든 대응/해결 로그 자체에 관련자를 등록한 경우(본인 제외)
+    (newDoc.related || []).filter(r => r.id !== currentUser?.id).forEach(r => {
+      _fbSaveNotification(r.id, 'pl_related', `${currentUser?.name || ''}님이 "${_plNotifySubject(newDoc)}" 일지에 회원님을 관련자로 등록했습니다.`, { logId: newDoc.id });
+    });
+    closeModal('pl-modal-edit');
+    toast(mode === 'resolve' ? '✓ 완료 처리되었습니다' : '✓ 대응이 기록되었습니다', 'ok');
   } catch (e) {
-    console.error('[projectlog] 완료 처리 실패', e);
-    toast('완료 처리 중 오류가 발생했습니다', 'err');
+    console.error('[projectlog] 저장 실패', e);
+    toast('저장 중 오류가 발생했습니다', 'err');
   } finally {
-    if (btn) btn.disabled = false;
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '저장'; }
   }
 }
 
@@ -1624,6 +1705,7 @@ function plOpenWrite(prefill) {
   if (whoEl) whoEl.textContent = `${currentUser?.name || ''} · ${currentUser?.bonbu || ''} ${currentUser?.dept || ''} (자동)`;
 
   _plRenderWriteModal();
+  _plRenderWriteContinuePanel();
   openModal('pl-modal-write');
 
   // 대상이 이미 정해진 프리필(캠페인/광고주 상세발)이면 바로 내용 입력칸에, 아니면 대상 검색창에 포커스
@@ -1645,7 +1727,7 @@ function _plBuildWriteModalShell() {
   overlay.className = 'modal-overlay';
   overlay.id = 'pl-modal-write';
   overlay.innerHTML = `
-    <div class="modal" style="width:920px;max-width:96vw;">
+    <div class="modal" style="width:1100px;max-width:96vw;">
       <div class="modal-head">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <span class="modal-title">✎ 일지 작성</span>
@@ -1654,9 +1736,16 @@ function _plBuildWriteModalShell() {
         </div>
         <button class="modal-close" onclick="plCloseWrite()">✕</button>
       </div>
-      <div class="modal-body" style="background:var(--bg);max-height:70vh;overflow-y:auto;">
-        <div id="pl-w-blocks"></div>
-        <div class="pl-add block" onclick="_plAddBlock()">＋ 블록 추가 <span class="form-hint" style="font-weight:400;">— 광고주 · 프로젝트 · 매체 · 내부 업무</span></div>
+      <div style="display:flex;min-height:0;">
+        <div class="modal-body" style="background:var(--bg);max-height:70vh;overflow-y:auto;flex:1;min-width:0;">
+          <div id="pl-w-blocks"></div>
+          <div class="pl-add block" onclick="_plAddBlock()">＋ 블록 추가 <span class="form-hint" style="font-weight:400;">— 광고주 · 프로젝트 · 매체 · 내부 업무</span></div>
+        </div>
+        <div style="width:300px;flex-shrink:0;border-left:1px solid var(--border);background:var(--surface2);max-height:70vh;overflow-y:auto;padding:14px;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:2px;">📋 나의 미완료 일지</div>
+          <div class="form-hint" style="margin-bottom:10px;">최근 2주 · 진척률 100% 미만</div>
+          <div id="pl-w-continue-list"></div>
+        </div>
       </div>
       <div class="modal-foot">
         <span class="form-hint" id="pl-w-hint">항목 8건이 개별 기록으로 저장됩니다</span>
@@ -1952,7 +2041,9 @@ function _plRenderBlockHtml(block, bi) {
   const groupableMedia = block.scope !== 'campaign' && block.scope !== 'media';
   let prevMedia;
   const itemsHtml = block.items.map((it, ii) => {
-    const showMediaRow = !groupableMedia ? (ii === 0) : (ii === 0 || it.media !== prevMedia);
+    // it.newMediaGroup: "+ 매체 추가"로 만든 항목은 직전 항목도 아직 매체 미입력(둘 다 null)이면
+    // it.media !== prevMedia가 false가 돼서 입력란이 안 뜨는 문제가 있어, 값 비교와 무관하게 강제로 보여준다.
+    const showMediaRow = !groupableMedia ? (ii === 0) : (ii === 0 || it.media !== prevMedia || it.newMediaGroup);
     if (groupableMedia) prevMedia = it.media;
     return _plRenderItemHtml(block, bi, ii, it, showMediaRow);
   }).join('');
@@ -2112,10 +2203,13 @@ function _plAddItem(bi) {
   _plRenderWriteModal();
 }
 // "+ 매체 추가" — 항목추가와 달리 매체를 빈 값으로 시작해서, 새 매체 행부터 다시 그룹을 시작하게 한다.
+// newMediaGroup 표시를 달아둬야 직전 항목도 매체 미입력(둘 다 null)인 경우에도 입력란이 확실히 뜬다.
 function _plAddMediaGroup(bi) {
   const block = _plDraft.blocks[bi];
   if (!block) return;
-  block.items.push(_plEmptyItem());
+  const newItem = _plEmptyItem();
+  newItem.newMediaGroup = true;
+  block.items.push(newItem);
   _plRenderWriteModal();
 }
 function _plRemoveItem(bi, ii) {
@@ -2146,6 +2240,78 @@ function _plRemoveBlock(bi) {
   _plDraft.blocks.splice(bi, 1);
   if (!_plDraft.blocks.length) _plDraft.blocks.push(_plEmptyBlock());
   _plRenderWriteModal();
+}
+
+// ── 작성 모달 오른쪽 패널: 내가 최근에 쓴 미완료(진척률 100% 미만) 일지 — 어제 하다 만 일을
+// 오늘 또 까먹고 새로 이슈화하는 대신, 보면서 바로 "이어쓰기"로 이어 쓸 수 있게 해준다.
+function _plContinueCandidates() {
+  const cutoff = _plFmtDateLocal(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000));
+  return PL_LOGS.filter(l => {
+    if (l.writerId !== currentUser?.id) return false;
+    if (l.progress == null || l.progress >= 100) return false;
+    if ((l.logDate || '') < cutoff) return false;
+    if (l.state === '완료') return false; // 이슈·요청 자신이 이미 완료 처리됨
+    if (l.threadId) {
+      const issue = PL_LOGS.find(x => x.id === l.threadId);
+      if (issue && issue.state !== '진행중') return false; // 원본 이슈가 이미 닫혀서 더 이어갈 게 없음
+    }
+    return true;
+  }).slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+}
+// 로그 자신이 진행중 이슈·요청이면 그 로그를, 대응/해결 기록이면 threadId가 가리키는 원본 이슈를 반환.
+// 원본이 이미 완료 처리됐으면(더 이상 대응을 받지 않으므로) null.
+function _plContinueOpenIssue(log) {
+  const issue = log.threadId ? PL_LOGS.find(l => l.id === log.threadId) : log;
+  return (issue && issue.state === '진행중') ? issue : null;
+}
+function _plRenderWriteContinuePanel() {
+  const el = document.getElementById('pl-w-continue-list');
+  if (!el) return;
+  const logs = _plContinueCandidates();
+  el.innerHTML = logs.length ? logs.map(l => {
+    const isOpenIssue = !!_plContinueOpenIssue(l);
+    const contBtnLabel = isOpenIssue ? '💬 대응 작성하기' : '↩ 이어쓰기';
+    return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:3px;">
+        <span class="f-mono" style="font-size:10.5px;color:var(--text3);">${_escHtml((l.logDate || '').slice(2).replace(/-/g, '.'))}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--accent);">${l.progress}%</span>
+      </div>
+      <div style="font-size:12px;font-weight:600;margin-bottom:3px;"><span class="badge pl-lg-${l.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(l.logType)}</span>${_plDateBlockLabel({ scope: l.scope, seller: l.seller, content: l.content, campaignId: l.campaignId, media: l.media })}</div>
+      <div style="font-size:11.5px;color:var(--text2);margin-bottom:6px;white-space:pre-line;">${_escHtml(l.summary || '')}</div>
+      <button class="btn btn-outline btn-sm" style="width:100%;" onclick="_plContinueFromLog('${l.id}')">${contBtnLabel}</button>
+    </div>
+  `;}).join('') : `<div style="text-align:center;padding:24px 0;color:var(--text3);font-size:12px;">해당 조건의 일지가 없습니다.</div>`;
+}
+function _plContinueFromLog(logId) {
+  const log = PL_LOGS.find(l => l.id === logId);
+  if (!log) return;
+  // 진행중인 이슈·요청이거나, 그 이슈에 달린 대응/해결 기록이면(threadId로 원본 추적) 새 로그를 또
+  // 만드는 대신 이슈 상세의 "+ 대응 기록"과 동일하게 원본 이슈에 threadId로 묶이는 대응 작성 모달을
+  // 띄운다. 작성 모달은 닫지 않고 그 위에 레이어링만 한다(같은 z-index라 DOM 순서로 쌓이므로,
+  // body 맨 끝으로 옮겨서 위에 그려지게 강제한다).
+  const openIssue = _plContinueOpenIssue(log);
+  if (openIssue) {
+    plOpenResponseModal(openIssue.id);
+    const editOverlay = document.getElementById('pl-modal-edit');
+    if (editOverlay) document.body.appendChild(editOverlay);
+    return;
+  }
+  const block = _plEmptyBlock({
+    scope: log.scope, seller: log.seller || null, content: log.content || null,
+    campaignId: log.campaignId || null, product: log.product || null,
+    media: log.scope === 'media' ? (log.media || null) : null,
+  });
+  block.items[0].logType = log.logType || '운영';
+  block.items[0].progress = log.progress != null ? String(log.progress) : '';
+  if (log.scope !== 'media') block.items[0].media = log.media || null;
+  _plDraft.blocks.push(block);
+  _plRenderWriteModal();
+  toast('이전 기록을 불러왔습니다 — 오늘 내용을 이어서 작성하세요', 'ok');
+  setTimeout(() => {
+    const blocks = document.querySelectorAll('#pl-w-blocks > .pl-block');
+    blocks[blocks.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 0);
 }
 
 // ── 접힘 영역: 이미지 · 링크 (매체는 위 .pl-irow로 이동, 항목 단위) ──
@@ -2356,7 +2522,9 @@ function _plValidateDraft() {
     validItems.forEach((it, ii) => {
       if (!it.logType) errors.push(`블록 ${bi + 1} 항목 ${ii + 1}: 유형을 선택해주세요.`);
       if ((it.summary || '').length > 60) errors.push(`블록 ${bi + 1} 항목 ${ii + 1}: 내용은 60자 이하로 입력해주세요.`);
-      if (it.progress !== '' && it.progress != null) {
+      if (it.progress === '' || it.progress == null) {
+        errors.push(`블록 ${bi + 1} 항목 ${ii + 1}: 진척률을 입력해주세요.`);
+      } else {
         const p = Number(it.progress);
         if (isNaN(p) || p < 0 || p > 100) errors.push(`블록 ${bi + 1} 항목 ${ii + 1}: 진척률은 0~100 사이여야 합니다.`);
       }
@@ -2490,6 +2658,11 @@ async function plDeleteLog(logId) {
   const log = PL_LOGS.find(l => l.id === logId);
   if (!log) return;
   if (!_plCanDeleteLog(log)) { toast('삭제 권한이 없습니다', 'err'); return; }
+  // 이슈를 지우면 threadId로 연결된 대응/해결 기록들이 원본 없는 고아 참조로 남는다 — 그걸 막기 위해
+  // 하위 기록이 하나라도 있으면 삭제 자체를 막는다. 지우려면 대응/해결부터 먼저 지워야 한다(방사형 구조라
+  // 대응 기록은 그 자체로 leaf라서, 순서대로 지우면 고아가 생길 여지가 없다).
+  const children = PL_LOGS.filter(l => l.threadId === logId);
+  if (children.length) { alert(`이 이슈에 대응·해결 기록이 ${children.length}건 연결되어 있어 삭제할 수 없습니다.\n먼저 하위 기록부터 삭제해주세요.`); return; }
   if (!confirm('이 일지를 삭제하시겠습니까?')) return;
   try {
     const archived = Object.assign({}, log, {
@@ -2552,7 +2725,7 @@ function _plBuildEditModalShell() {
   overlay.className = 'modal-overlay';
   overlay.id = 'pl-modal-edit';
   overlay.innerHTML = `
-    <div class="modal sm" style="width:600px;max-width:96vw;">
+    <div class="modal" style="width:920px;max-width:96vw;">
       <div class="modal-head">
         <div>
           <div class="modal-title" style="display:flex;align-items:center;gap:8px;"><span id="pl-e-title">✎ 일지 수정</span> <span id="pl-e-delbtn-head"></span></div>
@@ -2564,7 +2737,7 @@ function _plBuildEditModalShell() {
         <div id="pl-e-block"></div>
       </div>
       <div class="modal-foot">
-        <span class="form-hint" id="pl-e-foothint">수정은 작성자·관리자만 가능 (변경 이력 자동 기록)</span>
+        <span class="form-hint" id="pl-e-foothint">변경 이력이 자동 기록됩니다 (삭제는 작성자·관리자만 가능)</span>
         <div style="margin-left:auto;display:flex;gap:8px;" id="pl-e-footbtns"></div>
       </div>
     </div>`;
@@ -2796,7 +2969,7 @@ function _plEditMetaHtml() {
       </div>
       <div class="fg"><label class="form-label">작성 정보</label>
         <div class="form-hint" style="padding-top:8px;">${_escHtml(d.writer || '')} · ${_escHtml(d.bonbu || '')} ${_escHtml(d.dept || '')} · <span class="f-mono">${_escHtml(d.logDate || '')}${d.createdAt ? ' ' + (() => { const t = new Date(d.createdAt); return String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0'); })() : ''}</span>
-          <span class="pl-x" style="margin-left:6px;" onclick="plOpenHistoryModal('${d.id}')">이력 보기</span>
+          ${d.newFor ? '' : `<span class="pl-x" style="margin-left:6px;" onclick="plOpenHistoryModal('${d.id}')">이력 보기</span>`}
         </div>
       </div>
     </div>
@@ -2942,16 +3115,25 @@ function _plRenderEditModal() {
   // 수정 권한 없으면(작성자·관리자가 아니면) 조회만 가능하도록 잠금 — 저장 버튼 숨김 + 입력요소 전부 비활성화
   const canEdit = _plCanEditLog({ writerId: d.writerId });
   const footEl = document.getElementById('pl-e-footbtns');
-  if (footEl) footEl.innerHTML = canEdit ? `<button class="btn btn-primary btn-sm" onclick="plSaveEdit()">저장</button>` : '';
+  const saveLabel = d.newFor ? (d.resolveChecked ? '완료 처리' : '대응 기록 저장') : '저장';
+  const resolveCheckHtml = d.newFor ? `<label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;color:${d.resolveChecked ? 'var(--red)' : 'var(--text2)'};">
+      <input type="checkbox" ${d.resolveChecked ? 'checked' : ''} onchange="_plEditToggleFlag('resolveChecked')"> 이 기록으로 이슈 완료 처리
+    </label>` : '';
+  if (footEl) footEl.innerHTML = canEdit ? `${resolveCheckHtml}<button class="btn btn-primary btn-sm" onclick="plSaveEdit()">${saveLabel}</button>` : '';
   const delHeadEl = document.getElementById('pl-e-delbtn-head');
   if (delHeadEl) {
-    const canDel = _plCanDeleteLog({ writerId: d.writerId });
+    // 아직 저장 전(새 대응/해결 작성 중)인 로그는 지울 게 없으니 삭제 버튼을 안 보여준다.
+    const canDel = !d.newFor && _plCanDeleteLog({ writerId: d.writerId });
     delHeadEl.innerHTML = canDel ? `<button class="btn btn-danger btn-sm" onclick="plDeleteLogFromEdit()">삭제</button>` : '';
   }
   const titleEl = document.getElementById('pl-e-title');
-  if (titleEl) titleEl.textContent = canEdit ? '✎ 일지 수정' : '👁 일지 보기';
+  if (titleEl) titleEl.textContent = d.newFor
+    ? (d.resolveChecked ? '✓ 완료 처리' : '+ 대응 기록')
+    : (canEdit ? '✎ 일지 수정' : '👁 일지 보기');
   const hintEl = document.getElementById('pl-e-foothint');
-  if (hintEl) hintEl.textContent = canEdit ? '수정은 작성자·관리자만 가능 (변경 이력 자동 기록)' : '';
+  if (hintEl) hintEl.textContent = d.newFor
+    ? (d.resolveChecked ? '저장하면 원본 이슈가 완료로 전환됩니다' : '이슈는 진행중 상태로 유지되고, 대응 기록만 추가됩니다')
+    : (canEdit ? '변경 이력이 자동 기록됩니다 (삭제는 작성자·관리자만 가능)' : '');
   if (!canEdit && blockEl) {
     // "ㄴ 추가" 같은 컨트롤은 <button>이 아니라 onclick 달린 <span>/<div>라 disabled로는 안 막혀서,
     // 블록 전체를 pointer-events:none으로 눌러 어떤 요소든 클릭 자체가 안 먹히게 하고,
@@ -3038,10 +3220,12 @@ async function plOpenHistoryModal(logId) {
 async function plSaveEdit() {
   const d = _plEditDraft;
   if (!d) return;
+  if (d.newFor) { await _plSaveNewResponse(); return; }
   if (!d.scope) { alert('대상을 선택해주세요.'); return; }
   if (!(d.summary || '').trim()) { alert('내용을 입력해주세요.'); return; }
   if ((d.summary || '').length > 60) { alert('내용은 60자 이하로 입력해주세요.'); return; }
-  if (d.progress !== '' && d.progress != null) {
+  if (d.progress === '' || d.progress == null) { alert('진척률을 입력해주세요.'); return; }
+  {
     const p = Number(d.progress);
     if (isNaN(p) || p < 0 || p > 100) { alert('진척률은 0~100 사이여야 합니다.'); return; }
   }
@@ -4307,37 +4491,37 @@ function _plDateBlockLabel(b) {
   if (b.scope === 'campaign') {
     const c = DATA.find(x => x.id === b.campaignId);
     const extra = c ? ` (${_escHtml(c.media || '')} ${_escHtml(c.product || '')})` : '';
-    return `${_escHtml(b.seller || '')} / ${_escHtml(b.content || '브랜드 미지정')} / ${_escHtml(b.campaignId || '')}${extra}`;
+    return `${_escHtml(b.seller || '')} &gt; ${_escHtml(b.content || '브랜드 미지정')} &gt; ${_escHtml(b.campaignId || '')}${extra}`;
   }
   if (b.scope === 'media') return `${_escHtml(b.media || '')} <span class="form-hint">(매체 전반)</span>`;
-  if (b.scope === 'internal') return `${_escHtml(b.seller || '')}${b.content ? ' / ' + _escHtml(b.content) : ''} <span class="tag pl-inner">내부</span>`;
-  if (b.scope === 'project') return `${_escHtml(b.seller || '')} / ${_escHtml(b.content || '')}`;
+  if (b.scope === 'internal') return `${_escHtml(b.seller || '')}${b.content ? ' &gt; ' + _escHtml(b.content) : ''} <span class="tag pl-inner">내부</span>`;
+  if (b.scope === 'project') return `${_escHtml(b.seller || '')} &gt; ${_escHtml(b.content || '')}`;
   return `${_escHtml(b.seller || '')} <span class="form-hint">(광고주 전반)</span>`;
 }
 // "일지" 탭 테이블 행과 동일한 상호작용으로 통일 — 클릭하면 펼쳐지고, 펼친 내용(_plDetailBoxHtml)에
 // 링크·댓글·수정 버튼이 다 들어있다. 링크/댓글 아이콘은 "몇 개 있는지" 힌트만 주고(탭 테이블 행과 동일하게
 // 클릭 불가), 이미지만 라이트박스로 바로 열리는 지름길을 유지한다(탭 테이블 행의 📁과 동일한 예외).
-function _plDateItemHtml(l) {
+function _plDateItemHtml(l, hideMediaTag) {
   const isOpen = _plExpanded.has(l.id);
   const arrow = isOpen ? '▾' : '▸';
-  const starHtml = l.important ? '<span class="pl-star">★</span> ' : '';
-  const progText = l.progress != null ? ` <span class="form-hint">(${l.progress}%)</span>` : '';
-  // 매체는 항목(item) 단위로 선택되는 값이라 블록 라벨(_plDateBlockLabel)이 아니라 항목 줄에 표시해야
-  // 한 블록 안 항목마다 다른 매체를 골랐을 때도 정확히 보인다. scope='media'는 블록 라벨이 매체명 자체라 생략.
-  const mediaHtml = (l.media && l.scope !== 'media') ? `<span class="tag pl-media" style="margin-right:4px;">${_escHtml(l.media)}</span>` : '';
+  const starHtml = l.important ? '<span class="pl-star" style="vertical-align:middle;">★</span> ' : '';
+  const progText = l.progress != null ? ` <span class="form-hint" style="vertical-align:middle;">(${l.progress}%)</span>` : '';
+  // 매체는 항목(item) 단위로 선택되는 값이지만, 카드 안에서 이미 매체별 소그룹 헤더로 보여주고 있으면
+  // (hideMediaTag) 항목마다 또 반복해서 보여줄 필요가 없어 생략한다. scope='media'는 카드 제목이 매체명 자체라 생략.
+  const mediaHtml = (l.media && l.scope !== 'media' && !hideMediaTag) ? `<span class="tag pl-media" style="margin-right:4px;vertical-align:middle;">${_escHtml(l.media)}</span>` : '';
   const subHtml = (l.detail || []).filter(d => (d.text || '').trim()).map(d =>
     `<div style="padding-left:20px;font-size:12px;color:var(--text2);">ㄴ ${d.label ? `<b>${_escHtml(d.label)}</b> ` : ''}${_escHtml(d.text)}</div>`
   ).join('');
   if (l.hasImages && l.imageCount == null) _plEnsureImageCountBadge(l.id);
-  const attachIconsHtml = (l.hasImages ? `<span id="pl-imgcnt-${l.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${l.id}')" title="첨부 이미지 — 클릭하여 보기">📁${l.imageCount || ''}</span>` : '')
-    + ((l.links && l.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${l.links.length}개">🔗${l.links.length}</span>` : '')
-    + ((l.related && l.related.length) ? `<span style="font-size:11px;margin-left:4px;" title="관련자: ${l.related.map(r => r.name).join(', ')}">👤${l.related.length}</span>` : '')
-    + `<span id="pl-cmt-badge-${l.id}">${_plCommentBadgeHtml(l.id)}</span>`;
+  const attachIconsHtml = (l.hasImages ? `<span id="pl-imgcnt-${l.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;vertical-align:middle;" onclick="event.stopPropagation();_plOpenLogImages('${l.id}')" title="첨부 이미지 — 클릭하여 보기">📁${l.imageCount || ''}</span>` : '')
+    + ((l.links && l.links.length) ? `<span style="font-size:11px;margin-left:4px;vertical-align:middle;" title="링크 ${l.links.length}개">🔗${l.links.length}</span>` : '')
+    + ((l.related && l.related.length) ? `<span style="font-size:11px;margin-left:4px;vertical-align:middle;" title="관련자: ${l.related.map(r => r.name).join(', ')}">👤${l.related.length}</span>` : '')
+    + `<span id="pl-cmt-badge-${l.id}" style="vertical-align:middle;">${_plCommentBadgeHtml(l.id)}</span>`;
   return `<div style="padding:4px 0;">
     <div style="display:flex;align-items:flex-start;gap:4px;cursor:pointer;" onclick="_plToggleRow('${l.id}','date')">
       <span style="flex-shrink:0;font-size:10px;color:var(--text3);width:12px;">${arrow}</span>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;">${starHtml}<span class="badge pl-lg-${l.logType}" style="margin-right:4px;">${_escHtml(l.logType)}</span>${mediaHtml}${_escHtml(l.summary || '')}${progText}${attachIconsHtml}</div>
+        <div style="font-size:13px;">${starHtml}<span class="badge pl-lg-${l.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(l.logType)}</span>${mediaHtml}${_escHtml(l.summary || '')}${progText}${attachIconsHtml}</div>
         ${subHtml}
       </div>
     </div>
@@ -4374,28 +4558,30 @@ function _plDateOrgChange(v) {
   _plDateOrgFilter = v;
   _plRenderDateBody();
 }
+// 카드 = 대분류(광고주/프로젝트/캠페인/매체/내부) 하나. 매체는 카드를 쪼개는 기준이 아니라 카드 안의
+// 소그룹 기준으로 내려서, 같은 프로젝트를 여러 매체로 동시에 진행 중이어도(혹은 같은 본부 여러 명이
+// 같은 프로젝트를 나눠 맡아도) 카드 하나에 모인다. 작성자는 이 화면엔 아예 안 보이고 수정 모달에서만 확인.
 function _plDateGroupedData(dateStr) {
   const logs = _plDateFilteredLogs(dateStr);
-  const byWriter = new Map();
-  logs.forEach(l => {
-    if (!byWriter.has(l.writer)) byWriter.set(l.writer, []);
-    byWriter.get(l.writer).push(l);
+  // PL_LOGS 자체는 최신순(createdAt 내림차순)이라, 그 순서 그대로 묶으면 "가장 나중에 쓴 게 위로" 온다.
+  // 일자별 뷰는 그날 하루를 시간순으로 읽는 일지라, 미리 오름차순으로 뒤집어야 카드·매체 소그룹 둘 다
+  // "먼저 등장한 게 위, 늦게 쓴 게 아래"로 나온다(나머지 화면은 PL_LOGS의 원래 내림차순을 그대로 씀).
+  const logsAsc = logs.slice().sort((x, y) => (x.createdAt || '').localeCompare(y.createdAt || ''));
+  const byBlock = new Map();
+  logsAsc.forEach(l => {
+    const key = `${l.scope}::${l.seller || ''}::${l.content || ''}::${l.campaignId || ''}`;
+    if (!byBlock.has(key)) byBlock.set(key, { scope: l.scope, seller: l.seller, content: l.content, campaignId: l.campaignId, media: l.media, byMedia: new Map() });
+    const block = byBlock.get(key);
+    const mediaKey = l.media || '';
+    if (!block.byMedia.has(mediaKey)) block.byMedia.set(mediaKey, []);
+    block.byMedia.get(mediaKey).push(l);
   });
-  const writers = [...byWriter.keys()].sort((a, b) => (a || '').localeCompare(b || '', 'ko'));
-  return writers.map(writer => {
-    // PL_LOGS 자체는 최신순(createdAt 내림차순)이라, 그 순서 그대로 Map에 넣으면 블록이 "처음 등장한 순서"로
-    // 삽입되면서 결과적으로 가장 나중에 쓴 블록이 맨 위로 온다(항목 sort는 블록 내부에만 적용돼 블록 순서엔 영향 없음).
-    // 블록 순서·항목 순서 둘 다 작성 순서(오름차순)대로 보이게 하려면 그룹핑 전에 미리 오름차순으로 뒤집어야 한다.
-    const writerLogsAsc = byWriter.get(writer).slice().sort((x, y) => (x.createdAt || '').localeCompare(y.createdAt || ''));
-    const byBlock = new Map();
-    writerLogsAsc.forEach(l => {
-      const key = `${l.scope}::${l.seller || ''}::${l.content || ''}::${l.campaignId || ''}::${l.media || ''}`;
-      if (!byBlock.has(key)) byBlock.set(key, { scope: l.scope, seller: l.seller, content: l.content, campaignId: l.campaignId, media: l.media, items: [] });
-      byBlock.get(key).items.push(l);
-    });
-    const blocks = [...byBlock.values()];
-    return { writer, blocks };
-  });
+  return [...byBlock.values()].map(block => ({
+    scope: block.scope, seller: block.seller, content: block.content, campaignId: block.campaignId, media: block.media,
+    // 매체가 딱 하나뿐이면(또는 전부 미지정이면) 소그룹 헤더를 보여줄 이유가 없다 — 카드 제목에 이미
+    // 나와있거나(캠페인/매체 스코프) 굳이 나눌 필요가 없는 경우라 렌더링 쪽에서 mediaGroups.length로 판단.
+    mediaGroups: [...block.byMedia.entries()].map(([media, items]) => ({ media, items })),
+  }));
 }
 function _plDateNav(delta) {
   const d = new Date(_plDateTabDate + 'T00:00:00');
@@ -4446,23 +4632,30 @@ function _plRenderDateBody() {
   _plEnsureDateLoaded(_plDateTabDate); // 기본 구독 범위보다 예전 날짜면 그 하루치를 따로 불러옴
 
   const grouped = _plDateGroupedData(_plDateTabDate);
-  const totalLogs = grouped.reduce((s, g) => s + g.blocks.reduce((s2, b) => s2 + b.items.length, 0), 0);
+  const totalLogs = grouped.reduce((s, b) => s + b.mediaGroups.reduce((s2, m) => s2 + m.items.length, 0), 0);
   const countEl = document.getElementById('pl-date-count');
   if (countEl) countEl.innerHTML = `이 날짜 일지 <b>${totalLogs}</b>건`;
 
-  bodyEl.innerHTML = grouped.length ? grouped.map(g => `
-    <div class="table-card" style="margin-bottom:14px;">
-      <div class="table-header"><span class="card-title">${_escHtml(g.writer || '—')}</span><span class="table-count">${g.blocks.reduce((s, b) => s + b.items.length, 0)}건</span></div>
-      <div class="card-body">
-        ${g.blocks.map((b, bi) => `
-          <div style="${bi < g.blocks.length - 1 ? 'margin-bottom:14px;padding-bottom:14px;border-bottom:1px dashed var(--border);' : ''}">
-            <div style="font-weight:700;font-size:13px;margin-bottom:6px;">${_plDateBlockLabel(b)}</div>
-            ${b.items.map(_plDateItemHtml).join('')}
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `).join('') : `<div class="table-card"><div style="text-align:center;padding:40px;color:var(--text3);font-size:13px;">조건에 맞는 일지가 없습니다.</div></div>`;
+  // 블록마다 카드를 따로 만들면 카드 패딩·테두리가 누적되어 스크롤이 과도하게 길어진다.
+  // 하루치 전체를 카드 하나에 담고, 블록(광고주/프로젝트 등)은 굵은 텍스트 헤더로만 구분한다.
+  bodyEl.innerHTML = `<div class="table-card"><div class="card-body">` + (grouped.length ? grouped.map((b, bi) => {
+    const blockCount = b.mediaGroups.reduce((s, m) => s + m.items.length, 0);
+    // 매체 스코프 블록은 헤더에 이미 매체가 나와있어 소그룹 라벨을 또 보여줄 필요가 없다.
+    // 그 외에는 매체가 하나뿐이어도(항목 옆 인라인 태그 대신) 블록 헤더와 같은 계위의
+    // 소그룹 라벨로 통일해서 보여준다 — 매체가 여러 개일 때와 UI 계위를 맞추기 위함.
+    return `
+    <div style="${bi > 0 ? 'margin-top:24px;padding-top:22px;border-top:1px solid var(--border2);' : ''}">
+      <div style="font-size:14px;font-weight:700;margin-bottom:8px;">${_plDateBlockLabel(b)} <span style="font-weight:400;font-size:12px;color:var(--text3);">${blockCount}건</span></div>
+      ${b.mediaGroups.map((m, mi) => {
+        const showSub = b.scope !== 'media' && (m.media || b.mediaGroups.length > 1);
+        return `
+        <div style="${b.mediaGroups.length > 1 && mi < b.mediaGroups.length - 1 ? 'margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--border);' : ''}">
+          ${showSub ? `<div style="margin-bottom:4px;"><span class="tag pl-media">${_escHtml(m.media || '매체 미지정')}</span></div>` : ''}
+          ${m.items.map(l => _plDateItemHtml(l, showSub)).join('')}
+        </div>
+      `;}).join('')}
+    </div>`;
+  }).join('') : `<div style="text-align:center;padding:40px;color:var(--text3);font-size:13px;">조건에 맞는 일지가 없습니다.</div>`) + `</div></div>`;
 }
 function plRenderDateTab() {
   const content = document.getElementById('pl-tab-content');
