@@ -85,9 +85,10 @@ const PL_DRAFT_KEY = 'pl_draft_' + (currentUser?.id || 'anon');
 let PL_LOGS = [];
 let _plLogsMap = new Map();
 let PL_STATE = {
-  tab: 'date',                // 'date' | 'log' | 'advertiser' | 'campaign' | 'media'
+  tab: 'date',                // 'date' | 'log' | 'advertiser' | 'campaign' | 'media' | 'internal' | 'mine'
   advDetailCompany: null,    // 광고주 탭에서 상세 화면으로 드릴다운했을 때만 값 존재
   mediaDetailCompany: null,  // 매체 탭에서 상세 화면으로 드릴다운했을 때만 값 존재
+  internalDetailClient: null, // 내부업무 탭에서 상세 화면으로 드릴다운했을 때만 값 존재
 };
 let _plWatchStarted = false;
 let _plExpanded = new Set();
@@ -370,22 +371,26 @@ function _plRenderShell() {
           <button class="view-tab" id="pl-vt-advertiser" onclick="plSwitchTab('advertiser')">광고주</button>
           <button class="view-tab" id="pl-vt-media" onclick="plSwitchTab('media')">매체</button>
           <button class="view-tab" id="pl-vt-campaign" onclick="plSwitchTab('campaign')">캠페인</button>
+          <button class="view-tab" id="pl-vt-internal" onclick="plSwitchTab('internal')">내부업무</button>
         </div>
         <div class="view-tabs">
           <button class="view-tab" id="pl-vt-mine" onclick="plSwitchTab('mine')">나의 일지</button>
         </div>
-        <button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="plOpenXlsxImport()">📥 엑셀 업로드</button>
+        <button class="btn btn-outline btn-sm" id="pl-btn-xlsx" style="margin-left:auto;display:none;" onclick="plOpenXlsxImport()">📥 엑셀 업로드</button>
         <button class="btn btn-primary btn-sm" onclick="plOpenWrite()">+ 일지 작성</button>
       </div>
       <div id="pl-tab-content"></div>
     `;
     container.dataset.plReady = '1';
   }
+  // 엑셀 업로드는 대량 쓰기라 관리자·지정 사용자만 노출
+  const xlsxBtn = document.getElementById('pl-btn-xlsx');
+  if (xlsxBtn) xlsxBtn.style.display = (currentUser?.isAdmin || currentUser?.id === 'soongeun') ? '' : 'none';
   _plUpdateTabButtons();
   plRenderActiveTab();
 }
 function _plUpdateTabButtons() {
-  ['advertiser', 'campaign', 'log', 'media', 'date', 'mine'].forEach(t => {
+  ['advertiser', 'campaign', 'log', 'media', 'date', 'mine', 'internal'].forEach(t => {
     document.getElementById(`pl-vt-${t}`)?.classList.toggle('active', PL_STATE.tab === t);
   });
 }
@@ -395,6 +400,7 @@ function plRenderActiveTab() {
   if (PL_STATE.tab === 'media') return plRenderMediaTab();
   if (PL_STATE.tab === 'date') return plRenderDateTab();
   if (PL_STATE.tab === 'mine') return plRenderMineTab();
+  if (PL_STATE.tab === 'internal') return plRenderInternalTab();
   return plRenderLogTab();
 }
 
@@ -465,6 +471,135 @@ function plRenderMineTab() {
     content.dataset.plTab = 'mine';
   }
   _plRenderMineBody();
+}
+
+// ══════════════════════════════════════════════════════════
+// C-3. 내부업무 — 클라이언트(자유입력, 마스터데이터 없음)별 드릴다운.
+// 매출·목표 개념이 없는 데이터라 광고주 탭처럼 무겁게 만들지 않고, 목록 → 클릭 시
+// 그 클라이언트의 로그 전체를 보여주는 단순 아카이브 형태로 둔다.
+// ══════════════════════════════════════════════════════════
+
+function _plInternalClientRows() {
+  const byClient = new Map();
+  PL_LOGS.filter(l => l.scope === 'internal' && l.seller).forEach(l => {
+    if (!byClient.has(l.seller)) byClient.set(l.seller, []);
+    byClient.get(l.seller).push(l);
+  });
+  return [...byClient.entries()].map(([client, logs]) => {
+    const taskCount = new Set(logs.map(l => l.content).filter(Boolean)).size;
+    const lastDate = logs.reduce((max, l) => (l.logDate || '') > max ? (l.logDate || '') : max, '');
+    return { client, count: logs.length, taskCount, lastDate };
+  }).sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''));
+}
+function _plBuildInternalTabSkeleton(content) {
+  content.innerHTML = `
+    <div class="filter-bar" style="margin-bottom:14px;">
+      <input type="text" class="f-search" id="pl-internal-search" placeholder="🔍 클라이언트 검색" style="width:200px;" oninput="_plRenderInternalListBody()">
+      <span class="table-count" style="margin-left:auto;" id="pl-internal-count"></span>
+    </div>
+    <div class="table-card">
+      <div class="table-wrap"><table class="pl-lgt" style="width:100%;">
+        <thead><tr><th>클라이언트</th><th style="width:110px;">테스크 수</th><th style="width:90px;">기록 건수</th><th style="width:100px;">최근 작성일</th></tr></thead>
+        <tbody id="pl-internal-tbody"></tbody>
+      </table></div>
+    </div>
+  `;
+}
+function _plRenderInternalListBody() {
+  const q = (document.getElementById('pl-internal-search')?.value || '').trim().toLowerCase();
+  let rows = _plInternalClientRows();
+  if (q) rows = rows.filter(r => r.client.toLowerCase().includes(q));
+  const tbody = document.getElementById('pl-internal-tbody');
+  if (tbody) {
+    tbody.innerHTML = rows.length ? rows.map(r => `
+      <tr class="pl-lg-head" style="cursor:pointer;" onclick="_plOpenInternalDetail('${_escHtml(r.client)}')">
+        <td>${_escHtml(r.client)}</td>
+        <td class="td-c">${r.taskCount || '—'}</td>
+        <td class="td-c">${r.count}</td>
+        <td class="f-mono td-num">${_escHtml((r.lastDate || '').slice(2).replace(/-/g, '.'))}</td>
+      </tr>
+    `).join('') : `<tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text3);font-size:13px;">내부업무 기록이 없습니다.</td></tr>`;
+  }
+  const cntEl = document.getElementById('pl-internal-count');
+  if (cntEl) cntEl.innerHTML = `<b>${rows.length}</b>곳`;
+}
+function _plOpenInternalDetail(client) {
+  PL_STATE.tab = 'internal';
+  PL_STATE.internalDetailClient = client;
+  _plUpdateTabButtons();
+  plRenderActiveTab();
+  // 광고주/매체 상세와 동일하게 히스토리를 쌓아둬야 브라우저 뒤로가기로도 목록으로 돌아간다
+  // (popstate 핸들러가 이 state를 받아 internalDetailClient를 초기화함).
+  history.pushState({ screen: 'projectlog-detail', plTab: 'internal' }, '', '#projectlog');
+}
+function _plInternalBackToList() {
+  PL_STATE.internalDetailClient = null;
+  plRenderInternalTab();
+}
+// "일지" 탭 테이블 행과 같은 펼침 구조(_plToggleRow + _plRenderDetailRow)를 그대로 재사용 —
+// 다만 광고주/매체/캠페인 컬럼 대신 테스크(content) 하나만 보여주면 되는 좁은 표라 전용 행 렌더러를 쓴다.
+function _plRenderInternalLogRow(log) {
+  const isOpen = _plExpanded.has(log.id);
+  const arrow = isOpen ? '▾' : '▸';
+  const dateShort = (log.logDate || '').slice(2).replace(/-/g, '.');
+  const starHtml = log.important ? '<span class="pl-star">★</span> ' : '';
+  const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
+  const stateHtml = log.state === '진행중' ? ' <span class="pl-st-open">진행중</span>' : (log.state === '완료' ? ' <span class="pl-st-done">완료</span>' : '');
+  if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
+  const attachIconsHtml = (log.hasImages ? `<span id="pl-imgcnt-${log.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '')
+    + ((log.links && log.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${log.links.length}개">🔗${log.links.length}</span>` : '')
+    + ((log.related && log.related.length) ? `<span style="font-size:11px;margin-left:4px;" title="관련자: ${log.related.map(r => r.name).join(', ')}">👤${log.related.length}</span>` : '');
+  const progHtml = log.progress != null
+    ? `<span class="prog-wrap" style="width:46px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}%</span>`
+    : '<span class="td-dim">—</span>';
+  const rowHtml = `<tr id="pl-row-${log.id}" class="pl-lg-head" onclick="_plToggleRow('${log.id}','internal')" style="cursor:pointer;">
+    <td class="pl-lg-arrow">${arrow}</td>
+    <td class="f-mono td-num">${dateShort}</td>
+    <td>${log.content ? _escHtml(log.content) : '<span class="td-dim">—</span>'}</td>
+    <td><span class="badge pl-lg-${log.logType}">${_escHtml(log.logType)}</span></td>
+    <td><div>${starHtml}${_escHtml(log.summary || '')}${attachIconsHtml}${stateHtml}${cmtBadgeHtml}</div></td>
+    <td class="td-c">${progHtml}</td>
+    <td>${_escHtml(log.writer || '—')}</td>
+  </tr>`;
+  return rowHtml + (isOpen ? _plRenderDetailRow(log, 7) : '');
+}
+function _plWriteFromInternal(client) {
+  plOpenWrite({ scope: 'internal', seller: client, content: null, campaignId: null, media: null, product: null });
+}
+function _plRenderInternalDetail(content, client) {
+  const logs = PL_LOGS.filter(l => l.scope === 'internal' && l.seller === client)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  content.innerHTML = `
+    <div class="filter-bar" style="margin-bottom:14px;">
+      <span class="pl-x" style="font-size:13px;color:var(--accent);cursor:pointer;" onclick="_plInternalBackToList()">← 내부업무 목록</span>
+      <span style="font-weight:700;font-size:14px;margin-left:10px;">${_escHtml(client)}</span>
+      <button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="_plWriteFromInternal('${_escHtml(client)}')">+ 이 클라이언트로 기록</button>
+    </div>
+    <div class="table-card">
+      <div class="table-header"><span class="card-title">기록 ${logs.length}건</span></div>
+      <div class="table-wrap"><table class="pl-lgt" style="width:100%;">
+        <thead><tr>
+          <th style="width:22px;"></th><th style="width:78px;">작성일</th><th style="width:110px;">테스크</th><th style="width:60px;">유형</th>
+          <th>내용</th><th style="width:56px;">진척률</th><th style="width:70px;">작성자</th>
+        </tr></thead>
+        <tbody>${logs.length ? logs.map(l => _plRenderInternalLogRow(l)).join('') : `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text3);">기록이 없습니다.</td></tr>`}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+function plRenderInternalTab() {
+  const content = document.getElementById('pl-tab-content');
+  if (!content) return;
+  if (PL_STATE.internalDetailClient) {
+    content.dataset.plTab = 'internal-detail';
+    _plRenderInternalDetail(content, PL_STATE.internalDetailClient);
+    return;
+  }
+  if (content.dataset.plTab !== 'internal') {
+    _plBuildInternalTabSkeleton(content);
+    content.dataset.plTab = 'internal';
+  }
+  _plRenderInternalListBody();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -765,6 +900,7 @@ function plSwitchTab(name) {
   PL_STATE.tab = name;
   if (name !== 'advertiser') PL_STATE.advDetailCompany = null;
   if (name !== 'media') PL_STATE.mediaDetailCompany = null;
+  if (name !== 'internal') PL_STATE.internalDetailClient = null;
   _plUpdateTabButtons();
   plRenderActiveTab();
   // 현재 스택 맨 위 항목에 탭 정보를 갱신 — 상세 진입 후 뒤로가기 시 이 탭의 목록으로 복원하기 위함 (새 항목을 쌓지는 않음)
@@ -806,6 +942,7 @@ function _plGetFiltered() {
   const project= document.getElementById('pl-f-project')?.value.trim() || '';
   const media  = document.getElementById('pl-f-media')?.value.trim()   || '';
   const type   = document.getElementById('pl-f-type')?.value  || '';
+  const scope  = document.getElementById('pl-f-scope')?.value || '';
   const org    = document.getElementById('pl-f-org')?.value   || '';
   const writer = document.getElementById('pl-f-writer')?.value.trim()  || '';
   const impOnly  = document.getElementById('pl-f-important')?.classList.contains('pl-toggle-on');
@@ -820,6 +957,7 @@ function _plGetFiltered() {
     if (project && log.content !== project) return false;
     if (media   && log.media   !== media)   return false;
     if (type    && log.logType !== type)    return false;
+    if (scope   && log.scope   !== scope)   return false;
     if (writer  && log.writer  !== writer)  return false;
     if (impOnly  && !log.important) return false;
     if (openOnly && log.state !== '진행중') return false;
@@ -852,6 +990,7 @@ function _plToggleRow(id, ctx) {
   if (ctx === 'camp') { _plRenderCampaignLogModal(_plCampLogCurrentId, _plCampLogLastData, _plCampLogLastIsDeleted, _plCampLogLastNotFound); return; }
   if (ctx === 'date') { _plRenderDateBody(); return; }
   if (ctx === 'mine' || ctx === 'minemention') { _plRenderMineBody(); return; }
+  if (ctx === 'internal') { plRenderInternalTab(); return; }
   _plRenderRows();
 }
 function _plExpandAll(on) {
@@ -877,6 +1016,7 @@ function plResetLogFilter() {
     if (el) el.value = '';
   });
   const typeEl = document.getElementById('pl-f-type'); if (typeEl) typeEl.value = '';
+  const scopeEl = document.getElementById('pl-f-scope'); if (scopeEl) scopeEl.value = '';
   const orgEl  = document.getElementById('pl-f-org');  if (orgEl)  orgEl.value  = '';
   document.getElementById('pl-f-important')?.classList.remove('pl-toggle-on');
   document.getElementById('pl-f-open')?.classList.remove('pl-toggle-on');
@@ -1388,6 +1528,14 @@ function _plBuildLogTabSkeleton(container) {
         <div class="combo-list" id="pl-f-media-list" style="display:none;"></div>
       </div>
       <select class="f-sel" id="pl-f-type" onchange="_plPage=1;_plRenderRows();"><option value="">유형 전체</option></select>
+      <select class="f-sel" id="pl-f-scope" onchange="_plPage=1;_plRenderRows();">
+        <option value="">대상 전체</option>
+        <option value="advertiser">광고주</option>
+        <option value="project">프로젝트</option>
+        <option value="campaign">캠페인</option>
+        <option value="media">매체</option>
+        <option value="internal">내부업무</option>
+      </select>
       <select class="f-sel" id="pl-f-org" onchange="_plPage=1;_plRenderRows();"><option value="">본부/팀 전체</option></select>
       <div class="combo-wrap" style="width:100px;">
         <input type="text" class="f-search" id="pl-f-writer" placeholder="🔍 작성자" style="width:100px;">
@@ -3123,7 +3271,7 @@ function plRenderAdvertiserTab() {
 // ══════════════════════════════════════════════════════════
 
 let _plGCompany = null;
-let _plGState = { year: String(new Date().getFullYear()), month: '', dayProject: '', dayType: '', dayPage: 1, monthPage: 1 };
+let _plGState = { year: String(new Date().getFullYear()), month: '', dayProject: '', dayType: '', dayMedia: '', dayWriter: '', dayPage: 1, monthPage: 1 };
 const PL_G_DAY_PAGE_SIZE = 4;
 
 function _plCurrentYm() { return _plTodayStr().slice(0, 7); }
@@ -3692,11 +3840,15 @@ function _plGDailyFiltered(company) {
   let logs = PL_LOGS.filter(l => l.seller === company);
   if (_plGState.dayProject) logs = logs.filter(l => (l.content || '브랜드 미지정') === _plGState.dayProject);
   if (_plGState.dayType) logs = logs.filter(l => l.logType === _plGState.dayType);
+  if (_plGState.dayMedia) logs = logs.filter(l => l.media === _plGState.dayMedia);
+  if (_plGState.dayWriter) logs = logs.filter(l => l.writer === _plGState.dayWriter);
   return logs;
 }
 function _plGDayFilter(field, val) {
   if (field === 'project') _plGState.dayProject = val;
   if (field === 'type') _plGState.dayType = val;
+  if (field === 'media') _plGState.dayMedia = val;
+  if (field === 'writer') _plGState.dayWriter = val;
   _plGState.dayPage = 1;
   _plGRenderDaily();
 }
@@ -3712,6 +3864,8 @@ function _plGRenderDaily() {
   if (!el) return;
   const allLogs = PL_LOGS.filter(l => l.seller === _plGCompany);
   const projects = [...new Set(allLogs.map(l => l.content || '브랜드 미지정'))];
+  const medias = [...new Set(allLogs.map(l => l.media).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const writers = [...new Set(allLogs.map(l => l.writer).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
   const filtered = _plGDailyFiltered(_plGCompany);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PL_G_DAY_PAGE_SIZE));
   _plGState.dayPage = Math.min(Math.max(1, _plGState.dayPage), totalPages);
@@ -3728,6 +3882,12 @@ function _plGRenderDaily() {
         </select>
         <select class="f-sel" onchange="_plGDayFilter('type',this.value)">
           <option value="">유형 전체</option>${PL_LOG_TYPES.map(t => `<option value="${t}" ${_plGState.dayType === t ? 'selected' : ''}>${t}</option>`).join('')}
+        </select>
+        <select class="f-sel" onchange="_plGDayFilter('media',this.value)">
+          <option value="">매체 전체</option>${medias.map(m => `<option value="${_escHtml(m)}" ${_plGState.dayMedia === m ? 'selected' : ''}>${_escHtml(m)}</option>`).join('')}
+        </select>
+        <select class="f-sel" onchange="_plGDayFilter('writer',this.value)">
+          <option value="">작성자 전체</option>${writers.map(w => `<option value="${_escHtml(w)}" ${_plGState.dayWriter === w ? 'selected' : ''}>${_escHtml(w)}</option>`).join('')}
         </select>
         <button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="_plGExpandAll(true)">전체 펼침</button>
         <button class="btn btn-ghost btn-sm" onclick="_plGExpandAll(false)">요약만</button>
@@ -3750,7 +3910,7 @@ function _plWriteFromAdvertiser(company) {
 function _plRenderAdvertiserDetail(content, company) {
   if (_plGCompany !== company) {
     _plGCompany = company;
-    _plGState = { year: String(new Date().getFullYear()), month: _plCurrentYm(), dayProject: '', dayType: '', dayPage: 1, monthPage: 1 };
+    _plGState = { year: String(new Date().getFullYear()), month: _plCurrentYm(), dayProject: '', dayType: '', dayMedia: '', dayWriter: '', dayPage: 1, monthPage: 1 };
   }
   const seller = SELLER_DATA.find(s => s.company === company);
   content.innerHTML = `
@@ -4048,10 +4208,56 @@ function _plMediaKnowledgeHtml(company, label) {
     </div>`;
   }).join('');
 }
+let _plMCompany = null;
+let _plMState = { seller: '', type: '', writer: '' };
+function _plMediaDetailFiltered(company) {
+  let logs = PL_LOGS.filter(l => l.media === company);
+  if (_plMState.seller) logs = logs.filter(l => l.seller === _plMState.seller);
+  if (_plMState.type) logs = logs.filter(l => l.logType === _plMState.type);
+  if (_plMState.writer) logs = logs.filter(l => l.writer === _plMState.writer);
+  return logs.slice().sort((a, b) => (b.logDate || '').localeCompare(a.logDate || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+}
+function _plMDetailFilter(field, val) {
+  if (field === 'seller') _plMState.seller = val;
+  if (field === 'type') _plMState.type = val;
+  if (field === 'writer') _plMState.writer = val;
+  _plMRenderAllLogs();
+}
+function _plMRenderAllLogs() {
+  const el = document.getElementById('pl-m-alllogs');
+  if (!el) return;
+  const company = _plMCompany;
+  const allLogs = PL_LOGS.filter(l => l.media === company);
+  const sellers = [...new Set(allLogs.map(l => l.seller).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const writers = [...new Set(allLogs.map(l => l.writer).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const logs = _plMediaDetailFiltered(company);
+  el.innerHTML = `
+    <div class="table-card">
+      <div class="table-header">
+        <span class="card-title">전체 일지</span>
+        <span class="table-count"><b>${logs.length}</b>건</span>
+        <select class="f-sel" onchange="_plMDetailFilter('seller',this.value)">
+          <option value="">광고주 전체</option>${sellers.map(s => `<option value="${_escHtml(s)}" ${_plMState.seller === s ? 'selected' : ''}>${_escHtml(s)}</option>`).join('')}
+        </select>
+        <select class="f-sel" onchange="_plMDetailFilter('type',this.value)">
+          <option value="">유형 전체</option>${PL_LOG_TYPES.map(t => `<option value="${t}" ${_plMState.type === t ? 'selected' : ''}>${t}</option>`).join('')}
+        </select>
+        <select class="f-sel" onchange="_plMDetailFilter('writer',this.value)">
+          <option value="">작성자 전체</option>${writers.map(w => `<option value="${_escHtml(w)}" ${_plMState.writer === w ? 'selected' : ''}>${_escHtml(w)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="table-wrap"><table class="pl-lgt" style="width:100%;">
+        <thead><tr>
+          <th style="width:22px;"></th><th style="width:78px;">작성일</th><th style="width:110px;">광고주</th><th style="width:90px;">프로젝트</th>
+          <th style="width:90px;">캠페인</th><th style="width:70px;">매체</th><th style="width:60px;">유형</th><th>내용</th><th style="width:56px;">진척</th><th style="width:60px;">작성자</th>
+        </tr></thead>
+        <tbody>${logs.length ? logs.map(l => _plRenderLogRow(l, '', 'mediadaily')).join('') : `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text3);">기록이 없습니다.</td></tr>`}</tbody>
+      </table></div>
+    </div>`;
+}
 function _plRenderMediaDetail(content, company) {
+  if (_plMCompany !== company) { _plMCompany = company; _plMState = { seller: '', type: '' }; }
   const m = MEDIA_DATA.find(x => x.company === company);
-  const logs = PL_LOGS.filter(l => l.media === company)
-    .slice().sort((a, b) => (b.logDate || '').localeCompare(a.logDate || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
   content.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
       <button class="btn btn-ghost btn-sm" onclick="plBackToMediaList()">← 매체 목록</button>
@@ -4071,17 +4277,9 @@ function _plRenderMediaDetail(content, company) {
         ${_plMediaKnowledgeHtml(company, '매체 회신')}
       </div>
     </div>
-    <div class="table-card">
-      <div class="table-header"><span class="card-title">전체 일지</span><span class="table-count"><b>${logs.length}</b>건</span></div>
-      <div class="table-wrap"><table class="pl-lgt" style="width:100%;">
-        <thead><tr>
-          <th style="width:22px;"></th><th style="width:78px;">작성일</th><th style="width:110px;">광고주</th><th style="width:90px;">프로젝트</th>
-          <th style="width:90px;">캠페인</th><th style="width:70px;">매체</th><th style="width:60px;">유형</th><th>내용</th><th style="width:56px;">진척</th><th style="width:60px;">작성자</th>
-        </tr></thead>
-        <tbody>${logs.length ? logs.map(l => _plRenderLogRow(l, '', 'mediadaily')).join('') : `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text3);">기록이 없습니다.</td></tr>`}</tbody>
-      </table></div>
-    </div>
+    <div id="pl-m-alllogs"></div>
   `;
+  _plMRenderAllLogs();
 }
 function plRenderMediaTab() {
   const content = document.getElementById('pl-tab-content');

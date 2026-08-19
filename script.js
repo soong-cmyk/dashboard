@@ -767,6 +767,9 @@ function _updateUserUI() {
   if (tm) tm.textContent = [currentUser.bonbu, currentUser.dept].filter(Boolean).join(' ') || '—';
   const regBtn = document.getElementById('btn-reg');
   if (regBtn) regBtn.style.display = hasPerm('ops') ? '' : 'none';
+  // 캠페인 일괄등록은 대량 쓰기라 관리자·지정 사용자만 노출
+  const bulkBtn = document.getElementById('btn-camp-bulk');
+  if (bulkBtn) bulkBtn.style.display = (currentUser?.isAdmin || currentUser?.id === 'soongeun') ? '' : 'none';
   const canManageUsers = currentUser.isAdmin || ['대표이사','이사','본부장'].includes(currentUser.rank);
   const navUsers = document.getElementById('nav-users');
   if (navUsers) navUsers.style.display = canManageUsers ? '' : 'none';
@@ -1250,6 +1253,9 @@ function goScreen(name, skipPush) {
   // 캠페인 등록 버튼: 대시보드·캘린더·캠페인 목록에서만 표시
   const btnReg = document.getElementById('btn-reg');
   if (btnReg) btnReg.style.display = ['dashboard','calendar','campaigns'].includes(name) ? '' : 'none';
+  // 일괄등록 템플릿 버튼: 캠페인 목록에서만 (대량 데이터 작업이라 등록 버튼보다 좁게)
+  const btnCampBulk = document.getElementById('btn-camp-bulk');
+  if (btnCampBulk) btnCampBulk.style.display = (name === 'campaigns' && (currentUser?.isAdmin || currentUser?.id === 'soongeun')) ? '' : 'none';
 
   if (name === 'dashboard') renderDashboard();
   if (name === 'perf') initPerfScreen();
@@ -5248,6 +5254,362 @@ function _xlsxDownload(rows, filename) {
   XLSX.writeFile(wb, filename);
 }
 
+// ══════════════════════════════════════════
+// 캠페인 일괄등록 템플릿 (기본형: MMS·LMS·실시간발송·PUSH·카톡MSG 공통)
+// 등록 모달(openRegModal)의 실제 입력 순서를 그대로 따른다 — 기본정보 → 수량·서비스 →
+// 광고주(매출) → 매체(매입) → 손익 → 타겟·소재 → 특기사항. 금액/수수료 필드는 자동계산을
+// 거치지 않고 입력값을 그대로 저장하는 수동입력(Fixed) 필드라 "매출단가/수수료율" 같은
+// 참고용 입력값과 별도로 존재한다.
+// 맨 뒤 5개는 2차 성과입력(modal2nd)에 대응 — 이 템플릿으로 올리는 캠페인은 전부 이미 종료된
+// 과거 캠페인이라, 업로드 시 상태를 무조건 '성과입력완료'로 처리한다(시트에 상태 컬럼은 없음).
+// 클릭률·DB등록률은 실발송수량/클릭수/DB등록수 입력값으로 라이브 수식 계산된다 —
+// script.js의 epCalcCTR()/epCalcDBR()와 동일한 공식(클릭수÷실발송×100, DB등록수÷클릭수×100).
+// 헤더 뒤 " *"가 붙은 컬럼은 필수 — 파싱은 헤더 텍스트가 아니라 CAMP_COL의 위치(인덱스)로 하므로
+// 여기 문구를 자유롭게 바꿔도(예: * 표시 추가) 아래 검증 로직과 어긋나지 않는다.
+const CAMP_XLSX_HEADERS_BASIC = [
+  '상품 *', '발송일시 *', '매출처 *', '브랜드 *', '매체사 *', '광고목적', '담당자 *',
+  '발송예약수량 *', '서비스수량', '서비스적용(광고주) *', '서비스적용(매체) *',
+  '정산기준(광고주) *', '매출단가 *', '할인단가', '광고비(수동) *', '실청구(수동) *', '수수료율(%)',
+  '정산기준(매체) *', '매입단가(수동) *', '매입액(수동) *',
+  '매출수익(수동) *', '대행(%)', '이익(수동) *',
+  '타겟조건 *', '디타겟조건', '발송문구 *', '특기사항',
+  '실발송수량 *', '클릭수 *', 'DB등록수', '클릭률(%) 자동계산', 'DB등록률(%) 자동계산',
+];
+function campXlsxDownloadTemplate() {
+  if (typeof XLSX === 'undefined') { toast('엑셀 라이브러리 로드 실패. 인터넷 연결을 확인해주세요.', 'err'); return; }
+  const example1 = [
+    'LMS', '2026-01-15 11:00', '단비교육', '윙크', 'KT', '신학기 등록 프로모션', '신지수',
+    50000, 500, 'Y', 'N',
+    '실발송', 35, '', 1750000, 1750000, 15,
+    '실발송', 29.75, 1487500,
+    262500, 0, 262500,
+    '초등 3~6학년 자녀 학부모', '', '[윙크] 신학기 등록 이벤트 안내…', '',
+    48210, 723, 65,
+  ];
+  const example2 = [
+    'MMS', '2026-02-03 14:30', '클린업스토리', '', 'LGU+', '설 연휴 특가', '박민호',
+    90000, 0, 'N', 'N',
+    '예약', 42, 38, 3420000, 3420000, 12,
+    '예약', 36.96, 3326400,
+    93600, 10, 84240,
+    '최근 6개월 미구매 고객', '기존 정기구독자 제외', '[클린업] 설맞이 대청소 특가…', '',
+    88540, 1063, 81,
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([CAMP_XLSX_HEADERS_BASIC, example1, example2]);
+  // 클릭률·DB등록률은 입력값이 아니라 라이브 수식 — 실발송수량(AB)·클릭수(AC)·DB등록수(AD)를
+  // 고치면 엑셀에서 바로 다시 계산된다. 업로드 처리 시에도 이 값을 그대로 믿지 않고 같은 공식으로
+  // 재계산해서 저장할 예정(엑셀이 재계산을 안 돌렸을 수 있어서).
+  [1, 2].forEach(r => {
+    const actualRef = XLSX.utils.encode_cell({ r, c: 27 });
+    const clickRef  = XLSX.utils.encode_cell({ r, c: 28 });
+    const dbRef     = XLSX.utils.encode_cell({ r, c: 29 });
+    ws[XLSX.utils.encode_cell({ r, c: 30 })] = { t: 'n', f: `IF(${actualRef}>0,ROUND(${clickRef}/${actualRef}*100,2),"")` };
+    ws[XLSX.utils.encode_cell({ r, c: 31 })] = { t: 'n', f: `IF(${clickRef}>0,ROUND(${dbRef}/${clickRef}*100,2),"")` };
+  });
+
+  // 참고 시트 — 엑셀 자체 드롭다운을 못 만들어서(라이브러리 무료판 한계), 정확한 값을 복사해
+  // 쓸 수 있도록 대신 나열한다. 두 성격을 분리했다:
+  // ① 고정값 3종(상품/서비스적용/정산기준)은 2~5개뿐이라 표로 만들면 그 아래가 다 빈칸이 되므로
+  //    상단에 텍스트 안내로만 적는다.
+  // ② 매출처/브랜드/매체사/담당자는 등록 데이터 기반 "목록"이라 성격이 같아서 표 하나로 묶는다.
+  //    등록 모달의 실제 소스와 동일 기준: 매출처=SELLER_DATA 전체(_getSellerItems), 매체사=type
+  //    '매체사'·active만(comboRender('media')), 담당자=관리자·시스템계정 제외 전체 사용자
+  //    (_populateSalesSelects). 브랜드는 매출처에 종속된 값이라 그 옆 컬럼에 짝지어 나열한다.
+  const opsNames = USERS.filter(u => !u.isAdmin && u.id !== 'user').map(u => u.name).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ko'));
+  const mediaNames = MEDIA_DATA.filter(m => m.type === '매체사' && m.active !== false).map(m => m.company).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ko'));
+  const sellerBrandPairs = [];
+  SELLER_DATA.slice().sort((a, b) => (a.company || '').localeCompare(b.company || '', 'ko')).forEach(s => {
+    const brands = (s.brands || []).map(b => b.name || b).filter(Boolean);
+    if (!brands.length) sellerBrandPairs.push([s.company, '']);
+    else brands.forEach(name => sellerBrandPairs.push([s.company, name]));
+  });
+
+  const noteRows = [
+    ['고정값 안내 (아래 표와 별개 — 이 3가지는 표기된 값 중 하나로만 입력)'],
+    ['상품(기본형)', 'MMS, LMS, 실시간 발송, PUSH, 카톡MSG'],
+    ['서비스적용(광고주/매체)', 'Y, N'],
+    ['정산기준(광고주/매체)', '실발송, 예약'],
+    [],
+  ];
+  const listMaxLen = Math.max(opsNames.length, mediaNames.length, sellerBrandPairs.length);
+  const listRows = [['담당자', '매체사', '매출처', '브랜드']];
+  for (let i = 0; i < listMaxLen; i++) {
+    listRows.push([opsNames[i] || '', mediaNames[i] || '', sellerBrandPairs[i]?.[0] || '', sellerBrandPairs[i]?.[1] || '']);
+  }
+  const wsRef = XLSX.utils.aoa_to_sheet([...noteRows, ...listRows]);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '템플릿');
+  XLSX.utils.book_append_sheet(wb, wsRef, '참고');
+  XLSX.writeFile(wb, '캠페인_일괄등록_기본형(LMS등)_템플릿.xlsx');
+}
+
+const CAMP_BASIC_PRODUCTS = ['MMS', 'LMS', '실시간 발송', 'PUSH', '카톡MSG'];
+let _campXlsxRows = [];
+
+function _campXlsxNum(v) {
+  if (v === '' || v == null) return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+function _campXlsxDateTimeStr(v) {
+  // 등록 모달과 동일한 형식(YYYY-MM-DD HH:MM). 엑셀 자체 날짜서식으로 입력해도(cellDates:true) Date로
+  // 들어오므로 같이 받아준다.
+  if (v instanceof Date) {
+    const p2 = n => String(n).padStart(2, '0');
+    return `${v.getFullYear()}-${p2(v.getMonth() + 1)}-${p2(v.getDate())} ${p2(v.getHours())}:${p2(v.getMinutes())}`;
+  }
+  const s = String(v || '').trim();
+  return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(s) ? s : '';
+}
+
+// 헤더 텍스트가 아니라 열 위치로 읽는다 — 그래야 헤더에 " *" 같은 표시를 자유롭게 붙여도
+// 파싱이 깨지지 않는다. CAMP_XLSX_HEADERS_BASIC의 순서와 반드시 같이 맞춰야 한다.
+const CAMP_COL = {
+  product: 0, date: 1, seller: 2, brand: 3, media: 4, adpromo: 5, ops: 6,
+  sched: 7, svc: 8, svcAdv: 9, svcMedia: 10,
+  sellBill: 11, sellUnit: 12, disc: 13, adcostFixed: 14, amtFixed: 15, comm: 16,
+  buyBill: 17, buyUnitFixed: 18, buyAmtFixed: 19,
+  revFixed: 20, agrate: 21, profitFixed: 22,
+  target: 23, dtarget: 24, msg: 25, note: 26,
+  actual: 27, clicks: 28, db: 29,
+};
+
+// 등록 모달(submitReg)의 기본형 저장 로직과 동일한 필드 매핑 — 자동계산 없이 금액은 입력값을
+// 그대로 Fixed 필드에 저장하고(수기입력), 성과 데이터가 있는 캠페인이라 상태는 무조건
+// '성과입력완료'로 고정한다. row는 헤더를 제외한 원시 배열(한 행)이다.
+function campXlsxValidateRow(row, rowNum) {
+  const errors = [];
+  const cell = key => row[CAMP_COL[key]];
+
+  const product = String(cell('product') || '').trim();
+  if (!CAMP_BASIC_PRODUCTS.includes(product)) errors.push(`상품은 ${CAMP_BASIC_PRODUCTS.join('/')} 중 하나여야 함(입력값: "${product}")`);
+
+  const dateVal = _campXlsxDateTimeStr(cell('date'));
+  if (!dateVal) errors.push('발송일시 형식 오류(YYYY-MM-DD HH:MM)');
+
+  const sellerName = String(cell('seller') || '').trim();
+  const seller = SELLER_DATA.find(s => s.company === sellerName);
+  if (!sellerName) errors.push('매출처 없음');
+  else if (!seller) errors.push(`매출처 "${sellerName}" 를 찾을 수 없음(참고 시트 목록과 정확히 일치해야 함)`);
+
+  const brandName = String(cell('brand') || '').trim();
+  let brandCat = '';
+  if (!brandName) errors.push('브랜드 없음');
+  else if (seller) {
+    const brand = (seller.brands || []).find(b => (b.name || b) === brandName);
+    if (!brand) errors.push(`브랜드 "${brandName}" 를 매출처 "${sellerName}" 에서 찾을 수 없음`);
+    else brandCat = brand.cat || '';
+  }
+
+  const mediaName = String(cell('media') || '').trim();
+  const media = MEDIA_DATA.find(m => m.type === '매체사' && m.active !== false && m.company === mediaName);
+  if (!mediaName) errors.push('매체사 없음');
+  else if (!media) errors.push(`매체사 "${mediaName}" 를 찾을 수 없음(참고 시트 목록과 정확히 일치해야 함)`);
+
+  const opsName = String(cell('ops') || '').trim();
+  const opsUser = USERS.find(u => !u.isAdmin && u.id !== 'user' && u.name === opsName);
+  if (!opsName) errors.push('담당자 없음');
+  else if (!opsUser) errors.push(`담당자 "${opsName}" 를 찾을 수 없음`);
+
+  const sched = _campXlsxNum(cell('sched'));
+  if (sched == null || sched < 0) errors.push('발송예약수량은 0 이상의 숫자여야 함');
+  const svc = _campXlsxNum(cell('svc')) || 0;
+
+  const svcApplyAdvRaw = String(cell('svcAdv') || '').trim().toUpperCase();
+  const svcApplyMediaRaw = String(cell('svcMedia') || '').trim().toUpperCase();
+  if (!['Y', 'N'].includes(svcApplyAdvRaw)) errors.push('서비스적용(광고주)은 Y/N 중 하나여야 함');
+  if (!['Y', 'N'].includes(svcApplyMediaRaw)) errors.push('서비스적용(매체)은 Y/N 중 하나여야 함');
+
+  const BILLBASE_MAP = { '실발송': 'actual', '예약': 'sched' };
+  const sellBillRaw = String(cell('sellBill') || '').trim();
+  const buyBillRaw = String(cell('buyBill') || '').trim();
+  if (!BILLBASE_MAP[sellBillRaw]) errors.push('정산기준(광고주)은 실발송/예약 중 하나여야 함');
+  if (!BILLBASE_MAP[buyBillRaw]) errors.push('정산기준(매체)은 실발송/예약 중 하나여야 함');
+
+  const sellUnit = _campXlsxNum(cell('sellUnit'));
+  if (sellUnit == null) errors.push('매출단가 없음');
+  const disc = _campXlsxNum(cell('disc')) || 0;
+  const adcostFixed = _campXlsxNum(cell('adcostFixed'));
+  const amtFixed = _campXlsxNum(cell('amtFixed'));
+  if (adcostFixed == null) errors.push('광고비(수동)는 필수 — 자동계산을 안 하므로 직접 입력해야 함');
+  if (amtFixed == null) errors.push('실청구(수동)는 필수 — 자동계산을 안 하므로 직접 입력해야 함');
+  const comm = _campXlsxNum(cell('comm')) || 0;
+  const buyUnitFixed = _campXlsxNum(cell('buyUnitFixed'));
+  const buyAmtFixed = _campXlsxNum(cell('buyAmtFixed'));
+  if (buyUnitFixed == null) errors.push('매입단가(수동)는 필수 — 자동계산을 안 하므로 직접 입력해야 함');
+  if (buyAmtFixed == null) errors.push('매입액(수동)는 필수 — 자동계산을 안 하므로 직접 입력해야 함');
+  const revFixed = _campXlsxNum(cell('revFixed'));
+  if (revFixed == null) errors.push('매출수익(수동)는 필수 — 자동계산을 안 하므로 직접 입력해야 함');
+  const agrate = _campXlsxNum(cell('agrate')) || 0;
+  const profitFixed = _campXlsxNum(cell('profitFixed'));
+  if (profitFixed == null) errors.push('이익(수동)는 필수 — 자동계산을 안 하므로 직접 입력해야 함');
+
+  const target = String(cell('target') || '').trim();
+  if (!target) errors.push('타겟조건 없음');
+  const dtarget = String(cell('dtarget') || '').trim();
+  const msg = String(cell('msg') || '').trim();
+  if (!msg) errors.push('발송문구 없음');
+  const note = String(cell('note') || '').trim();
+  const adpromo = String(cell('adpromo') || '').trim();
+
+  const actual = _campXlsxNum(cell('actual'));
+  if (actual == null || actual < 0) errors.push('실발송수량은 0 이상의 숫자여야 함(이 템플릿은 전부 성과입력완료로 처리되므로 필수)');
+  const clicks = _campXlsxNum(cell('clicks'));
+  if (clicks == null || clicks < 0) errors.push('클릭수는 0 이상의 숫자여야 함');
+  const db = _campXlsxNum(cell('db')); // 없을 수 있음(문자 발송만 하고 DB 수집은 안 하는 캠페인)
+  // 클릭률·DB등록률은 시트의 수식값을 믿지 않고 여기서 다시 계산한다(엑셀이 재계산을 안 돌렸을 수 있어서),
+  // epCalcCTR()/epCalcDBR()과 동일한 공식.
+  const ctr = (actual != null && actual > 0 && clicks != null) ? Math.round((clicks / actual) * 100 * 100) / 100 : null;
+  const dbr = (clicks != null && clicks > 0 && db != null) ? Math.round((db / clicks) * 100 * 100) / 100 : null;
+
+  const doc = {
+    regDate: '', // 커밋 시점에 채움(파일 읽는 시점과 실제 저장 시점이 다를 수 있어서)
+    promo: adpromo, cat: brandCat,
+    date: dateVal, media: mediaName, product,
+    clicks, ctr,
+    status: '성과입력완료', testOk: true, sent: true,
+    regUser: currentUser ? currentUser.id : '',
+    seller: sellerName, adv: sellerName,
+    content: brandName || null,
+    ops: opsName, dept: (typeof _getDeptByName === 'function' && _getDeptByName(opsName)) || '',
+    sellUnit, qty: sched || 0, svc, disc,
+    billBase: 'actual',
+    sellBillBase: BILLBASE_MAP[sellBillRaw] || 'actual',
+    buyBillBase: BILLBASE_MAP[buyBillRaw] || 'actual',
+    comm, buyUnit: buyUnitFixed || 0,
+    adcostFixed, amtFixed, buyAmtFixed, revFixed, profitFixed,
+    svcApplyAdv: svcApplyAdvRaw === 'Y', svcApplyMedia: svcApplyMediaRaw === 'Y',
+    agrate, dateEnd: '',
+    daAdcost: 0, daBillBase: '', daFeeYn: '', cpaFeeYn: '', daImage: [],
+    pcAdvUnit: 0, pcOhcCost: 0, pcDnuUnit: 0, pcInflow: 0, pcAgree: 0,
+    cpsFinalSales: 0, cpsTotalComm: 0, cpsMediaComm: 0, stlMonth: '',
+    target, dtarget, msg, note,
+    actual, db,
+  };
+
+  return { rowNum, valid: errors.length === 0, errors, doc };
+}
+
+function campXlsxFileSelect(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const ws = wb.Sheets['템플릿'] || wb.Sheets[wb.SheetNames[0]];
+      // header:1 → 이름 매칭이 아니라 배열(행) 그대로 받는다(헤더 텍스트의 " *" 표시와 무관하게 안전).
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      // 완전 빈 행은 건너뛰되, 실제 엑셀 행 번호(헤더=1행이므로 데이터는 2행부터)는 건너뛰기 전 위치 기준으로
+      // 매겨야 오류 메시지가 가리키는 행 번호가 실제 파일과 어긋나지 않는다.
+      _campXlsxRows = rows.slice(1)
+        .map((row, i) => ({ row, rowNum: i + 2 }))
+        .filter(({ row }) => row.some(v => String(v ?? '').trim() !== ''))
+        .map(({ row, rowNum }) => campXlsxValidateRow(row, rowNum));
+    } catch (err) {
+      console.error('[캠페인 일괄등록] 엑셀 읽기 실패', err);
+      toast('엑셀 파일을 읽을 수 없습니다', 'err');
+      _campXlsxRows = [];
+    }
+    campXlsxRenderPreview();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function campXlsxRenderPreview() {
+  const el = document.getElementById('camp-xlsx-preview');
+  if (!el) return;
+  const total = _campXlsxRows.length;
+  const validCnt = _campXlsxRows.filter(r => r.valid).length;
+  const errRows = _campXlsxRows.filter(r => !r.valid);
+  const errHtml = errRows.length ? `
+    <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-top:8px;">
+      <table style="width:100%;font-size:12px;">
+        <thead><tr style="background:var(--surface2);"><th style="padding:5px 8px;text-align:left;">행</th><th style="padding:5px 8px;text-align:left;">오류</th></tr></thead>
+        <tbody>${errRows.map(r => `<tr><td style="padding:4px 8px;color:var(--text3);">${r.rowNum}</td><td style="padding:4px 8px;color:var(--red);">${_escHtml(r.errors.join(', '))}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>` : '';
+  el.innerHTML = total
+    ? `<div class="form-hint">총 <b>${total}</b>행 · 정상 <b style="color:var(--green);">${validCnt}</b>건 · 오류 <b style="color:var(--red);">${errRows.length}</b>건${errRows.length ? ' (오류 행은 제외하고 등록합니다)' : ''}</div>${errHtml}`
+    : '';
+  const importBtn = document.getElementById('camp-xlsx-import-btn');
+  if (importBtn) importBtn.disabled = validCnt === 0;
+}
+
+async function campXlsxImport() {
+  const validRows = _campXlsxRows.filter(r => r.valid);
+  if (!validRows.length) return;
+  const btn = document.getElementById('camp-xlsx-import-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '등록하는 중…'; }
+  try {
+    const now = new Date();
+    const regDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    let successCnt = 0;
+    for (const r of validRows) {
+      const id = 'C-2026-' + String(_nextCampaignNum++).padStart(4, '0');
+      const doc = Object.assign({}, r.doc, { id, regDate });
+      await _fbSaveCampaign(doc);
+      successCnt++;
+    }
+    toast(`✓ 캠페인 ${successCnt}건을 일괄등록했습니다`, 'ok');
+    closeModal('camp-modal-xlsx');
+    _campXlsxRows = [];
+  } catch (e) {
+    console.error('[캠페인 일괄등록] 가져오기 실패', e);
+    toast('등록 중 오류가 발생했습니다', 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '일괄등록'; }
+  }
+}
+
+function _campBuildXlsxModalShell() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'camp-modal-xlsx';
+  overlay.innerHTML = `
+    <div class="modal" style="width:600px;max-width:96vw;">
+      <div class="modal-head">
+        <span class="modal-title">📥 캠페인 일괄등록 (기본형)</span>
+        <button class="modal-close" onclick="closeModal('camp-modal-xlsx')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="form-hint" style="line-height:1.6;">
+          MMS·LMS·실시간 발송·PUSH·카톡MSG 캠페인을 정해진 양식으로 한 번에 등록합니다. 이미 종료된 캠페인 기준이라
+          업로드하는 모든 건은 <b>상태 = 성과입력완료</b>로 저장됩니다.<br>
+          매출처·브랜드·매체사·담당자는 <b>참고 시트</b>의 값과 정확히 일치해야 합니다. 금액·수수료는 자동계산 없이
+          입력한 값 그대로 저장됩니다. 양식의 컬럼명 뒤에 <b>" *"</b>가 붙은 항목은 필수입니다.<br>
+          <b>클릭률·DB등록률은 직접 입력하는 칸이 아닙니다</b> — 실발송수량/클릭수/DB등록수를 입력하면 엑셀 수식으로
+          자동 계산되고, 등록 시에도 그 세 값으로 서버에서 다시 계산해 저장합니다.
+        </p>
+        <div style="display:flex;gap:8px;margin:12px 0;">
+          <button class="btn btn-outline btn-sm" onclick="campXlsxDownloadTemplate()">📄 양식 다운로드</button>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('camp-xlsx-file').click()">📁 파일 선택</button>
+          <input type="file" id="camp-xlsx-file" accept=".xlsx,.xls" style="display:none;" onchange="campXlsxFileSelect(this)">
+        </div>
+        <div id="camp-xlsx-preview"></div>
+      </div>
+      <div class="modal-foot">
+        <span class="form-hint">오류 행은 제외하고 나머지만 등록합니다</span>
+        <div style="margin-left:auto;">
+          <button class="btn btn-primary btn-sm" id="camp-xlsx-import-btn" onclick="campXlsxImport()" disabled>일괄등록</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+function campOpenXlsxImport() {
+  _campXlsxRows = [];
+  if (!document.getElementById('camp-modal-xlsx')) _campBuildXlsxModalShell();
+  const fileInp = document.getElementById('camp-xlsx-file');
+  if (fileInp) fileInp.value = '';
+  const previewEl = document.getElementById('camp-xlsx-preview');
+  if (previewEl) previewEl.innerHTML = '';
+  const importBtn = document.getElementById('camp-xlsx-import-btn');
+  if (importBtn) importBtn.disabled = true;
+  openModal('camp-modal-xlsx');
+}
+
 /** 캠페인 목록 엑셀 다운로드 (현재 필터 적용된 목록) */
 function downloadCampaignsExcel() {
   const headers = [
@@ -6984,9 +7346,10 @@ window.addEventListener('popstate', (e) => {
     if (state.payIdx != null) openPaymentDetail(state.payIdx, true);
     else goScreen('payment', true);
   } else if (state.screen === 'projectlog-detail' || state.screen === 'projectlog') {
-    // 프로젝트로그 광고주/매체 상세 뒤로가기 → 진입 당시 탭(plSwitchTab이 replaceState로 기록)의 목록으로
+    // 프로젝트로그 광고주/매체/내부업무 상세 뒤로가기 → 진입 당시 탭(plSwitchTab이 replaceState로 기록)의 목록으로
     PL_STATE.advDetailCompany = null;
     PL_STATE.mediaDetailCompany = null;
+    PL_STATE.internalDetailClient = null;
     _plPendingTab = state.plTab || null;
     goScreen('projectlog', true);
   } else {
