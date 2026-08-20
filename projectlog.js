@@ -739,13 +739,17 @@ function _plBuildCampLogModalShell() {
   document.body.appendChild(overlay);
 }
 
-function _plRenderCampaignLogRow(log) {
+// isRef: 이 캠페인이 로그의 주 소속(campaignId)이 아니라 참조 태그(refCampaignIds)로만 걸린 경우 —
+// 원래 어디에 작성된 로그인지 짧은 배지로 알려준다(위계 없이 동등한 참조라는 걸 보여주되 출처는 명시).
+function _plRenderCampaignLogRow(log, isRef) {
   const isOpen = _plExpanded.has(log.id);
   const arrow = isOpen ? '▾' : '▸';
   const dateShort = (log.logDate || '').slice(2).replace(/-/g, '.');
   const starHtml = log.important ? '<span class="pl-star">★</span> ' : '';
   const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
   const stateHtml = log.state === '진행중' ? ' <span class="pl-st-open">진행중</span>' : (log.state === '완료' ? ' <span class="pl-st-done">완료</span>' : '');
+  const originLabel = log.content ? `${log.seller || ''} / ${log.content}` : (log.seller || '');
+  const refNoteHtml = isRef ? ` <span class="tag pl-ref" style="cursor:default;" title="${_escHtml(originLabel)}에서 작성됨">📍 참조</span>` : '';
   const progHtml = log.progress != null
     ? `<span class="prog-wrap" style="width:40px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}</span>`
     : '<span class="td-dim">—</span>';
@@ -753,11 +757,14 @@ function _plRenderCampaignLogRow(log) {
     <td class="pl-lg-arrow">${arrow}</td>
     <td class="f-mono td-num">${dateShort}</td>
     <td><span class="badge pl-lg-${log.logType}">${_escHtml(log.logType)}</span></td>
-    <td>${starHtml}${_escHtml(log.summary || '')}${stateHtml}${cmtBadgeHtml}</td>
+    <td>${starHtml}${_escHtml(log.summary || '')}${refNoteHtml}${stateHtml}${cmtBadgeHtml}</td>
     <td class="td-c">${progHtml}</td>
     <td>${_escHtml(log.writer || '—')}</td>
   </tr>`;
   return rowHtml + (isOpen ? _plRenderDetailRow(log, 6) : '');
+}
+function _plCampLogSectionRowHtml(label, count) {
+  return `<tr><td colspan="6" class="card-title" style="padding:8px 9px 4px;background:transparent;border-bottom:none;">${_escHtml(label)} (${count})</td></tr>`;
 }
 
 let _plCampLogLastData = null;
@@ -790,13 +797,30 @@ function _plRenderCampaignLogModal(campaignId, campaignData, isDeleted, notFound
     }
   }
 
-  const logs = PL_LOGS.filter(l => l.campaignId === campaignId)
-    .slice().sort((a, b) => (b.logDate || '').localeCompare(a.logDate || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+  const sortLogs = arr => arr.slice().sort((a, b) => (b.logDate || '').localeCompare(a.logDate || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+  const directLogs = sortLogs(PL_LOGS.filter(l => l.campaignId === campaignId));
+  // 참조 캠페인 — 로그 문서 자체가 다른 곳(주로 광고주/프로젝트 전반)에 등록됐지만, 이 캠페인도
+  // refCampaignIds에 태그돼있는 것들. 문서는 하나뿐이라 P2/P3처럼 여러 캠페인 상세에서 같은 로그가
+  // 각자 "참조로 걸린 일지" 섹션에 나타나는 것이지, 목록이 중복 생성되는 게 아니다.
+  const refLogs = sortLogs(PL_LOGS.filter(l => (l.refCampaignIds || []).includes(campaignId)));
+  const logs = [...directLogs, ...refLogs];
   const openCnt = logs.filter(l => l.state === '진행중').length;
   const countEl = document.getElementById('pl-cl-count');
-  if (countEl) countEl.innerHTML = `이 캠페인의 일지 <b>${logs.length}</b>건${openCnt ? ` · <span style="color:var(--red);">진행중 ${openCnt}</span>` : ''}`;
+  if (countEl) countEl.innerHTML = `이 캠페인의 일지 <b>${logs.length}</b>건${refLogs.length ? ` (참조 ${refLogs.length})` : ''}${openCnt ? ` · <span style="color:var(--red);">진행중 ${openCnt}</span>` : ''}`;
   const tbody = document.getElementById('pl-cl-tbody');
-  if (tbody) tbody.innerHTML = logs.length ? logs.map(l => _plRenderCampaignLogRow(l)).join('') : `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3);font-size:13px;">등록된 일지가 없습니다.</td></tr>`;
+  if (tbody) {
+    if (!logs.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3);font-size:13px;">등록된 일지가 없습니다.</td></tr>`;
+    } else {
+      const directHtml = directLogs.length
+        ? (refLogs.length ? _plCampLogSectionRowHtml('직접 등록된 일지', directLogs.length) : '') + directLogs.map(l => _plRenderCampaignLogRow(l)).join('')
+        : '';
+      const refHtml = refLogs.length
+        ? _plCampLogSectionRowHtml('참조로 걸린 일지', refLogs.length) + refLogs.map(l => _plRenderCampaignLogRow(l, true)).join('')
+        : '';
+      tbody.innerHTML = directHtml + refHtml;
+    }
+  }
 
   const writeBtn = document.getElementById('pl-cl-writebtn');
   if (writeBtn) writeBtn.style.display = isDeleted ? 'none' : '';
@@ -856,6 +880,9 @@ ${badgeCss}
 .tag.pl-brand{background:var(--purple-bg);border-color:#d9d2f7;color:var(--accent2);}
 .tag.pl-media{background:var(--blue-bg);border-color:#c5e2f7;color:#1971c2;}
 .tag.pl-inner{background:#f1f3f5;border-color:#dee2e6;color:#495057;}
+.tag.pl-ref{background:var(--blue-bg);border-color:#c5e2f7;color:#1971c2;}
+.pl-reftags{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:6px 8px;background:var(--surface2);border:1px dashed var(--border2);border-radius:var(--radius-sm);}
+.pl-reftags input{border:none;background:transparent;font-size:11.5px;outline:none;flex:1;min-width:120px;color:var(--text2);}
 /* 일자별 뷰 '매체 전반' 카드 앞머리 배지 — 세금계산서 뷰의 매체=보라 색상 규칙을 그대로 재사용 */
 .tag.pl-scope-media{background:rgba(124,58,237,.1);color:#7c3aed;}
 .tag.pl-muted{background:#f1f3f5;border-color:#dee2e6;color:var(--text3);}
@@ -1224,7 +1251,10 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
   const imgNote = log.hasImages ? `<span id="pl-detimgcnt-${log.id}" class="pl-thumb" style="cursor:zoom-in;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '';
   const relatedHtml = (log.related || []).map(r => `<span class="tag">👤 ${_escHtml(r.name)}</span>`).join(' ');
-  const hasAttach = links || imgNote || relatedHtml;
+  const refCampHtml = (log.refCampaignIds || []).map(cid =>
+    `<span class="tag pl-ref" style="cursor:pointer;" onclick="event.stopPropagation();openCalPreview(DATA.findIndex(d=>d.id==='${_escHtml(cid)}'))" title="캠페인 상세 열기">🔗 ${_escHtml(cid)}</span>`
+  ).join(' ');
+  const hasAttach = links || imgNote || relatedHtml || refCampHtml;
   const color = (PL_TYPE_COLOR[log.logType] || {}).fg || 'var(--border)';
   // 목록의 삭제 버튼은 없애고 수정 모달 안의 삭제 버튼으로 통일 — 수정/삭제 모달 하나로 합쳐서 진입점을 단순화
   // 진행중 이슈는 대응 기록 버튼을 pl-detfoot 안에 보여준다 — 완료 처리는 그 모달 안 체크박스로 흡수돼서
@@ -1235,7 +1265,7 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   // compact(일자별 뷰)는 모달을 열지 않고 그 자리에서 바로 수정 폼으로 바뀌는 인라인 수정을 쓴다.
   const editBtnHtml = readOnly ? '' : `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();${compact ? `_plDateStartInlineEdit('${log.id}')` : `plOpenEdit('${log.id}')`}">수정</button>`;
   const detfootHtml = `<div class="pl-detfoot">
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${relatedHtml}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${relatedHtml}${refCampHtml}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
       <div style="display:flex;gap:6px;">${responseHtml}${editBtnHtml}</div>
     </div>`;
   const commentsHtml = `<div data-pl-comments-for="${log.id}" onclick="event.stopPropagation();">${_plCommentsHtml(log.id)}</div>`;
@@ -1561,6 +1591,25 @@ async function plDeleteComment(commentId) {
   }
 }
 
+// 이 캠페인에 걸린 일지 전부 — 직접 등록(campaignId)뿐 아니라 참조 태그(refCampaignIds)로만 걸린
+// 것도 포함한다. "기록 유무" 필터·정렬·카운트가 참조만 있는 캠페인을 "기록없음"으로 잘못 보여주면
+// 캠페인 상세 로그 모달(참조로 걸린 일지 섹션)과 어긋나므로, 캠페인 목록 탭도 이 기준을 같이 쓴다.
+function _plCampaignLogsAll(campaignId) {
+  return PL_LOGS.filter(l => l.campaignId === campaignId || (l.refCampaignIds || []).includes(campaignId));
+}
+
+// 참조 캠페인 배지 — 목록/상세 어디서든 "이 로그가 이 캠페인들에도 참조로 걸려있다"를 짧게 보여주고,
+// 마우스를 올리면 어떤 캠페인인지 풀네임(id+매체+상품)으로 확인 가능.
+function _plRefCampBadgeHtml(log) {
+  const ids = log.refCampaignIds || [];
+  if (!ids.length) return '';
+  const title = ids.map(id => {
+    const c = DATA.find(x => x.id === id);
+    return c ? `${id} (${[c.media, c.product].filter(Boolean).join(' ')})` : id;
+  }).join(', ');
+  return ` <span class="tag pl-ref" style="cursor:default;" title="참조 캠페인: ${_escHtml(title)}">🔗${ids.length}</span>`;
+}
+
 function _plRenderLogRow(log, q, ctx) {
   ctx = ctx || 'log';
   const isOpen = _plExpanded.has(log.id);
@@ -1584,9 +1633,9 @@ function _plRenderLogRow(log, q, ctx) {
     if (log.scope === 'campaign' && log.campaignId) {
       campCell = `<span class="pl-click f-mono td-num" onclick="event.stopPropagation();openCalPreview(DATA.findIndex(d=>d.id==='${_escHtml(log.campaignId)}'))">${_escHtml(log.campaignId)}</span>`;
     } else if (log.scope === 'project') {
-      campCell = '<span class="td-dim">프로젝트 전반</span>';
+      campCell = `<span class="td-dim">프로젝트 전반</span>${_plRefCampBadgeHtml(log)}`;
     } else {
-      campCell = '<span class="td-dim">광고주 전반</span>';
+      campCell = `<span class="td-dim">광고주 전반</span>${_plRefCampBadgeHtml(log)}`;
     }
     mediaCell = log.media ? `<span class="tag pl-media">${_escHtml(log.media)}</span>` : '<span class="td-dim">—</span>';
   }
@@ -1768,7 +1817,7 @@ let _plSearchCache = {};
 // 매체·이미지·링크는 항목(item) 단위로 붙는다 — 항목 하나가 저장되면 각자 독립된 로그 문서가 되므로,
 // 블록에 걸어두면 한 블록 안의 서로 다른 항목들이 매체·링크를 강제로 공유하게 되어 실제 저장 결과와 안 맞았음
 function _plEmptyItem() {
-  return { logType: '운영', summary: '', progress: '', detail: [], media: null, campaignId: null, links: [], images: [], related: [], optOpen: false };
+  return { logType: '운영', summary: '', progress: '', detail: [], media: null, campaignId: null, refCampaigns: [], links: [], images: [], related: [], optOpen: false };
 }
 function _plEmptyBlock(extra) {
   const block = Object.assign({
@@ -2199,6 +2248,7 @@ function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
   const isNewGroup = showMediaRow && ii > 0;
   return `<div class="pl-item${isNewGroup ? ' pl-newgroup' : ''}" data-bi="${bi}" data-ii="${ii}">
     ${showMediaRow ? `<div class="pl-media-row">${_plItemMediaField(block, bi, ii, it)}</div>` : ''}
+    ${_plItemRefCampEligible(block, it) ? `<div class="pl-media-row">${_plItemRefCampField(bi, ii, it)}</div>` : ''}
     <div class="pl-irow">
       <select class="pl-mini" style="font-weight:700;" onchange="_plItemTypeChange(${bi},${ii},this.value)">${typeOpts}</select>
       <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(ph)}" value="${_escHtml(it.summary || '')}"
@@ -2385,6 +2435,70 @@ function _plItemMediaPick(bi, ii, i) {
   const list = document.getElementById(`pl-med-list-${bi}-${ii}`);
   if (list) list.style.display = 'none';
   _plRenderWriteModal();
+}
+// ── 참조 캠페인 — 항목의 주 소속(scope)은 광고주/프로젝트 그대로 두고, 이 로그가 추가로 다른 캠페인
+// 상세에도 "참조로 걸린 일지"로 나타나도록 여러 개 태그만 붙인다(관련자 태그와 같은 검색+다중선택 UI).
+// 이미 이 항목의 주 대상이 캠페인 하나로 확정된 경우(it.campaignId)는 자기 자신을 다시 참조할 수 없으므로
+// 필드 자체를 숨긴다(_plItemRefCampEligible).
+function _plItemRefCampEligible(block, it) {
+  return (block.scope === 'advertiser' || block.scope === 'project') && !it.campaignId;
+}
+let _plItemRefCampSearchCache = {};
+function _plItemRefCampSearchResults(block, it, query) {
+  const q = (query || '').trim();
+  const already = new Set(it.refCampaigns || []);
+  return DATA.filter(c => (c.seller || c.adv) === block.seller
+      && (c.content || null) === (block.content || null) && c.status !== '삭제' && !already.has(c.id))
+    .filter(c => !q || _plTokenMatch(`${c.id} ${c.media || ''} ${c.product || ''} ${(c.date || '').slice(0, 10)}`, q))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .map(c => ({ label: `${c.id} · ${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}`, campaignId: c.id }))
+    .slice(0, 30);
+}
+function _plItemRefCampSearchInput(bi, ii, inputEl) {
+  const block = _plDraft.blocks[bi];
+  const it = block?.items[ii];
+  const listId = `pl-ref-list-${bi}-${ii}`;
+  const list = document.getElementById(listId);
+  if (!block || !it || !list) return;
+  if (!inputEl.value.trim()) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  const results = _plItemRefCampSearchResults(block, it, inputEl.value);
+  _plItemRefCampSearchCache[`${bi}-${ii}`] = results;
+  _plComboNavIndex[listId] = -1;
+  if (!results.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  list.innerHTML = results.map((r, i) =>
+    `<div class="combo-item" onmousedown="_plItemRefCampPick(${bi},${ii},${i})">${_escHtml(r.label)}</div>`
+  ).join('');
+  list.style.display = 'block';
+  _plFloatCombo(inputEl, list);
+}
+function _plItemRefCampPick(bi, ii, i) {
+  const it = _plDraft.blocks[bi]?.items[ii];
+  const r = (_plItemRefCampSearchCache[`${bi}-${ii}`] || [])[i];
+  if (!it || !r) return;
+  if (!it.refCampaigns) it.refCampaigns = [];
+  if (!it.refCampaigns.includes(r.campaignId)) it.refCampaigns.push(r.campaignId);
+  const list = document.getElementById(`pl-ref-list-${bi}-${ii}`);
+  if (list) list.style.display = 'none';
+  _plRenderWriteModal();
+}
+function _plItemRefCampRemove(bi, ii, ri) {
+  _plDraft.blocks[bi]?.items[ii]?.refCampaigns.splice(ri, 1);
+  _plRenderWriteModal();
+}
+function _plItemRefCampField(bi, ii, it) {
+  const tagsHtml = (it.refCampaigns || []).map((cid, ri) => {
+    const c = DATA.find(x => x.id === cid);
+    const sub = c ? `${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}` : '';
+    return `<span class="tag pl-ref" title="${_escHtml(sub)}">🔗 ${_escHtml(cid)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plItemRefCampRemove(${bi},${ii},${ri})">✕</span></span>`;
+  }).join('');
+  return `<div class="pl-reftags combo-wrap">
+    ${tagsHtml}
+    <input type="text" id="pl-ref-${bi}-${ii}" placeholder="🔗 참조 캠페인 검색 (선택, 여러 개)" autocomplete="off"
+      oninput="_plItemRefCampSearchInput(${bi},${ii},this)" onfocus="_plItemRefCampSearchInput(${bi},${ii},this)"
+      onkeydown="_plComboKeyNav(event,'pl-ref-list-${bi}-${ii}')"
+      onblur="setTimeout(()=>{const l=document.getElementById('pl-ref-list-${bi}-${ii}');if(l)l.style.display='none';},150)">
+    <div class="combo-list" id="pl-ref-list-${bi}-${ii}" style="display:none;"></div>
+  </div>`;
 }
 function _plRemoveItem(bi, ii) {
   const block = _plDraft.blocks[bi];
@@ -2754,6 +2868,10 @@ async function plSaveLog() {
           campaignId: it.campaignId || block.campaignId || null,
           media: itemCamp ? (itemCamp.media || null) : (it.media || block.media || null),
           product: itemCamp ? (itemCamp.product || null) : (block.product || null),
+          // 참조 캠페인 — 이 로그의 주 소속(scope)은 그대로 두고, 여기 담긴 캠페인들의 상세 화면 일지 탭에
+          // "참조로 걸린 일지"로 같이 나타나게 하는 태그. 주 대상이 이미 캠페인 하나로 확정된 항목(itemCamp)은
+          // 필드 자체가 안 보이므로(_plItemRefCampEligible) 항상 빈 배열.
+          refCampaignIds: itemCamp ? [] : (it.refCampaigns || []).filter(Boolean),
           logType: it.logType || '운영',
           state: ['이슈', '요청'].includes(it.logType) ? '진행중' : null,
           summary: it.summary.trim().slice(0, 60), detail,
@@ -2843,6 +2961,7 @@ function _plBuildEditDraft(log) {
     detail: (log.detail || []).map(d => ({ label: d.label || '', text: d.text || '' })),
     links: (log.links || []).map(l => Object.assign({}, l)),
     related: (log.related || []).map(r => Object.assign({}, r)),
+    refCampaigns: [...(log.refCampaignIds || [])],
     images: [],
     important: !!log.important, shared: !!log.shared,
     state: log.state || null, searchQuery: '',
@@ -3068,12 +3187,76 @@ function _plEditPickNewInternal() {
   _plEditRerender();
 }
 
+// ── 참조 캠페인(수정) — 작성 화면의 항목별 참조 태그와 같은 기능을 수정 모달/일자별 인라인 수정에서도
+// 그대로 쓸 수 있게 한다(등록폼 바뀌면 수정 화면도 같이 맞추는 규칙). 대상은 _plEditDraft 하나뿐이라
+// bi/ii 없이 전역 draft를 직접 다룬다. 인라인 수정 중엔 목록 id가 모달용과 겹치므로 따로 쓴다(_plEditRefCampListId).
+function _plEditRefCampEligible() {
+  const d = _plEditDraft;
+  return !!d && (d.scope === 'advertiser' || d.scope === 'project') && !d.campaignId;
+}
+let _plEditRefCampSearchCache = [];
+function _plEditRefCampSearchResults(query) {
+  const d = _plEditDraft;
+  const q = (query || '').trim();
+  const already = new Set(d.refCampaigns || []);
+  return DATA.filter(c => (c.seller || c.adv) === d.seller
+      && (c.content || null) === (d.content || null) && c.status !== '삭제' && !already.has(c.id))
+    .filter(c => !q || _plTokenMatch(`${c.id} ${c.media || ''} ${c.product || ''} ${(c.date || '').slice(0, 10)}`, q))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .map(c => ({ label: `${c.id} · ${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}`, campaignId: c.id }))
+    .slice(0, 30);
+}
+function _plEditRefCampListId() { return _plEditDraft?.__inline ? 'pl-di-ref-list' : 'pl-e-ref-list'; }
+function _plEditRefCampSearchInput(inputEl) {
+  const listId = _plEditRefCampListId();
+  const list = document.getElementById(listId);
+  if (!list || !_plEditDraft) return;
+  if (!inputEl.value.trim()) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  const results = _plEditRefCampSearchResults(inputEl.value);
+  _plEditRefCampSearchCache = results;
+  _plComboNavIndex[listId] = -1;
+  if (!results.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  list.innerHTML = results.map((r, i) => `<div class="combo-item" onmousedown="_plEditRefCampPick(${i})">${_escHtml(r.label)}</div>`).join('');
+  list.style.display = 'block';
+  _plFloatCombo(inputEl, list);
+}
+function _plEditRefCampPick(i) {
+  const r = _plEditRefCampSearchCache[i];
+  if (!r || !_plEditDraft) return;
+  if (!_plEditDraft.refCampaigns) _plEditDraft.refCampaigns = [];
+  if (!_plEditDraft.refCampaigns.includes(r.campaignId)) _plEditDraft.refCampaigns.push(r.campaignId);
+  const list = document.getElementById(_plEditRefCampListId());
+  if (list) list.style.display = 'none';
+  _plEditRerender();
+}
+function _plEditRefCampRemove(ri) {
+  _plEditDraft.refCampaigns.splice(ri, 1);
+  _plEditRerender();
+}
+function _plEditRefCampFieldHtml() {
+  const d = _plEditDraft;
+  const tagsHtml = (d.refCampaigns || []).map((cid, ri) => {
+    const c = DATA.find(x => x.id === cid);
+    const sub = c ? `${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}` : '';
+    return `<span class="tag pl-ref" title="${_escHtml(sub)}">🔗 ${_escHtml(cid)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plEditRefCampRemove(${ri})">✕</span></span>`;
+  }).join('');
+  const listId = _plEditRefCampListId();
+  return `<div class="pl-media-row"><div class="pl-reftags combo-wrap">
+    ${tagsHtml}
+    <input type="text" placeholder="🔗 참조 캠페인 검색 (선택, 여러 개)" autocomplete="off"
+      oninput="_plEditRefCampSearchInput(this)" onfocus="_plEditRefCampSearchInput(this)"
+      onkeydown="_plComboKeyNav(event,'${listId}')"
+      onblur="setTimeout(()=>{const l=document.getElementById('${listId}');if(l)l.style.display='none';},150)">
+    <div class="combo-list" id="${listId}" style="display:none;"></div>
+  </div></div>`;
+}
 function _plEditItemHtml() {
   const d = _plEditDraft;
   const typeOpts = PL_LOG_TYPES.map(t => `<option value="${t}" ${d.logType === t ? 'selected' : ''}>${t}</option>`).join('');
   const ph = PL_SUMMARY_PH[d.logType] || '';
   const subHtml = (d.detail || []).map((det, di) => _plEditSubHtml(di, det)).join('');
   return `<div class="pl-item">
+    ${_plEditRefCampEligible() ? _plEditRefCampFieldHtml() : ''}
     <div class="pl-irow">
       <select class="pl-mini" style="font-weight:700;" onchange="_plEditTypeChange(this.value)">${typeOpts}</select>
       <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(ph)}" value="${_escHtml(d.summary || '')}" oninput="_plEditField('summary',this.value)">
@@ -3572,6 +3755,8 @@ async function plSaveEdit() {
       state: d.state || null, important: !!d.important, shared: !!d.shared,
       links: (d.links || []).filter(l => (l.label || l.url || '').trim()),
       related: (d.related || []).map(r => ({ id: r.id, name: r.name })),
+      // 대상을 캠페인/매체/내부로 바꿨는데 참조 태그가 남아있으면(필드 자체는 이미 숨겨짐) 저장 시점에 정리
+      refCampaignIds: (d.scope === 'advertiser' || d.scope === 'project') ? (d.refCampaigns || []).filter(Boolean) : [],
       hasImages: images.length > 0, imageCount: images.length,
       updatedAt: new Date().toISOString(),
     });
@@ -3649,7 +3834,8 @@ function _plBuildSearchText(log) {
     log.summary,
     ...(log.detail || []).map(d => `${d.label} ${d.text}`),
     log.seller, log.content, log.media, log.product, log.writer,
-    ...(log.related || []).map(r => r.name)
+    ...(log.related || []).map(r => r.name),
+    ...(log.refCampaignIds || [])
   ].filter(Boolean).join(' ')
    .toLowerCase()
    .replace(/[\s\-_.,·/()[\]{}]/g, '');
@@ -4510,7 +4696,7 @@ function _plCampFiltered() {
     if (dTo && (c.date || '') > dTo) return false;
     if (status && c.status !== status) return false;
     if (record) {
-      const cnt = PL_LOGS.filter(l => l.campaignId === c.id).length;
+      const cnt = _plCampaignLogsAll(c.id).length;
       if (record === 'has' && cnt === 0) return false;
       if (record === 'none' && cnt > 0) return false;
     }
@@ -4519,8 +4705,8 @@ function _plCampFiltered() {
   const sortSel = document.getElementById('pl-camp-sort')?.value || 'recent';
   list = list.slice().sort((a, b) => {
     if (sortSel === 'date') return (b.date || '').localeCompare(a.date || '');
-    const la = PL_LOGS.filter(l => l.campaignId === a.id).reduce((m, l) => (!m || (l.logDate || '') > m) ? l.logDate : m, '');
-    const lb = PL_LOGS.filter(l => l.campaignId === b.id).reduce((m, l) => (!m || (l.logDate || '') > m) ? l.logDate : m, '');
+    const la = _plCampaignLogsAll(a.id).reduce((m, l) => (!m || (l.logDate || '') > m) ? l.logDate : m, '');
+    const lb = _plCampaignLogsAll(b.id).reduce((m, l) => (!m || (l.logDate || '') > m) ? l.logDate : m, '');
     return (lb || '').localeCompare(la || '');
   });
   return list;
@@ -4528,7 +4714,7 @@ function _plCampFiltered() {
 
 function _plRenderCampaignRow(c) {
   const sellerName = c.seller || c.adv || '—';
-  const logs = PL_LOGS.filter(l => l.campaignId === c.id);
+  const logs = _plCampaignLogsAll(c.id);
   const lastLog = logs.reduce((m, l) => (!m || (l.logDate || '') > (m.logDate || '')) ? l : m, null);
   const statusColor = (typeof STATUS_COLORS !== 'undefined' ? STATUS_COLORS[c.status] : null) || '#999';
   const dateShort = (c.date || '').slice(2, 10).replace(/-/g, '.');
