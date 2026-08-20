@@ -749,7 +749,7 @@ function _plRenderCampaignLogRow(log, isRef) {
   const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
   const stateHtml = log.state === '진행중' ? ' <span class="pl-st-open">진행중</span>' : (log.state === '완료' ? ' <span class="pl-st-done">완료</span>' : '');
   const originLabel = log.content ? `${log.seller || ''} / ${log.content}` : (log.seller || '');
-  const refNoteHtml = isRef ? ` <span class="tag pl-ref" style="cursor:default;" title="${_escHtml(originLabel)}에서 작성됨">📍 참조</span>` : '';
+  const refNoteHtml = isRef ? ` <span class="tag pl-ref" style="cursor:default;" data-tooltip="${_escHtml(originLabel)}에서 작성됨">📍 참조</span>` : '';
   const progHtml = log.progress != null
     ? `<span class="prog-wrap" style="width:40px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}</span>`
     : '<span class="td-dim">—</span>';
@@ -1251,9 +1251,11 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
   const imgNote = log.hasImages ? `<span id="pl-detimgcnt-${log.id}" class="pl-thumb" style="cursor:zoom-in;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '';
   const relatedHtml = (log.related || []).map(r => `<span class="tag">👤 ${_escHtml(r.name)}</span>`).join(' ');
-  const refCampHtml = (log.refCampaignIds || []).map(cid =>
-    `<span class="tag pl-ref" style="cursor:pointer;" onclick="event.stopPropagation();openCalPreview(DATA.findIndex(d=>d.id==='${_escHtml(cid)}'))" title="캠페인 상세 열기">🔗 ${_escHtml(cid)}</span>`
-  ).join(' ');
+  const refCampHtml = (log.refCampaignIds || []).map(cid => {
+    const c = DATA.find(x => x.id === cid);
+    const tip = c ? `${[c.media, c.product].filter(Boolean).join(' ')} — 클릭하여 열기` : '클릭하여 열기';
+    return `<span class="tag pl-ref" style="cursor:pointer;" onclick="event.stopPropagation();openCalPreview(DATA.findIndex(d=>d.id==='${_escHtml(cid)}'))" data-tooltip="${_escHtml(tip)}">🔗 ${_escHtml(cid)}</span>`;
+  }).join(' ');
   const hasAttach = links || imgNote || relatedHtml || refCampHtml;
   const color = (PL_TYPE_COLOR[log.logType] || {}).fg || 'var(--border)';
   // 목록의 삭제 버튼은 없애고 수정 모달 안의 삭제 버튼으로 통일 — 수정/삭제 모달 하나로 합쳐서 진입점을 단순화
@@ -1599,15 +1601,27 @@ function _plCampaignLogsAll(campaignId) {
 }
 
 // 참조 캠페인 배지 — 목록/상세 어디서든 "이 로그가 이 캠페인들에도 참조로 걸려있다"를 짧게 보여주고,
-// 마우스를 올리면 어떤 캠페인인지 풀네임(id+매체+상품)으로 확인 가능.
+// 마우스를 올리면 어떤 캠페인인지 풀네임(id+매체+상품)으로 확인 가능. 네이티브 title 대신 이 코드베이스의
+// 공용 말풍선(style.css의 [data-tooltip])을 쓴다 — title은 브라우저에 따라 안 뜨는 경우가 있었음.
 function _plRefCampBadgeHtml(log) {
   const ids = log.refCampaignIds || [];
   if (!ids.length) return '';
-  const title = ids.map(id => {
+  const tip = ids.map(id => {
     const c = DATA.find(x => x.id === id);
     return c ? `${id} (${[c.media, c.product].filter(Boolean).join(' ')})` : id;
   }).join(', ');
-  return ` <span class="tag pl-ref" style="cursor:default;" title="참조 캠페인: ${_escHtml(title)}">🔗${ids.length}</span>`;
+  return ` <span class="tag pl-ref" style="cursor:default;" data-tooltip="참조 캠페인: ${_escHtml(tip)}">🔗${ids.length}</span>`;
+}
+// 참조 캠페인들의 매체가 전부 같으면 그 매체명을 매체 칸에 그대로 보여주고(직접 입력한 것처럼),
+// 매체가 서로 다르면 하나로 대표할 수 없으니 🔗N 배지로 대신한다 — 매체 칸의 "판단"은 여기서 전담.
+function _plRefCampMediaCellHtml(log) {
+  const ids = log.refCampaignIds || [];
+  if (!ids.length) return '<span class="td-dim">—</span>';
+  const medias = [...new Set(ids.map(id => DATA.find(c => c.id === id)?.media).filter(Boolean))];
+  if (medias.length === 1) {
+    return `<span class="tag pl-media" data-tooltip="참조 캠페인 ${ids.length}건에서 판단">${_escHtml(medias[0])}</span>`;
+  }
+  return _plRefCampBadgeHtml(log).trim() || '<span class="td-dim">—</span>';
 }
 
 function _plRenderLogRow(log, q, ctx) {
@@ -1633,11 +1647,13 @@ function _plRenderLogRow(log, q, ctx) {
     if (log.scope === 'campaign' && log.campaignId) {
       campCell = `<span class="pl-click f-mono td-num" onclick="event.stopPropagation();openCalPreview(DATA.findIndex(d=>d.id==='${_escHtml(log.campaignId)}'))">${_escHtml(log.campaignId)}</span>`;
     } else if (log.scope === 'project') {
-      campCell = `<span class="td-dim">프로젝트 전반</span>${_plRefCampBadgeHtml(log)}`;
+      campCell = '<span class="td-dim">프로젝트 전반</span>';
     } else {
-      campCell = `<span class="td-dim">광고주 전반</span>${_plRefCampBadgeHtml(log)}`;
+      campCell = '<span class="td-dim">광고주 전반</span>';
     }
-    mediaCell = log.media ? `<span class="tag pl-media">${_escHtml(log.media)}</span>` : '<span class="td-dim">—</span>';
+    // 직접 입력한 매체가 없으면 참조 캠페인들의 매체로 판단해서 채운다(_plRefCampMediaCellHtml) —
+    // "🔗N" 참조 배지는 캠페인 칸이 아니라 여기(매체 칸)에서 보여준다.
+    mediaCell = log.media ? `<span class="tag pl-media">${_escHtml(log.media)}</span>` : _plRefCampMediaCellHtml(log);
   }
 
   const contentHtml = _plHighlight(log.summary, q);
@@ -2489,7 +2505,7 @@ function _plItemRefCampField(bi, ii, it) {
   const tagsHtml = (it.refCampaigns || []).map((cid, ri) => {
     const c = DATA.find(x => x.id === cid);
     const sub = c ? `${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}` : '';
-    return `<span class="tag pl-ref" title="${_escHtml(sub)}">🔗 ${_escHtml(cid)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plItemRefCampRemove(${bi},${ii},${ri})">✕</span></span>`;
+    return `<span class="tag pl-ref" data-tooltip="${_escHtml(sub)}">🔗 ${_escHtml(cid)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plItemRefCampRemove(${bi},${ii},${ri})">✕</span></span>`;
   }).join('');
   return `<div class="pl-reftags combo-wrap">
     ${tagsHtml}
@@ -3238,7 +3254,7 @@ function _plEditRefCampFieldHtml() {
   const tagsHtml = (d.refCampaigns || []).map((cid, ri) => {
     const c = DATA.find(x => x.id === cid);
     const sub = c ? `${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}` : '';
-    return `<span class="tag pl-ref" title="${_escHtml(sub)}">🔗 ${_escHtml(cid)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plEditRefCampRemove(${ri})">✕</span></span>`;
+    return `<span class="tag pl-ref" data-tooltip="${_escHtml(sub)}">🔗 ${_escHtml(cid)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plEditRefCampRemove(${ri})">✕</span></span>`;
   }).join('');
   const listId = _plEditRefCampListId();
   return `<div class="pl-media-row"><div class="pl-reftags combo-wrap">

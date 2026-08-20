@@ -3708,8 +3708,9 @@
     </div>
   </div>
 
-  <!-- 캘린더 캠페인 미리보기 모달 -->
-  <div class="modal-overlay" id="modalCalPreview">
+  <!-- 캘린더 캠페인 미리보기 모달 — 프로젝트일지의 캠페인일지 모달(z-index 기본값 100) 위에서도 열릴 수
+       있어(참조 캠페인 태그 클릭 등) modalSeller 등과 같은 z-index 200으로 올려둔다 -->
+  <div class="modal-overlay" id="modalCalPreview" style="z-index:200;">
     <div class="modal modal-sm">
       <div class="modal-head">
         <span class="modal-title">📋 캠페인 기본 정보</span>
