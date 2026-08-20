@@ -414,13 +414,26 @@ const _PL_MINE_THEAD = `<tr>
           <th>내용</th><th style="width:56px;">진척률</th><th style="width:70px;">작성자</th>
         </tr>`;
 // 작성기록이 많아지면 두 표를 세로로 쌓아둔 게 스크롤이 너무 길어져서, 서브탭으로 하나씩만 보여준다.
-let _plMineSubTab = 'written'; // 'written' | 'involved'
+let _plMineSubTab = 'written'; // 'written' | 'involved' | 'byuser'
+let _plMineUserFilters = []; // '작성자 모아보기' 탭에서 고른 사용자 이름들(여러 명 — 직급/조직 계위 기준이 아니라 직접 선택)
+function _plMineUserFilterKey() { return 'pl_mine_user_' + (currentUser?.id || 'anon'); }
 function _plBuildMineTabSkeleton(content) {
+  // 매번 빈 값으로 리셋되면 탭 열 때마다 다시 골라야 해서, 마지막으로 고른 작성자들을 기억해둔다.
+  try { _plMineUserFilters = JSON.parse(localStorage.getItem(_plMineUserFilterKey()) || '[]'); } catch (e) { _plMineUserFilters = []; }
   content.innerHTML = `
     <div class="filter-bar" style="margin-bottom:14px;">
       <div class="view-tabs">
         <button class="view-tab${_plMineSubTab === 'written' ? ' active' : ''}" id="pl-mine-vt-written" onclick="_plMineSwitchSubTab('written')">내가 작성한 일지</button>
         <button class="view-tab${_plMineSubTab === 'involved' ? ' active' : ''}" id="pl-mine-vt-involved" onclick="_plMineSwitchSubTab('involved')">관련자·멘션</button>
+        <button class="view-tab${_plMineSubTab === 'byuser' ? ' active' : ''}" id="pl-mine-vt-byuser" onclick="_plMineSwitchSubTab('byuser')">작성자 모아보기</button>
+      </div>
+      <div class="combo-wrap" id="pl-mine-user-wrap" style="display:${_plMineSubTab === 'byuser' ? 'flex' : 'none'};align-items:center;gap:4px;flex-wrap:wrap;">
+        <div id="pl-mine-user-chips" style="display:inline-flex;gap:3px;flex-wrap:wrap;"></div>
+        <input type="text" class="f-search" id="pl-mine-user" placeholder="🔍 작성자 추가" style="width:100px;"
+          oninput="_plMineUserSearchInput(this)" onfocus="_plMineUserSearchInput(this)"
+          onkeydown="_plComboKeyNav(event,'pl-mine-user-list')"
+          onblur="setTimeout(()=>{const l=document.getElementById('pl-mine-user-list');if(l)l.style.display='none';},150)">
+        <div class="combo-list" id="pl-mine-user-list" style="display:none;"></div>
       </div>
       <input type="text" class="f-search" id="pl-mine-search" placeholder="검색어" style="width:160px;" oninput="_plRenderMineBody()">
     </div>
@@ -432,11 +445,50 @@ function _plBuildMineTabSkeleton(content) {
       </table></div>
     </div>
   `;
+  _plMineRenderUserChips();
+}
+function _plMineRenderUserChips() {
+  const el = document.getElementById('pl-mine-user-chips');
+  if (!el) return;
+  el.innerHTML = _plMineUserFilters.map(name =>
+    `<span class="tag">${_escHtml(name)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plMineUserRemove('${_escHtml(name)}')">✕</span></span>`
+  ).join('');
+}
+function _plMineUserSearchInput(inputEl) {
+  const list = document.getElementById('pl-mine-user-list');
+  if (!list) return;
+  const already = new Set(_plMineUserFilters);
+  const q = (inputEl.value || '').trim().toLowerCase();
+  const matched = _plWriterNames().filter(n => !already.has(n) && (!q || n.toLowerCase().includes(q)));
+  _plComboNavIndex['pl-mine-user-list'] = -1;
+  if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  list.innerHTML = matched.map(n => `<div class="combo-item" onmousedown="_plMineUserPick('${_escHtml(n)}')">${_escHtml(n)}</div>`).join('');
+  list.style.display = 'block';
+  _plFloatCombo(inputEl, list);
+}
+function _plMineUserPick(name) {
+  if (!_plMineUserFilters.includes(name)) _plMineUserFilters.push(name);
+  localStorage.setItem(_plMineUserFilterKey(), JSON.stringify(_plMineUserFilters));
+  const input = document.getElementById('pl-mine-user');
+  if (input) input.value = '';
+  const list = document.getElementById('pl-mine-user-list');
+  if (list) list.style.display = 'none';
+  _plMineRenderUserChips();
+  _plRenderMineBody();
+}
+function _plMineUserRemove(name) {
+  _plMineUserFilters = _plMineUserFilters.filter(n => n !== name);
+  localStorage.setItem(_plMineUserFilterKey(), JSON.stringify(_plMineUserFilters));
+  _plMineRenderUserChips();
+  _plRenderMineBody();
 }
 function _plMineSwitchSubTab(tab) {
   _plMineSubTab = tab;
   document.getElementById('pl-mine-vt-written')?.classList.toggle('active', tab === 'written');
   document.getElementById('pl-mine-vt-involved')?.classList.toggle('active', tab === 'involved');
+  document.getElementById('pl-mine-vt-byuser')?.classList.toggle('active', tab === 'byuser');
+  const userWrap = document.getElementById('pl-mine-user-wrap');
+  if (userWrap) userWrap.style.display = tab === 'byuser' ? 'flex' : 'none';
   _plRenderMineBody();
 }
 function _plRenderMineBody() {
@@ -453,24 +505,30 @@ function _plRenderMineBody() {
   const mentionLogIds = new Set(PL_COMMENTS.filter(c => (c.mentions || []).some(m => m.id === myId)).map(c => c.logId));
   const involvedLogs = PL_LOGS.filter(l => l.writerId !== myId
     && ((l.related || []).some(r => r.id === myId) || mentionLogIds.has(l.id)) && matchesQ(l));
+  // 조직 계위(팀/본부) 기준이 아니라, 직접 고른 사용자들(여러 명 가능)이 쓴 것만 모아 보여준다.
+  const userFilterSet = new Set(_plMineUserFilters);
+  const byUserLogs = userFilterSet.size ? PL_LOGS.filter(l => userFilterSet.has(l.writer) && matchesQ(l)) : [];
 
   // 탭 버튼에도 건수를 같이 보여줘서, 안 보고 있는 쪽이 몇 건인지도 바로 알 수 있게
   const writtenBtn = document.getElementById('pl-mine-vt-written');
   if (writtenBtn) writtenBtn.textContent = `내가 작성한 일지 (${writtenLogs.length})`;
   const involvedBtn = document.getElementById('pl-mine-vt-involved');
   if (involvedBtn) involvedBtn.textContent = `관련자·멘션 (${involvedLogs.length})`;
+  const byUserBtn = document.getElementById('pl-mine-vt-byuser');
+  if (byUserBtn) byUserBtn.textContent = `작성자 모아보기${userFilterSet.size ? ` (${byUserLogs.length})` : ''}`;
 
-  const isInvolved = _plMineSubTab === 'involved';
-  const active = isInvolved ? involvedLogs : writtenLogs;
-  const ctx = isInvolved ? 'minemention' : 'mine';
+  const active = _plMineSubTab === 'involved' ? involvedLogs : _plMineSubTab === 'byuser' ? byUserLogs : writtenLogs;
+  const ctx = _plMineSubTab === 'involved' ? 'minemention' : _plMineSubTab === 'byuser' ? 'mineuser' : 'mine';
   const titleEl = document.getElementById('pl-mine-title');
-  if (titleEl) titleEl.textContent = isInvolved ? '관련자로 등록되었거나 멘션된 일지' : '내가 작성한 일지';
+  if (titleEl) titleEl.textContent = _plMineSubTab === 'involved' ? '관련자로 등록되었거나 멘션된 일지'
+    : _plMineSubTab === 'byuser' ? (userFilterSet.size ? `${_plMineUserFilters.join(', ')}님이 작성한 일지` : '작성자를 선택해주세요') : '내가 작성한 일지';
 
   const tbody = document.getElementById('pl-mine-tbody');
   if (tbody) {
+    const emptyMsg = (_plMineSubTab === 'byuser' && !userFilterSet.size) ? '작성자를 검색해서 선택해주세요.' : '조건에 맞는 일지가 없습니다.';
     tbody.innerHTML = active.length
       ? active.map(l => _plRenderLogRow(l, q, ctx)).join('')
-      : `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text3);font-size:13px;">조건에 맞는 일지가 없습니다.</td></tr>`;
+      : `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text3);font-size:13px;">${emptyMsg}</td></tr>`;
   }
   const cntEl = document.getElementById('pl-mine-count');
   if (cntEl) cntEl.innerHTML = `<b>${active.length}</b>건`;
@@ -797,6 +855,8 @@ ${badgeCss}
 .tag.pl-brand{background:var(--purple-bg);border-color:#d9d2f7;color:var(--accent2);}
 .tag.pl-media{background:var(--blue-bg);border-color:#c5e2f7;color:#1971c2;}
 .tag.pl-inner{background:#f1f3f5;border-color:#dee2e6;color:#495057;}
+/* 일자별 뷰 '매체 전반' 카드 앞머리 배지 — 세금계산서 뷰의 매체=보라 색상 규칙을 그대로 재사용 */
+.tag.pl-scope-media{background:rgba(124,58,237,.1);color:#7c3aed;}
 .tag.pl-muted{background:#f1f3f5;border-color:#dee2e6;color:var(--text3);}
 .pl-lg-arrow{width:22px;text-align:center;color:var(--text3);font-size:10px;}
 .pl-lg-det td{background:var(--surface2);border-bottom:1px solid var(--border);}
@@ -934,6 +994,9 @@ function _plComboSetup(inputId, listId, sourceFn, onChange) {
     if (!items.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
     list.innerHTML = items.map((v, i) => `<div class="combo-item" data-i="${i}">${_escHtml(v)}</div>`).join('');
     list.style.display = 'block';
+    // .filter-bar가 overflow-x:auto라, CSS 스펙상 overflow-y도 덩달아 auto로 계산돼 절대위치 드롭다운이
+    // 잘려 보인다(모달의 overflow:auto 클리핑과 같은 문제) — position:fixed로 바꿔서 스크롤 상자 밖으로 뺀다.
+    _plFloatCombo(input, list);
     list.querySelectorAll('.combo-item').forEach((el, i) => {
       el.addEventListener('mousedown', () => {
         input.value = items[i];
@@ -1002,7 +1065,7 @@ function _plToggleRow(id, ctx) {
   if (ctx === 'mediadaily') { plRenderMediaTab(); return; }
   if (ctx === 'camp') { _plRenderCampaignLogModal(_plCampLogCurrentId, _plCampLogLastData, _plCampLogLastIsDeleted, _plCampLogLastNotFound); return; }
   if (ctx === 'date') { _plRenderDateBody(); return; }
-  if (ctx === 'mine' || ctx === 'minemention') { _plRenderMineBody(); return; }
+  if (ctx === 'mine' || ctx === 'minemention' || ctx === 'mineuser') { _plRenderMineBody(); return; }
   if (ctx === 'internal') { plRenderInternalTab(); return; }
   _plRenderRows();
 }
@@ -1183,7 +1246,7 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   if (threadChildren.length) {
     threadChildrenHtml = `<div style="margin-bottom:6px;">
       <div class="form-hint" style="font-weight:700;margin-bottom:4px;">🔗 관련 기록 (${threadChildren.length})</div>
-      ${threadChildren.map(c => _plLinkLine(c.logDate, c.isResolution ? '해결' : '대응', c.summary, c.id)).join('')}
+      ${threadChildren.map(c => _plLinkLine(c.logDate, c.isResolution ? '해결' : '대응', c.summary, c.id, '_plOpenIssueView')).join('')}
     </div>`;
   }
   let threadHtml = '';
@@ -1214,13 +1277,18 @@ function _plRenderDetailRow(log, colspan, q) {
 // 대응/해결 기록에서 원본 이슈를 "확인"만 하고 싶을 때 수정 모달(작성 폼)을 여는 대신 쓰는 읽기 전용
 // 요약 모달 — 이슈 원문 + 그 이슈에 달린 모든 대응/해결 타임라인(_plDetailBoxHtml의 threadChildrenHtml)을
 // 한 화면에서 보여준다. 실제로 손대야 하면 하단 "이슈 수정" 버튼으로 수정 모달로 넘어간다.
-function _plOpenIssueView(issueId) {
-  const issue = PL_LOGS.find(l => l.id === issueId);
-  if (!issue) return;
+// 이슈 자신뿐 아니라 그 밑에 달린 대응/해결 기록을 "확인"만 할 때도 재사용 — 로그 종류에 따라
+// 제목만 다르게 표시하고(이슈/대응/해결), 나머지(읽기 전용 상세박스+수정 버튼)는 동일하게 동작한다.
+function _plOpenIssueView(logId) {
+  const log = PL_LOGS.find(l => l.id === logId);
+  if (!log) return;
   if (!document.getElementById('pl-modal-issueview')) _plBuildIssueViewModalShell();
-  document.getElementById('pl-iv-body').innerHTML = _plDetailBoxHtml(issue, '', false, true);
+  const typeLabel = log.threadId ? (log.isResolution ? '해결' : '대응') : (log.logType || '이슈');
+  const titleEl = document.getElementById('pl-iv-title');
+  if (titleEl) titleEl.textContent = `🔍 ${typeLabel} 확인`;
+  document.getElementById('pl-iv-body').innerHTML = _plDetailBoxHtml(log, '', false, true);
   const editBtn = document.getElementById('pl-iv-editbtn');
-  if (editBtn) editBtn.onclick = () => { closeModal('pl-modal-issueview'); plOpenEdit(issueId); };
+  if (editBtn) editBtn.onclick = () => { closeModal('pl-modal-issueview'); plOpenEdit(logId); };
   openModal('pl-modal-issueview');
 }
 function _plBuildIssueViewModalShell() {
@@ -1230,12 +1298,12 @@ function _plBuildIssueViewModalShell() {
   overlay.innerHTML = `
     <div class="modal" style="width:640px;max-width:96vw;">
       <div class="modal-head">
-        <span class="modal-title">🔍 이슈 확인</span>
+        <span class="modal-title" id="pl-iv-title">🔍 이슈 확인</span>
         <button class="modal-close" onclick="closeModal('pl-modal-issueview')">✕</button>
       </div>
       <div class="modal-body" style="background:var(--bg);max-height:70vh;overflow-y:auto;" id="pl-iv-body"></div>
       <div class="modal-foot">
-        <button class="btn btn-outline" id="pl-iv-editbtn">✎ 이슈 수정</button>
+        <button class="btn btn-outline" id="pl-iv-editbtn">✎ 수정</button>
         <button class="btn btn-primary" onclick="closeModal('pl-modal-issueview')">닫기</button>
       </div>
     </div>`;
@@ -1366,6 +1434,14 @@ function _plParseMentions(text) {
   });
   return found;
 }
+// 관련자·멘션 검색 결과 정렬 — 사용자관리 목록(_renderUserMgmtList, script.js)과 동일하게
+// 직급 → 본부 → 팀 → 이름(가나다) 순으로 맞춘다.
+function _plCompareUsersOrg(a, b) {
+  const bonbuIdx = u => { const i = ORG_STRUCTURE.findIndex(o => o.bonbu === u.bonbu); return i < 0 ? 99 : i; };
+  const deptIdx = u => { const o = ORG_STRUCTURE.find(o => o.bonbu === u.bonbu); if (!o) return 99; const i = o.teams.indexOf(u.dept); return i < 0 ? 99 : i; };
+  const rankIdx = u => RANK_LEVEL[u.rank || '일반'] ?? 99;
+  return rankIdx(a) - rankIdx(b) || bonbuIdx(a) - bonbuIdx(b) || deptIdx(a) - deptIdx(b) || (a.name || '').localeCompare(b.name || '', 'ko');
+}
 // 댓글 입력창의 "@" 멘션 자동완성 — 관련자 검색 콤보와 같은 언어(combo-list)를 재사용
 function _plCommentMentionInput(logId, inputEl) {
   const listId = `pl-cm-mention-list-${logId}`;
@@ -1376,7 +1452,7 @@ function _plCommentMentionInput(logId, inputEl) {
   _plComboNavIndex[listId] = -1;
   if (!m) { list.style.display = 'none'; return; }
   const q = m[1].toLowerCase();
-  const matched = USERS.filter(u => u.name && u.name.toLowerCase().includes(q)).slice(0, 8);
+  const matched = USERS.filter(u => u.name && u.name.toLowerCase().includes(q)).sort(_plCompareUsersOrg);
   if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
   list.innerHTML = matched.map(u => `<div class="combo-item" onmousedown="_plCommentMentionPick('${logId}','${u.id}')">${_escHtml(u.name)}</div>`).join('');
   list.style.display = 'block';
@@ -1693,9 +1769,14 @@ function _plEmptyBlock(extra) {
   }, extra || {});
 }
 
-// ── 진입점 — 임시저장 없음. 열 때마다 항상 새 블록 1개로 초기화 ──
+// ── 진입점 — 프리필(특정 대상 지정)이면 항상 새 블록으로 시작하고, 아니면 모달을 닫아도 메모리에
+// 남아있는 이전 draft를 이어서 보여준다(새로고침하면 사라짐 — 페이지 벗어나도 유지되는 영구저장은 아님).
 function plOpenWrite(prefill) {
-  _plDraft = prefill ? { blocks: [_plEmptyBlock(prefill)] } : { blocks: [_plEmptyBlock()] };
+  if (prefill) {
+    _plDraft = { blocks: [_plEmptyBlock(prefill)] };
+  } else if (!_plDraft.blocks.length) {
+    _plDraft = { blocks: [_plEmptyBlock()] };
+  }
 
   if (!document.getElementById('pl-modal-write')) _plBuildWriteModalShell();
 
@@ -1718,7 +1799,8 @@ function plOpenWrite(prefill) {
   }, 0);
 }
 function plCloseWrite() {
-  _plDraft = { blocks: [] };
+  // draft를 비우지 않고 그대로 둔다 — 다시 열면 작성 중이던 내용이 이어서 보임(저장 성공 시엔
+  // plSaveLog()에서 별도로 비움).
   closeModal('pl-modal-write');
 }
 
@@ -1769,7 +1851,7 @@ function _plRenderWriteModal() {
   el.innerHTML = _plDraft.blocks.map((b, bi) => _plRenderBlockHtml(b, bi)).join('');
   const hintEl = document.getElementById('pl-w-hint');
   const totalItems = _plDraft.blocks.reduce((s, b) => s + b.items.filter(it => (it.summary || '').trim()).length, 0);
-  if (hintEl) hintEl.textContent = `항목 ${totalItems}건이 개별 기록으로 저장됩니다 · 닫으면 작성 중인 내용은 사라집니다`;
+  if (hintEl) hintEl.textContent = `항목 ${totalItems}건이 개별 기록으로 저장됩니다 · 닫아도 새로고침 전까진 내용이 유지됩니다`;
   // 항목별 매체 검색 콤보 재바인딩 — innerHTML로 매번 새로 그려지는 DOM이라 리스너도 매번 다시 걸어야 함
   // _plComboSetup의 onChange는 값을 인자로 안 주고 그냥 "바뀌었다"고만 알려주므로, 콜백 안에서 현재 input.value를 직접 읽어야 함
   _plDraft.blocks.forEach((b, bi) => {
@@ -2383,7 +2465,7 @@ function _plItemRelatedInput(bi, ii, inputEl) {
   if (!list || !it) return;
   const already = new Set((it.related || []).map(r => r.id));
   const q = (inputEl.value || '').trim().toLowerCase();
-  const matched = USERS.filter(u => u.name && !already.has(u.id) && (!q || u.name.toLowerCase().includes(q))).slice(0, 10);
+  const matched = USERS.filter(u => u.name && !already.has(u.id) && (!q || u.name.toLowerCase().includes(q))).sort(_plCompareUsersOrg);
   _plComboNavIndex[listId] = -1;
   if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
   list.innerHTML = matched.map(u => `<div class="combo-item" onmousedown="_plItemAddRelated(${bi},${ii},'${u.id}')">${_escHtml(u.name)}</div>`).join('');
@@ -3028,7 +3110,7 @@ function _plEditRelatedInput(inputEl) {
   if (!list || !d) return;
   const already = new Set((d.related || []).map(r => r.id));
   const q = (inputEl.value || '').trim().toLowerCase();
-  const matched = USERS.filter(u => u.name && !already.has(u.id) && (!q || u.name.toLowerCase().includes(q))).slice(0, 10);
+  const matched = USERS.filter(u => u.name && !already.has(u.id) && (!q || u.name.toLowerCase().includes(q))).sort(_plCompareUsersOrg);
   _plComboNavIndex['pl-e-rel-list'] = -1;
   if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
   list.innerHTML = matched.map(u => `<div class="combo-item" onmousedown="_plEditAddRelated('${u.id}')">${_escHtml(u.name)}</div>`).join('');
@@ -3631,17 +3713,20 @@ function _plGRenderAnnual() {
   // 브랜드가 많아 스크롤이 길어져도 컬럼명을 다시 확인할 수 있도록, 브랜드 그룹이 시작될 때마다 미니 헤더 행을 끼워넣는다.
   // <thead>는 테이블당 하나만 허용되고 소스 위치와 무관하게 항상 맨 위에 그려지므로(위 합계행 이동 때와 동일한 이유),
   // 진짜 <thead>가 아니라 헤더처럼 보이는 <tr>을 <tbody> 안에 반복해서 넣는 방식으로 구현.
+  // 숫자 컬럼(취급고·요청수량·발송수량·기록)은 데이터 셀이 td-r로 오른쪽 정렬되므로, 헤더도 같은
+  // 정렬로 맞춰야 위아래가 수직으로 이어져 보인다 — 안 맞으면 헤더는 좌측, 데이터는 우측이라 어긋나 보임.
   const miniHeadStyle = 'background:var(--surface2);padding:8px 14px;text-align:left;font-size:10.5px;font-weight:700;color:var(--text2);letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap;';
+  const miniHeadStyleR = miniHeadStyle.replace('text-align:left', 'text-align:right');
   const miniHeadRow = `<tr>
     <th style="${miniHeadStyle}">프로젝트</th>
     <th style="${miniHeadStyle}">집행월</th>
     <th style="${miniHeadStyle}">광고상품</th>
-    <th class="td-r" style="${miniHeadStyle}">취급고</th>
-    <th class="td-r" style="${miniHeadStyle}">요청수량</th>
-    <th class="td-r" style="${miniHeadStyle}">발송수량</th>
+    <th class="td-r" style="${miniHeadStyleR}">취급고</th>
+    <th class="td-r" style="${miniHeadStyleR}">요청수량</th>
+    <th class="td-r" style="${miniHeadStyleR}">발송수량</th>
     <th style="${miniHeadStyle}">수익율</th>
     <th style="${miniHeadStyle}">담당자</th>
-    <th class="td-r" style="${miniHeadStyle}">기록</th>
+    <th class="td-r" style="${miniHeadStyleR}">기록</th>
   </tr>`;
   // 브랜드 단위로 표(head+상품행)와 상세 패널(월별목표~관련자료)이 바로 이어지도록 한 번에 렌더링
   const bodyRows = rows.map((r, ri) => {
@@ -4490,11 +4575,15 @@ let _plDateTabDate = _plTodayStr();
 function _plDateBlockLabel(b) {
   if (b.scope === 'campaign') {
     const c = DATA.find(x => x.id === b.campaignId);
-    const extra = c ? ` (${_escHtml(c.media || '')} ${_escHtml(c.product || '')})` : '';
-    return `${_escHtml(b.seller || '')} &gt; ${_escHtml(b.content || '브랜드 미지정')} &gt; ${_escHtml(b.campaignId || '')}${extra}`;
+    const mediaProduct = c ? `${_escHtml(c.media || '')} ${_escHtml(c.product || '')}` : '';
+    const campIdx = DATA.findIndex(d => d.id === b.campaignId);
+    const campIdTag = campIdx >= 0
+      ? `<span class="pl-click f-mono" style="font-weight:600;" onclick="event.stopPropagation();openCalPreview(${campIdx})">(${_escHtml(b.campaignId || '')})</span>`
+      : `<span style="font-weight:600;">(${_escHtml(b.campaignId || '')})</span>`;
+    return `${_escHtml(b.seller || '')} &gt; ${_escHtml(b.content || '브랜드 미지정')} &gt; ${mediaProduct}${mediaProduct ? ' ' : ''}${campIdTag}`;
   }
-  if (b.scope === 'media') return `${_escHtml(b.media || '')} <span class="form-hint">(매체 전반)</span>`;
-  if (b.scope === 'internal') return `${_escHtml(b.seller || '')}${b.content ? ' &gt; ' + _escHtml(b.content) : ''} <span class="tag pl-inner">내부</span>`;
+  if (b.scope === 'media') return `<span class="tag pl-scope-media">매체</span> ${_escHtml(b.media || '')}`;
+  if (b.scope === 'internal') return `<span class="tag pl-inner">내부</span> ${_escHtml(b.seller || '')}${b.content ? ' &gt; ' + _escHtml(b.content) : ''}`;
   if (b.scope === 'project') return `${_escHtml(b.seller || '')} &gt; ${_escHtml(b.content || '')}`;
   return `${_escHtml(b.seller || '')} <span class="form-hint">(광고주 전반)</span>`;
 }
@@ -4569,7 +4658,9 @@ function _plDateGroupedData(dateStr) {
   const logsAsc = logs.slice().sort((x, y) => (x.createdAt || '').localeCompare(y.createdAt || ''));
   const byBlock = new Map();
   logsAsc.forEach(l => {
-    const key = `${l.scope}::${l.seller || ''}::${l.content || ''}::${l.campaignId || ''}`;
+    // scope='media'는 seller/content가 항상 비어있어서(매체 자체가 대상) media를 키에 넣어야 서로 다른
+    // 매체가 한 카드로 뭉치지 않는다. 다른 스코프는 media를 카드 키에서 뺀 채로 그대로 유지(소그룹으로만 씀).
+    const key = `${l.scope}::${l.seller || ''}::${l.content || ''}::${l.campaignId || ''}::${l.scope === 'media' ? (l.media || '') : ''}`;
     if (!byBlock.has(key)) byBlock.set(key, { scope: l.scope, seller: l.seller, content: l.content, campaignId: l.campaignId, media: l.media, byMedia: new Map() });
     const block = byBlock.get(key);
     const mediaKey = l.media || '';

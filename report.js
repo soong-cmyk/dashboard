@@ -54,6 +54,7 @@ function rptOnSellerChange() {
   const campSel    = document.getElementById('rpt-campaign');
 
   if (sellerName) {
+    _campEnsureCompanyLoaded(sellerName, 'screen-adreport');
     const seller = SELLER_DATA.find(s => s.company === sellerName);
     const brands = seller ? (seller.brands || []).map(b => b.name || b) : [];
     brandSel.innerHTML = '<option value="">전체</option>' +
@@ -113,6 +114,7 @@ function _rptUpdateCampaignCombo(sellerName, brand) {
 function generateReport() {
   const sellerName  = document.getElementById('rpt-seller').value;
   if (!sellerName) { toast('⚠ 광고주/대행사를 선택해주세요', 'warn'); return; }
+  _campEnsureCompanyLoaded(sellerName, 'screen-adreport');
 
   const brand      = document.getElementById('rpt-brand').value;
   const from       = document.getElementById('rpt-from').value;

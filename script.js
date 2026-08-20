@@ -202,9 +202,9 @@ const USERS = [];
 const RANK_LEVEL = { '대표이사':1, '이사':2, '본부장':3, '실장':4, '팀장':5, '일반':6 };
 // 본부-팀 구조 (드롭다운용)
 const ORG_STRUCTURE = [
-  { bonbu:'1본부', teams:['1팀','2팀','3팀'] },
+  { bonbu:'1본부', teams:['1팀','2팀'] },
   { bonbu:'2본부', teams:['1팀'] },
-  { bonbu:'3본부', teams:['1팀'] },
+  { bonbu:'3본부', teams:['1팀','2팀'] },
 ];
 let currentUser = null;
 let NOTIFICATIONS = [];
@@ -247,10 +247,27 @@ function checkAuth() {
     return true;
   } catch(e) { return false; }
 }
+// 넷리파이에 폴더 통째로 수동 업로드하는 배포 방식이라 버전 번호를 따로 관리하지 않음 — 대신
+// script.js의 ETag(정적 호스팅이 파일 내용 기준으로 자동 부여)를 확인해서, 지난번 로그인 때와
+// 실제로 달라졌을 때만(=진짜 새 코드가 배포됐을 때만) 새로고침한다. 매 로그인마다 무조건
+// 새로고침하던 예전 방식은 12시간 세션 만료 때문에 불필요한 Firestore 재구독(읽기 낭비)을 유발했음.
 async function _checkDeployVersion() {
-  history.replaceState(null, '', '#dashboard');
-  location.reload(true);
-  return true;
+  try {
+    const res = await fetch('script.js', { method: 'HEAD', cache: 'no-store' });
+    const tag = res.headers.get('etag') || res.headers.get('last-modified');
+    if (!tag) return false; // 식별자를 못 얻으면 안전하게 새로고침 생략
+    const prevTag = localStorage.getItem('_scriptTag');
+    localStorage.setItem('_scriptTag', tag);
+    if (prevTag && prevTag !== tag) {
+      history.replaceState(null, '', '#dashboard');
+      location.reload(true);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error('[deploy] 버전 확인 실패:', e);
+    return false;
+  }
 }
 async function login() {
   const id = document.getElementById('login-id').value.trim();
@@ -1238,6 +1255,8 @@ function goScreen(name, skipPush) {
     else renderCalendar();
   }
   if (name === 'campaigns') {
+    // 캠페인 목록은 기본이 "전체 보기"+자유 검색이라 기간으로 좁힐 수 없음 — 세션당 1회 전체 로드
+    _campEnsureFullyLoaded('screen-campaigns');
     const fOrgEl = document.getElementById('fOrg');
     if (fOrgEl && !fOrgEl.dataset.init) {
       fOrgEl.innerHTML = '<option value="">본부/팀 전체</option>' + _buildOrgSelectHTML();
@@ -4396,6 +4415,7 @@ function openCalDayModal(key) {
 }
 
 function renderCalendar() {
+  _campEnsureYearLoaded(calY, 'screen-calendar');
   _populateCalFilters();
   if (calView === 'month')     renderMonthView();
   else if (calView === 'week') renderWeekView();
@@ -4794,6 +4814,37 @@ document.addEventListener('keydown', e => {
 // TOAST
 // ══════════════════════════════════════════
 let _tt;
+// campaigns windowing으로 옛날 연도/광고주 데이터를 그때그때 추가로 불러올 때, 그 순간 화면이
+// 비어있거나 불완전해 보이지 않도록 대상 컨테이너에 블러+스피너를 씌운다.
+function _showDataLoading(containerEl) {
+  if (!containerEl || containerEl.querySelector(':scope > .data-loading-overlay')) return;
+  const pos = getComputedStyle(containerEl).position;
+  if (pos === 'static') containerEl.style.position = 'relative';
+  containerEl.classList.add('data-loading-blur');
+  const ov = document.createElement('div');
+  ov.className = 'data-loading-overlay';
+  ov.innerHTML = '<div class="data-loading-spinner"></div>';
+  containerEl.appendChild(ov);
+}
+function _hideDataLoading(containerEl) {
+  if (!containerEl) return;
+  containerEl.classList.remove('data-loading-blur');
+  containerEl.querySelector(':scope > .data-loading-overlay')?.remove();
+}
+// 새 구독을 걸 때 로딩 UI를 씌우고, 첫 스냅샷이 도착하면(그 구독이 요청한 데이터가 실제로 들어온 시점) 벗긴다.
+function _campSubscribeWithLoading(query, containerId) {
+  const el = containerId ? document.getElementById(containerId) : null;
+  if (el) _showDataLoading(el);
+  let first = true;
+  query.onSnapshot(snap => {
+    _campApplySnapshot(snap);
+    if (first) { first = false; if (el) _hideDataLoading(el); }
+  }, e => {
+    console.error('[FB] 캠페인 추가 구독 실패:', e);
+    if (first) { first = false; if (el) _hideDataLoading(el); }
+  });
+}
+
 function toast(msg, type='ok'){
   clearTimeout(_tt);
   const t=document.getElementById('toast');
@@ -6253,7 +6304,9 @@ function renderMonthly() {
   const now = new Date();
   const curYear  = String(now.getFullYear());
   const curMonth = String(now.getMonth() + 1).padStart(2, '0');
-  const years = [...new Set(DATA.map(c => c.date.slice(0,4)))].sort();
+  // DATA는 windowing(최근 범위만 로드)되므로, 연도 목록은 DATA가 아니라 별도 인덱스(_campKnownYears)에서
+  // 가져온다 — 아직 인덱스 문서가 도착 전이면 최소한 올해는 선택 가능하도록 폴백.
+  const years = (_campKnownYears.length ? _campKnownYears.map(String) : [curYear]);
   if (yearSel.options.length === 0) {
     years.forEach(y => { const o = document.createElement('option'); o.value=y; o.textContent=y+'년'; yearSel.appendChild(o); });
     yearSel.value = years.includes(curYear) ? curYear : years[years.length-1];
@@ -6261,6 +6314,7 @@ function renderMonthly() {
   }
   const year = yearSel.value;
   const month = monthSel.value; // '' or '01'~'12'
+  if (year) _campEnsureYearLoaded(year, 'screen-monthly');
   const src = DATA.filter(c => {
     if (!c.date.startsWith(year)) return false;
     if (month && c.date.slice(5,7) !== month) return false;
@@ -8089,6 +8143,8 @@ function _stlGetFiltered() {
 }
 
 function renderSettlement() {
+  const stlYear = document.getElementById('stl-year')?.value;
+  if (stlYear) _campEnsureYearLoaded(stlYear, 'screen-settlement');
   const scope    = document.getElementById('stl-fScope')?.value || 'settled';
   const settled  = _stlGetFiltered();
 
@@ -11246,11 +11302,26 @@ function _fbWatchNotifications() {
 // FIREBASE — 캠페인 연동
 // ══════════════════════════════════════════
 
+// 캠페인 연도 인덱스 — DATA를 windowing(최근 범위만 구독)해도 "어느 연도에 데이터가 있는지"를
+// 알아야 하는 화면(월별 탭 등)이 전체를 안 읽고도 정확한 연도 목록을 가질 수 있게, 초경량 별도 문서로 관리.
+let _campKnownYears = [];
+function _fbWatchCampaignYears() {
+  if (!window._db) return;
+  window._db.collection('settings').doc('campaignYears').onSnapshot(doc => {
+    _campKnownYears = (doc.exists && doc.data().years) ? doc.data().years.slice().sort((a, b) => a - b) : [];
+    if (document.getElementById('screen-monthly')?.classList.contains('active') && typeof renderMonthly === 'function') renderMonthly();
+  }, e => console.error('[FB] 캠페인 연도 인덱스 구독 실패:', e));
+}
+
 // 캠페인 1건 Firestore에 저장 (등록/수정)
 async function _fbSaveCampaign(c) {
   if (!window._db) return;
   try {
     await window._db.collection('campaigns').doc(c.id).set(c);
+    const year = +((c.date || '').slice(0, 4));
+    if (year && !_campKnownYears.includes(year)) {
+      await window._db.collection('settings').doc('campaignYears').set({ years: firebase.firestore.FieldValue.arrayUnion(year) }, { merge: true });
+    }
   } catch(e) {
     console.error('[FB] 캠페인 저장 실패:', e);
   }
@@ -11443,44 +11514,112 @@ async function restoreDB(file) {
 
 // 기존 DATA 전체를 Firestore에 업로드 (최초 1회)
 // Firestore 실시간 구독 — 캠페인
-function _fbWatchCampaigns() {
-  if (!window._db) return;
-  window._db.collection('campaigns').onSnapshot(snap => {
-    DATA.length = 0;
-    snap.forEach(d => DATA.push(d.data()));
-    DATA.sort((a, b) => (b.regDate || '').localeCompare(a.regDate || ''));
-    _nextCampaignNum = DATA.reduce((max, c) => {
-      const m = c.id && c.id.match(/C-\d{4}-(\d+)$/);
-      return m ? Math.max(max, parseInt(m[1]) + 1) : max;
-    }, 1);
-    // 새로고침 시 캠페인 상세 복원 (최초 1회)
-    if (window._pendingDetailId) {
-      const idx = DATA.findIndex(c => c.id === window._pendingDetailId);
+// ── campaigns windowing — 무료 플랜 읽기 한도 초과 대응 ──
+// 예전엔 onSnapshot 하나가 컬렉션 전체를 무조건 구독했음(새로고침마다 전체 재읽기). 이제 기본은 최근
+// 범위만 구독하고, KPI/정산/월별/캘린더/광고주상세처럼 특정 연도·광고주를 보는 화면에서만 그 범위를
+// 추가로 구독한다(프로젝트일지 PL_LOGS의 _plWatchLogs/_plEnsureCompanyLoaded 패턴과 동일).
+// 여러 구독(최근용 + 연도별 + 광고주별 + 전체)이 동시에 열릴 수 있어서, 예전처럼 "이 스냅샷으로 DATA를
+// 통째로 교체"하면 서로 덮어써 버린다 — id 기준 Map에 병합한 뒤 DATA를 재구성하는 방식으로 바꿨다.
+let _campMap = new Map();
+let _campWatchStarted = false;
+let _campWatchedYears = new Set();
+let _campWatchedCompanies = new Set();
+let _campFullyWatching = false;
+
+function _campRecentCutoff() {
+  // 넉넉하게 "현재연도 기준 2년 전 1/1"부터 — 전년 실적 비교 등 일반적인 조회는 대부분 이 기본 범위 안에서 해결됨
+  return `${new Date().getFullYear() - 2}-01-01`;
+}
+
+function _campApplySnapshot(snap) {
+  snap.docChanges().forEach(ch => {
+    if (ch.type === 'removed') _campMap.delete(ch.doc.id);
+    else _campMap.set(ch.doc.id, ch.doc.data());
+  });
+  DATA.length = 0;
+  DATA.push(..._campMap.values());
+  DATA.sort((a, b) => (b.regDate || '').localeCompare(a.regDate || ''));
+  _nextCampaignNum = DATA.reduce((max, c) => {
+    const m = c.id && c.id.match(/C-\d{4}-(\d+)$/);
+    return m ? Math.max(max, parseInt(m[1]) + 1) : max;
+  }, 1);
+  // 새로고침 시 캠페인 상세 복원 (최초 1회) — windowing으로 로드 범위 밖의 옛날 캠페인이면
+  // 그 1건만 추가로 조회해서 링크가 깨지지 않게 한다.
+  if (window._pendingDetailId) {
+    const idx = DATA.findIndex(c => c.id === window._pendingDetailId);
+    if (idx !== -1) {
       window._pendingDetailId = null;
-      if (idx !== -1) { openDetail(idx); return; }
+      openDetail(idx);
+      return;
     }
-    // onSnapshot으로 DATA 재빌드 시 currentDetailIdx 재동기화 (stale index 방지)
-    if (currentDetailId) {
-      const newIdx = DATA.findIndex(c => c.id === currentDetailId);
-      if (newIdx !== -1) currentDetailIdx = newIdx;
+    if (window._db) {
+      const pid = window._pendingDetailId;
+      window._pendingDetailId = null; // 이번 한 번만 시도 — 실패해도 무한 재시도하지 않음
+      window._db.collection('campaigns').doc(pid).get().then(doc => {
+        if (!doc.exists) return;
+        _campMap.set(doc.id, doc.data());
+        DATA.length = 0;
+        DATA.push(..._campMap.values());
+        DATA.sort((a, b) => (b.regDate || '').localeCompare(a.regDate || ''));
+        const idx2 = DATA.findIndex(c => c.id === pid);
+        if (idx2 !== -1) openDetail(idx2);
+      }).catch(e => console.error('[FB] 캠페인 단건 조회 실패:', e));
+      return;
     }
-    // 현재 활성 화면 재렌더
-    const sid = document.querySelector('.screen.active')?.id;
-    if (sid === 'screen-dashboard') renderDashboard();
-    if (sid === 'screen-campaigns') applyFilter();
-    if (sid === 'screen-calendar')  renderCalendar();
-    if (sid === 'screen-settlement') {
-      _stlPopulateDynFilters();
-      _stlSaveScroll();
-      renderSettlement();
-      _stlSetWrapHeight();
-      _stlRestoreScroll();
-    }
-    if (sid === 'screen-monthly')   renderMonthly();
-    if (sid === 'screen-perf')      initPerfScreen();
-    if (sid === 'screen-kpi')       { renderKpi(); renderBepMonthlyTable(); }
-    if (sid === 'screen-adreport' && typeof _rptPopulateSeller === 'function') _rptPopulateSeller();
-  }, e => console.error('[FB] 캠페인 구독 실패:', e));
+  }
+  // onSnapshot으로 DATA 재빌드 시 currentDetailIdx 재동기화 (stale index 방지)
+  if (currentDetailId) {
+    const newIdx = DATA.findIndex(c => c.id === currentDetailId);
+    if (newIdx !== -1) currentDetailIdx = newIdx;
+  }
+  // 현재 활성 화면 재렌더
+  const sid = document.querySelector('.screen.active')?.id;
+  if (sid === 'screen-dashboard') renderDashboard();
+  if (sid === 'screen-campaigns') applyFilter();
+  if (sid === 'screen-calendar')  renderCalendar();
+  if (sid === 'screen-settlement') {
+    _stlPopulateDynFilters();
+    _stlSaveScroll();
+    renderSettlement();
+    _stlSetWrapHeight();
+    _stlRestoreScroll();
+  }
+  if (sid === 'screen-monthly')   renderMonthly();
+  if (sid === 'screen-perf')      initPerfScreen();
+  if (sid === 'screen-kpi')       { renderKpi(); renderBepMonthlyTable(); }
+  if (sid === 'screen-adreport' && typeof _rptPopulateSeller === 'function') _rptPopulateSeller();
+}
+
+function _fbWatchCampaigns() {
+  if (!window._db || _campWatchStarted) return;
+  _campWatchStarted = true;
+  window._db.collection('campaigns').where('date', '>=', _campRecentCutoff())
+    .onSnapshot(_campApplySnapshot, e => console.error('[FB] 캠페인 구독 실패:', e));
+}
+// 특정 연도가 기본 범위 밖이면(오래된 KPI/정산/월별/캘린더 조회) 그 연도만 추가 구독
+function _campEnsureYearLoaded(year, containerId) {
+  year = parseInt(year, 10);
+  if (!year || _campFullyWatching || _campWatchedYears.has(year) || !window._db) return;
+  _campWatchedYears.add(year);
+  if (`${year}-01-01` >= _campRecentCutoff()) return; // 이미 기본(최근) 구독 범위 안 — 중복 구독 불필요
+  _campSubscribeWithLoading(
+    window._db.collection('campaigns').where('date', '>=', `${year}-01-01`).where('date', '<', `${year + 1}-01-01`),
+    containerId
+  );
+}
+// 광고주 상세(report.js)는 그 회사의 전체 이력이 필요 — seller/adv 필드가 혼용돼있어(예전 캠페인은
+// adv만 있는 경우도 있음, applyFilter의 (c.seller||c.adv) 처리와 동일한 이유) 둘 다 구독해야 누락이 없다.
+function _campEnsureCompanyLoaded(company, containerId) {
+  if (!company || _campFullyWatching || _campWatchedCompanies.has(company) || !window._db) return;
+  _campWatchedCompanies.add(company);
+  _campSubscribeWithLoading(window._db.collection('campaigns').where('seller', '==', company), containerId);
+  _campSubscribeWithLoading(window._db.collection('campaigns').where('adv', '==', company), containerId);
+}
+// 캠페인 목록의 자유 검색/전체보기처럼 기간으로 좁힐 수 없는 화면용 — 세션당 1회만 전체 구독
+function _campEnsureFullyLoaded(containerId) {
+  if (_campFullyWatching || !window._db) return;
+  _campFullyWatching = true;
+  _campSubscribeWithLoading(window._db.collection('campaigns'), containerId);
 }
 
 // ── 매출처 Firebase CRUD ──
@@ -11833,6 +11972,7 @@ function _fbWatchTax() {
 _populateProductSelects();
 
 // 페이지 로드 시 Firestore 실시간 구독 시작
+_fbWatchCampaignYears();
 _fbWatchCampaigns();
 _fbWatchPipeline();
 _fbLoadPipelineTargets();
@@ -12170,6 +12310,9 @@ function initKpiScreen() {
 function kpiYearChange() {
   _kpiYear = document.getElementById('kpi-year')?.value || String(new Date().getFullYear());
   _fbWatchKpiTargets(_kpiYear);
+  // 전년 실적 비교가 있어서 선택 연도뿐 아니라 그 전년도도 같이 로드
+  _campEnsureYearLoaded(_kpiYear, 'screen-kpi');
+  _campEnsureYearLoaded(+_kpiYear - 1, 'screen-kpi');
 }
 
 function kpiOrgChange() {
