@@ -844,6 +844,7 @@ ${badgeCss}
 /* 보기 전용 모달 — ㄴ추가/✕삭제/파일첨부/링크추가 등 조작 버튼은 아예 안 보이게(눌러도 반응 없는 게 더 헷갈림) */
 #pl-e-block.pl-readonly .pl-subadd,
 #pl-e-block.pl-readonly .pl-x,
+#pl-e-block.pl-readonly .pl-add,
 #pl-e-block.pl-readonly .pl-edit-addbtn,
 #pl-e-block.pl-readonly .pl-edit-rmbtn,
 #pl-e-block.pl-readonly .pl-paste-zone{display:none;}
@@ -876,13 +877,15 @@ ${badgeCss}
 /* ── 작성 화면: 블록 구조 ── */
 .pl-block{border:1px solid var(--border2);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;background:var(--surface);}
 .pl-bhead{display:flex;align-items:center;gap:8px;padding:10px 13px;background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap;}
-.pl-tgt{background:#fff;border:1.5px solid var(--border2);border-radius:6px;padding:6px 10px 6px 28px;font-size:13.5px;font-weight:800;color:var(--text);outline:none;min-width:170px;
+.pl-tgt{background:#fff;border:1.5px solid var(--border2);border-radius:6px;padding:6px 10px 6px 28px;font-size:13.5px;font-weight:800;color:var(--text);outline:none;min-width:320px;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239da3bc' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:9px center;}
 .pl-tgt:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);}
 .pl-tgt.empty{font-weight:600;color:#b6bccf;}
 .pl-bbody{padding:10px 13px;}
-.pl-item{border-bottom:1px dashed var(--border);padding:8px 0;}
+.pl-item{border-bottom:2px dashed var(--border2);padding:18px 0;}
+/* "+ 매체/캠페인 추가"로 새 그룹이 시작되는 항목은 "+ 항목 추가"로 이어붙인 것과 위쪽 경계를 다르게 줘서 구분한다. */
+.pl-item.pl-newgroup{border-top:3px solid var(--accent);padding-top:14px;margin-top:-2px;}
 .pl-item:last-of-type{border-bottom:none;}
 .pl-irow{display:grid;grid-template-columns:82px 1fr 72px 24px;gap:8px;align-items:center;}
 .pl-media-row{margin-bottom:6px;}
@@ -892,13 +895,16 @@ ${badgeCss}
 .pl-subadd{margin-top:5px;margin-left:22px;font-size:11.5px;color:var(--accent);font-weight:700;cursor:pointer;}
 .pl-add{text-align:center;border:1px dashed var(--border2);border-radius:var(--radius-sm);padding:8px;color:var(--text3);font-size:12px;font-weight:700;cursor:pointer;margin-top:8px;}
 .pl-add.block{padding:11px;border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
+/* "+ 항목 추가"(같은 그룹에 이어쓰기)와 계위를 구분하기 위해, 새 그룹 시작(매체·캠페인)은 강조색
+   테두리를 줘서 한 단계 더 무게감을 준다. */
+.pl-add.pl-add-group{border-color:var(--accent);color:var(--accent);margin-top:10px;}
 .pl-x{text-align:center;color:var(--text3);cursor:pointer;font-size:12px;}
 .pl-mini{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;color:var(--text);width:100%;outline:none;}
 .pl-pct{text-align:right;font-family:'JetBrains Mono',Consolas,monospace;padding-right:16px;}
 .pl-pct-wrap{position:relative;}
 .pl-pct-wrap::after{content:'*';position:absolute;top:-3px;right:-2px;color:var(--red);font-size:12px;font-weight:700;}
 .pl-pct-wrap .pl-pct-suffix{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text3);pointer-events:none;}
-.pl-opt{display:flex;align-items:center;gap:7px;margin-top:9px;padding-top:9px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text3);cursor:pointer;flex-wrap:wrap;}
+.pl-opt{display:flex;align-items:center;gap:7px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--border);font-size:11.5px;color:var(--text3);cursor:pointer;flex-wrap:wrap;}
 .pl-opt b{color:var(--accent);font-weight:700;}
 .pl-dot{display:inline-block;width:7px;height:7px;border-radius:50%;}
 .pl-dot-g{background:var(--green);}
@@ -974,6 +980,7 @@ function plSwitchTab(name) {
   if (name !== 'advertiser') PL_STATE.advDetailCompany = null;
   if (name !== 'media') PL_STATE.mediaDetailCompany = null;
   if (name !== 'internal') PL_STATE.internalDetailClient = null;
+  if (name !== 'date') _plInlineEditId = null; // 다른 탭으로 나가면 인라인 수정 상태도 같이 정리
   _plUpdateTabButtons();
   plRenderActiveTab();
   // 현재 스택 맨 위 항목에 탭 정보를 갱신 — 상세 진입 후 뒤로가기 시 이 탭의 목록으로 복원하기 위함 (새 항목을 쌓지는 않음)
@@ -1225,7 +1232,8 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   const responseHtml = (log.state === '진행중' && !readOnly)
     ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenResponseModal('${log.id}')">+ 대응 기록</button>`
     : '';
-  const editBtnHtml = readOnly ? '' : `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenEdit('${log.id}')">수정</button>`;
+  // compact(일자별 뷰)는 모달을 열지 않고 그 자리에서 바로 수정 폼으로 바뀌는 인라인 수정을 쓴다.
+  const editBtnHtml = readOnly ? '' : `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();${compact ? `_plDateStartInlineEdit('${log.id}')` : `plOpenEdit('${log.id}')`}">수정</button>`;
   const detfootHtml = `<div class="pl-detfoot">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${relatedHtml}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
       <div style="display:flex;gap:6px;">${responseHtml}${editBtnHtml}</div>
@@ -1760,13 +1768,18 @@ let _plSearchCache = {};
 // 매체·이미지·링크는 항목(item) 단위로 붙는다 — 항목 하나가 저장되면 각자 독립된 로그 문서가 되므로,
 // 블록에 걸어두면 한 블록 안의 서로 다른 항목들이 매체·링크를 강제로 공유하게 되어 실제 저장 결과와 안 맞았음
 function _plEmptyItem() {
-  return { logType: '운영', summary: '', progress: '', detail: [], media: null, links: [], images: [], related: [], optOpen: false };
+  return { logType: '운영', summary: '', progress: '', detail: [], media: null, campaignId: null, links: [], images: [], related: [], optOpen: false };
 }
 function _plEmptyBlock(extra) {
-  return Object.assign({
+  const block = Object.assign({
     scope: null, seller: null, content: null, campaignId: null, media: null, product: null,
     items: [_plEmptyItem()], searchQuery: '',
   }, extra || {});
+  // 캠페인 하나로 프리필된 블록(캠페인 상세의 "+일지작성" 등)은 시작 항목에도 그 캠페인을 명시적으로
+  // 걸어둔다 — 항목별 campaignId가 유일한 기준이 되게 해서(블록 scope로 암묵 추론 안 함), 이후
+  // "+ 매체·캠페인 추가"로 다른 캠페인/매체 항목을 섞어도 서로 안 헷갈린다.
+  if (block.scope === 'campaign' && block.campaignId) block.items[0].campaignId = block.campaignId;
+  return block;
 }
 
 // ── 진입점 — 프리필(특정 대상 지정)이면 항상 새 블록으로 시작하고, 아니면 모달을 닫아도 메모리에
@@ -1852,17 +1865,8 @@ function _plRenderWriteModal() {
   const hintEl = document.getElementById('pl-w-hint');
   const totalItems = _plDraft.blocks.reduce((s, b) => s + b.items.filter(it => (it.summary || '').trim()).length, 0);
   if (hintEl) hintEl.textContent = `항목 ${totalItems}건이 개별 기록으로 저장됩니다 · 닫아도 새로고침 전까진 내용이 유지됩니다`;
-  // 항목별 매체 검색 콤보 재바인딩 — innerHTML로 매번 새로 그려지는 DOM이라 리스너도 매번 다시 걸어야 함
-  // _plComboSetup의 onChange는 값을 인자로 안 주고 그냥 "바뀌었다"고만 알려주므로, 콜백 안에서 현재 input.value를 직접 읽어야 함
-  _plDraft.blocks.forEach((b, bi) => {
-    if (b.scope === 'campaign' || b.scope === 'media') return; // 읽기전용/전반 표시라 콤보 없음
-    b.items.forEach((it, ii) => {
-      _plComboSetup(`pl-med-${bi}-${ii}`, `pl-med-list-${bi}-${ii}`, _plMediaNames, () => {
-        const val = document.getElementById(`pl-med-${bi}-${ii}`)?.value || '';
-        _plItemField(bi, ii, 'media', val);
-      });
-    });
-  });
+  // 항목별 매체·캠페인 검색창(#pl-med-${bi}-${ii})은 인라인 oninput/onfocus로 직접 바인딩돼있어
+  // (_plItemMediaSearchInput/_plItemMediaPick) 여기서 별도로 다시 걸어줄 게 없다.
 }
 
 // ── 블록 대상 표시/검색 ──
@@ -1882,10 +1886,9 @@ function _plBlockSubLabel(block) {
 function _plBlockSearchResults(query) {
   const q = (query || '').trim();
   if (!q) return [];
-  // 캠페인은 건수가 훨씬 많아서(예: 매체명 "KT" 검색 시 캠페인 수십 건) 같은 배열에 순서대로 쌓고
-  // 뒤에서 30개로 자르면 광고주/프로젝트/매체 전반 결과가 밀려서 아예 안 보일 수 있다.
-  // 그래서 "전반" 성격의 결과를 먼저, 캠페인(가장 구체적인 단위)을 맨 뒤로 모아서 우선순위를 지킨다.
-  const advResults = [], projResults = [], mediaResults = [], internalResults = [], campResults = [];
+  // 캠페인은 여기(대상 검색)에서는 안 고른다 — 광고주/프로젝트까지만 정하고, 캠페인은 항목별 매체
+  // 검색창(_plItemMediaField)에서 이 블록의 광고주/프로젝트로 좁혀서 고르게 한다(_plItemMediaSearchResults).
+  const advResults = [], projResults = [], mediaResults = [], internalResults = [];
   SELLER_DATA.forEach(s => {
     if (_plTokenMatch(s.company, q)) {
       advResults.push({ type: 'advertiser', label: s.company, sub: '광고주 전반', seller: s.company });
@@ -1923,16 +1926,7 @@ function _plBlockSearchResults(query) {
       internalResults.push({ type: 'internal', label, sub: `내부 · 최근 ${date || '—'}`, seller, content: content || null });
     }
   });
-  DATA.forEach(c => {
-    const seller = c.seller || c.adv || '';
-    const dateShort = (c.date || '').slice(5, 10).replace('-', '.');
-    const label = `${seller} / ${c.content || '브랜드 미지정'} / ${c.id}  ${dateShort} ${c.media || ''} ${c.product || ''}`;
-    const hay = `${seller} ${c.content || ''} ${c.id} ${_cName(c)} ${c.date || ''} ${c.media || ''} ${c.product || ''}`;
-    if (_plTokenMatch(hay, q)) {
-      campResults.push({ type: 'campaign', label, sub: `캠페인 ${dateShort}`, seller, content: c.content || null, campaignId: c.id, media: c.media || null, product: c.product || null });
-    }
-  });
-  const results = [...advResults, ...projResults, ...mediaResults, ...internalResults, ...campResults];
+  const results = [...advResults, ...projResults, ...mediaResults, ...internalResults];
   return results.slice(0, 30);
 }
 
@@ -1970,6 +1964,10 @@ function _plBlockPick(bi, ri) {
   block.campaignId = r.campaignId || null;
   block.media = r.media || null;
   block.product = r.product || null;
+  // 캠페인을 대상 검색에서 직접 골랐으면(이미 작성 중이던 항목들도) 그 캠페인을 명시적으로 걸어둔다.
+  if (block.scope === 'campaign' && block.campaignId) {
+    block.items.forEach(it => { if (it.campaignId == null) { it.campaignId = block.campaignId; it.media = block.media; } });
+  }
   const list = document.getElementById(`pl-tgt-list-${bi}`);
   if (list) list.style.display = 'none';
   _plRenderWriteModal();
@@ -2061,8 +2059,7 @@ function _plInternalTaskPick(bi, val) {
 }
 
 function _plBlockSecondaryControl(block, bi) {
-  // 광고주 > 브랜드(프로젝트) > 캠페인 순서로 계속 좁혀나갈 수 있도록,
-  // seller가 잡힌 상태(advertiser/project/campaign)면 브랜드 select + 캠페인 select를 항상 같이 보여준다.
+  // 광고주 > 브랜드(프로젝트)까지는 블록 헤더에서 좁혀나간다.
   if (block.scope === 'advertiser' || block.scope === 'project' || block.scope === 'campaign') {
     const seller = SELLER_DATA.find(s => s.company === block.seller);
     const brandNames = (seller?.brands || []).map(b => b.name).filter(Boolean);
@@ -2072,6 +2069,12 @@ function _plBlockSecondaryControl(block, bi) {
       return `<option value="${_escHtml(val)}" ${(block.content || '') === val ? 'selected' : ''}>${_escHtml(label)}</option>`;
     }).join('');
     const brandSelect = `<select class="f-sel" style="font-weight:700;" onchange="_plBlockSetProject(${bi}, this.value)">${brandOpts}</select>`;
+
+    // 캠페인 select는 이 블록이 "이미 캠페인 하나로 좁혀진 상태"(캠페인 상세의 "+일지작성"으로 들어온
+    // 경우 등)일 때만 보여준다 — 광고주/프로젝트 단계에서 이걸 노출하면 눌러서 블록 전체가 그 캠페인
+    // 하나로 잠겨버려(scope가 campaign으로 바뀜), 항목별 "+ 매체·캠페인 추가"(여러 캠페인을 섞어 쓰는
+    // 새 기능)가 안 보이게 되는 충돌이 있었다. 캠페인 연결은 이제 그 항목별 검색으로만 한다.
+    if (block.scope !== 'campaign') return brandSelect;
 
     const camps = DATA.filter(c => (c.seller || c.adv) === block.seller && c.status !== '삭제'
       && (!block.content || (c.content || null) === (block.content || null)))
@@ -2106,11 +2109,17 @@ function _plBlockSetCampaign(bi, campaignId) {
   }
   const c = DATA.find(x => x.id === campaignId);
   if (!c) return;
+  const oldCampaignId = block.campaignId;
   block.campaignId = c.id;
   block.content = c.content || block.content || null; // 브랜드 자동 입력 (기존 검색 흐름과 동일)
   block.media = c.media || null;
   block.product = c.product || null;
   block.scope = 'campaign';
+  // 바꾸기 전 캠페인을 암묵적으로 따르던 항목만 새 캠페인으로 갈아탄다 — "+ 매체·캠페인 추가"로
+  // 이미 다른 캠페인/매체를 명시적으로 골라둔 항목은 그대로 둔다.
+  block.items.forEach(it => {
+    if (it.campaignId == null || it.campaignId === oldCampaignId) { it.campaignId = c.id; it.media = c.media || null; }
+  });
   _plRenderWriteModal();
 }
 
@@ -2118,22 +2127,25 @@ function _plRenderBlockHtml(block, bi) {
   const targetLabel = _plBlockTargetLabel(block);
   const subLabel = _plBlockSubLabel(block);
   const isInternal = block.scope === 'internal';
-  // campaign/media scope는 매체가 블록 단위로 고정돼있어 항목별로 다를 수 없으므로 그룹핑 자체가 의미 없음(첫 항목에만 표시).
-  // 그 외 scope는 연속된 항목의 매체값이 같으면 매체 행을 생략해서 "매체 하나에 항목 여러 개" 모양으로 묶어 보이게 한다.
-  const groupableMedia = block.scope !== 'campaign' && block.scope !== 'media';
-  let prevMedia;
+  // media scope만 매체가 블록 자체(그 매체 전반)라 그룹핑이 의미 없음. campaign scope도 이제는 항목마다
+  // 다른 캠페인/매체를 섞어 쓸 수 있어서(항목별 campaignId), 여기 포함해서 그룹핑을 허용한다.
+  // 연속된 항목의 그룹 키(매체 또는 캠페인)가 같으면 행을 생략해서 "그룹 하나에 항목 여러 개"로 묶어 보인다.
+  const groupableMedia = block.scope !== 'media';
+  let prevGroupKey;
   const itemsHtml = block.items.map((it, ii) => {
-    // it.newMediaGroup: "+ 매체 추가"로 만든 항목은 직전 항목도 아직 매체 미입력(둘 다 null)이면
-    // it.media !== prevMedia가 false가 돼서 입력란이 안 뜨는 문제가 있어, 값 비교와 무관하게 강제로 보여준다.
-    const showMediaRow = !groupableMedia ? (ii === 0) : (ii === 0 || it.media !== prevMedia || it.newMediaGroup);
-    if (groupableMedia) prevMedia = it.media;
+    // 그룹 키 = 캠페인이 연결돼있으면 캠페인, 아니면 매체값 — 이게 바뀌면 새 그룹 행을 보여준다.
+    // it.newMediaGroup: "+ 매체·캠페인 추가"로 만든 항목은 직전 항목과 그룹 키가 우연히 같아도(둘 다 미입력 등)
+    // 강제로 새 그룹 행을 보여준다.
+    const groupKey = it.campaignId ? `camp:${it.campaignId}` : `media:${it.media || ''}`;
+    const showMediaRow = !groupableMedia ? (ii === 0) : (ii === 0 || groupKey !== prevGroupKey || it.newMediaGroup);
+    if (groupableMedia) prevGroupKey = groupKey;
     return _plRenderItemHtml(block, bi, ii, it, showMediaRow);
   }).join('');
   return `<div class="pl-block" data-bi="${bi}">
     <div class="pl-bhead">
       <div class="combo-wrap" style="position:relative;">
         <input type="text" class="pl-tgt${targetLabel ? '' : ' empty'}" id="pl-tgt-${bi}"
-          value="${_escHtml(targetLabel)}" placeholder="🔍 광고주·프로젝트·캠페인·매체·내부업무 검색" title="클릭하면 다시 검색"
+          value="${_escHtml(targetLabel)}" placeholder="광고주·프로젝트·매체·내부업무 검색" title="클릭하면 다시 검색"
           oninput="_plBlockSearch(${bi}, this.value)" onfocus="_plBlockSearch(${bi}, this.value)">
         <div class="combo-list" id="pl-tgt-list-${bi}" style="display:none;"></div>
       </div>
@@ -2144,26 +2156,37 @@ function _plRenderBlockHtml(block, bi) {
     </div>
     <div class="pl-bbody">
       ${itemsHtml}
-      <div class="pl-add" onclick="_plAddItem(${bi})">＋ 항목 추가${groupableMedia ? ' (같은 매체)' : ''}</div>
-      ${groupableMedia ? `<div class="pl-add" onclick="_plAddMediaGroup(${bi})">＋ 매체 추가</div>` : ''}
+      <div class="pl-add" onclick="_plAddItem(${bi})">＋ 항목 추가${groupableMedia ? ' (같은 매체/캠페인)' : ''}</div>
+      ${groupableMedia ? `<div class="pl-add pl-add-group" onclick="_plAddMediaGroup(${bi})">＋ 매체/캠페인 추가</div>` : ''}
     </div>
   </div>`;
 }
 
-// 항목의 매체 칸 — scope='campaign'은 캠페인에서 자동 확정된 값을 읽기전용으로, scope='media'는 블록 자체가
-// 이미 그 매체를 가리키므로 "전반" 표시만, 그 외(광고주·프로젝트·내부)는 항목마다 다른 매체를 검색+콤보로 고를 수 있게 함
-// (콤보 리스너는 매번 새로 그려지는 DOM이라 _plRenderWriteModal 끝에서 다시 건다)
+// 항목의 매체 칸 — scope='media'는 블록 자체가 이미 그 매체를 가리키므로 "전반" 표시만. 캠페인이
+// 연결된 항목(it.campaignId — scope='campaign' 블록의 항목도 이제 전부 여기 해당)은 캠페인에서 자동
+// 확정된 값을 읽기전용으로. 그 외(매체만 있거나 아무것도 없는 항목)는 이 칸 하나에서 매체명과 캠페인을
+// 같이 검색해서 고를 수 있게 함(_plItemMediaSearchInput/_plItemMediaPick, 이 블록의 광고주/프로젝트로
+// 캠페인 검색 범위를 좁힘) — 인라인 oninput/onfocus로 매번 새로 그려지는 DOM에도 항상 바인딩됨.
 function _plItemMediaField(block, bi, ii, it) {
-  if (block.scope === 'campaign') {
-    return `<span class="form-hint" style="font-size:11px;" title="캠페인에서 자동">${_escHtml(block.media || '—')}</span>`;
-  }
   if (block.scope === 'media') {
     return `<span class="form-hint" style="font-size:11px;">전반</span>`;
   }
-  return `<div class="combo-wrap" style="position:relative;width:160px;">
-    <input type="text" class="pl-mini" id="pl-med-${bi}-${ii}" placeholder="🔍 매체 검색" autocomplete="off" value="${_escHtml(it.media || '')}">
+  if (it.campaignId) {
+    return `<span class="tag f-mono" style="font-size:10.5px;">${_escHtml(it.campaignId)}</span><span class="form-hint" style="font-size:11px;margin-left:4px;" title="캠페인에서 자동">${_escHtml(it.media || '')}</span><span class="pl-x" style="margin-left:4px;" onclick="_plItemUnlinkCampaign(${bi},${ii})" title="캠페인 연결 해제">✕</span>`;
+  }
+  return `<div class="combo-wrap" style="position:relative;width:190px;">
+    <input type="text" class="pl-mini" id="pl-med-${bi}-${ii}" placeholder="🔍 매체 또는 캠페인 검색" autocomplete="off" value="${_escHtml(it.media || '')}"
+      oninput="_plItemMediaSearchInput(${bi},${ii},this)" onfocus="_plItemMediaSearchInput(${bi},${ii},this)"
+      onkeydown="_plComboKeyNav(event,'pl-med-list-${bi}-${ii}')"
+      onblur="setTimeout(()=>{const l=document.getElementById('pl-med-list-${bi}-${ii}');if(l)l.style.display='none';},150)">
     <div class="combo-list" id="pl-med-list-${bi}-${ii}" style="display:none;"></div>
   </div>`;
+}
+function _plItemUnlinkCampaign(bi, ii) {
+  const it = _plDraft.blocks[bi]?.items[ii];
+  if (!it) return;
+  it.campaignId = null;
+  _plRenderWriteModal();
 }
 
 // ── 항목 / ㄴ 하위줄 ──
@@ -2171,7 +2194,10 @@ function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
   const typeOpts = PL_LOG_TYPES.map(t => `<option value="${t}" ${it.logType === t ? 'selected' : ''}>${t}</option>`).join('');
   const ph = PL_SUMMARY_PH[it.logType] || '';
   const subHtml = (it.detail || []).map((d, di) => _plRenderSubHtml(bi, ii, di, d, it.logType)).join('');
-  return `<div class="pl-item" data-bi="${bi}" data-ii="${ii}">
+  // 새 그룹이 시작되는 항목(showMediaRow)은 "+ 항목 추가"로 이어붙인 항목과 구분되게 위쪽 경계를 다르게
+  // 준다 — 첫 항목(ii===0)은 바로 위가 블록 헤더라 이미 경계가 있으니 제외.
+  const isNewGroup = showMediaRow && ii > 0;
+  return `<div class="pl-item${isNewGroup ? ' pl-newgroup' : ''}" data-bi="${bi}" data-ii="${ii}">
     ${showMediaRow ? `<div class="pl-media-row">${_plItemMediaField(block, bi, ii, it)}</div>` : ''}
     <div class="pl-irow">
       <select class="pl-mini" style="font-weight:700;" onchange="_plItemTypeChange(${bi},${ii},this.value)">${typeOpts}</select>
@@ -2274,24 +2300,90 @@ function _plItemTypeChange(bi, ii, val) {
   }
   _plRenderWriteModal();
 }
+// 항목/매체·캠페인/블록 추가 버튼을 눌렀을 때 새로 생긴 게 뭔지 눈에 잘 안 띈다는 피드백 —
+// 알림 "일지 보기 →" 점프에 쓰던 것과 같은 스크롤+반짝임(pl-jump-flash)을 재사용한다.
+function _plFlashScrollTo(selector) {
+  const el = document.querySelector(selector);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('pl-jump-flash');
+  setTimeout(() => el.classList.remove('pl-jump-flash'), 1500);
+}
 function _plAddItem(bi) {
   const block = _plDraft.blocks[bi];
   if (!block) return;
   const newItem = _plEmptyItem();
-  // 직전 항목과 같은 매체로 이어서 작성하는 경우가 흔해서, 매체값을 그대로 이어받는다(다르면 매체 행을 눌러 바꾸면 됨).
+  // 직전 항목과 같은 매체/캠페인으로 이어서 작성하는 경우가 흔해서, 그 값을 그대로 이어받는다
+  // (다르면 아래 "+ 매체·캠페인 추가"로 새 그룹을 시작하면 됨).
   const lastItem = block.items[block.items.length - 1];
-  if (lastItem) newItem.media = lastItem.media;
+  if (lastItem) { newItem.media = lastItem.media; newItem.campaignId = lastItem.campaignId; }
   block.items.push(newItem);
+  const newIi = block.items.length - 1;
   _plRenderWriteModal();
+  _plFlashScrollTo(`#pl-w-blocks .pl-item[data-bi="${bi}"][data-ii="${newIi}"]`);
 }
-// "+ 매체 추가" — 항목추가와 달리 매체를 빈 값으로 시작해서, 새 매체 행부터 다시 그룹을 시작하게 한다.
-// newMediaGroup 표시를 달아둬야 직전 항목도 매체 미입력(둘 다 null)인 경우에도 입력란이 확실히 뜬다.
+// "+ 매체/캠페인 추가" — 새 그룹의 시작 항목만 비운 채로 밀어넣는다. 실제 매체/캠페인 선택은 그
+// 항목 자신의 매체 칸(_plItemMediaField → _plItemMediaSearchInput)에서 검색해서 고른다.
 function _plAddMediaGroup(bi) {
   const block = _plDraft.blocks[bi];
   if (!block) return;
   const newItem = _plEmptyItem();
   newItem.newMediaGroup = true;
   block.items.push(newItem);
+  const newIi = block.items.length - 1;
+  _plRenderWriteModal();
+  _plFlashScrollTo(`#pl-w-blocks .pl-item[data-bi="${bi}"][data-ii="${newIi}"]`);
+}
+// ── 항목의 매체 칸 검색 — 매체명과 이 블록의 광고주/프로젝트에 속한 캠페인을 하나의 검색으로 같이
+// 보여준다. 자유입력(매체명을 그냥 텍스트로만 남기는 것)도 그대로 지원 — 콤보에서 안 골라도 입력한
+// 값이 매체명으로 저장된다.
+let _plItemMediaSearchCache = {};
+function _plItemMediaSearchResults(block, query) {
+  const q = (query || '').trim();
+  const mediaResults = _plMediaNames()
+    .filter(m => !q || _plTokenMatch(m, q))
+    .map(m => ({ type: 'media', label: m, sub: '매체', media: m }));
+  const campResults = DATA.filter(c => (c.seller || c.adv) === block.seller
+      && (c.content || null) === (block.content || null) && c.status !== '삭제')
+    .filter(c => !q || _plTokenMatch(`${c.id} ${c.media || ''} ${c.product || ''} ${(c.date || '').slice(0, 10)}`, q))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .map(c => ({ type: 'campaign', label: `${c.id} · ${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}`, sub: '캠페인', campaignId: c.id }));
+  return [...mediaResults, ...campResults].slice(0, 30);
+}
+function _plItemMediaSearchInput(bi, ii, inputEl) {
+  const block = _plDraft.blocks[bi];
+  const it = block?.items[ii];
+  const listId = `pl-med-list-${bi}-${ii}`;
+  const list = document.getElementById(listId);
+  if (!block || !it || !list) return;
+  it.media = inputEl.value; // 자유입력 그대로 저장 — 콤보에서 안 골라도 매체명으로 취급
+  // 매체+캠페인을 합치면 결과가 많아 30개로 잘리는데, 빈 입력(포커스만 한 상태)에서 그 잘린 목록을
+  // "전체"인 것처럼 보여주면 오해의 소지가 있어 — 뭐라도 입력해야 결과를 보여준다.
+  if (!inputEl.value.trim()) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  const key = `${bi}-${ii}`;
+  const results = _plItemMediaSearchResults(block, inputEl.value);
+  _plItemMediaSearchCache[key] = results;
+  _plComboNavIndex[listId] = -1;
+  if (!results.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  list.innerHTML = results.map((r, i) =>
+    `<div class="combo-item" onmousedown="_plItemMediaPick(${bi},${ii},${i})">${_escHtml(r.label)}<span class="pl-ctype">${_escHtml(r.sub)}</span></div>`
+  ).join('');
+  list.style.display = 'block';
+  _plFloatCombo(inputEl, list);
+}
+function _plItemMediaPick(bi, ii, i) {
+  const it = _plDraft.blocks[bi]?.items[ii];
+  const r = (_plItemMediaSearchCache[`${bi}-${ii}`] || [])[i];
+  if (!it || !r) return;
+  if (r.type === 'campaign') {
+    it.campaignId = r.campaignId;
+    it.media = DATA.find(c => c.id === r.campaignId)?.media || null;
+  } else {
+    it.campaignId = null;
+    it.media = r.media;
+  }
+  const list = document.getElementById(`pl-med-list-${bi}-${ii}`);
+  if (list) list.style.display = 'none';
   _plRenderWriteModal();
 }
 function _plRemoveItem(bi, ii) {
@@ -2316,7 +2408,9 @@ function _plRemoveSub(bi, ii, di) {
 }
 function _plAddBlock() {
   _plDraft.blocks.push(_plEmptyBlock());
+  const newBi = _plDraft.blocks.length - 1;
   _plRenderWriteModal();
+  _plFlashScrollTo(`#pl-w-blocks .pl-block[data-bi="${newBi}"]`);
 }
 function _plRemoveBlock(bi) {
   _plDraft.blocks.splice(bi, 1);
@@ -2457,34 +2551,6 @@ function _plComboKeyNav(event, listId) {
   return true;
 }
 
-// ── 관련자 — 회의 참석자 추가처럼 이름 검색 콤보로 여러 명을 태그로 추가/제거 ──
-function _plItemRelatedInput(bi, ii, inputEl) {
-  const listId = `pl-rel-list-${bi}-${ii}`;
-  const list = document.getElementById(listId);
-  const it = _plDraft.blocks[bi]?.items[ii];
-  if (!list || !it) return;
-  const already = new Set((it.related || []).map(r => r.id));
-  const q = (inputEl.value || '').trim().toLowerCase();
-  const matched = USERS.filter(u => u.name && !already.has(u.id) && (!q || u.name.toLowerCase().includes(q))).sort(_plCompareUsersOrg);
-  _plComboNavIndex[listId] = -1;
-  if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
-  list.innerHTML = matched.map(u => `<div class="combo-item" onmousedown="_plItemAddRelated(${bi},${ii},'${u.id}')">${_escHtml(u.name)}</div>`).join('');
-  list.style.display = 'block';
-  _plFloatCombo(inputEl, list);
-}
-function _plItemAddRelated(bi, ii, userId) {
-  const it = _plDraft.blocks[bi]?.items[ii];
-  const u = USERS.find(x => x.id === userId);
-  if (!it || !u) return;
-  if (!it.related) it.related = [];
-  if (!it.related.some(r => r.id === u.id)) it.related.push({ id: u.id, name: u.name });
-  _plRenderWriteModal();
-}
-function _plItemRemoveRelated(bi, ii, ri) {
-  _plDraft.blocks[bi]?.items[ii]?.related.splice(ri, 1);
-  _plRenderWriteModal();
-}
-
 // ── 항목 이미지 — 정산(계산서) 이미지 첨부와 같은 방식(리사이즈·압축 후 base64) 재사용 ──
 function _plItemAddImage(bi, ii, dataUrl) {
   const it = _plDraft.blocks[bi]?.items[ii];
@@ -2556,9 +2622,6 @@ function _plRenderItemAttachSection(bi, ii, it) {
     const linksHtml = (it.links || []).map((l, li) =>
       `<span class="tag">🔗 <input type="text" style="border:none;background:none;width:120px;font-size:11px;outline:none;" value="${_escHtml(l.label || l.url || '')}" placeholder="링크명/URL" oninput="_plLinkField(${bi},${ii},${li},this.value)"><span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plRemoveLink(${bi},${ii},${li})">✕</span></span>`
     ).join(' ');
-    const relatedHtml = (it.related || []).map((r, ri) =>
-      `<span class="tag">👤 ${_escHtml(r.name)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plItemRemoveRelated(${bi},${ii},${ri})">✕</span></span>`
-    ).join(' ');
     const imgsHtml = (it.images || []).map((src, i) => `
       <div style="position:relative;display:inline-block;">
         <img src="${src}" onclick="_plItemOpenLightbox(${bi},${ii},${i})" style="width:44px;height:36px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:zoom-in;">
@@ -2572,19 +2635,9 @@ function _plRenderItemAttachSection(bi, ii, it) {
         <span class="pl-paste-zone" tabindex="0" style="border:1px dashed var(--border2);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--text3);cursor:text;outline:none;" onfocus="_plLastFocusedItem={bi:${bi},ii:${ii}}" onclick="this.focus()">여기 클릭 후 Ctrl+V</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span class="form-hint" style="width:36px;">링크</span>${linksHtml}<span class="tag" style="cursor:pointer;border-style:dashed;color:var(--text3);" onclick="_plAddLink(${bi},${ii})">＋ 링크</span></div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span class="form-hint" style="width:36px;">관련자</span>${relatedHtml}
-        <div class="combo-wrap" style="width:110px;">
-          <input type="text" class="pl-mini" style="font-size:11px;" placeholder="+ 이름 검색"
-            oninput="_plItemRelatedInput(${bi},${ii},this)" onfocus="_plItemRelatedInput(${bi},${ii},this)"
-            onkeydown="_plComboKeyNav(event,'pl-rel-list-${bi}-${ii}')"
-            onblur="setTimeout(()=>{const l=document.getElementById('pl-rel-list-${bi}-${ii}');if(l)l.style.display='none';},150)">
-          <div class="combo-list" id="pl-rel-list-${bi}-${ii}" style="display:none;"></div>
-        </div>
-      </div>
     </div>`;
   }
-  return `<div class="pl-opt" onclick="_plItemToggleCollapse(${bi},${ii})"><span>${arrow}</span><b>이미지 · 링크 · 관련자</b><span>— ${it.optOpen ? '펼침' : '접힘 · 필요할 때만'}</span></div>${inner}`;
+  return `<div class="pl-opt" onclick="_plItemToggleCollapse(${bi},${ii})"><span>${arrow}</span><b>이미지 · 링크</b><span>— ${it.optOpen ? '펼침' : '접힘 · 필요할 때만'}</span></div>${inner}`;
 }
 
 // ── 유효성 검사 · 저장 ──
@@ -2690,12 +2743,17 @@ async function plSaveLog() {
         const progress = (it.progress === '' || it.progress == null) ? null : Math.max(0, Math.min(100, parseInt(it.progress, 10) || 0));
         const images = (it.images || []).filter(Boolean);
         const now = nextNow();
+        // 항목에 캠페인이 개별로 연결돼있으면(블록 자체는 광고주/프로젝트 단계) 그 항목만 캠페인 로그로
+        // 저장한다 — 하나의 블록(같은 광고주/프로젝트) 안에서 캠페인별로 여러 건을 섞어 쓸 수 있게 하기 위함.
+        const itemCamp = it.campaignId ? DATA.find(c => c.id === it.campaignId) : null;
         const doc = {
           id: nextId(),
           logDate, writer: currentUser?.name || '', writerId: currentUser?.id || '',
           bonbu: currentUser?.bonbu || '', dept: currentUser?.dept || '',
-          scope: block.scope, seller: block.seller || null, content: block.content || null,
-          campaignId: block.campaignId || null, media: it.media || block.media || null, product: block.product || null,
+          scope: itemCamp ? 'campaign' : block.scope, seller: block.seller || null, content: block.content || null,
+          campaignId: it.campaignId || block.campaignId || null,
+          media: itemCamp ? (itemCamp.media || null) : (it.media || block.media || null),
+          product: itemCamp ? (itemCamp.product || null) : (block.product || null),
           logType: it.logType || '운영',
           state: ['이슈', '요청'].includes(it.logType) ? '진행중' : null,
           summary: it.summary.trim().slice(0, 60), detail,
@@ -2773,10 +2831,10 @@ const PL_FIELD_LABELS = {
   logType: '유형', summary: '내용', progress: '진척률', state: '상태',
 };
 
-async function plOpenEdit(logId) {
-  const log = PL_LOGS.find(l => l.id === logId);
-  if (!log) { toast('일지를 찾을 수 없습니다', 'err'); return; }
-  _plEditDraft = {
+// plOpenEdit(모달)과 _plDateStartInlineEdit(일자별 뷰 인라인)가 공유하는 draft 구성 — 필드 목록이
+// 어긋나면 둘 중 하나만 최신이 아닌 상태로 갈리기 쉬워서 한 곳으로 모아둠.
+function _plBuildEditDraft(log) {
+  return {
     id: log.id, logDate: log.logDate, writer: log.writer, writerId: log.writerId,
     bonbu: log.bonbu, dept: log.dept, createdAt: log.createdAt,
     scope: log.scope, seller: log.seller, content: log.content,
@@ -2788,7 +2846,13 @@ async function plOpenEdit(logId) {
     images: [],
     important: !!log.important, shared: !!log.shared,
     state: log.state || null, searchQuery: '',
+    extraItems: [], // "+ 항목 추가" — 같은 대상으로 별도 새 로그가 될 항목들(기본줄+하위기록만)
   };
+}
+async function plOpenEdit(logId) {
+  const log = PL_LOGS.find(l => l.id === logId);
+  if (!log) { toast('일지를 찾을 수 없습니다', 'err'); return; }
+  _plEditDraft = _plBuildEditDraft(log);
   if (!document.getElementById('pl-modal-edit')) _plBuildEditModalShell();
   _plRenderEditModal();
   openModal('pl-modal-edit');
@@ -2800,6 +2864,64 @@ async function plOpenEdit(logId) {
       _plRenderEditModal();
     }
   }
+}
+
+// ── 일자별 뷰 전용 — 모달 없이 그 카드 자리에서 바로 수정 ──
+let _plInlineEditId = null;
+async function _plDateStartInlineEdit(logId) {
+  const log = PL_LOGS.find(l => l.id === logId);
+  if (!log) { toast('일지를 찾을 수 없습니다', 'err'); return; }
+  if (!_plCanEditLog({ writerId: log.writerId })) { toast('수정 권한이 없습니다', 'err'); return; }
+  _plEditDraft = _plBuildEditDraft(log);
+  _plEditDraft.__inline = true;
+  _plInlineEditId = logId;
+  _plRenderDateBody();
+  if (log.hasImages) {
+    const images = await _plGetLogImages(logId);
+    if (_plEditDraft && _plEditDraft.id === logId && _plEditDraft.__inline) {
+      _plEditDraft.images = images;
+      _plRenderDateBody();
+    }
+  }
+}
+function _plDateCancelInlineEdit() {
+  _plInlineEditId = null;
+  _plRenderDateBody();
+}
+// 대상(광고주/프로젝트/캠페인/매체)은 인라인에서는 읽기 전용으로만 보여준다 — 검색해서 바꾸는 UI는
+// 모달 전용 id(#pl-e-tgt 등)에 묶여있어 여기서 그대로 재사용하면 충돌하고, 대상을 바꾸는 건 애초에
+// 자주 있는 일도 아니라서 필요하면 "수정" 대신 기존 모달로 열도록 남겨둔다.
+function _plDateInlineTargetLabel() {
+  const d = _plEditDraft;
+  if (d.scope === 'campaign') return `${_escHtml(d.seller || '')} &gt; ${_escHtml(d.content || '브랜드 미지정')} &gt; ${_escHtml(d.campaignId || '')}`;
+  if (d.scope === 'media') return `${_escHtml(d.media || '')} <span class="form-hint">(매체 전반)</span>`;
+  if (d.scope === 'internal') return `${_escHtml(d.seller || '')}${d.content ? ' &gt; ' + _escHtml(d.content) : ''} <span class="tag pl-inner">내부</span>`;
+  if (d.scope === 'project') return `${_escHtml(d.seller || '')} &gt; ${_escHtml(d.content || '')}`;
+  return `${_escHtml(d.seller || '')} <span class="form-hint">(광고주 전반)</span>`;
+}
+// 수정 모달과 같은 조립 함수(_plEditItemHtml/_plEditExtraItemsHtml/_plEditMetaHtml)를 그대로 재사용 —
+// 이 함수들은 HTML 문자열만 만들어서 반환하는 역할이라 모달이 아니라 카드 안에 꽂아도 그대로 동작한다.
+function _plDateInlineEditHtml() {
+  const d = _plEditDraft;
+  const canDel = _plCanDeleteLog({ writerId: d.writerId });
+  return `<div class="pl-block" style="border:1.5px dashed var(--accent);border-radius:8px;overflow:hidden;margin-top:4px;">
+    <div class="pl-bhead" style="background:var(--accent-light);">
+      <b style="font-size:12.5px;">${_plDateInlineTargetLabel()}</b>
+      <span class="form-hint" style="margin-left:auto;">✎ 인라인 수정 중</span>
+    </div>
+    <div class="pl-bbody">
+      ${_plEditItemHtml()}
+      ${_plEditExtraItemsHtml()}<div class="pl-add" onclick="_plEditAddExtraItem()">＋ 항목 추가 <span class="form-hint" style="font-weight:400;">— 같은 대상으로 새 로그 별도 생성</span></div>
+      ${_plEditMetaHtml()}
+    </div>
+    <div class="modal-foot" style="position:static;">
+      ${canDel ? `<span class="pl-x" onclick="plDeleteLogFromEdit()" style="color:var(--red);">삭제</span>` : '<span></span>'}
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button class="btn btn-outline btn-sm" onclick="_plDateCancelInlineEdit()">취소</button>
+        <button class="btn btn-primary btn-sm" id="pl-di-savebtn" onclick="plSaveEdit()">저장</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function _plBuildEditModalShell() {
@@ -2870,7 +2992,7 @@ function _plEditSetCampaign(campaignId) {
   if (!campaignId) {
     d.campaignId = null; d.media = null; d.product = null;
     d.scope = d.content ? 'project' : 'advertiser';
-    _plRenderEditModal();
+    _plEditRerender();
     return;
   }
   const c = DATA.find(x => x.id === campaignId);
@@ -2880,7 +3002,7 @@ function _plEditSetCampaign(campaignId) {
   d.media = c.media || null;
   d.product = c.product || null;
   d.scope = 'campaign';
-  _plRenderEditModal();
+  _plEditRerender();
 }
 function _plEditSetProject(value) {
   const d = _plEditDraft;
@@ -2892,7 +3014,7 @@ function _plEditSetProject(value) {
     }
   }
   d.scope = d.campaignId ? 'campaign' : (value ? 'project' : 'advertiser');
-  _plRenderEditModal();
+  _plEditRerender();
 }
 function _plEditTaskInput(val) {
   _plEditDraft.content = val;
@@ -2935,7 +3057,7 @@ function _plEditPick(ri) {
   d.scope = r.type; d.seller = r.seller || null; d.content = r.content || null;
   d.campaignId = r.campaignId || null; d.media = r.media || null; d.product = r.product || null;
   const list = document.getElementById('pl-e-tgt-list'); if (list) list.style.display = 'none';
-  _plRenderEditModal();
+  _plEditRerender();
 }
 function _plEditPickNewInternal() {
   const q = (_plEditDraft.searchQuery || '').trim();
@@ -2943,7 +3065,7 @@ function _plEditPickNewInternal() {
   const d = _plEditDraft;
   d.scope = 'internal'; d.seller = q; d.content = null; d.campaignId = null; d.media = null; d.product = null;
   const list = document.getElementById('pl-e-tgt-list'); if (list) list.style.display = 'none';
-  _plRenderEditModal();
+  _plEditRerender();
 }
 
 function _plEditItemHtml() {
@@ -2987,6 +3109,107 @@ function _plEditSubHtml(di, d) {
     <span class="pl-x" onclick="_plEditRemoveSub(${di})">✕</span>
   </div>`;
 }
+// ── "+ 항목 추가" — 수정 중인 로그와 같은 대상(광고주/프로젝트/캠페인/매체)으로, 별도의 새 로그가 될
+// 항목을 여기서 같이 입력할 수 있게 한다. 기본줄+하위기록만(첨부는 없음) — 저장 시 원본 수정과 별개로
+// 새 로그 문서로 생성된다(plSaveEdit).
+function _plEditExtraItemsHtml() {
+  return (_plEditDraft.extraItems || []).map((it, ei) => _plEditExtraItemHtml(ei, it)).join('');
+}
+function _plEditExtraItemHtml(ei, it) {
+  const typeOpts = PL_LOG_TYPES.map(t => `<option value="${t}" ${it.logType === t ? 'selected' : ''}>${t}</option>`).join('');
+  const ph = PL_SUMMARY_PH[it.logType] || '';
+  const subHtml = (it.detail || []).map((det, di) => _plEditExtraSubHtml(ei, di, det)).join('');
+  return `<div class="pl-item pl-newgroup">
+    <div class="pl-irow">
+      <select class="pl-mini" style="font-weight:700;" onchange="_plEditExtraTypeChange(${ei},this.value)">${typeOpts}</select>
+      <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(ph)}" value="${_escHtml(it.summary || '')}" oninput="_plEditExtraField(${ei},'summary',this.value)">
+      <div class="pl-pct-wrap"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${it.progress ?? ''}" oninput="_plEditExtraField(${ei},'progress',this.value)"><span class="pl-pct-suffix">%</span></div>
+      <span class="pl-x" onclick="_plEditRemoveExtraItem(${ei})">✕</span>
+    </div>
+    ${subHtml}
+    <div class="pl-subadd" onclick="_plEditExtraAddSub(${ei})">ㄴ 추가</div>
+  </div>`;
+}
+function _plEditExtraSubHtml(ei, di, d) {
+  const it = _plEditDraft?.extraItems[ei];
+  const preset = PL_LABEL_PRESET[it?.logType] || { opts: [] };
+  const isCustom = !!d.customMode || (!!d.label && !preset.opts.includes(d.label));
+  let labelControl;
+  if (isCustom) {
+    labelControl = `<div class="combo-wrap" style="position:relative;">
+      <input type="text" class="pl-mini" id="pl-ee-lbl-${ei}-${di}" placeholder="라벨 직접 입력" value="${_escHtml(d.label || '')}"
+        oninput="_plEditExtraSubLabelCustomInput(${ei},${di},this.value)" onfocus="_plEditExtraSubLabelCustomInput(${ei},${di},this.value)">
+      <div class="combo-list" id="pl-ee-lbl-list-${ei}-${di}" style="display:none;"></div>
+    </div>`;
+  } else {
+    const opts = ['라벨 없음', ...preset.opts, '직접 입력…'];
+    const selHtml = opts.map(o => {
+      const val = o === '라벨 없음' ? '' : (o === '직접 입력…' ? '__custom__' : o);
+      const selected = o === '직접 입력…' ? false : val === (d.label || '');
+      return `<option value="${val}" ${selected ? 'selected' : ''}>${o}</option>`;
+    }).join('');
+    labelControl = `<select class="pl-mini" onchange="_plEditExtraSubLabelSelect(${ei},${di},this.value)">${selHtml}</select>`;
+  }
+  return `<div class="pl-sub"><span class="pl-m">ㄴ</span>
+    ${labelControl}
+    <input type="text" class="pl-mini" placeholder="내용을 입력하세요" value="${_escHtml(d.text || '')}" oninput="_plEditExtraSubField(${ei},${di},'text',this.value)">
+    <span class="pl-x" onclick="_plEditExtraRemoveSub(${ei},${di})">✕</span>
+  </div>`;
+}
+function _plEditExtraSubLabelSelect(ei, di, val) {
+  const d = _plEditDraft?.extraItems[ei]?.detail[di]; if (!d) return;
+  if (val === '__custom__') { d.customMode = true; d.label = ''; } else { d.label = val; d.customMode = false; }
+  _plEditRerender();
+}
+function _plEditExtraSubLabelCustomInput(ei, di, val) {
+  const d = _plEditDraft?.extraItems[ei]?.detail[di]; if (!d) return;
+  d.label = val; d.customMode = true;
+  const list = document.getElementById(`pl-ee-lbl-list-${ei}-${di}`);
+  if (!list) return;
+  const q = val.trim().toLowerCase();
+  const existing = _plExistingLabels();
+  const matched = q ? existing.filter(l => l.toLowerCase().includes(q)) : existing;
+  let html = matched.slice(0, 10).map(l => `<div class="combo-item" onmousedown="_plEditExtraSubLabelPick(${ei},${di},'${_escHtml(l)}')">${_escHtml(l)}</div>`).join('');
+  const trimmed = val.trim();
+  if (trimmed && !existing.some(l => l.toLowerCase() === trimmed.toLowerCase())) {
+    html += `<div class="combo-add" onmousedown="_plEditExtraSubLabelPick(${ei},${di},'${_escHtml(trimmed)}')">＋ "${_escHtml(trimmed)}" 새 라벨로 추가</div>`;
+  }
+  if (!html) { list.style.display = 'none'; return; }
+  list.innerHTML = html;
+  list.style.display = 'block';
+}
+function _plEditExtraSubLabelPick(ei, di, val) {
+  const d = _plEditDraft?.extraItems[ei]?.detail[di]; if (!d) return;
+  d.label = val; d.customMode = true;
+  _plEditRerender();
+}
+function _plEditExtraField(ei, field, val) { const it = _plEditDraft?.extraItems[ei]; if (it) it[field] = val; }
+function _plEditExtraSubField(ei, di, field, val) { const d = _plEditDraft?.extraItems[ei]?.detail[di]; if (d) d[field] = val; }
+function _plEditExtraTypeChange(ei, val) {
+  const it = _plEditDraft?.extraItems[ei];
+  if (!it) return;
+  it.logType = val;
+  const preset = PL_LABEL_PRESET[val];
+  if (preset && preset.auto.length && (!it.detail || it.detail.length === 0)) {
+    it.detail = preset.auto.map(label => ({ label, text: '' }));
+  }
+  _plEditRerender();
+}
+function _plEditExtraAddSub(ei) {
+  const it = _plEditDraft?.extraItems[ei];
+  if (!it) return;
+  if (!it.detail) it.detail = [];
+  it.detail.push({ label: '', text: '' });
+  _plEditRerender();
+}
+function _plEditExtraRemoveSub(ei, di) { _plEditDraft.extraItems[ei].detail.splice(di, 1); _plEditRerender(); }
+function _plEditAddExtraItem() {
+  if (!_plEditDraft.extraItems) _plEditDraft.extraItems = [];
+  _plEditDraft.extraItems.push(_plEmptyItem());
+  _plEditRerender();
+}
+function _plEditRemoveExtraItem(ei) { _plEditDraft.extraItems.splice(ei, 1); _plEditRerender(); }
+
 function _plEditField(field, val) { if (_plEditDraft) _plEditDraft[field] = val; }
 function _plEditSubField(di, field, val) { const d = _plEditDraft?.detail[di]; if (d) d[field] = val; }
 function _plEditTypeChange(val) {
@@ -2995,18 +3218,18 @@ function _plEditTypeChange(val) {
   if (preset && preset.auto.length && (!_plEditDraft.detail || _plEditDraft.detail.length === 0)) {
     _plEditDraft.detail = preset.auto.map(label => ({ label, text: '' }));
   }
-  _plRenderEditModal();
+  _plEditRerender();
 }
 function _plEditAddSub() {
   if (!_plEditDraft.detail) _plEditDraft.detail = [];
   _plEditDraft.detail.push({ label: '', text: '' });
-  _plRenderEditModal();
+  _plEditRerender();
 }
-function _plEditRemoveSub(di) { _plEditDraft.detail.splice(di, 1); _plRenderEditModal(); }
+function _plEditRemoveSub(di) { _plEditDraft.detail.splice(di, 1); _plEditRerender(); }
 function _plEditSubLabelSelect(di, val) {
   const d = _plEditDraft.detail[di]; if (!d) return;
   if (val === '__custom__') { d.customMode = true; d.label = ''; } else { d.label = val; d.customMode = false; }
-  _plRenderEditModal();
+  _plEditRerender();
 }
 function _plEditSubLabelCustomInput(di, val) {
   const d = _plEditDraft.detail[di]; if (!d) return;
@@ -3028,12 +3251,12 @@ function _plEditSubLabelCustomInput(di, val) {
 function _plEditSubLabelPick(di, val) {
   const d = _plEditDraft.detail[di]; if (!d) return;
   d.label = val; d.customMode = true;
-  _plRenderEditModal();
+  _plEditRerender();
 }
 
 function _plEditToggleFlag(field) {
   _plEditDraft[field] = !_plEditDraft[field];
-  _plRenderEditModal();
+  _plEditRerender();
 }
 function _plEditMetaHtml() {
   const d = _plEditDraft;
@@ -3094,24 +3317,27 @@ function _plEditAttachHtml() {
       <div class="combo-wrap pl-edit-addbtn" style="width:110px;">
         <input type="text" class="pl-mini" style="font-size:11px;" placeholder="+ 이름 검색"
           oninput="_plEditRelatedInput(this)" onfocus="_plEditRelatedInput(this)"
-          onkeydown="_plComboKeyNav(event,'pl-e-rel-list')"
-          onblur="setTimeout(()=>{const l=document.getElementById('pl-e-rel-list');if(l)l.style.display='none';},150)">
-        <div class="combo-list" id="pl-e-rel-list" style="display:none;"></div>
+          onkeydown="_plComboKeyNav(event,'${_plEditRelListId()}')"
+          onblur="setTimeout(()=>{const l=document.getElementById('${_plEditRelListId()}');if(l)l.style.display='none';},150)">
+        <div class="combo-list" id="${_plEditRelListId()}" style="display:none;"></div>
       </div>
     </div>
   </div>`;
 }
-function _plEditAddLink() { if (!_plEditDraft.links) _plEditDraft.links = []; _plEditDraft.links.push({ label: '', url: '' }); _plRenderEditModal(); }
-function _plEditRemoveLink(li) { _plEditDraft.links.splice(li, 1); _plRenderEditModal(); }
+function _plEditAddLink() { if (!_plEditDraft.links) _plEditDraft.links = []; _plEditDraft.links.push({ label: '', url: '' }); _plEditRerender(); }
+function _plEditRemoveLink(li) { _plEditDraft.links.splice(li, 1); _plEditRerender(); }
 function _plEditLinkField(li, val) { const l = _plEditDraft.links[li]; if (!l) return; l.label = val; l.url = val; }
+// 일자별 뷰 인라인 수정 중에는 모달 안의 관련자 검색창(#pl-e-rel-list)이 DOM에 그대로(숨김) 남아있어서,
+// 같은 id를 또 쓰면 document.getElementById가 모달 쪽 걸 잡아버린다 — 인라인일 땐 다른 id를 쓴다.
+function _plEditRelListId() { return _plEditDraft?.__inline ? 'pl-di-rel-list' : 'pl-e-rel-list'; }
 function _plEditRelatedInput(inputEl) {
-  const list = document.getElementById('pl-e-rel-list');
+  const list = document.getElementById(_plEditRelListId());
   const d = _plEditDraft;
   if (!list || !d) return;
   const already = new Set((d.related || []).map(r => r.id));
   const q = (inputEl.value || '').trim().toLowerCase();
   const matched = USERS.filter(u => u.name && !already.has(u.id) && (!q || u.name.toLowerCase().includes(q))).sort(_plCompareUsersOrg);
-  _plComboNavIndex['pl-e-rel-list'] = -1;
+  _plComboNavIndex[_plEditRelListId()] = -1;
   if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
   list.innerHTML = matched.map(u => `<div class="combo-item" onmousedown="_plEditAddRelated('${u.id}')">${_escHtml(u.name)}</div>`).join('');
   list.style.display = 'block';
@@ -3122,9 +3348,9 @@ function _plEditAddRelated(userId) {
   if (!u) return;
   if (!_plEditDraft.related) _plEditDraft.related = [];
   if (!_plEditDraft.related.some(r => r.id === u.id)) _plEditDraft.related.push({ id: u.id, name: u.name });
-  _plRenderEditModal();
+  _plEditRerender();
 }
-function _plEditRemoveRelated(ri) { _plEditDraft.related.splice(ri, 1); _plRenderEditModal(); }
+function _plEditRemoveRelated(ri) { _plEditDraft.related.splice(ri, 1); _plEditRerender(); }
 function _plEditAddImage(dataUrl) {
   const d = _plEditDraft;
   if (!d) return;
@@ -3139,7 +3365,7 @@ function _plEditAddImage(dataUrl) {
     const compressed = canvas.toDataURL('image/jpeg', 0.82);
     if (!d.images) d.images = [];
     d.images.push(compressed);
-    _plRenderEditModal();
+    _plEditRerender();
   };
   tmpImg.src = dataUrl;
 }
@@ -3155,10 +3381,16 @@ function _plEditImgFileSelect(input) {
 }
 function _plEditImgRemove(idx) {
   _plEditDraft.images.splice(idx, 1);
-  _plRenderEditModal();
+  _plEditRerender();
 }
 function _plEditOpenLightbox(idx) {
   openLightbox(idx, _plEditDraft.images);
+}
+// 필드 조작(토글/추가/삭제 등) 후 다시 그릴 때 이걸 거쳐야, 일자별 뷰 인라인 수정 중이면 모달이 아니라
+// 그 자리(카드)를 다시 그린다 — _plEditDraft.__inline이 인라인 수정 여부의 유일한 판단 기준.
+function _plEditRerender() {
+  if (_plEditDraft?.__inline) _plRenderDateBody();
+  else _plRenderEditModal();
 }
 
 function _plRenderEditModal() {
@@ -3190,6 +3422,7 @@ function _plRenderEditModal() {
       </div>
       <div class="pl-bbody">
         ${_plEditItemHtml()}
+        ${!d.newFor ? `${_plEditExtraItemsHtml()}<div class="pl-add" onclick="_plEditAddExtraItem()">＋ 항목 추가 <span class="form-hint" style="font-weight:400;">— 같은 대상으로 새 로그 별도 생성</span></div>` : ''}
         ${_plEditMetaHtml()}
       </div>
     </div>`;
@@ -3231,8 +3464,10 @@ function _plRenderEditModal() {
 
 async function plDeleteLogFromEdit() {
   if (!_plEditDraft) return;
+  const wasInline = !!_plEditDraft.__inline;
   await plDeleteLog(_plEditDraft.id);
-  closeModal('pl-modal-edit');
+  if (wasInline) { _plInlineEditId = null; _plRenderDateBody(); }
+  else closeModal('pl-modal-edit');
 }
 
 // ── 변경 이력 diff ──
@@ -3311,11 +3546,19 @@ async function plSaveEdit() {
     const p = Number(d.progress);
     if (isNaN(p) || p < 0 || p > 100) { alert('진척률은 0~100 사이여야 합니다.'); return; }
   }
+  // "+ 항목 추가"로 만든 것 중 내용이 있는 것만 검증(빈 건 저장 시 조용히 건너뜀 — 일지 작성과 동일한 규칙)
+  const validExtras = (d.extraItems || []).filter(it => (it.summary || '').trim());
+  for (const it of validExtras) {
+    if ((it.summary || '').length > 60) { alert('추가 항목의 내용은 60자 이하로 입력해주세요.'); return; }
+    if (it.progress === '' || it.progress == null) { alert('추가 항목의 진척률을 입력해주세요.'); return; }
+    const p2 = Number(it.progress);
+    if (isNaN(p2) || p2 < 0 || p2 > 100) { alert('추가 항목의 진척률은 0~100 사이여야 합니다.'); return; }
+  }
 
   const orig = PL_LOGS.find(l => l.id === d.id);
   if (!orig) { toast('원본을 찾을 수 없습니다', 'err'); return; }
 
-  const saveBtn = document.querySelector('#pl-modal-edit .btn-primary');
+  const saveBtn = document.querySelector(d.__inline ? '#pl-di-savebtn' : '#pl-modal-edit .btn-primary');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중…'; }
 
   try {
@@ -3360,8 +3603,38 @@ async function plSaveEdit() {
         _fbSaveNotification(r.id, 'pl_related', `${currentUser?.name || ''}님이 "${relSubject}" 일지에 회원님을 관련자로 등록했습니다.`, { logId: d.id });
       });
     }
-    closeModal('pl-modal-edit');
-    toast('✓ 수정되었습니다', 'ok');
+    // "+ 항목 추가"로 만든 것들 — 수정한 로그와 같은 대상(scope/seller/content/campaignId/media/product)으로
+    // 별도의 새 로그 문서를 만든다(일지 작성 저장과 동일한 방식).
+    if (validExtras.length) {
+      const nextId = _plNextLogIdSeq();
+      const nowBase = Date.now();
+      let _seq = 0;
+      const nextNow = () => new Date(nowBase + (_seq++)).toISOString();
+      for (const it of validExtras) {
+        const exDetail = (it.detail || []).filter(x => (x.text || '').trim()).map(x => ({ label: x.label || '', text: x.text.trim() }));
+        const exProgress = Math.max(0, Math.min(100, parseInt(it.progress, 10) || 0));
+        const now = nextNow();
+        const newDoc = {
+          id: nextId(),
+          logDate: orig.logDate, writer: currentUser?.name || '', writerId: currentUser?.id || '',
+          bonbu: currentUser?.bonbu || '', dept: currentUser?.dept || '',
+          scope: updated.scope, seller: updated.seller || null, content: updated.content || null,
+          campaignId: updated.campaignId || null, media: updated.media || null, product: updated.product || null,
+          logType: it.logType || '운영',
+          state: ['이슈', '요청'].includes(it.logType) ? '진행중' : null,
+          summary: it.summary.trim().slice(0, 60), detail: exDetail, progress: exProgress,
+          important: false, shared: false,
+          hasImages: false, imageCount: 0, links: [], related: [],
+          threadId: null, createdAt: now, updatedAt: now,
+        };
+        newDoc.searchText = _plBuildSearchText(newDoc);
+        await _plDb('projectLogs').doc(newDoc.id).set(newDoc);
+        await _plLogHistoryCreate(newDoc.id);
+      }
+    }
+    if (d.__inline) { _plInlineEditId = null; _plRenderDateBody(); }
+    else closeModal('pl-modal-edit');
+    toast(validExtras.length ? `✓ 수정 + 새 항목 ${validExtras.length}건 저장되었습니다` : '✓ 수정되었습니다', 'ok');
   } catch (e) {
     console.error('[projectlog] 수정 저장 실패', e);
     toast('저장 중 오류가 발생했습니다', 'err');
@@ -4591,7 +4864,7 @@ function _plDateBlockLabel(b) {
 // 링크·댓글·수정 버튼이 다 들어있다. 링크/댓글 아이콘은 "몇 개 있는지" 힌트만 주고(탭 테이블 행과 동일하게
 // 클릭 불가), 이미지만 라이트박스로 바로 열리는 지름길을 유지한다(탭 테이블 행의 📁과 동일한 예외).
 function _plDateItemHtml(l, hideMediaTag) {
-  const isOpen = _plExpanded.has(l.id);
+  const isOpen = _plExpanded.has(l.id) || _plInlineEditId === l.id;
   const arrow = isOpen ? '▾' : '▸';
   const starHtml = l.important ? '<span class="pl-star" style="vertical-align:middle;">★</span> ' : '';
   const progText = l.progress != null ? ` <span class="form-hint" style="vertical-align:middle;">(${l.progress}%)</span>` : '';
@@ -4614,7 +4887,7 @@ function _plDateItemHtml(l, hideMediaTag) {
         ${subHtml}
       </div>
     </div>
-    ${isOpen ? `<div style="padding-left:16px;">${_plDetailBoxHtml(l, '', true)}</div>` : ''}
+    ${isOpen ? `<div style="padding-left:16px;">${_plInlineEditId === l.id ? _plDateInlineEditHtml() : _plDetailBoxHtml(l, '', true)}</div>` : ''}
   </div>`;
 }
 let _plDateOrgFilter = '';
