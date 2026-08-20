@@ -1613,18 +1613,22 @@ function _plRefCampBadgeHtml(log) {
   }).join(', ');
   return ` <span class="tag pl-ref" style="cursor:default;" data-tooltip="참조 캠페인: ${_escHtml(tip)}">🔗${ids.length}</span>`;
 }
-// 참조 캠페인들의 매체로 매체 칸을 판단해서 채운다(직접 입력한 매체가 없을 때만 호출됨) — 전부
-// 같은 매체면 그 이름 하나로, 서로 다르면 하나로 대표할 수 없으니 매체명을 다 나열해서 보여준다.
-// "🔗N" 참조 개수 배지는 캠페인 칸(campCell)에 따로 있으므로 여기서는 매체 이름 자체에 집중한다.
-function _plRefCampMediaCellHtml(log) {
+// 참조 캠페인들의 매체로 "매체" 표기를 판단한다(직접 입력한 매체가 없을 때만 호출됨) — 전부 같은
+// 매체면 그 이름 하나로, 서로 다르면 하나로 대표할 수 없으니 매체명을 다 나열해서 보여준다. 일지 view
+// 표의 매체 칸(_plRefCampMediaCellHtml)과 일자별 뷰의 매체 태그(_plDateItemHtml)가 이 판단을 공유한다.
+function _plResolveRefMedia(log) {
   const ids = log.refCampaignIds || [];
-  if (!ids.length) return '<span class="td-dim">—</span>';
+  if (!ids.length) return null;
   const medias = [...new Set(ids.map(id => DATA.find(c => c.id === id)?.media).filter(Boolean))];
-  if (!medias.length) return '<span class="td-dim">—</span>';
-  if (medias.length === 1) {
-    return `<span class="tag pl-media" data-tooltip="참조 캠페인 ${ids.length}건에서 판단">${_escHtml(medias[0])}</span>`;
-  }
-  return `<span class="tag pl-media" data-tooltip="참조 캠페인마다 매체가 달라 전부 표시">${_escHtml(medias.join('·'))}</span>`;
+  if (!medias.length) return null;
+  return {
+    name: medias.join('·'),
+    tooltip: medias.length === 1 ? `참조 캠페인 ${ids.length}건에서 판단` : '참조 캠페인마다 매체가 달라 전부 표시',
+  };
+}
+function _plRefCampMediaCellHtml(log) {
+  const r = _plResolveRefMedia(log);
+  return r ? `<span class="tag pl-media" data-tooltip="${_escHtml(r.tooltip)}">${_escHtml(r.name)}</span>` : '<span class="td-dim">—</span>';
 }
 
 function _plRenderLogRow(log, q, ctx) {
@@ -5079,7 +5083,17 @@ function _plDateItemHtml(l, hideMediaTag) {
   const progText = l.progress != null ? ` <span class="form-hint" style="vertical-align:middle;">(${l.progress}%)</span>` : '';
   // 매체는 항목(item) 단위로 선택되는 값이지만, 카드 안에서 이미 매체별 소그룹 헤더로 보여주고 있으면
   // (hideMediaTag) 항목마다 또 반복해서 보여줄 필요가 없어 생략한다. scope='media'는 카드 제목이 매체명 자체라 생략.
-  const mediaHtml = (l.media && l.scope !== 'media' && !hideMediaTag) ? `<span class="tag pl-media" style="margin-right:4px;vertical-align:middle;">${_escHtml(l.media)}</span>` : '';
+  // 직접 입력한 매체가 없으면 참조 캠페인들의 매체로 판단해서 채운다 — 일지 view 표(_plRefCampMediaCellHtml)와
+  // 동일한 판단 로직(_plResolveRefMedia)을 공유.
+  let mediaHtml = '';
+  if (l.scope !== 'media' && !hideMediaTag) {
+    if (l.media) {
+      mediaHtml = `<span class="tag pl-media" style="margin-right:4px;vertical-align:middle;">${_escHtml(l.media)}</span>`;
+    } else {
+      const r = _plResolveRefMedia(l);
+      if (r) mediaHtml = `<span class="tag pl-media" style="margin-right:4px;vertical-align:middle;" data-tooltip="${_escHtml(r.tooltip)}">${_escHtml(r.name)}</span>`;
+    }
+  }
   const subHtml = (l.detail || []).filter(d => (d.text || '').trim()).map(d =>
     `<div style="padding-left:20px;font-size:12px;color:var(--text2);">ㄴ ${d.label ? `<b>${_escHtml(d.label)}</b> ` : ''}${_escHtml(d.text)}</div>`
   ).join('');
