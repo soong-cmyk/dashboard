@@ -1251,10 +1251,11 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
   const imgNote = log.hasImages ? `<span id="pl-detimgcnt-${log.id}" class="pl-thumb" style="cursor:zoom-in;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '';
   const relatedHtml = (log.related || []).map(r => `<span class="tag">👤 ${_escHtml(r.name)}</span>`).join(' ');
+  // hover 없이도 어떤 캠페인인지 바로 알 수 있게 "c-2026-0000(매체명 상품명)" 형태로 풀어서 표기.
   const refCampHtml = (log.refCampaignIds || []).map(cid => {
     const c = DATA.find(x => x.id === cid);
-    const tip = c ? `${[c.media, c.product].filter(Boolean).join(' ')} — 클릭하여 열기` : '클릭하여 열기';
-    return `<span class="tag pl-ref" style="cursor:pointer;" onclick="event.stopPropagation();openCalPreview(DATA.findIndex(d=>d.id==='${_escHtml(cid)}'))" data-tooltip="${_escHtml(tip)}">🔗 ${_escHtml(cid)}</span>`;
+    const sub = c ? `(${[c.media, c.product].filter(Boolean).join(' ')})` : '';
+    return `<span class="tag pl-ref" style="cursor:pointer;" onclick="event.stopPropagation();openCalPreview(DATA.findIndex(d=>d.id==='${_escHtml(cid)}'))">🔗 ${_escHtml(cid)}${_escHtml(sub)}</span>`;
   }).join(' ');
   const hasAttach = links || imgNote || relatedHtml || refCampHtml;
   const color = (PL_TYPE_COLOR[log.logType] || {}).fg || 'var(--border)';
@@ -1612,16 +1613,18 @@ function _plRefCampBadgeHtml(log) {
   }).join(', ');
   return ` <span class="tag pl-ref" style="cursor:default;" data-tooltip="참조 캠페인: ${_escHtml(tip)}">🔗${ids.length}</span>`;
 }
-// 참조 캠페인들의 매체가 전부 같으면 그 매체명을 매체 칸에 그대로 보여주고(직접 입력한 것처럼),
-// 매체가 서로 다르면 하나로 대표할 수 없으니 🔗N 배지로 대신한다 — 매체 칸의 "판단"은 여기서 전담.
+// 참조 캠페인들의 매체로 매체 칸을 판단해서 채운다(직접 입력한 매체가 없을 때만 호출됨) — 전부
+// 같은 매체면 그 이름 하나로, 서로 다르면 하나로 대표할 수 없으니 매체명을 다 나열해서 보여준다.
+// "🔗N" 참조 개수 배지는 캠페인 칸(campCell)에 따로 있으므로 여기서는 매체 이름 자체에 집중한다.
 function _plRefCampMediaCellHtml(log) {
   const ids = log.refCampaignIds || [];
   if (!ids.length) return '<span class="td-dim">—</span>';
   const medias = [...new Set(ids.map(id => DATA.find(c => c.id === id)?.media).filter(Boolean))];
+  if (!medias.length) return '<span class="td-dim">—</span>';
   if (medias.length === 1) {
     return `<span class="tag pl-media" data-tooltip="참조 캠페인 ${ids.length}건에서 판단">${_escHtml(medias[0])}</span>`;
   }
-  return _plRefCampBadgeHtml(log).trim() || '<span class="td-dim">—</span>';
+  return `<span class="tag pl-media" data-tooltip="참조 캠페인마다 매체가 달라 전부 표시">${_escHtml(medias.join('·'))}</span>`;
 }
 
 function _plRenderLogRow(log, q, ctx) {
@@ -1647,12 +1650,11 @@ function _plRenderLogRow(log, q, ctx) {
     if (log.scope === 'campaign' && log.campaignId) {
       campCell = `<span class="pl-click f-mono td-num" onclick="event.stopPropagation();openCalPreview(DATA.findIndex(d=>d.id==='${_escHtml(log.campaignId)}'))">${_escHtml(log.campaignId)}</span>`;
     } else if (log.scope === 'project') {
-      campCell = '<span class="td-dim">프로젝트 전반</span>';
+      campCell = `<span class="td-dim">프로젝트 전반</span>${_plRefCampBadgeHtml(log)}`;
     } else {
-      campCell = '<span class="td-dim">광고주 전반</span>';
+      campCell = `<span class="td-dim">광고주 전반</span>${_plRefCampBadgeHtml(log)}`;
     }
-    // 직접 입력한 매체가 없으면 참조 캠페인들의 매체로 판단해서 채운다(_plRefCampMediaCellHtml) —
-    // "🔗N" 참조 배지는 캠페인 칸이 아니라 여기(매체 칸)에서 보여준다.
+    // 직접 입력한 매체가 없으면 참조 캠페인들의 매체로 판단해서 채운다(_plRefCampMediaCellHtml).
     mediaCell = log.media ? `<span class="tag pl-media">${_escHtml(log.media)}</span>` : _plRefCampMediaCellHtml(log);
   }
 
@@ -5066,7 +5068,12 @@ function _plDateBlockLabel(b) {
 // 링크·댓글·수정 버튼이 다 들어있다. 링크/댓글 아이콘은 "몇 개 있는지" 힌트만 주고(탭 테이블 행과 동일하게
 // 클릭 불가), 이미지만 라이트박스로 바로 열리는 지름길을 유지한다(탭 테이블 행의 📁과 동일한 예외).
 function _plDateItemHtml(l, hideMediaTag) {
-  const isOpen = _plExpanded.has(l.id) || _plInlineEditId === l.id;
+  // 인라인 수정 중인 항목은 원본 요약 줄(더미)을 아예 그리지 않는다 — 수정 폼 자체에 이미 같은
+  // 내용이 입력값으로 남아있어서, 위에 원본을 또 보여주면 같은 정보가 두 번 겹쳐 보이기만 함.
+  if (_plInlineEditId === l.id) {
+    return `<div style="padding:4px 0;">${_plDateInlineEditHtml()}</div>`;
+  }
+  const isOpen = _plExpanded.has(l.id);
   const arrow = isOpen ? '▾' : '▸';
   const starHtml = l.important ? '<span class="pl-star" style="vertical-align:middle;">★</span> ' : '';
   const progText = l.progress != null ? ` <span class="form-hint" style="vertical-align:middle;">(${l.progress}%)</span>` : '';
@@ -5089,7 +5096,7 @@ function _plDateItemHtml(l, hideMediaTag) {
         ${subHtml}
       </div>
     </div>
-    ${isOpen ? `<div style="padding-left:16px;">${_plInlineEditId === l.id ? _plDateInlineEditHtml() : _plDetailBoxHtml(l, '', true)}</div>` : ''}
+    ${isOpen ? `<div style="padding-left:16px;">${_plDetailBoxHtml(l, '', true)}</div>` : ''}
   </div>`;
 }
 let _plDateOrgFilter = '';
