@@ -351,7 +351,8 @@ function plInit() {
   // 보이도록 초기화한다.
   _plDateTabDate = _plTodayStr();
   _plDateOrgFilter = '';
-  _plDateWriterFilter = '';
+  _plDateWriterFilters = [];
+  _plLogWriterFilters = [];
   _plRenderShell();
 }
 
@@ -1044,6 +1045,46 @@ function _plComboSetup(inputId, listId, sourceFn, onChange) {
   input.addEventListener('blur', () => setTimeout(() => { list.style.display = 'none'; }, 150));
 }
 
+// 일지 탭 작성자 필터 — "나의 일지 > 작성자 모아보기"와 같은 다중 선택 방식이지만, 저건 개인
+// 대시보드라 localStorage로 다음에 또 볼 걸 기억해두는 반면, 이건 그때그때 훑어보는 일반 목록
+// 필터라 새로고침(또는 메뉴 재진입)하면 리셋되도록 의도적으로 메모리에만 둔다(localStorage 안 씀).
+let _plLogWriterFilters = [];
+function _plLogRenderWriterChips() {
+  const el = document.getElementById('pl-f-writer-chips');
+  if (!el) return;
+  el.innerHTML = _plLogWriterFilters.map(name =>
+    `<span class="tag">${_escHtml(name)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plLogWriterRemove('${_escHtml(name)}')">✕</span></span>`
+  ).join('');
+}
+function _plLogWriterSearchInput(inputEl) {
+  const list = document.getElementById('pl-f-writer-list');
+  if (!list) return;
+  const already = new Set(_plLogWriterFilters);
+  const q = (inputEl.value || '').trim().toLowerCase();
+  const matched = _plWriterNames().filter(n => !already.has(n) && (!q || n.toLowerCase().includes(q)));
+  _plComboNavIndex['pl-f-writer-list'] = -1;
+  if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  list.innerHTML = matched.map(n => `<div class="combo-item" onmousedown="_plLogWriterPick('${_escHtml(n)}')">${_escHtml(n)}</div>`).join('');
+  list.style.display = 'block';
+  _plFloatCombo(inputEl, list);
+}
+function _plLogWriterPick(name) {
+  if (!_plLogWriterFilters.includes(name)) _plLogWriterFilters.push(name);
+  const input = document.getElementById('pl-f-writer');
+  if (input) input.value = '';
+  const list = document.getElementById('pl-f-writer-list');
+  if (list) list.style.display = 'none';
+  _plLogRenderWriterChips();
+  _plPage = 1;
+  _plRenderRows();
+}
+function _plLogWriterRemove(name) {
+  _plLogWriterFilters = _plLogWriterFilters.filter(n => n !== name);
+  _plLogRenderWriterChips();
+  _plPage = 1;
+  _plRenderRows();
+}
+
 function _plGetFiltered() {
   const q      = document.getElementById('pl-search')?.value || '';
   const dFrom  = document.getElementById('pl-date-from')?.value || '';
@@ -1054,7 +1095,6 @@ function _plGetFiltered() {
   const type   = document.getElementById('pl-f-type')?.value  || '';
   const scope  = document.getElementById('pl-f-scope')?.value || '';
   const org    = document.getElementById('pl-f-org')?.value   || '';
-  const writer = document.getElementById('pl-f-writer')?.value.trim()  || '';
   const impOnly  = document.getElementById('pl-f-important')?.classList.contains('pl-toggle-on');
   const openOnly = document.getElementById('pl-f-open')?.classList.contains('pl-toggle-on');
   const { bonbu, team } = _parseOrgFilter(org);
@@ -1068,7 +1108,7 @@ function _plGetFiltered() {
     if (media   && log.media   !== media)   return false;
     if (type    && log.logType !== type)    return false;
     if (scope   && log.scope   !== scope)   return false;
-    if (writer  && log.writer  !== writer)  return false;
+    if (_plLogWriterFilters.length && !_plLogWriterFilters.includes(log.writer)) return false;
     if (impOnly  && !log.important) return false;
     if (openOnly && log.state !== '진행중') return false;
     if (bonbu || team) {
@@ -1130,6 +1170,8 @@ function plResetLogFilter() {
   const orgEl  = document.getElementById('pl-f-org');  if (orgEl)  orgEl.value  = '';
   document.getElementById('pl-f-important')?.classList.remove('pl-toggle-on');
   document.getElementById('pl-f-open')?.classList.remove('pl-toggle-on');
+  _plLogWriterFilters = [];
+  _plLogRenderWriterChips();
   _plPage = 1;
   _plRenderRows();
 }
@@ -1773,8 +1815,12 @@ function _plBuildLogTabSkeleton(container) {
         <option value="internal">내부업무</option>
       </select>
       <select class="f-sel" id="pl-f-org" onchange="_plPage=1;_plRenderRows();"><option value="">본부/팀 전체</option></select>
-      <div class="combo-wrap" style="width:100px;">
-        <input type="text" class="f-search" id="pl-f-writer" placeholder="🔍 작성자" style="width:100px;">
+      <div class="combo-wrap" id="pl-f-writer-wrap" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+        <div id="pl-f-writer-chips" style="display:inline-flex;gap:3px;flex-wrap:wrap;"></div>
+        <input type="text" class="f-search" id="pl-f-writer" placeholder="🔍 작성자 추가" style="width:100px;"
+          oninput="_plLogWriterSearchInput(this)" onfocus="_plLogWriterSearchInput(this)"
+          onkeydown="_plComboKeyNav(event,'pl-f-writer-list')"
+          onblur="setTimeout(()=>{const l=document.getElementById('pl-f-writer-list');if(l)l.style.display='none';},150)">
         <div class="combo-list" id="pl-f-writer-list" style="display:none;"></div>
       </div>
       <span class="f-reset" onclick="plResetLogFilter()">초기화</span>
@@ -1811,7 +1857,10 @@ function _plBuildLogTabSkeleton(container) {
   _plComboSetup('pl-f-seller',  'pl-f-seller-list',  _plSellerNamesRecent,  _plLogFilterChange);
   _plComboSetup('pl-f-project', 'pl-f-project-list', _plProjectNamesRecent, _plLogFilterChange);
   _plComboSetup('pl-f-media',   'pl-f-media-list',   _plMediaNamesRecent,   _plLogFilterChange);
-  _plComboSetup('pl-f-writer',  'pl-f-writer-list',  _plWriterNames,  _plLogFilterChange);
+  // 작성자는 다중 선택(칩)이라 값 하나만 다루는 _plComboSetup 대신 전용 핸들러(_plLogWriter*)를 씀.
+  // 새로고침·메뉴 재진입 시 리셋되도록 의도적으로 이 배열을 여기서 비우지 않는다(모듈 전역 상태 그대로 유지)
+  // — 탭을 넘나들며 스켈레톤이 다시 그려질 때마다 초기화되면 안 되고, 페이지 자체가 새로 열릴 때만 리셋되면 됨.
+  _plLogRenderWriterChips();
 
   const typeSel = document.getElementById('pl-f-type');
   if (typeSel) typeSel.innerHTML = '<option value="">유형 전체</option>' + PL_LOG_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
@@ -5114,11 +5163,13 @@ function _plDateItemHtml(l, hideMediaTag) {
   </div>`;
 }
 let _plDateOrgFilter = '';
-let _plDateWriterFilter = '';
+// 일지 탭과 동일한 다중 선택(칩) 작성자 필터 — localStorage에 남기지 않아 새로고침·메뉴 재진입 시
+// 리셋된다(plInit에서도 매번 비움, 아래 참고).
+let _plDateWriterFilters = [];
 
 function _plDateFilteredLogs(dateStr) {
   let logs = PL_LOGS.filter(l => l.logDate === dateStr);
-  if (_plDateWriterFilter) logs = logs.filter(l => l.writer === _plDateWriterFilter);
+  if (_plDateWriterFilters.length) logs = logs.filter(l => _plDateWriterFilters.includes(l.writer));
   const { bonbu, team } = _parseOrgFilter(_plDateOrgFilter);
   if (bonbu || team) {
     logs = logs.filter(l => {
@@ -5130,13 +5181,45 @@ function _plDateFilteredLogs(dateStr) {
   }
   return logs;
 }
+function _plDateRenderWriterChips() {
+  const el = document.getElementById('pl-date-writer-chips');
+  if (!el) return;
+  el.innerHTML = _plDateWriterFilters.map(name =>
+    `<span class="tag">${_escHtml(name)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plDateWriterRemove('${_escHtml(name)}')">✕</span></span>`
+  ).join('');
+}
+function _plDateWriterSearchInput(inputEl) {
+  const list = document.getElementById('pl-date-writer-list');
+  if (!list) return;
+  const already = new Set(_plDateWriterFilters);
+  const q = (inputEl.value || '').trim().toLowerCase();
+  const matched = _plWriterNames().filter(n => !already.has(n) && (!q || n.toLowerCase().includes(q)));
+  _plComboNavIndex['pl-date-writer-list'] = -1;
+  if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  list.innerHTML = matched.map(n => `<div class="combo-item" onmousedown="_plDateWriterPick('${_escHtml(n)}')">${_escHtml(n)}</div>`).join('');
+  list.style.display = 'block';
+  _plFloatCombo(inputEl, list);
+}
+function _plDateWriterPick(name) {
+  if (!_plDateWriterFilters.includes(name)) _plDateWriterFilters.push(name);
+  const input = document.getElementById('pl-date-writer');
+  if (input) input.value = '';
+  const list = document.getElementById('pl-date-writer-list');
+  if (list) list.style.display = 'none';
+  _plDateRenderWriterChips();
+  _plRenderDateBody();
+}
+function _plDateWriterRemove(name) {
+  _plDateWriterFilters = _plDateWriterFilters.filter(n => n !== name);
+  _plDateRenderWriterChips();
+  _plRenderDateBody();
+}
 function _plDateResetFilter() {
   _plDateOrgFilter = '';
-  _plDateWriterFilter = '';
+  _plDateWriterFilters = [];
   const orgEl = document.getElementById('pl-date-org');
   if (orgEl) orgEl.value = '';
-  const writerEl = document.getElementById('pl-date-writer');
-  if (writerEl) writerEl.value = '';
+  _plDateRenderWriterChips();
   _plRenderDateBody();
 }
 function _plDateOrgChange(v) {
@@ -5195,8 +5278,12 @@ function _plBuildDateTabSkeleton(content) {
       <select class="f-sel" id="pl-date-org" onchange="_plDateOrgChange(this.value)">
         <option value="">본부/팀 전체</option>${_buildOrgSelectHTML()}
       </select>
-      <div class="combo-wrap" style="width:110px;">
-        <input type="text" class="f-search" id="pl-date-writer" placeholder="🔍 작성자" style="width:110px;" value="${_escHtml(_plDateWriterFilter)}">
+      <div class="combo-wrap" id="pl-date-writer-wrap" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+        <div id="pl-date-writer-chips" style="display:inline-flex;gap:3px;flex-wrap:wrap;"></div>
+        <input type="text" class="f-search" id="pl-date-writer" placeholder="🔍 작성자 추가" style="width:110px;"
+          oninput="_plDateWriterSearchInput(this)" onfocus="_plDateWriterSearchInput(this)"
+          onkeydown="_plComboKeyNav(event,'pl-date-writer-list')"
+          onblur="setTimeout(()=>{const l=document.getElementById('pl-date-writer-list');if(l)l.style.display='none';},150)">
         <div class="combo-list" id="pl-date-writer-list" style="display:none;"></div>
       </div>
       <span class="f-reset" onclick="_plDateResetFilter()">초기화</span>
@@ -5206,10 +5293,7 @@ function _plBuildDateTabSkeleton(content) {
   `;
   const orgEl = document.getElementById('pl-date-org');
   if (orgEl) orgEl.value = _plDateOrgFilter;
-  _plComboSetup('pl-date-writer', 'pl-date-writer-list', _plWriterNames, () => {
-    _plDateWriterFilter = document.getElementById('pl-date-writer')?.value || '';
-    _plRenderDateBody();
-  });
+  _plDateRenderWriterChips();
 }
 function _plRenderDateBody() {
   const bodyEl = document.getElementById('pl-date-body');
