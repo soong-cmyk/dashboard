@@ -4351,6 +4351,13 @@ function openCalPreview(idx) {
   document.getElementById('cp-ops').textContent      = c.ops || '—';
   document.getElementById('cp-status').innerHTML     = `<span class="badge b-${c.status}">${c.status}</span>`;
   document.getElementById('cp-id').textContent       = c.id || '—';
+  const cpTargetEl = document.getElementById('cp-target');
+  if (cpTargetEl) {
+    // target은 자유텍스트 여러 줄이라 이 요약 모달에는 첫 줄만 보여주고, 뒤에 더 있으면 상세보기로
+    // 유도하는 말줄임표만 붙인다(전체 내용은 상세보기 화면에서 확인).
+    const targetLines = (c.target || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    cpTargetEl.textContent = targetLines.length ? (targetLines[0] + (targetLines.length > 1 ? ' …' : '')) : '—';
+  }
   document.getElementById('cp-detail-btn').onclick   = () => { closeModal('modalCalPreview'); openDetail(idx); };
   openModal('modalCalPreview');
 }
