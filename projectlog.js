@@ -917,14 +917,6 @@ ${badgeCss}
 .pl-item:last-of-type{border-bottom:none;}
 .pl-irow{display:grid;grid-template-columns:82px 1fr 72px 24px;gap:8px;align-items:center;}
 .pl-media-row{margin-bottom:6px;}
-/* 매체·캠페인 검색줄 + 참조 캠페인 검색줄 — 기능은 분리돼있지만(직접 매체/캠페인 지정 vs 참조 태그
-   여러 개), 사용자가 한 항목 위에 검색창이 두 벌 있는 걸로 느끼지 않도록 테두리 하나로 시각 통합한다. */
-.pl-tgtbox{border:1.5px solid var(--border2);border-radius:var(--radius-sm);background:#fff;margin-bottom:6px;overflow:hidden;}
-.pl-tgtbox-row{padding:4px 8px;}
-.pl-tgtbox-row + .pl-tgtbox-row{border-top:1px dashed var(--border);}
-.pl-tgtbox .pl-mini{border:none;background:transparent;padding:3px 0;}
-.pl-tgtbox .combo-wrap{width:100%!important;}
-.pl-tgtbox .pl-reftags{border:none;background:transparent;padding:0;}
 .pl-sub{display:grid;grid-template-columns:22px 108px 1fr 24px;gap:6px;align-items:center;margin-top:6px;}
 .pl-m{text-align:center;color:var(--text3);font-size:12px;}
 .pl-l{color:var(--text2);font-weight:700;white-space:nowrap;}
@@ -2302,7 +2294,7 @@ function _plItemMediaField(block, bi, ii, it) {
   if (it.campaignId) {
     return `<span class="tag f-mono" style="font-size:10.5px;">${_escHtml(it.campaignId)}</span><span class="form-hint" style="font-size:11px;margin-left:4px;" title="캠페인에서 자동">${_escHtml(it.media || '')}</span><span class="pl-x" style="margin-left:4px;" onclick="_plItemUnlinkCampaign(${bi},${ii})" title="캠페인 연결 해제">✕</span>`;
   }
-  return `<div class="combo-wrap" style="position:relative;">
+  return `<div class="combo-wrap" style="position:relative;width:190px;">
     <input type="text" class="pl-mini" id="pl-med-${bi}-${ii}" placeholder="🔍 매체 또는 캠페인 검색" autocomplete="off" value="${_escHtml(it.media || '')}"
       oninput="_plItemMediaSearchInput(${bi},${ii},this)" onfocus="_plItemMediaSearchInput(${bi},${ii},this)"
       onkeydown="_plComboKeyNav(event,'pl-med-list-${bi}-${ii}')"
@@ -2325,16 +2317,9 @@ function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
   // 새 그룹이 시작되는 항목(showMediaRow)은 "+ 항목 추가"로 이어붙인 항목과 구분되게 위쪽 경계를 다르게
   // 준다 — 첫 항목(ii===0)은 바로 위가 블록 헤더라 이미 경계가 있으니 제외.
   const isNewGroup = showMediaRow && ii > 0;
-  // 매체·캠페인 검색줄과 참조 캠페인 검색줄은 기능은 분리돼있지만(전자는 이 항목의 주 대상을 직접
-  // 지정, 후자는 다른 캠페인들에도 참조로 걸어두는 다중 태그) 하나의 테두리(.pl-tgtbox) 안에 같이
-  // 넣어서 "검색창이 두 벌"처럼 보이지 않게 한다.
-  const showRefCamp = _plItemRefCampEligible(block, it);
-  const tgtBoxHtml = (showMediaRow || showRefCamp) ? `<div class="pl-tgtbox">
-    ${showMediaRow ? `<div class="pl-tgtbox-row">${_plItemMediaField(block, bi, ii, it)}</div>` : ''}
-    ${showRefCamp ? `<div class="pl-tgtbox-row">${_plItemRefCampField(bi, ii, it)}</div>` : ''}
-  </div>` : '';
   return `<div class="pl-item${isNewGroup ? ' pl-newgroup' : ''}" data-bi="${bi}" data-ii="${ii}">
-    ${tgtBoxHtml}
+    ${showMediaRow ? `<div class="pl-media-row">${_plItemMediaField(block, bi, ii, it)}</div>` : ''}
+    ${_plItemRefCampEligible(block, it) ? `<div class="pl-media-row">${_plItemRefCampField(bi, ii, it)}</div>` : ''}
     <div class="pl-irow">
       <select class="pl-mini" style="font-weight:700;" onchange="_plItemTypeChange(${bi},${ii},this.value)">${typeOpts}</select>
       <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(ph)}" value="${_escHtml(it.summary || '')}"
