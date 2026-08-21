@@ -5159,6 +5159,9 @@ let _plDateWriterFilters = [];
 
 function _plDateFilteredLogs(dateStr) {
   let logs = PL_LOGS.filter(l => l.logDate === dateStr);
+  // "일지" 탭 검색창(pl-search)과 완전히 같은 매칭 로직(_plTokenMatchNormalized) 재사용 — 동작이 갈리지 않게.
+  const q = document.getElementById('pl-date-search')?.value || '';
+  if (q.trim()) logs = logs.filter(l => _plTokenMatchNormalized(_plNormalizeSearch(l.searchText || ''), q));
   if (_plDateWriterFilters.length) logs = logs.filter(l => _plDateWriterFilters.includes(l.writer));
   const { bonbu, team } = _parseOrgFilter(_plDateOrgFilter);
   if (bonbu || team) {
@@ -5209,6 +5212,8 @@ function _plDateResetFilter() {
   _plDateWriterFilters = [];
   const orgEl = document.getElementById('pl-date-org');
   if (orgEl) orgEl.value = '';
+  const searchEl = document.getElementById('pl-date-search');
+  if (searchEl) searchEl.value = '';
   _plDateRenderWriterChips();
   _plRenderDateBody();
 }
@@ -5275,6 +5280,7 @@ function _plBuildDateTabSkeleton(content) {
       <input type="date" class="f-date f-mono" style="font-weight:700;" id="pl-date-picker" value="${_escHtml(_plDateTabDate)}" onchange="_plDatePick(this.value)" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       <button class="btn btn-ghost btn-sm" onclick="_plDateNav(1)">다음날 →</button>
       <button class="btn btn-outline btn-sm" onclick="_plDateToday()">오늘</button>
+      <input type="text" class="f-search" id="pl-date-search" placeholder="검색어" style="width:160px;" oninput="_plRenderDateBody()">
       <select class="f-sel" id="pl-date-org" onchange="_plDateOrgChange(this.value)">
         <option value="">본부/팀 전체</option>${_buildOrgSelectHTML()}
       </select>
