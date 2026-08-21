@@ -793,7 +793,7 @@ function _updateUserUI() {
   const navUsage = document.getElementById('nav-usage');
   if (navUsage) navUsage.style.display = currentUser.isAdmin ? '' : 'none';
   const navKpi = document.getElementById('nav-kpi');
-  if (navKpi) navKpi.style.display = ['soongeun', 'admin', 'jaehuyn'].includes(currentUser.id) ? '' : 'none';
+  if (navKpi) navKpi.style.display = ['soongeun', 'admin', 'jaehyun'].includes(currentUser.id) ? '' : 'none';
 }
 // ══════════════════════════════════════════
 // AVATAR POPOVER & PASSWORD CHANGE
