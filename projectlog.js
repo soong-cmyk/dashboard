@@ -1717,7 +1717,7 @@ function _plRenderLogRow(log, q, ctx) {
     + ((log.related && log.related.length) ? `<span style="font-size:11px;margin-left:4px;" title="관련자: ${log.related.map(r => r.name).join(', ')}">👤${log.related.length}</span>` : '');
   // 하위 기록(ㄴ)도 접힌 상태에서 같이 보이게 — 펼쳐야만 보이던 걸 목록에서 바로 확인 가능하도록
   const subLinesHtml = (log.detail || []).filter(d => (d.text || '').trim()).map(d =>
-    `<div style="font-size:11px;color:var(--text2);white-space:normal;padding:1px 0;"><span style="color:var(--text3);">ㄴ</span> ${d.label ? `<b>${_plHighlight(d.label, q)}</b> ` : ''}${_plHighlight(d.text, q)}</div>`
+    `<div style="font-size:11px;color:var(--text2);white-space:pre-line;padding:1px 0;"><span style="color:var(--text3);">ㄴ</span> ${d.label ? `<b>${_plHighlight(d.label, q)}</b> ` : ''}${_plHighlight(d.text, q)}</div>`
   ).join('');
 
   const progHtml = log.progress != null
@@ -4999,7 +4999,7 @@ function _plMediaKnowledgeHtml(company, label) {
     return `<div style="font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--border);">
       <span class="f-mono form-hint">${_escHtml((it.logDate || '').slice(2).replace(/-/g, '.'))}</span>
       ${summaryLine}
-      <div>회신: ${_escHtml(it.text)}${ctx}</div>
+      <div style="white-space:pre-line;">회신: ${_escHtml(it.text)}${ctx}</div>
     </div>`;
   }).join('');
 }
@@ -5140,7 +5140,7 @@ function _plDateItemHtml(l, hideMediaTag) {
     }
   }
   const subHtml = (l.detail || []).filter(d => (d.text || '').trim()).map(d =>
-    `<div style="padding-left:20px;font-size:12px;color:var(--text2);">ㄴ ${d.label ? `<b>${_escHtml(d.label)}</b> ` : ''}${_escHtml(d.text)}</div>`
+    `<div style="padding-left:20px;font-size:12px;color:var(--text2);white-space:pre-line;">ㄴ ${d.label ? `<b>${_escHtml(d.label)}</b> ` : ''}${_escHtml(d.text)}</div>`
   ).join('');
   if (l.hasImages && l.imageCount == null) _plEnsureImageCountBadge(l.id);
   const attachIconsHtml = (l.hasImages ? `<span id="pl-imgcnt-${l.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;vertical-align:middle;" onclick="event.stopPropagation();_plOpenLogImages('${l.id}')" title="첨부 이미지 — 클릭하여 보기">📁${l.imageCount || ''}</span>` : '')
