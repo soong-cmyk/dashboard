@@ -1337,8 +1337,26 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
     const origIssue = PL_LOGS.find(l => l.id === log.threadId);
     if (origIssue) threadHtml = _plLinkLine(origIssue.logDate, '이슈', origIssue.summary, origIssue.id, '_plOpenIssueView');
   }
+  // "이어쓰기" 체인 — threadId(이슈-대응-해결, 방사형)와 별개로, continuedFromId는 진척 상황을 그날그날
+  // 새 문서로 이어가는 선형 체인이다. 이전 기록(내가 이어쓴 원본)과 이어서 쓴 기록(이 로그를 원본 삼아
+  // 또 이어쓴 것들, 실수로 두 번 이어쓰면 여러 개일 수 있어 threadChildren처럼 목록으로 보여준다) 둘 다
+  // 계산해서, 위치에 따라 한쪽만 또는 양쪽 다 보여준다.
+  let continuePrevHtml = '';
+  if (log.continuedFromId) {
+    const prevLog = PL_LOGS.find(l => l.id === log.continuedFromId);
+    if (prevLog) continuePrevHtml = _plLinkLine(prevLog.logDate, '이전 기록', `${prevLog.summary || ''} (${prevLog.progress != null ? prevLog.progress + '%' : '—'})`, prevLog.id, '_plOpenIssueView');
+  }
+  const continueNext = PL_LOGS.filter(l => l.continuedFromId === log.id)
+    .slice().sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  let continueNextHtml = '';
+  if (continueNext.length) {
+    continueNextHtml = `<div style="margin-bottom:6px;">
+      <div class="form-hint" style="font-weight:700;margin-bottom:4px;">↩ 이어서 쓴 기록 (${continueNext.length})</div>
+      ${continueNext.map(c => _plLinkLine(c.logDate, '이어씀', `${c.summary || ''} (${c.progress != null ? c.progress + '%' : '—'})`, c.id, '_plOpenIssueView')).join('')}
+    </div>`;
+  }
   if (compact) {
-    return `<div class="pl-detbox" style="border-left-color:${color};">${threadHtml}${threadChildrenHtml}${detfootHtml}${commentsHtml}</div>`;
+    return `<div class="pl-detbox" style="border-left-color:${color};">${threadHtml}${continuePrevHtml}${threadChildrenHtml}${continueNextHtml}${detfootHtml}${commentsHtml}</div>`;
   }
   const subRowsArr = (log.detail || []).filter(d => (d.text || '').trim());
   const subRows = subRowsArr.length
@@ -1346,9 +1364,11 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
     : `<span class="form-hint" style="grid-column:1/-1;">하위 기록이 없습니다.</span>`;
   return `<div class="pl-detbox" style="border-left-color:${color};">
     ${threadHtml}
+    ${continuePrevHtml}
     <div style="font-size:13px;font-weight:600;margin-bottom:6px;white-space:pre-line;">${_plHighlight(log.summary || '', q)}</div>
     <div class="pl-lgsub">${subRows}</div>
     ${threadChildrenHtml}
+    ${continueNextHtml}
     ${detfootHtml}
     ${commentsHtml}
   </div>`;
@@ -1655,6 +1675,18 @@ function _plRefCampBadgeHtml(log) {
   }).join(', ');
   return ` <span class="tag pl-ref" style="cursor:default;" data-tooltip="참조 캠페인: ${_escHtml(tip)}">🔗${ids.length}</span>`;
 }
+// "이어쓰기" 체인 힌트 배지 — 표·일자별 뷰의 접힌 행에서는 계단식으로 그리지 않고(정렬·필터가
+// 걸리면 체인끼리 인접하지 않을 수 있어서) 존재만 짧게 알려준다. 실제 이전/다음 기록 링크는
+// 펼쳤을 때 _plDetailBoxHtml 안에서 확인한다.
+function _plContinueChainBadgeHtml(log) {
+  const hasPrev = !!log.continuedFromId;
+  const hasNext = PL_LOGS.some(l => l.continuedFromId === log.id);
+  if (!hasPrev && !hasNext) return '';
+  const tip = hasPrev && hasNext ? '이어쓰기 체인의 일부 — 펼치면 이전·다음 기록 링크가 보입니다'
+    : hasPrev ? '이어쓰기 체인의 일부 — 펼치면 이전 기록 링크가 보입니다'
+    : '이어쓰기 체인의 일부 — 펼치면 다음 기록 링크가 보입니다';
+  return ` <span class="tag pl-ref" style="cursor:default;" data-tooltip="${_escHtml(tip)}">↩</span>`;
+}
 // 참조 캠페인들의 매체로 "매체" 표기를 판단한다(직접 입력한 매체가 없을 때만 호출됨) — 전부 같은
 // 매체면 그 이름 하나로, 서로 다르면 하나로 대표할 수 없으니 매체명을 다 나열해서 보여준다. 일지 view
 // 표의 매체 칸(_plRefCampMediaCellHtml)과 일자별 뷰의 매체 태그(_plDateItemHtml)가 이 판단을 공유한다.
@@ -1738,7 +1770,7 @@ function _plRenderLogRow(log, q, ctx) {
     <td>${campCell}</td>
     <td>${mediaCell}</td>
     <td><span class="badge pl-lg-${log.logType}">${_escHtml(log.logType)}</span></td>
-    <td><div>${starHtml}${contentHtml}${attachIconsHtml}${stateHtml}${lateHtml}${cmtBadgeHtml}</div>${subLinesHtml}</td>
+    <td><div>${starHtml}${contentHtml}${_plContinueChainBadgeHtml(log)}${attachIconsHtml}${stateHtml}${lateHtml}${cmtBadgeHtml}</div>${subLinesHtml}</td>
     <td class="td-c" style="vertical-align:middle;">${progHtml}</td>
     <td>${_escHtml(log.writer || '—')}</td>
   </tr>`;
@@ -1892,7 +1924,7 @@ let _plSearchCache = {};
 // 매체·이미지·링크는 항목(item) 단위로 붙는다 — 항목 하나가 저장되면 각자 독립된 로그 문서가 되므로,
 // 블록에 걸어두면 한 블록 안의 서로 다른 항목들이 매체·링크를 강제로 공유하게 되어 실제 저장 결과와 안 맞았음
 function _plEmptyItem() {
-  return { logType: '운영', summary: '', progress: '', detail: [], media: null, campaignId: null, refCampaigns: [], links: [], images: [], related: [], optOpen: false };
+  return { logType: '운영', summary: '', progress: '', detail: [], media: null, campaignId: null, refCampaigns: [], links: [], images: [], related: [], optOpen: false, continuedFromId: null };
 }
 function _plEmptyBlock(extra) {
   const block = Object.assign({
@@ -2601,11 +2633,16 @@ function _plRemoveBlock(bi) {
 // 오늘 또 까먹고 새로 이슈화하는 대신, 보면서 바로 "이어쓰기"로 이어 쓸 수 있게 해준다.
 function _plContinueCandidates() {
   const cutoff = _plFmtDateLocal(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000));
+  // 이미 "이어쓰기"로 다음 기록이 만들어진 로그는 더 이상 미완료 후보가 아니다 — 그날그날의 기록을
+  // 덮어쓰지 않고 각자 별개 문서로 남기는 방식이라(진척률도 옛 값 그대로), 최신 진행 상황은 그 다음
+  // 기록이 대신하므로 옛 것은 여기서 빠져야 "같은 일이 두 번" 뜨지 않는다.
+  const continuedIds = new Set(PL_LOGS.filter(l => l.continuedFromId).map(l => l.continuedFromId));
   return PL_LOGS.filter(l => {
     if (l.writerId !== currentUser?.id) return false;
     if (l.progress == null || l.progress >= 100) return false;
     if ((l.logDate || '') < cutoff) return false;
     if (l.state === '완료') return false; // 이슈·요청 자신이 이미 완료 처리됨
+    if (continuedIds.has(l.id)) return false;
     if (l.threadId) {
       const issue = PL_LOGS.find(x => x.id === l.threadId);
       if (issue && issue.state !== '진행중') return false; // 원본 이슈가 이미 닫혀서 더 이어갈 게 없음
@@ -2660,6 +2697,12 @@ function _plContinueFromLog(logId) {
   block.items[0].logType = log.logType || '운영';
   block.items[0].progress = log.progress != null ? String(log.progress) : '';
   if (log.scope !== 'media') block.items[0].media = log.media || null;
+  // 원본이 참조 캠페인 여러 개에 걸려있었으면 그것도 그대로 이어받는다 — 안 그러면 이어쓰기할 때마다
+  // 조용히 빠져서, 원본이 참조로 걸려있던 캠페인 상세에는 최신 진행상황이 안 보이게 된다.
+  block.items[0].refCampaigns = [...(log.refCampaignIds || [])];
+  // 이 항목이 어느 로그를 이어쓴 것인지 표시 — plSaveLog에서 저장 문서의 continuedFromId로 반영되고,
+  // "나의 미완료 일지"가 원본을 후보에서 빼는 기준이자, 상세 펼침의 "이전/이어서 쓴 기록" 링크의 근거가 된다.
+  block.items[0].continuedFromId = log.id;
   _plDraft.blocks.push(block);
   _plRenderWriteModal();
   toast('이전 기록을 불러왔습니다 — 오늘 내용을 이어서 작성하세요', 'ok');
@@ -2953,6 +2996,9 @@ async function plSaveLog() {
           hasImages: images.length > 0, imageCount: images.length, links: (it.links || []).filter(l => (l.label || l.url || '').trim()),
           related: (it.related || []).map(r => ({ id: r.id, name: r.name })),
           threadId: null, createdAt: now, updatedAt: now,
+          // "이어쓰기"로 만들어진 항목이면 원본 로그 id — _plContinueCandidates가 원본을 미완료
+          // 후보에서 빼는 기준이자, 상세 펼침의 "이전/이어서 쓴 기록" 링크의 근거가 된다.
+          continuedFromId: it.continuedFromId || null,
         };
         doc.searchText = _plBuildSearchText(doc);
         savedDocs.push({ doc, images });
@@ -5164,7 +5210,7 @@ function _plDateItemHtml(l, hideMediaTag) {
     <div style="display:flex;align-items:flex-start;gap:4px;cursor:pointer;" onclick="_plToggleRow('${l.id}','date')">
       <span style="flex-shrink:0;font-size:10px;color:var(--text3);width:12px;">${arrow}</span>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;">${starHtml}<span class="badge pl-lg-${l.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(l.logType)}</span>${mediaHtml}${_escHtml(l.summary || '')}${progText}${attachIconsHtml}</div>
+        <div style="font-size:13px;">${starHtml}<span class="badge pl-lg-${l.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(l.logType)}</span>${mediaHtml}${_escHtml(l.summary || '')}${_plContinueChainBadgeHtml(l)}${progText}${attachIconsHtml}</div>
         ${subHtml}
       </div>
     </div>
