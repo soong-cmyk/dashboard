@@ -1985,8 +1985,8 @@ function _plRenderWriteModal() {
   const hintEl = document.getElementById('pl-w-hint');
   const totalItems = _plDraft.blocks.reduce((s, b) => s + b.items.filter(it => (it.summary || '').trim()).length, 0);
   if (hintEl) hintEl.textContent = `항목 ${totalItems}건이 개별 기록으로 저장됩니다 · 닫아도 새로고침 전까진 내용이 유지됩니다`;
-  // 항목별 매체·캠페인 검색창(#pl-med-${bi}-${ii})은 인라인 oninput/onfocus로 직접 바인딩돼있어
-  // (_plItemMediaSearchInput/_plItemMediaPick) 여기서 별도로 다시 걸어줄 게 없다.
+  // 항목별 대상(매체/캠페인) 검색창(#pl-med-${bi}-${ii})은 인라인 oninput/onfocus로 직접 바인딩돼있어
+  // (_plItemTargetSearchInput/_plItemTargetPick) 여기서 별도로 다시 걸어줄 게 없다.
 }
 
 // ── 블록 대상 표시/검색 ──
@@ -2006,8 +2006,8 @@ function _plBlockSubLabel(block) {
 function _plBlockSearchResults(query) {
   const q = (query || '').trim();
   if (!q) return [];
-  // 캠페인은 여기(대상 검색)에서는 안 고른다 — 광고주/프로젝트까지만 정하고, 캠페인은 항목별 매체
-  // 검색창(_plItemMediaField)에서 이 블록의 광고주/프로젝트로 좁혀서 고르게 한다(_plItemMediaSearchResults).
+  // 캠페인은 여기(대상 검색)에서는 안 고른다 — 광고주/프로젝트까지만 정하고, 캠페인은 항목별 대상
+  // 검색창(_plItemTargetField)에서 이 블록의 광고주/프로젝트로 좁혀서 고르게 한다(_plItemTargetSearchResults).
   const advResults = [], projResults = [], mediaResults = [], internalResults = [];
   SELLER_DATA.forEach(s => {
     if (_plTokenMatch(s.company, q)) {
@@ -2282,30 +2282,76 @@ function _plRenderBlockHtml(block, bi) {
   </div>`;
 }
 
-// 항목의 매체 칸 — scope='media'는 블록 자체가 이미 그 매체를 가리키므로 "전반" 표시만. 캠페인이
-// 연결된 항목(it.campaignId — scope='campaign' 블록의 항목도 이제 전부 여기 해당)은 캠페인에서 자동
-// 확정된 값을 읽기전용으로. 그 외(매체만 있거나 아무것도 없는 항목)는 이 칸 하나에서 매체명과 캠페인을
-// 같이 검색해서 고를 수 있게 함(_plItemMediaSearchInput/_plItemMediaPick, 이 블록의 광고주/프로젝트로
-// 캠페인 검색 범위를 좁힘) — 인라인 oninput/onfocus로 매번 새로 그려지는 DOM에도 항상 바인딩됨.
-function _plItemMediaField(block, bi, ii, it) {
+// 항목의 대상 칸 — scope='media'는 블록 자체가 이미 그 매체를 가리키므로 "전반" 표시만. 그 외에는
+// 매체 하나 또는 캠페인 여러 개를 한 검색창에서 고른다. 매체·캠페인은 상호배타적: 매체를 고르면
+// 그 자리에서 필드가 잠기고(단일값), 캠페인은 몇 개를 고르느냐로 역할이 자동으로 바뀐다 — 1개는 이
+// 항목이 그 캠페인에 직접 등록(it.campaignId), 2개 이상은 전부 참조 캠페인(it.refCampaigns, 로그의
+// 주 소속은 광고주/프로젝트 그대로 두고 각 캠페인 상세엔 참조로만 표시). 이 규칙은 뺄 때도 똑같이
+// 적용되어(_plItemSetCamps), 참조 2개 중 하나를 지워 1개만 남으면 그 하나가 다시 직접등록으로 전환된다.
+function _plItemCampsList(it) {
+  return it.campaignId ? [it.campaignId] : (it.refCampaigns || []);
+}
+function _plItemSetCamps(it, ids) {
+  if (!ids.length) {
+    it.campaignId = null; it.refCampaigns = [];
+  } else if (ids.length === 1) {
+    const c = DATA.find(x => x.id === ids[0]);
+    it.campaignId = ids[0]; it.refCampaigns = [];
+    it.media = c?.media || null;
+  } else {
+    it.campaignId = null; it.refCampaigns = ids;
+    it.media = null; // 화면 표시용 매체는 저장/조회 시점에 참조 캠페인들로부터 자동판단(_plResolveRefMedia)
+  }
+}
+// 참조 캠페인(2개 이상)은 광고주/프로젝트 단계 블록에서만 허용한다 — scope==='campaign' 블록은
+// 이미 그 자체가 캠페인 하나(block.campaignId)로 좁혀진 상태라, 항목이 참조 다중선택으로 빠지면
+// plSaveLog에서 scope가 block.scope('campaign')로 남으면서 campaignId는 block의 원래 캠페인을
+// 가리키는 채로 refCampaignIds만 따로 도는 모순된 문서가 만들어진다. scope==='internal'도 같은 이유로 제외.
+function _plItemMultiCampEligible(block) {
+  return block.scope === 'advertiser' || block.scope === 'project';
+}
+function _plItemTargetField(block, bi, ii, it) {
   if (block.scope === 'media') {
     return `<span class="form-hint" style="font-size:11px;">전반</span>`;
   }
-  if (it.campaignId) {
-    return `<span class="tag f-mono" style="font-size:10.5px;">${_escHtml(it.campaignId)}</span><span class="form-hint" style="font-size:11px;margin-left:4px;" title="캠페인에서 자동">${_escHtml(it.media || '')}</span><span class="pl-x" style="margin-left:4px;" onclick="_plItemUnlinkCampaign(${bi},${ii})" title="캠페인 연결 해제">✕</span>`;
+  const camps = _plItemCampsList(it);
+  if (!camps.length && it.media) {
+    return `<div class="pl-reftags combo-wrap">
+      <span class="tag pl-media">${_escHtml(it.media)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plItemTargetUnsetMedia(${bi},${ii})" title="선택 해제">✕</span></span>
+    </div>`;
   }
-  return `<div class="combo-wrap" style="position:relative;width:190px;">
-    <input type="text" class="pl-mini" id="pl-med-${bi}-${ii}" placeholder="🔍 매체 또는 캠페인 검색" autocomplete="off" value="${_escHtml(it.media || '')}"
-      oninput="_plItemMediaSearchInput(${bi},${ii},this)" onfocus="_plItemMediaSearchInput(${bi},${ii},this)"
+  const multiEligible = _plItemMultiCampEligible(block);
+  const chipsHtml = camps.map((cid, ci) => {
+    const c = DATA.find(x => x.id === cid);
+    const sub = c ? `${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}` : '';
+    return `<span class="tag pl-ref" data-tooltip="${_escHtml(sub)}">🔗 ${_escHtml(cid)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plItemTargetRemoveCamp(${bi},${ii},${ci})">✕</span></span>`;
+  }).join('');
+  // 캠페인을 이미 하나 골랐고 이 블록에선 더 추가할 수 없으면(!multiEligible) 검색창 자체를 접는다.
+  if (camps.length && !multiEligible) {
+    return `<div class="pl-reftags combo-wrap">${chipsHtml}</div>`;
+  }
+  const ph = camps.length ? '🔍 캠페인 추가 검색' : '🔍 매체 또는 캠페인 검색';
+  return `<div class="pl-reftags combo-wrap">
+    ${chipsHtml}
+    <input type="text" id="pl-med-${bi}-${ii}" placeholder="${ph}" autocomplete="off"
+      oninput="_plItemTargetSearchInput(${bi},${ii},this)" onfocus="_plItemTargetSearchInput(${bi},${ii},this)"
       onkeydown="_plComboKeyNav(event,'pl-med-list-${bi}-${ii}')"
       onblur="setTimeout(()=>{const l=document.getElementById('pl-med-list-${bi}-${ii}');if(l)l.style.display='none';},150)">
     <div class="combo-list" id="pl-med-list-${bi}-${ii}" style="display:none;"></div>
   </div>`;
 }
-function _plItemUnlinkCampaign(bi, ii) {
+function _plItemTargetUnsetMedia(bi, ii) {
   const it = _plDraft.blocks[bi]?.items[ii];
   if (!it) return;
-  it.campaignId = null;
+  it.media = null;
+  _plRenderWriteModal();
+}
+function _plItemTargetRemoveCamp(bi, ii, ci) {
+  const it = _plDraft.blocks[bi]?.items[ii];
+  if (!it) return;
+  const camps = _plItemCampsList(it);
+  camps.splice(ci, 1);
+  _plItemSetCamps(it, camps);
   _plRenderWriteModal();
 }
 
@@ -2317,9 +2363,10 @@ function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
   // 새 그룹이 시작되는 항목(showMediaRow)은 "+ 항목 추가"로 이어붙인 항목과 구분되게 위쪽 경계를 다르게
   // 준다 — 첫 항목(ii===0)은 바로 위가 블록 헤더라 이미 경계가 있으니 제외.
   const isNewGroup = showMediaRow && ii > 0;
+  // 대상 칸(매체/캠페인)은 항목마다 서로 다를 수 있어(참조 캠페인은 항목별로 독립) showMediaRow와
+  // 무관하게 항상 보여준다 — showMediaRow는 위쪽 구분선(isNewGroup) 표시에만 쓰인다.
   return `<div class="pl-item${isNewGroup ? ' pl-newgroup' : ''}" data-bi="${bi}" data-ii="${ii}">
-    ${showMediaRow ? `<div class="pl-media-row">${_plItemMediaField(block, bi, ii, it)}</div>` : ''}
-    ${_plItemRefCampEligible(block, it) ? `<div class="pl-media-row">${_plItemRefCampField(bi, ii, it)}</div>` : ''}
+    <div class="pl-media-row">${_plItemTargetField(block, bi, ii, it)}</div>
     <div class="pl-irow">
       <select class="pl-mini" style="font-weight:700;" onchange="_plItemTypeChange(${bi},${ii},this.value)">${typeOpts}</select>
       <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(ph)}" value="${_escHtml(it.summary || '')}"
@@ -2435,16 +2482,21 @@ function _plAddItem(bi) {
   if (!block) return;
   const newItem = _plEmptyItem();
   // 직전 항목과 같은 매체/캠페인으로 이어서 작성하는 경우가 흔해서, 그 값을 그대로 이어받는다
-  // (다르면 아래 "+ 매체·캠페인 추가"로 새 그룹을 시작하면 됨).
+  // (다르면 아래 "+ 매체·캠페인 추가"로 새 그룹을 시작하면 됨). 직전 항목이 참조 캠페인 여러 개
+  // 상태였으면 그 목록도 같이 이어받아야 "이어쓰기"가 빈 대상으로 시작되지 않는다.
   const lastItem = block.items[block.items.length - 1];
-  if (lastItem) { newItem.media = lastItem.media; newItem.campaignId = lastItem.campaignId; }
+  if (lastItem) {
+    newItem.media = lastItem.media;
+    newItem.campaignId = lastItem.campaignId;
+    newItem.refCampaigns = [...(lastItem.refCampaigns || [])];
+  }
   block.items.push(newItem);
   const newIi = block.items.length - 1;
   _plRenderWriteModal();
   _plFlashScrollTo(`#pl-w-blocks .pl-item[data-bi="${bi}"][data-ii="${newIi}"]`);
 }
 // "+ 매체/캠페인 추가" — 새 그룹의 시작 항목만 비운 채로 밀어넣는다. 실제 매체/캠페인 선택은 그
-// 항목 자신의 매체 칸(_plItemMediaField → _plItemMediaSearchInput)에서 검색해서 고른다.
+// 항목 자신의 대상 칸(_plItemTargetField → _plItemTargetSearchInput)에서 검색해서 고른다.
 function _plAddMediaGroup(bi) {
   const block = _plDraft.blocks[bi];
   if (!block) return;
@@ -2455,121 +2507,59 @@ function _plAddMediaGroup(bi) {
   _plRenderWriteModal();
   _plFlashScrollTo(`#pl-w-blocks .pl-item[data-bi="${bi}"][data-ii="${newIi}"]`);
 }
-// ── 항목의 매체 칸 검색 — 매체명과 이 블록의 광고주/프로젝트에 속한 캠페인을 하나의 검색으로 같이
-// 보여준다. 자유입력(매체명을 그냥 텍스트로만 남기는 것)도 그대로 지원 — 콤보에서 안 골라도 입력한
-// 값이 매체명으로 저장된다.
-let _plItemMediaSearchCache = {};
-function _plItemMediaSearchResults(block, query) {
+// ── 항목의 대상 칸 검색 — 매체명과 이 블록의 광고주/프로젝트에 속한 캠페인을 하나의 검색으로 같이
+// 보여준다. 이미 캠페인을 하나 이상 고른 상태면 매체는 상호배타적이라 결과에서 아예 뺀다(_plItemTargetSearchResults).
+let _plItemTargetSearchCache = {};
+function _plItemTargetSearchResults(block, it, query) {
   const q = (query || '').trim();
-  const mediaResults = _plMediaNames()
+  const camps = _plItemCampsList(it);
+  const already = new Set(camps);
+  const mediaResults = camps.length ? [] : _plMediaNames()
     .filter(m => !q || _plTokenMatch(m, q))
     .map(m => ({ type: 'media', label: m, sub: '매체', media: m }));
   const campResults = DATA.filter(c => (c.seller || c.adv) === block.seller
-      && (c.content || null) === (block.content || null) && c.status !== '삭제')
+      && (c.content || null) === (block.content || null) && c.status !== '삭제' && !already.has(c.id))
     .filter(c => !q || _plTokenMatch(`${c.id} ${c.media || ''} ${c.product || ''} ${(c.date || '').slice(0, 10)}`, q))
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
     .map(c => ({ type: 'campaign', label: `${c.id} · ${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}`, sub: '캠페인', campaignId: c.id }));
   return [...mediaResults, ...campResults].slice(0, 30);
 }
-function _plItemMediaSearchInput(bi, ii, inputEl) {
+function _plItemTargetSearchInput(bi, ii, inputEl) {
   const block = _plDraft.blocks[bi];
   const it = block?.items[ii];
   const listId = `pl-med-list-${bi}-${ii}`;
   const list = document.getElementById(listId);
   if (!block || !it || !list) return;
-  it.media = inputEl.value; // 자유입력 그대로 저장 — 콤보에서 안 골라도 매체명으로 취급
   // 매체+캠페인을 합치면 결과가 많아 30개로 잘리는데, 빈 입력(포커스만 한 상태)에서 그 잘린 목록을
   // "전체"인 것처럼 보여주면 오해의 소지가 있어 — 뭐라도 입력해야 결과를 보여준다.
   if (!inputEl.value.trim()) { list.style.display = 'none'; list.innerHTML = ''; return; }
-  const key = `${bi}-${ii}`;
-  const results = _plItemMediaSearchResults(block, inputEl.value);
-  _plItemMediaSearchCache[key] = results;
+  const results = _plItemTargetSearchResults(block, it, inputEl.value);
+  _plItemTargetSearchCache[`${bi}-${ii}`] = results;
   _plComboNavIndex[listId] = -1;
   if (!results.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
   list.innerHTML = results.map((r, i) =>
-    `<div class="combo-item" onmousedown="_plItemMediaPick(${bi},${ii},${i})">${_escHtml(r.label)}<span class="pl-ctype">${_escHtml(r.sub)}</span></div>`
+    `<div class="combo-item" onmousedown="_plItemTargetPick(${bi},${ii},${i})">${_escHtml(r.label)}<span class="pl-ctype">${_escHtml(r.sub)}</span></div>`
   ).join('');
   list.style.display = 'block';
   _plFloatCombo(inputEl, list);
 }
-function _plItemMediaPick(bi, ii, i) {
-  const it = _plDraft.blocks[bi]?.items[ii];
-  const r = (_plItemMediaSearchCache[`${bi}-${ii}`] || [])[i];
-  if (!it || !r) return;
-  if (r.type === 'campaign') {
-    it.campaignId = r.campaignId;
-    it.media = DATA.find(c => c.id === r.campaignId)?.media || null;
+function _plItemTargetPick(bi, ii, i) {
+  const block = _plDraft.blocks[bi];
+  const it = block?.items[ii];
+  const r = (_plItemTargetSearchCache[`${bi}-${ii}`] || [])[i];
+  if (!block || !it || !r) return;
+  if (r.type === 'media') {
+    it.media = r.media; it.campaignId = null; it.refCampaigns = [];
+  } else if (_plItemMultiCampEligible(block)) {
+    _plItemSetCamps(it, [..._plItemCampsList(it), r.campaignId]);
   } else {
-    it.campaignId = null;
-    it.media = r.media;
+    // 참조 다중선택이 안 되는 블록(scope==='campaign' 등)에서는 새로 고른 캠페인 하나로 그대로 교체.
+    it.campaignId = r.campaignId; it.refCampaigns = [];
+    it.media = DATA.find(c => c.id === r.campaignId)?.media || null;
   }
   const list = document.getElementById(`pl-med-list-${bi}-${ii}`);
   if (list) list.style.display = 'none';
   _plRenderWriteModal();
-}
-// ── 참조 캠페인 — 항목의 주 소속(scope)은 광고주/프로젝트 그대로 두고, 이 로그가 추가로 다른 캠페인
-// 상세에도 "참조로 걸린 일지"로 나타나도록 여러 개 태그만 붙인다(관련자 태그와 같은 검색+다중선택 UI).
-// 이미 이 항목의 주 대상이 캠페인 하나로 확정된 경우(it.campaignId)는 자기 자신을 다시 참조할 수 없으므로
-// 필드 자체를 숨긴다(_plItemRefCampEligible).
-function _plItemRefCampEligible(block, it) {
-  return (block.scope === 'advertiser' || block.scope === 'project') && !it.campaignId;
-}
-let _plItemRefCampSearchCache = {};
-function _plItemRefCampSearchResults(block, it, query) {
-  const q = (query || '').trim();
-  const already = new Set(it.refCampaigns || []);
-  return DATA.filter(c => (c.seller || c.adv) === block.seller
-      && (c.content || null) === (block.content || null) && c.status !== '삭제' && !already.has(c.id))
-    .filter(c => !q || _plTokenMatch(`${c.id} ${c.media || ''} ${c.product || ''} ${(c.date || '').slice(0, 10)}`, q))
-    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-    .map(c => ({ label: `${c.id} · ${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}`, campaignId: c.id }))
-    .slice(0, 30);
-}
-function _plItemRefCampSearchInput(bi, ii, inputEl) {
-  const block = _plDraft.blocks[bi];
-  const it = block?.items[ii];
-  const listId = `pl-ref-list-${bi}-${ii}`;
-  const list = document.getElementById(listId);
-  if (!block || !it || !list) return;
-  if (!inputEl.value.trim()) { list.style.display = 'none'; list.innerHTML = ''; return; }
-  const results = _plItemRefCampSearchResults(block, it, inputEl.value);
-  _plItemRefCampSearchCache[`${bi}-${ii}`] = results;
-  _plComboNavIndex[listId] = -1;
-  if (!results.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
-  list.innerHTML = results.map((r, i) =>
-    `<div class="combo-item" onmousedown="_plItemRefCampPick(${bi},${ii},${i})">${_escHtml(r.label)}</div>`
-  ).join('');
-  list.style.display = 'block';
-  _plFloatCombo(inputEl, list);
-}
-function _plItemRefCampPick(bi, ii, i) {
-  const it = _plDraft.blocks[bi]?.items[ii];
-  const r = (_plItemRefCampSearchCache[`${bi}-${ii}`] || [])[i];
-  if (!it || !r) return;
-  if (!it.refCampaigns) it.refCampaigns = [];
-  if (!it.refCampaigns.includes(r.campaignId)) it.refCampaigns.push(r.campaignId);
-  const list = document.getElementById(`pl-ref-list-${bi}-${ii}`);
-  if (list) list.style.display = 'none';
-  _plRenderWriteModal();
-}
-function _plItemRefCampRemove(bi, ii, ri) {
-  _plDraft.blocks[bi]?.items[ii]?.refCampaigns.splice(ri, 1);
-  _plRenderWriteModal();
-}
-function _plItemRefCampField(bi, ii, it) {
-  const tagsHtml = (it.refCampaigns || []).map((cid, ri) => {
-    const c = DATA.find(x => x.id === cid);
-    const sub = c ? `${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}` : '';
-    return `<span class="tag pl-ref" data-tooltip="${_escHtml(sub)}">🔗 ${_escHtml(cid)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plItemRefCampRemove(${bi},${ii},${ri})">✕</span></span>`;
-  }).join('');
-  return `<div class="pl-reftags combo-wrap">
-    ${tagsHtml}
-    <input type="text" id="pl-ref-${bi}-${ii}" placeholder="🔗 참조 캠페인 검색 (선택, 여러 개)" autocomplete="off"
-      oninput="_plItemRefCampSearchInput(${bi},${ii},this)" onfocus="_plItemRefCampSearchInput(${bi},${ii},this)"
-      onkeydown="_plComboKeyNav(event,'pl-ref-list-${bi}-${ii}')"
-      onblur="setTimeout(()=>{const l=document.getElementById('pl-ref-list-${bi}-${ii}');if(l)l.style.display='none';},150)">
-    <div class="combo-list" id="pl-ref-list-${bi}-${ii}" style="display:none;"></div>
-  </div>`;
 }
 function _plRemoveItem(bi, ii) {
   const block = _plDraft.blocks[bi];
@@ -2940,8 +2930,8 @@ async function plSaveLog() {
           media: itemCamp ? (itemCamp.media || null) : (it.media || block.media || null),
           product: itemCamp ? (itemCamp.product || null) : (block.product || null),
           // 참조 캠페인 — 이 로그의 주 소속(scope)은 그대로 두고, 여기 담긴 캠페인들의 상세 화면 일지 탭에
-          // "참조로 걸린 일지"로 같이 나타나게 하는 태그. 주 대상이 이미 캠페인 하나로 확정된 항목(itemCamp)은
-          // 필드 자체가 안 보이므로(_plItemRefCampEligible) 항상 빈 배열.
+          // "참조로 걸린 일지"로 같이 나타나게 하는 태그. 캠페인을 정확히 1개만 고른 항목(itemCamp)은
+          // 직접등록으로 전환되므로(_plItemSetCamps) refCampaigns가 항상 비어있다.
           refCampaignIds: itemCamp ? [] : (it.refCampaigns || []).filter(Boolean),
           logType: it.logType || '운영',
           state: ['이슈', '요청'].includes(it.logType) ? '진행중' : null,
