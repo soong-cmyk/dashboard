@@ -892,7 +892,7 @@ ${badgeCss}
 .pl-detbox{padding:10px 14px 10px 8px;border-left:3px solid var(--border);margin:3px 0 7px;}
 .pl-lgsub{display:grid;grid-template-columns:auto auto 1fr;gap:4px 8px;font-size:12.5px;line-height:1.7;align-items:baseline;}
 .pl-detfoot{display:flex;justify-content:space-between;align-items:center;margin-top:9px;padding-top:8px;border-top:1px dashed var(--border);gap:10px;flex-wrap:wrap;}
-.pl-expand-bar{display:flex;justify-content:flex-end;gap:5px;margin-bottom:8px;}
+.pl-expand-bar{display:flex;gap:5px;margin-left:auto;}
 .pl-toggle-on{background:var(--accent-light)!important;border-color:var(--accent)!important;color:var(--accent)!important;}
 .pl-mark{background:var(--yellow-bg);padding:0 2px;border-radius:2px;}
 .pl-thumb{width:34px;height:24px;border-radius:4px;background:linear-gradient(135deg,#dde3f0,#c6cfe0);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#6b7590;font-weight:700;}
@@ -1830,8 +1830,6 @@ function _plBuildLogTabSkeleton(container) {
       <div class="table-header">
         <span class="card-title">일지</span>
         <span class="table-count" id="pl-log-count">0건</span>
-      </div>
-      <div style="padding:10px 18px 0;">
         <div class="pl-expand-bar">
           <button class="btn btn-outline btn-sm" onclick="_plExpandAll(true)">전체 펼침</button>
           <button class="btn btn-ghost btn-sm" onclick="_plExpandAll(false)">요약만</button>
