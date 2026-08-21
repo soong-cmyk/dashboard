@@ -93,7 +93,7 @@ let PL_STATE = {
 let _plWatchStarted = false;
 let _plExpanded = new Set();
 let _plPage = 1;
-const PL_PAGE_SIZE = 50;
+const PL_PAGE_SIZE = 30;
 
 // toISOString()은 UTC로 변환한 뒤 자르기 때문에 한국(UTC+9)에서는 자정~오전9시 사이거나
 // 날짜 연산(하루 이동 등) 뒤에 호출하면 로컬 날짜가 하루 밀리거나 당겨질 수 있다.
