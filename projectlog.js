@@ -1717,7 +1717,13 @@ function _plRenderLogRow(log, q, ctx) {
     + ((log.related && log.related.length) ? `<span style="font-size:11px;margin-left:4px;" title="관련자: ${log.related.map(r => r.name).join(', ')}">👤${log.related.length}</span>` : '');
   // 하위 기록(ㄴ)도 접힌 상태에서 같이 보이게 — 펼쳐야만 보이던 걸 목록에서 바로 확인 가능하도록
   const subLinesHtml = (log.detail || []).filter(d => (d.text || '').trim()).map(d =>
-    `<div style="font-size:11px;color:var(--text2);white-space:pre-line;padding:1px 0;"><span style="color:var(--text3);">ㄴ</span> ${d.label ? `<b>${_plHighlight(d.label, q)}</b> ` : ''}${_plHighlight(d.text, q)}</div>`
+    // "ㄴ+라벨"과 본문을 flex 아이템 둘로 나눠야, 본문이 여러 줄일 때 2번째 줄부터도 컨테이너
+    // 왼쪽 끝이 아니라 1번째 줄(라벨 뒤)과 같은 위치에서 시작한다(하나의 div에 다 넣으면 줄바꿈된
+    // 줄들이 전부 왼쪽 끝으로 붙어버림).
+    `<div style="font-size:11px;color:var(--text2);padding:1px 0;display:flex;gap:4px;">
+      <span style="flex-shrink:0;"><span style="color:var(--text3);">ㄴ</span>${d.label ? ` <b>${_plHighlight(d.label, q)}</b>` : ''}</span>
+      <span style="white-space:pre-line;">${_plHighlight(d.text, q)}</span>
+    </div>`
   ).join('');
 
   const progHtml = log.progress != null
@@ -4999,7 +5005,10 @@ function _plMediaKnowledgeHtml(company, label) {
     return `<div style="font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--border);">
       <span class="f-mono form-hint">${_escHtml((it.logDate || '').slice(2).replace(/-/g, '.'))}</span>
       ${summaryLine}
-      <div style="white-space:pre-line;">회신: ${_escHtml(it.text)}${ctx}</div>
+      <div style="display:flex;gap:4px;">
+        <span style="flex-shrink:0;">회신:</span>
+        <span style="white-space:pre-line;">${_escHtml(it.text)}${ctx}</span>
+      </div>
     </div>`;
   }).join('');
 }
@@ -5140,7 +5149,11 @@ function _plDateItemHtml(l, hideMediaTag) {
     }
   }
   const subHtml = (l.detail || []).filter(d => (d.text || '').trim()).map(d =>
-    `<div style="padding-left:20px;font-size:12px;color:var(--text2);white-space:pre-line;">ㄴ ${d.label ? `<b>${_escHtml(d.label)}</b> ` : ''}${_escHtml(d.text)}</div>`
+    // 본문이 여러 줄일 때 2번째 줄부터도 "ㄴ+라벨" 뒤(1번째 줄 시작 위치)에서 이어지도록 flex로 분리.
+    `<div style="padding-left:20px;font-size:12px;color:var(--text2);display:flex;gap:4px;">
+      <span style="flex-shrink:0;">ㄴ${d.label ? ` <b>${_escHtml(d.label)}</b>` : ''}</span>
+      <span style="white-space:pre-line;">${_escHtml(d.text)}</span>
+    </div>`
   ).join('');
   if (l.hasImages && l.imageCount == null) _plEnsureImageCountBadge(l.id);
   const attachIconsHtml = (l.hasImages ? `<span id="pl-imgcnt-${l.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;vertical-align:middle;" onclick="event.stopPropagation();_plOpenLogImages('${l.id}')" title="첨부 이미지 — 클릭하여 보기">📁${l.imageCount || ''}</span>` : '')
