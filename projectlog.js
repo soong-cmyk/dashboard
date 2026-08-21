@@ -5243,6 +5243,16 @@ function _plDateGroupedData(dateStr) {
     mediaGroups: [...block.byMedia.entries()].map(([media, items]) => ({ media, items })),
   }));
 }
+// 소그룹 헤더용 매체 라벨 — 직접 입력한 매체(m.media)가 있으면 그대로. 없으면(참조 캠페인만 있는
+// 로그들이 모인 그룹) 그 안의 모든 로그가 참조한 캠페인들의 매체를 전부 모아 판단한다 — "매체 미지정"은
+// 정말 매체를 전혀 알 수 없을 때만 남긴다(_plResolveRefMedia와 같은 '·' 구분자 관례를 그대로 씀).
+function _plDateGroupMediaLabel(m) {
+  if (m.media) return m.media;
+  const ids = new Set();
+  m.items.forEach(l => (l.refCampaignIds || []).forEach(id => ids.add(id)));
+  const medias = [...new Set([...ids].map(id => DATA.find(c => c.id === id)?.media).filter(Boolean))];
+  return medias.length ? medias.join('·') : '매체 미지정';
+}
 function _plDateNav(delta) {
   const d = new Date(_plDateTabDate + 'T00:00:00');
   d.setDate(d.getDate() + delta);
@@ -5311,7 +5321,7 @@ function _plRenderDateBody() {
         const showSub = b.scope !== 'media' && (m.media || b.mediaGroups.length > 1);
         return `
         <div style="${b.mediaGroups.length > 1 && mi < b.mediaGroups.length - 1 ? 'margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--border);' : ''}">
-          ${showSub ? `<div style="margin-bottom:4px;"><span class="tag pl-media">${_escHtml(m.media || '매체 미지정')}</span></div>` : ''}
+          ${showSub ? `<div style="margin-bottom:4px;"><span class="tag pl-media">${_escHtml(_plDateGroupMediaLabel(m))}</span></div>` : ''}
           ${m.items.map(l => _plDateItemHtml(l, showSub)).join('')}
         </div>
       `;}).join('')}
