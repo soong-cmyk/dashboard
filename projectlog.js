@@ -1342,7 +1342,7 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   }
   const subRowsArr = (log.detail || []).filter(d => (d.text || '').trim());
   const subRows = subRowsArr.length
-    ? subRowsArr.map(d => `<span class="pl-m">ㄴ</span><span class="pl-l">${_plHighlight(d.label || '', q)}</span><span>${_plHighlight(d.text, q)}</span>`).join('')
+    ? subRowsArr.map(d => `<span class="pl-m">ㄴ</span><span class="pl-l">${_plHighlight(d.label || '', q)}</span><span style="white-space:pre-line;">${_plHighlight(d.text, q)}</span>`).join('')
     : `<span class="form-hint" style="grid-column:1/-1;">하위 기록이 없습니다.</span>`;
   return `<div class="pl-detbox" style="border-left-color:${color};">
     ${threadHtml}
@@ -2400,8 +2400,8 @@ function _plRenderSubHtml(bi, ii, di, d, logType) {
   }
   return `<div class="pl-sub"><span class="pl-m">ㄴ</span>
     ${labelControl}
-    <input type="text" class="pl-mini" placeholder="내용을 입력하세요" value="${_escHtml(d.text || '')}"
-      oninput="_plSubField(${bi},${ii},${di},'text',this.value)">
+    <textarea class="pl-mini" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;"
+      oninput="_plSubField(${bi},${ii},${di},'text',this.value);_plAutoGrowTextarea(this)">${_escHtml(d.text || '')}</textarea>
     <span class="pl-x" onclick="_plRemoveSub(${bi},${ii},${di})">✕</span>
   </div>`;
 }
@@ -2685,6 +2685,14 @@ function _plLinkField(bi, ii, li, val) {
   const l = _plDraft.blocks[bi]?.items[ii]?.links[li];
   if (!l) return;
   l.label = val; l.url = val;
+}
+
+// 하위 기록(ㄴ) 내용 textarea 자동 높이조절 — 타이핑 중 줄이 늘거나 줄면 그때그때 맞춰준다.
+// 처음 열었을 때(이미 여러 줄인 기존 내용을 수정하는 경우 등)는 rows 속성을 내용의 줄 수로 미리
+// 계산해서 렌더링하므로, 이 함수는 그 이후의 변화만 담당하면 된다.
+function _plAutoGrowTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
 }
 
 // ── 이름 검색 콤보 공용 유틸 ──
@@ -3347,7 +3355,7 @@ function _plEditSubHtml(di, d) {
   }
   return `<div class="pl-sub"><span class="pl-m">ㄴ</span>
     ${labelControl}
-    <input type="text" class="pl-mini" placeholder="내용을 입력하세요" value="${_escHtml(d.text || '')}" oninput="_plEditSubField(${di},'text',this.value)">
+    <textarea class="pl-mini" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;" oninput="_plEditSubField(${di},'text',this.value);_plAutoGrowTextarea(this)">${_escHtml(d.text || '')}</textarea>
     <span class="pl-x" onclick="_plEditRemoveSub(${di})">✕</span>
   </div>`;
 }
@@ -3394,7 +3402,7 @@ function _plEditExtraSubHtml(ei, di, d) {
   }
   return `<div class="pl-sub"><span class="pl-m">ㄴ</span>
     ${labelControl}
-    <input type="text" class="pl-mini" placeholder="내용을 입력하세요" value="${_escHtml(d.text || '')}" oninput="_plEditExtraSubField(${ei},${di},'text',this.value)">
+    <textarea class="pl-mini" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;" oninput="_plEditExtraSubField(${ei},${di},'text',this.value);_plAutoGrowTextarea(this)">${_escHtml(d.text || '')}</textarea>
     <span class="pl-x" onclick="_plEditExtraRemoveSub(${ei},${di})">✕</span>
   </div>`;
 }
