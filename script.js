@@ -7434,6 +7434,17 @@ window.addEventListener('popstate', (e) => {
 
 let stlView = 'adv'; // 'media' | 'adv' | 'agency' | 'campaign'
 
+// campaigns windowing 상태 변수 — 원래 이 파일 훨씬 아래(_campApplySnapshot 등 근처)에 있었는데,
+// 새로고침 시 URL 해시가 #campaigns면 바로 아래 initRoute()가 goScreen('campaigns')를 즉시
+// 호출하고, 그게 _campEnsureFullyLoaded()를 타면서 _campFullyWatching을 그 자리에서 참조한다 —
+// let은 선언부까지 도달하기 전엔 "임시 데드존"이라 그때 아직 실행 전인 아래쪽 선언을 참조하면
+// "Cannot access before initialization" 에러가 난다. initRoute()보다 앞에 있어야 항상 안전하다.
+let _campMap = new Map();
+let _campWatchStarted = false;
+let _campWatchedYears = new Set();
+let _campWatchedCompanies = new Set();
+let _campFullyWatching = false;
+
 (function initRoute() {
   if (!checkAuth()) {
     // 비로그인 상태에서 detail URL 접근 시 → 로그인 후 복원을 위해 저장
@@ -11541,11 +11552,7 @@ async function restoreDB(file) {
 // 추가로 구독한다(프로젝트일지 PL_LOGS의 _plWatchLogs/_plEnsureCompanyLoaded 패턴과 동일).
 // 여러 구독(최근용 + 연도별 + 광고주별 + 전체)이 동시에 열릴 수 있어서, 예전처럼 "이 스냅샷으로 DATA를
 // 통째로 교체"하면 서로 덮어써 버린다 — id 기준 Map에 병합한 뒤 DATA를 재구성하는 방식으로 바꿨다.
-let _campMap = new Map();
-let _campWatchStarted = false;
-let _campWatchedYears = new Set();
-let _campWatchedCompanies = new Set();
-let _campFullyWatching = false;
+// (상태 변수 _campMap 등 5개는 파일 앞쪽 initRoute() 바로 위로 옮겨졌다 — 아래 "왜 여기 있나" 참고.)
 
 function _campRecentCutoff() {
   // 넉넉하게 "현재연도 기준 2년 전 1/1"부터 — 전년 실적 비교 등 일반적인 조회는 대부분 이 기본 범위 안에서 해결됨
