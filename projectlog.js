@@ -415,7 +415,7 @@ function plRenderActiveTab() {
 
 const _PL_MINE_THEAD = `<tr>
           <th style="width:22px;"></th><th style="width:78px;">작성일</th><th style="width:120px;">광고주</th>
-          <th style="width:90px;">프로젝트</th><th style="width:90px;">캠페인</th><th style="width:70px;">매체</th><th style="width:60px;">유형</th>
+          <th style="width:90px;">프로젝트</th><th style="width:90px;">캠페인</th><th style="width:120px;">매체</th><th style="width:60px;">유형</th>
           <th>내용</th><th style="width:56px;">진척률</th><th style="width:70px;">작성자</th>
         </tr>`;
 // 작성기록이 많아지면 두 표를 세로로 쌓아둔 게 스크롤이 너무 길어져서, 서브탭으로 하나씩만 보여준다.
@@ -887,9 +887,9 @@ ${badgeCss}
 .tag.pl-inner{background:#f1f3f5;border-color:#dee2e6;color:#495057;}
 .tag.pl-ref{background:var(--blue-bg);border-color:#c5e2f7;color:#1971c2;}
 /* 일지/나의일지 표의 "매체" 칸(6번째 컬럼) — 참조 캠페인 여러 개라 매체명이 나열되면(예: "하나카드·신한카드")
-   컬럼이 넓어지던 것을 70px로 고정. 넘치는 부분은 평소엔 말줄임표로 숨기고, 그 칸에 마우스를 올렸을 때만
+   컬럼이 넓어지던 것을 120px로 고정. 넘치는 부분은 평소엔 말줄임표로 숨기고, 그 칸에 마우스를 올렸을 때만
    원래 폭 제한을 풀어서 옆 컬럼 위로 잠깐 드러나 보이게 한다. */
-#pl-tab-content .pl-lgt td:nth-child(6){max-width:70px;overflow:hidden;}
+#pl-tab-content .pl-lgt td:nth-child(6){max-width:120px;overflow:hidden;}
 #pl-tab-content .pl-lgt td:nth-child(6) .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;}
 #pl-tab-content .pl-lgt td:nth-child(6):hover{overflow:visible;}
 #pl-tab-content .pl-lgt td:nth-child(6):hover .tag{max-width:none;position:relative;z-index:5;}
@@ -1892,7 +1892,7 @@ function _plBuildLogTabSkeleton(container) {
       <div class="table-wrap"><table class="pl-lgt" style="width:100%;">
         <thead><tr>
           <th style="width:22px;"></th><th style="width:78px;">작성일</th><th style="width:120px;">광고주</th>
-          <th style="width:90px;">프로젝트</th><th style="width:90px;">캠페인</th><th style="width:70px;">매체</th><th style="width:60px;">유형</th>
+          <th style="width:90px;">프로젝트</th><th style="width:90px;">캠페인</th><th style="width:120px;">매체</th><th style="width:60px;">유형</th>
           <th>내용</th><th style="width:56px;">진척률</th><th style="width:70px;">작성자</th>
         </tr></thead>
         <tbody id="pl-log-tbody"></tbody>
