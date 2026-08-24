@@ -2480,7 +2480,15 @@ function _calCompanyItems() {
 
 function _fcConfig(name) {
   return {
-    fAdv:   { textId:'fAdv_text',   hiddenId:'fAdv',   listId:'combo-fAdv-list',   getItems:_fAdvItems, onSelect:() => applyFilter() },
+    // 회사명뿐 아니라 그 회사의 브랜드명으로도 찾을 수 있게 — 브랜드는 기억나는데 광고주/대행사
+    // 회사명이 기억 안 날 때를 위함. 매칭되면 그 회사(브랜드가 아니라)가 목록에 뜨고, 골라도
+    // 지금처럼 회사 단위로 필터링된다(브랜드 단위 필터는 아님).
+    fAdv:   { textId:'fAdv_text',   hiddenId:'fAdv',   listId:'combo-fAdv-list',   getItems:_fAdvItems, onSelect:() => applyFilter(),
+      matchFn: (company, q) => {
+        if (company.toLowerCase().includes(q)) return true;
+        const s = SELLER_DATA.find(s => s.company === company);
+        return !!(s && (s.brands || []).some(b => String(b.name || b || '').toLowerCase().includes(q)));
+      } },
     fMedia: { textId:'fMedia_text', hiddenId:'fMedia', listId:'combo-fMedia-list', getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => applyFilter() },
     'stl-fAdv':   { textId:'stl-fAdv_text',   hiddenId:'stl-fAdv',   listId:'combo-stl-fAdv-list',   getItems:_stlAdvItems, onSelect:() => renderSettlement() },
     'stl-fMedia': { textId:'stl-fMedia_text', hiddenId:'stl-fMedia', listId:'combo-stl-fMedia-list', getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => renderSettlement() },
@@ -2524,7 +2532,7 @@ function _fcRenderList(name, q) {
   const listEl = document.getElementById(cfg.listId);
   if (!textEl || !listEl) return;
   const items = cfg.getItems();
-  const filtered = q ? items.filter(it => it.toLowerCase().includes(q)) : items;
+  const filtered = q ? items.filter(it => cfg.matchFn ? cfg.matchFn(it, q) : it.toLowerCase().includes(q)) : items;
 
   listEl.innerHTML = '';
   const allDiv = document.createElement('div');
