@@ -886,6 +886,13 @@ ${badgeCss}
 .tag.pl-media{background:var(--blue-bg);border-color:#c5e2f7;color:#1971c2;}
 .tag.pl-inner{background:#f1f3f5;border-color:#dee2e6;color:#495057;}
 .tag.pl-ref{background:var(--blue-bg);border-color:#c5e2f7;color:#1971c2;}
+/* 일지/나의일지 표의 "매체" 칸(6번째 컬럼) — 참조 캠페인 여러 개라 매체명이 나열되면(예: "하나카드·신한카드")
+   컬럼이 넓어지던 것을 70px로 고정. 넘치는 부분은 평소엔 말줄임표로 숨기고, 그 칸에 마우스를 올렸을 때만
+   원래 폭 제한을 풀어서 옆 컬럼 위로 잠깐 드러나 보이게 한다. */
+#pl-tab-content .pl-lgt td:nth-child(6){max-width:70px;overflow:hidden;}
+#pl-tab-content .pl-lgt td:nth-child(6) .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;}
+#pl-tab-content .pl-lgt td:nth-child(6):hover{overflow:visible;}
+#pl-tab-content .pl-lgt td:nth-child(6):hover .tag{max-width:none;position:relative;z-index:5;}
 .pl-reftags{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:6px 8px;background:var(--surface2);border:1px dashed var(--border2);border-radius:var(--radius-sm);}
 .pl-reftags input{border:none;background:transparent;font-size:11.5px;outline:none;flex:1;min-width:120px;color:var(--text2);}
 /* 일자별 뷰 '매체 전반' 카드 앞머리 배지 — 세금계산서 뷰의 매체=보라 색상 규칙을 그대로 재사용 */
