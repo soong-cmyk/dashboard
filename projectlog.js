@@ -104,6 +104,10 @@ function _plFmtDateLocal(d) {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+function _plFmtHHMM(iso) {
+  const t = new Date(iso);
+  return String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+}
 function _plTodayStr() { return _plFmtDateLocal(new Date()); }
 
 // ── 클릭 고정 말풍선 (script.js의 tax-memo-bubble과 같은 패턴 — projectlog 전용으로 독립 구현) ──
@@ -1356,7 +1360,13 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
     </div>`;
   }
   if (compact) {
-    return `<div class="pl-detbox" style="border-left-color:${color};">${threadHtml}${continuePrevHtml}${threadChildrenHtml}${continueNextHtml}${detfootHtml}${commentsHtml}</div>`;
+    // 일자별 뷰는 작성자를 카드 어디에도 안 보여주는 유일한 화면이라(수정 모달에서만 확인 가능했음),
+    // 펼쳤을 때 이 한 줄로 누가·언제 썼는지 + 수정 모달과 같은 이력 보기를 바로 확인할 수 있게 한다.
+    const metaHtml = `<div class="form-hint" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
+      <span>${_escHtml(log.writer || '')} · ${_escHtml(log.bonbu || '')} ${_escHtml(log.dept || '')} · <span class="f-mono">${_escHtml(log.logDate || '')}${log.createdAt ? ' ' + _plFmtHHMM(log.createdAt) : ''}</span></span>
+      <span class="pl-x" style="flex-shrink:0;" onclick="event.stopPropagation();plOpenHistoryModal('${log.id}')">이력 보기</span>
+    </div>`;
+    return `<div class="pl-detbox" style="border-left-color:${color};">${metaHtml}${threadHtml}${continuePrevHtml}${threadChildrenHtml}${continueNextHtml}${detfootHtml}${commentsHtml}</div>`;
   }
   const subRowsArr = (log.detail || []).filter(d => (d.text || '').trim());
   const subRows = subRowsArr.length
@@ -3575,7 +3585,7 @@ function _plEditMetaHtml() {
         </div>
       </div>
       <div class="fg"><label class="form-label">작성 정보</label>
-        <div class="form-hint" style="padding-top:8px;">${_escHtml(d.writer || '')} · ${_escHtml(d.bonbu || '')} ${_escHtml(d.dept || '')} · <span class="f-mono">${_escHtml(d.logDate || '')}${d.createdAt ? ' ' + (() => { const t = new Date(d.createdAt); return String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0'); })() : ''}</span>
+        <div class="form-hint" style="padding-top:8px;">${_escHtml(d.writer || '')} · ${_escHtml(d.bonbu || '')} ${_escHtml(d.dept || '')} · <span class="f-mono">${_escHtml(d.logDate || '')}${d.createdAt ? ' ' + _plFmtHHMM(d.createdAt) : ''}</span>
           ${d.newFor ? '' : `<span class="pl-x" style="margin-left:6px;" onclick="plOpenHistoryModal('${d.id}')">이력 보기</span>`}
         </div>
       </div>
