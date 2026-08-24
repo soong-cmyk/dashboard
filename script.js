@@ -2489,7 +2489,13 @@ function _fcConfig(name) {
         const s = SELLER_DATA.find(s => s.company === company);
         return !!(s && (s.brands || []).some(b => String(b.name || b || '').toLowerCase().includes(q)));
       } },
-    fMedia: { textId:'fMedia_text', hiddenId:'fMedia', listId:'combo-fMedia-list', getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => applyFilter() },
+    // 매체명뿐 아니라 그 매체로 캠페인을 진행했던 매출처(광고주/대행사) 이름으로도 찾을 수 있게 —
+    // 매체명은 기억 안 나는데 어느 매출처 캠페인이었는지는 기억날 때를 위함.
+    fMedia: { textId:'fMedia_text', hiddenId:'fMedia', listId:'combo-fMedia-list', getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => applyFilter(),
+      matchFn: (media, q) => {
+        if (media.toLowerCase().includes(q)) return true;
+        return DATA.some(c => c.media === media && (c.seller || c.adv || '').toLowerCase().includes(q));
+      } },
     'stl-fAdv':   { textId:'stl-fAdv_text',   hiddenId:'stl-fAdv',   listId:'combo-stl-fAdv-list',   getItems:_stlAdvItems, onSelect:() => renderSettlement() },
     'stl-fMedia': { textId:'stl-fMedia_text', hiddenId:'stl-fMedia', listId:'combo-stl-fMedia-list', getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => renderSettlement() },
     calFilterCompany: { textId:'calFilterCompany_text', hiddenId:'calFilterCompany', listId:'combo-calFilterCompany-list', getItems:_calCompanyItems, onSelect:() => renderCalendar() },
