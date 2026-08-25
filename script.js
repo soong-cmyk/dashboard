@@ -12618,7 +12618,7 @@ function renderKpiOrgTable() {
   // 옅게 — td마다 이미 인라인으로 1px 테두리를 박아놔서(border:1px solid var(--border)) !important
   // 없이는 안 먹는다.
   let html = `<style>
-    .kpi-bonbu-sep td{border-top:1px solid var(--accent) !important;}
+    .kpi-bonbu-sep td{border-top:2px solid var(--accent) !important;}
     .kpi-subgroup-sep td{border-top:1px dashed var(--border2) !important;}
   </style>
   <div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
