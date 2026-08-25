@@ -419,7 +419,7 @@ const _PL_MINE_THEAD = `<tr>
           <th>내용</th><th style="width:56px;">진척률</th><th style="width:70px;">작성자</th>
         </tr>`;
 // 작성기록이 많아지면 두 표를 세로로 쌓아둔 게 스크롤이 너무 길어져서, 서브탭으로 하나씩만 보여준다.
-let _plMineSubTab = 'written'; // 'written' | 'involved' | 'byuser'
+let _plMineSubTab = 'written'; // 'written' | 'involved' | 'commented' | 'byuser'
 let _plMineUserFilters = []; // '작성자 모아보기' 탭에서 고른 사용자 이름들(여러 명 — 직급/조직 계위 기준이 아니라 직접 선택)
 function _plMineUserFilterKey() { return 'pl_mine_user_' + (currentUser?.id || 'anon'); }
 function _plBuildMineTabSkeleton(content) {
@@ -430,6 +430,7 @@ function _plBuildMineTabSkeleton(content) {
       <div class="view-tabs">
         <button class="view-tab${_plMineSubTab === 'written' ? ' active' : ''}" id="pl-mine-vt-written" onclick="_plMineSwitchSubTab('written')">내가 작성한 일지</button>
         <button class="view-tab${_plMineSubTab === 'involved' ? ' active' : ''}" id="pl-mine-vt-involved" onclick="_plMineSwitchSubTab('involved')">멘션</button>
+        <button class="view-tab${_plMineSubTab === 'commented' ? ' active' : ''}" id="pl-mine-vt-commented" onclick="_plMineSwitchSubTab('commented')">댓글 단 일지</button>
         <button class="view-tab${_plMineSubTab === 'byuser' ? ' active' : ''}" id="pl-mine-vt-byuser" onclick="_plMineSwitchSubTab('byuser')">작성자 모아보기</button>
       </div>
       <div class="combo-wrap" id="pl-mine-user-wrap" style="display:${_plMineSubTab === 'byuser' ? 'flex' : 'none'};align-items:center;gap:4px;flex-wrap:wrap;">
@@ -491,6 +492,7 @@ function _plMineSwitchSubTab(tab) {
   _plMineSubTab = tab;
   document.getElementById('pl-mine-vt-written')?.classList.toggle('active', tab === 'written');
   document.getElementById('pl-mine-vt-involved')?.classList.toggle('active', tab === 'involved');
+  document.getElementById('pl-mine-vt-commented')?.classList.toggle('active', tab === 'commented');
   document.getElementById('pl-mine-vt-byuser')?.classList.toggle('active', tab === 'byuser');
   const userWrap = document.getElementById('pl-mine-user-wrap');
   if (userWrap) userWrap.style.display = tab === 'byuser' ? 'flex' : 'none';
@@ -509,6 +511,9 @@ function _plRenderMineBody() {
   const writtenLogs = PL_LOGS.filter(l => l.writerId === myId && matchesQ(l));
   const mentionLogIds = new Set(PL_COMMENTS.filter(c => (c.mentions || []).some(m => m.id === myId)).map(c => c.logId));
   const involvedLogs = PL_LOGS.filter(l => l.writerId !== myId && mentionLogIds.has(l.id) && matchesQ(l));
+  // 내가 댓글을 단 일지 — 멘션 여부와 무관하게 댓글 작성자 기준. 내가 쓴 일지는 "작성" 쪽에만 표시.
+  const commentedLogIds = new Set(PL_COMMENTS.filter(c => c.writerId === myId).map(c => c.logId));
+  const commentedLogs = PL_LOGS.filter(l => l.writerId !== myId && commentedLogIds.has(l.id) && matchesQ(l));
   // 조직 계위(팀/본부) 기준이 아니라, 직접 고른 사용자들(여러 명 가능)이 쓴 것만 모아 보여준다.
   const userFilterSet = new Set(_plMineUserFilters);
   const byUserLogs = userFilterSet.size ? PL_LOGS.filter(l => userFilterSet.has(l.writer) && matchesQ(l)) : [];
@@ -518,13 +523,16 @@ function _plRenderMineBody() {
   if (writtenBtn) writtenBtn.textContent = `내가 작성한 일지 (${writtenLogs.length})`;
   const involvedBtn = document.getElementById('pl-mine-vt-involved');
   if (involvedBtn) involvedBtn.textContent = `멘션 (${involvedLogs.length})`;
+  const commentedBtn = document.getElementById('pl-mine-vt-commented');
+  if (commentedBtn) commentedBtn.textContent = `댓글 단 일지 (${commentedLogs.length})`;
   const byUserBtn = document.getElementById('pl-mine-vt-byuser');
   if (byUserBtn) byUserBtn.textContent = `작성자 모아보기${userFilterSet.size ? ` (${byUserLogs.length})` : ''}`;
 
-  const active = _plMineSubTab === 'involved' ? involvedLogs : _plMineSubTab === 'byuser' ? byUserLogs : writtenLogs;
-  const ctx = _plMineSubTab === 'involved' ? 'minemention' : _plMineSubTab === 'byuser' ? 'mineuser' : 'mine';
+  const active = _plMineSubTab === 'involved' ? involvedLogs : _plMineSubTab === 'commented' ? commentedLogs : _plMineSubTab === 'byuser' ? byUserLogs : writtenLogs;
+  const ctx = _plMineSubTab === 'involved' ? 'minemention' : _plMineSubTab === 'commented' ? 'minecommented' : _plMineSubTab === 'byuser' ? 'mineuser' : 'mine';
   const titleEl = document.getElementById('pl-mine-title');
   if (titleEl) titleEl.textContent = _plMineSubTab === 'involved' ? '멘션된 일지'
+    : _plMineSubTab === 'commented' ? '내가 댓글 단 일지'
     : _plMineSubTab === 'byuser' ? (userFilterSet.size ? `${_plMineUserFilters.join(', ')}님이 작성한 일지` : '작성자를 선택해주세요') : '내가 작성한 일지';
 
   const tbody = document.getElementById('pl-mine-tbody');
@@ -1166,7 +1174,7 @@ function _plRerenderByCtx(ctx) {
   if (ctx === 'mediadaily') { plRenderMediaTab(); return; }
   if (ctx === 'camp') { _plRenderCampaignLogModal(_plCampLogCurrentId, _plCampLogLastData, _plCampLogLastIsDeleted, _plCampLogLastNotFound); return; }
   if (ctx === 'date') { _plRenderDateBody(); return; }
-  if (ctx === 'mine' || ctx === 'minemention' || ctx === 'mineuser') { _plRenderMineBody(); return; }
+  if (ctx === 'mine' || ctx === 'minemention' || ctx === 'minecommented' || ctx === 'mineuser') { _plRenderMineBody(); return; }
   if (ctx === 'internal') { plRenderInternalTab(); return; }
   _plRenderRows();
 }
