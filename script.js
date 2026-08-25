@@ -12312,16 +12312,18 @@ function _kpiCalcClientList(year, bonbu, team, month) {
     .map(([name, brands]) => ({ name, brands: [...brands] }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 }
-// _kpiCalcClientList 결과를 칸 안에 한 줄로 — 2개 이상이면 첫 번째만 보여주고 "..."를 붙인다.
-// 칸 너비가 고정이라 한 줄 안에서도 넘칠 수 있어 CSS로 말줄임(ellipsis) 처리하고, 전체 목록은
-// 커스텀 툴팁(data-tooltip)으로 hover 시 보여준다. 클릭은 항상 첫 번째 광고주 상세로 이동.
+// _kpiCalcClientList 결과를 광고주마다 한 줄씩 — 몇 개든 다 보여주고(칸 높이는 자유롭게 늘어남)
+// 너비만 고정. 한 줄 안에서 이름이 넘치면 CSS 말줄임(ellipsis) 처리하고, hover 시 뜨는 말풍선
+// (plShowBubble, projectlog.js — position:fixed라 칸의 overflow:hidden과 무관하게 떠서 표
+// 너비에 영향을 안 준다)으로 그 줄의 전체 텍스트를 보여준다. 각 줄을 누르면 그 광고주 상세로 이동.
 function _kpiAdvListHtml(list) {
   if (!list || !list.length) return '';
-  const fmt = a => `${a.name}${a.brands.length ? ' · ' + a.brands.join(', ') : ''}`;
-  const first = list[0];
-  const label = fmt(first) + (list.length > 1 ? ' ...' : '');
-  const tooltip = list.map(fmt).join(' / ');
-  return `<span class="kpi-adv-line" data-tooltip="${_escHtml(tooltip)}" onclick="plGoToAdvertiserDetail('${_escHtml(first.name)}')">${_escHtml(label)}</span>`;
+  return list.map(a => {
+    const full = `${a.name}${a.brands.length ? ' · ' + a.brands.join(', ') : ''}`;
+    return `<span class="kpi-adv-line" data-adv="${_escHtml(full)}"
+      onmouseenter="plShowBubble(this,this.dataset.adv)" onmouseleave="plHideBubble()"
+      onclick="plGoToAdvertiserDetail('${_escHtml(a.name)}')">${_escHtml(full)}</span>`;
+  }).join('');
 }
 
 function _fmtW(n) {

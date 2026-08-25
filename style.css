@@ -856,12 +856,11 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
 .kpi-up   { color:var(--green); font-weight:700; }
 .kpi-down { color:var(--red);   font-weight:700; }
 .kpi-flat { color:var(--text3); }
-/* 광고주 목록 칸 — 월별 칸 너비를 고정하고, 넘치는 내용은 말줄임표로 자른 뒤 hover 시 커스텀
-   툴팁(data-tooltip)으로 전체 목록을 보여준다(매체 칸과 달리 위로 넘쳐 보이게 하지 않고 툴팁 방식). */
-.kpi-adv-cell { text-align:left !important; max-width:110px; overflow:hidden; }
-/* 말줄임 처리를 위한 overflow:hidden이 툴팁까지 잘라버려서, hover 중엔 잠깐 풀어준다(매체 칸과 동일한 트릭). */
-.kpi-adv-cell:hover { overflow:visible; }
-.kpi-adv-line { display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; font-size:10.5px; color:var(--accent); cursor:pointer; }
+/* 광고주 목록 칸 — 너비는 고정(overflow:hidden, hover 때도 안 풀어줌 — 표 너비가 흔들리지 않게),
+   높이는 광고주 수만큼 자유롭게 늘어난다. 줄 하나가 너비를 넘치면 말줄임표로 자르고, 전체 텍스트는
+   hover 시 뜨는 말풍선(plShowBubble, position:fixed)으로 — 칸의 overflow:hidden과 무관하게 뜬다. */
+.kpi-adv-cell { text-align:left !important; vertical-align:top; max-width:110px; overflow:hidden; }
+.kpi-adv-line { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10.5px; line-height:1.6; color:var(--accent); cursor:pointer; }
 .kpi-adv-line:hover { text-decoration:underline; }
 .bep-tbl { border-collapse:collapse; font-size:12px; }
 .bep-tbl th { padding:8px 10px; border:1px solid var(--border); background:var(--surface2); font-weight:600; color:var(--text2); white-space:nowrap; }
