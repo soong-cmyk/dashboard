@@ -12506,13 +12506,13 @@ function renderKpiGrandTable() {
   // 색 채운 배경 대신 중립 배경 + 액센트는 연간합계 칸의 왼쪽 테두리 정도로만 최소한으로 씀
   // (다른 화면 표들도 색 배경 없이 hover 틴트·작은 뱃지 정도만 쓰는 것과 톤을 맞춤).
   const thC  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
-  const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:700;font-size:11px;color:var(--accent);text-align:center;white-space:nowrap;';
+  const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:var(--accent-light);font-weight:700;font-size:11px;color:var(--accent);text-align:center;white-space:nowrap;';
   const tdL  = 'padding:7px 12px;border:1px solid var(--border);font-weight:600;font-size:12px;color:var(--text2);background:var(--surface2);white-space:nowrap;position:sticky;left:0;z-index:1;';
   const tdV  = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:12px;white-space:nowrap;';
   const tdAN = tdV + 'border-left:2px solid var(--accent);font-weight:800;';
   const tdAC = 'padding:7px 10px;border:1px solid var(--border);border-left:2px solid var(--accent);text-align:center;font-size:12px;white-space:nowrap;font-weight:800;';
-  const tdQ  = tdV + 'font-weight:700;';
-  const tdQC = 'padding:7px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;font-weight:700;';
+  const tdQ  = tdV + 'background:var(--accent-light);font-weight:700;';
+  const tdQC = 'padding:7px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:var(--accent-light);font-weight:700;';
   const tdC  = tdV + 'text-align:center;';
   const nd   = '<span style="color:var(--text3)">—</span>';
 
@@ -12596,13 +12596,13 @@ function renderKpiOrgTable() {
   // 색 채운 배경 대신 중립 배경 + 액센트는 연간합계 칸의 왼쪽 테두리 정도로만 최소한으로 씀
   // (다른 화면 표들도 색 배경 없이 hover 틴트·작은 뱃지 정도만 쓰는 것과 톤을 맞춤).
   const thC  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
-  const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:700;font-size:11px;color:var(--accent);text-align:center;white-space:nowrap;';
+  const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:var(--accent-light);font-weight:700;font-size:11px;color:var(--accent);text-align:center;white-space:nowrap;';
   const tdL  = 'padding:7px 10px;border:1px solid var(--border);font-weight:600;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
   const tdV  = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;white-space:nowrap;';
   const tdAN = tdV + 'border-left:2px solid var(--accent);font-weight:800;';
   const tdAC = 'padding:6px 10px;border:1px solid var(--border);border-left:2px solid var(--accent);text-align:center;font-size:12px;white-space:nowrap;font-weight:800;';
-  const tdQ  = tdV + 'font-weight:700;';
-  const tdQC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;font-weight:700;';
+  const tdQ  = tdV + 'background:var(--accent-light);font-weight:700;';
+  const tdQC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:var(--accent-light);font-weight:700;';
   const tdC  = tdV + 'text-align:center;';
   const nd   = '<span style="color:var(--text3)">—</span>';
 
@@ -12613,11 +12613,12 @@ function renderKpiOrgTable() {
     ? `<th style="${thQ}min-width:72px;">${col}</th>`
     : `<th style="${thC}min-width:78px;">${_KPI_ML[col]}</th>`;
 
-  // 본부가 바뀌는 경계 줄(kpi-bonbu-sep)은 진하게, 매출·광고주 두 지표 묶음 사이(kpi-subgroup-sep)는
-  // 얇은 점선으로 — 색 구분을 없앤 대신 색 없이도 구간이 나뉘어 보이게 선으로만 표시한다. td마다
-  // 이미 인라인으로 1px 테두리를 박아놔서(border:1px solid var(--border)) !important 없이는 안 먹는다.
+  // 본부 합계 위·아래(=본부합계↔이전 본부, 본부합계↔팀블록)와 같은 본부 안 팀들 사이의 경계는
+  // 전부 kpi-bonbu-sep(진하게), 팀 하나 안의 매출·광고주 두 지표 묶음 사이만 kpi-subgroup-sep(점선)로
+  // 옅게 — td마다 이미 인라인으로 1px 테두리를 박아놔서(border:1px solid var(--border)) !important
+  // 없이는 안 먹는다.
   let html = `<style>
-    .kpi-bonbu-sep td{border-top:2px solid var(--text2) !important;}
+    .kpi-bonbu-sep td{border-top:2px solid var(--text) !important;}
     .kpi-subgroup-sep td{border-top:1px dashed var(--border2) !important;}
   </style>
   <div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
@@ -12647,11 +12648,11 @@ function renderKpiOrgTable() {
   groups.forEach((g, gi) => {
     const isFirstGroup = gi === 0;
 
-    // ── 본부 합계(팀이 2개 이상 보일 때만 — 1개면 팀 블록 자체가 곧 본부 전체라 중복) ──
+    // ── 본부 합계 — 팀이 하나뿐인 본부(예: 2본부)도 항상 보여준다. ──
     // 매출 실적·목표는 팀별 값을 그대로 합산(_kpiCalcActual을 팀 없이 본부 단위로 다시 불러 합산과 동일),
     // 광고주별 KPI 달성률만 "평균"으로 — 팀마다 목표 광고주 수 규모가 달라 단순 합산 비율보다
     // 각 팀 달성률을 그대로 평균 내는 쪽이 요청한 지표에 맞다.
-    if (g.teams.length > 1) {
+    {
       const bAct = {}, bTgt = {}, bClientRate = {};
       _KPI_MONTHS.forEach(m => {
         bAct[m] = _kpiCalcActual(_kpiYear, g.bonbuName, '', m);
@@ -12703,10 +12704,9 @@ function renderKpiOrgTable() {
       });
     }
 
-    // ── 팀별 블록 — 본부 합계가 이미 그룹의 시작을 표시해줬으면(팀 2개 이상) 굳이 또 구분선을 안 넣고,
-    // 팀이 하나뿐이라 합계를 안 보여준 경우에만 이 팀 블록 첫 줄에 구분선을 넣는다.
-    const needsOwnTopBorder = g.teams.length === 1 && !isFirstGroup;
-    g.teams.forEach((t, ti) => {
+    // ── 팀별 블록 — 이제 본부 합계가 항상 앞에 있으므로, 모든 팀 블록의 첫 줄은 항상 구분선을 받는다
+    // (첫 팀이면 본부합계↔팀 경계, 두 번째 팀부터는 팀↔팀 경계 — 둘 다 같은 색 kpi-bonbu-sep).
+    g.teams.forEach(t => {
       const acts  = {}; _KPI_MONTHS.forEach(m => { acts[m]  = _kpiCalcActual(_kpiYear, t.bonbuName, t.name, m); });
       const tgts  = {}, prevs = {}, stgts = {};
       _KPI_MONTHS.forEach(m => {
@@ -12787,8 +12787,7 @@ function renderKpiOrgTable() {
       ];
 
       rows.forEach((row, ri) => {
-        const sep = ri === 0 && ti === 0 && needsOwnTopBorder;
-        const cls = sep ? 'kpi-bonbu-sep' : (row.subgroupTop ? 'kpi-subgroup-sep' : '');
+        const cls = ri === 0 ? 'kpi-bonbu-sep' : (row.subgroupTop ? 'kpi-subgroup-sep' : '');
         html += `<tr${cls ? ` class="${cls}"` : ''}>
           ${ri === 0 ? `<td style="${tdL}position:sticky;left:0;z-index:1;" rowspan="${TOTAL_ROWS}">${_escHtml(t.bonbuName)}</td><td style="${tdL}" rowspan="${TOTAL_ROWS}">${teamLabel}</td>` : ''}
           <td style="${tdL}">${row.label}</td>
