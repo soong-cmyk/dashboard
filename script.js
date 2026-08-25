@@ -11902,6 +11902,10 @@ function _fbWatchUsers() {
     if (currentUser) { const fresh = USERS.find(u => u.id === currentUser.id); if (fresh) { currentUser = fresh; localStorage.setItem('cu', JSON.stringify(fresh)); } }
     _populateSalesSelects();
     if (document.getElementById('screen-users')?.classList.contains('active')) _renderUserMgmtList();
+    // KPI 본부/팀별 집계(_kpiCalcActual 등)가 담당자 이름→USERS 조회로 소속을 판단하는데, USERS 구독이
+    // DATA보다 늦게 도착하면 KPI 화면이 먼저 그려져 팀별 실적이 전부 0으로 굳어버린 채 안 바뀌는
+    // 문제가 있었음 — USERS가 갱신될 때마다 KPI 화면이 열려있으면 다시 그려서 따라잡게 한다.
+    if (document.getElementById('screen-kpi')?.classList.contains('active')) renderKpi();
   }, e => console.error('[FB] 사용자 구독 실패:', e));
 }
 
