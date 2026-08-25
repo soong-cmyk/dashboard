@@ -625,7 +625,7 @@ function _plRenderInternalLogRow(log) {
   const progHtml = log.progress != null
     ? `<span class="prog-wrap" style="width:46px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}%</span>`
     : '<span class="td-dim">—</span>';
-  const rowHtml = `<tr id="pl-row-${log.id}" class="pl-lg-head" onclick="_plToggleRow('${log.id}','internal')" style="cursor:pointer;">
+  const rowHtml = `<tr id="pl-row-${log.id}" class="pl-lg-head" onclick="_plToggleRowGuarded(event,'${log.id}','internal')" style="cursor:pointer;">
     <td class="pl-lg-arrow">${arrow}</td>
     <td class="f-mono td-num">${dateShort}</td>
     <td>${log.content ? _escHtml(log.content) : '<span class="td-dim">—</span>'}</td>
@@ -756,7 +756,7 @@ function _plRenderCampaignLogRow(log, isRef) {
   const progHtml = log.progress != null
     ? `<span class="prog-wrap" style="width:40px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}</span>`
     : '<span class="td-dim">—</span>';
-  const rowHtml = `<tr class="pl-lg-head" onclick="_plToggleRow('${log.id}','camp')" style="cursor:pointer;">
+  const rowHtml = `<tr class="pl-lg-head" onclick="_plToggleRowGuarded(event,'${log.id}','camp')" style="cursor:pointer;">
     <td class="pl-lg-arrow">${arrow}</td>
     <td class="f-mono td-num">${dateShort}</td>
     <td><span class="badge pl-lg-${log.logType}">${_escHtml(log.logType)}</span></td>
@@ -1142,6 +1142,14 @@ function _plHighlight(text, rawQuery) {
   } catch (e) { return esc; }
 }
 
+// 행 전체가 펼침/접힘 토글 영역이라, 내용을 드래그로 선택(복사)하려다 마우스를 떼는 순간 그 자리에서
+// click 이벤트가 그대로 또 발생해 카드가 접혀버리는 문제가 있었다 — 드래그해서 뭔가 선택된 상태로
+// 클릭이 끝났으면 그건 "선택하려던 것"으로 보고 토글을 건너뛴다.
+function _plToggleRowGuarded(event, id, ctx) {
+  const sel = window.getSelection ? String(window.getSelection()) : '';
+  if (sel.trim()) return;
+  _plToggleRow(id, ctx);
+}
 function _plToggleRow(id, ctx) {
   if (_plExpanded.has(id)) _plExpanded.delete(id); else _plExpanded.add(id);
   if (ctx === 'gdaily') { _plGRenderDaily(); return; }
@@ -1769,7 +1777,7 @@ function _plRenderLogRow(log, q, ctx) {
     ? `<span class="prog-wrap" style="width:46px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}%</span>`
     : '<span class="td-dim">—</span>';
 
-  const rowHtml = `<tr id="pl-row-${log.id}" class="pl-lg-head" onclick="_plToggleRow('${log.id}','${ctx}')" style="cursor:pointer;">
+  const rowHtml = `<tr id="pl-row-${log.id}" class="pl-lg-head" onclick="_plToggleRowGuarded(event,'${log.id}','${ctx}')" style="cursor:pointer;">
     <td class="pl-lg-arrow">${arrow}</td>
     <td class="f-mono td-num">${dateShort}</td>
     <td>${sellerCell}</td>
@@ -5163,7 +5171,7 @@ function _plDateItemHtml(l, hideMediaTag) {
     + ((l.links && l.links.length) ? `<span style="font-size:11px;margin-left:4px;vertical-align:middle;" title="링크 ${l.links.length}개">🔗${l.links.length}</span>` : '')
     + `<span id="pl-cmt-badge-${l.id}" style="vertical-align:middle;">${_plCommentBadgeHtml(l.id)}</span>`;
   return `<div style="padding:4px 0;">
-    <div style="display:flex;align-items:flex-start;gap:4px;cursor:pointer;" onclick="_plToggleRow('${l.id}','date')">
+    <div style="display:flex;align-items:flex-start;gap:4px;cursor:pointer;" onclick="_plToggleRowGuarded(event,'${l.id}','date')">
       <span style="flex-shrink:0;font-size:10px;color:var(--text3);width:12px;">${arrow}</span>
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;">${starHtml}<span class="badge pl-lg-${l.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(l.logType)}</span>${mediaHtml}${_escHtml(l.summary || '')}${_plContinueChainBadgeHtml(l)}${progText}${attachIconsHtml}</div>
