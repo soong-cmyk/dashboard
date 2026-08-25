@@ -933,6 +933,9 @@ ${badgeCss}
 /* 일지/일자별 뷰의 접힌(토글 안 한) 행에서도 ㄴ 내용 바로 밑에 보이는 "+ ㄴ 추가" — 버튼이 아니라 글씨로 */
 .pl-quickadd{margin:2px 0 0 22px;font-size:11.5px;color:var(--accent);font-weight:700;cursor:pointer;display:inline-block;}
 .pl-quickadd:hover{text-decoration:underline;}
+.pl-quickadd-form{display:flex;align-items:center;gap:6px;margin:3px 0 0 22px;}
+.pl-quickadd-form .pl-mini{width:auto;flex:1;min-width:120px;max-width:320px;}
+.pl-quickadd-form .pl-x{font-size:11.5px;}
 .pl-add{text-align:center;border:1px dashed var(--border2);border-radius:var(--radius-sm);padding:8px;color:var(--text3);font-size:12px;font-weight:700;cursor:pointer;margin-top:8px;}
 .pl-add.block{padding:11px;border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
 /* "+ 항목 추가"(같은 그룹에 이어쓰기)와 계위를 구분하기 위해, 새 그룹 시작(매체·캠페인)은 강조색
@@ -1155,6 +1158,10 @@ function _plToggleRowGuarded(event, id, ctx) {
 }
 function _plToggleRow(id, ctx) {
   if (_plExpanded.has(id)) _plExpanded.delete(id); else _plExpanded.add(id);
+  _plRerenderByCtx(ctx);
+}
+// _plToggleRow와 "+ㄴ 추가" 미니폼(quick-add)이 공통으로 쓰는, ctx별로 맞는 화면만 다시 그리는 디스패처.
+function _plRerenderByCtx(ctx) {
   if (ctx === 'gdaily') { _plGRenderDaily(); return; }
   if (ctx === 'mediadaily') { plRenderMediaTab(); return; }
   if (ctx === 'camp') { _plRenderCampaignLogModal(_plCampLogCurrentId, _plCampLogLastData, _plCampLogLastIsDeleted, _plCampLogLastNotFound); return; }
@@ -1774,7 +1781,7 @@ function _plRenderLogRow(log, q, ctx) {
       <span style="flex-shrink:0;"><span style="color:var(--text3);">ㄴ</span>${d.label ? ` <b>${_plHighlight(d.label, q)}</b>` : ''}</span>
       <span style="white-space:pre-line;">${_plHighlight(d.text, q)}</span>
     </div>`
-  ).join('') + `<span class="pl-quickadd" onclick="event.stopPropagation();_plQuickAddSub('${log.id}','${ctx}')">＋ ㄴ 추가</span>`;
+  ).join('') + _plQuickAddTailHtml(log.id, ctx);
 
   const progHtml = log.progress != null
     ? `<span class="prog-wrap" style="width:46px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}%</span>`
@@ -3142,17 +3149,6 @@ function _plDateCancelInlineEdit() {
   _plInlineEditId = null;
   _plRenderDateBody();
 }
-// 접힌 상태에서도 보이는 "+ ㄴ 추가" — 새 저장경로를 만들지 않고 기존 수정 흐름(모달/인라인)을 그대로 열어서
-// 빈 ㄴ 행 하나를 추가해준다. 이렇게 해야 plSaveEdit()을 그대로 타서 이력(history)에 정상적으로 남는다.
-async function _plQuickAddSub(logId, ctx) {
-  if (ctx === 'date') await _plDateStartInlineEdit(logId);
-  else await plOpenEdit(logId);
-  if (!_plEditDraft || _plEditDraft.id !== logId) return; // 권한 없음/경합 등으로 draft가 안 열렸으면 중단
-  _plEditAddSub();
-  const newIdx = (_plEditDraft.detail || []).length - 1;
-  const el = document.getElementById(_plEditSubTextId(newIdx));
-  if (el) el.focus();
-}
 // 대상(광고주/프로젝트/캠페인/매체)은 인라인에서는 읽기 전용으로만 보여준다 — 검색해서 바꾸는 UI는
 // 모달 전용 id(#pl-e-tgt 등)에 묶여있어 여기서 그대로 재사용하면 충돌하고, 대상을 바꾸는 건 애초에
 // 자주 있는 일도 아니라서 필요하면 "수정" 대신 기존 모달로 열도록 남겨둔다.
@@ -3434,13 +3430,10 @@ function _plEditSubHtml(di, d) {
   }
   return `<div class="pl-sub"><span class="pl-m">ㄴ</span>
     ${labelControl}
-    <textarea class="pl-mini" id="${_plEditSubTextId(di)}" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;" oninput="_plEditSubField(${di},'text',this.value);_plAutoGrowTextarea(this)">${_escHtml(d.text || '')}</textarea>
+    <textarea class="pl-mini" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;" oninput="_plEditSubField(${di},'text',this.value);_plAutoGrowTextarea(this)">${_escHtml(d.text || '')}</textarea>
     <span class="pl-x" onclick="_plEditRemoveSub(${di})">✕</span>
   </div>`;
 }
-// 일자별 뷰 인라인 수정 중에는 모달(pl-e-block)이 DOM에 그대로(숨김) 남아있어서 같은 id를 쓰면
-// document.getElementById가 모달 쪽 걸 잡아버린다 — _plEditRelListId와 같은 이유로 인라인일 땐 다른 id를 쓴다.
-function _plEditSubTextId(di) { return `${_plEditDraft?.__inline ? 'pl-di' : 'pl-e'}-subtext-${di}`; }
 // ── "+ 항목 추가" — 수정 중인 로그와 같은 대상(광고주/프로젝트/캠페인/매체)으로, 별도의 새 로그가 될
 // 항목을 여기서 같이 입력할 수 있게 한다. 기본줄+하위기록만(첨부는 없음) — 저장 시 원본 수정과 별개로
 // 새 로그 문서로 생성된다(plSaveEdit).
@@ -3927,6 +3920,63 @@ async function plSaveEdit() {
     toast('저장 중 오류가 발생했습니다', 'err');
   } finally {
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '저장'; }
+  }
+}
+
+// ── 접힌 행에서 바로 뜨는 "+ ㄴ 추가" 미니폼 — 전체 수정 폼(모달/인라인)을 열지 않고, 입력창 하나 +
+// 저장 버튼만 그 자리에서 보여준다. 한 번에 하나만 열 수 있어(logId 하나만 기억) id 충돌 걱정이 없다.
+// detail만 바뀐 문서를 plSaveEdit과 동일한 방식(_plDiffFields)으로 저장·이력기록하므로 이력에도 남는다.
+let _plQuickAdd = null; // 지금 미니폼이 열려있는 log id
+// 일지/나의일지 표(_plRenderLogRow)와 일자별 뷰(_plDateItemHtml)가 공유하는, ㄴ내용 목록 맨 아래 붙는
+// 꼬리 — 평소엔 "+ ㄴ 추가" 글씨 링크, 그 로그의 미니폼이 열려있으면 입력창+저장 버튼으로 바뀐다.
+function _plQuickAddTailHtml(logId, ctx) {
+  if (_plQuickAdd === logId) {
+    return `<div class="pl-quickadd-form" onclick="event.stopPropagation()">
+      <span style="color:var(--text3);font-size:12px;">ㄴ</span>
+      <input type="text" class="pl-mini" id="pl-qa-input" placeholder="내용을 입력하세요"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();_plQuickAddSave('${logId}','${ctx}');}else if(event.key==='Escape'){_plQuickAddCancel('${ctx}');}">
+      <button class="btn btn-primary btn-sm" id="pl-qa-savebtn" onclick="_plQuickAddSave('${logId}','${ctx}')">저장</button>
+      <span class="pl-x" onclick="_plQuickAddCancel('${ctx}')">취소</span>
+    </div>`;
+  }
+  return `<span class="pl-quickadd" onclick="event.stopPropagation();_plQuickAddStart('${logId}','${ctx}')">＋ ㄴ 추가</span>`;
+}
+function _plQuickAddStart(logId, ctx) {
+  _plQuickAdd = logId;
+  _plRerenderByCtx(ctx);
+  document.getElementById('pl-qa-input')?.focus();
+}
+function _plQuickAddCancel(ctx) {
+  _plQuickAdd = null;
+  _plRerenderByCtx(ctx);
+}
+async function _plQuickAddSave(logId, ctx) {
+  const text = (document.getElementById('pl-qa-input')?.value || '').trim();
+  if (!text) { toast('내용을 입력해주세요', 'err'); return; }
+  const orig = PL_LOGS.find(l => l.id === logId);
+  if (!orig) { toast('일지를 찾을 수 없습니다', 'err'); return; }
+  const btn = document.getElementById('pl-qa-savebtn');
+  if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
+  try {
+    const detail = [...(orig.detail || []), { label: '', text }];
+    const updated = Object.assign({}, orig, { detail, updatedAt: new Date().toISOString() });
+    updated.searchText = _plBuildSearchText(updated);
+    const changes = _plDiffFields(orig, updated);
+    await _plDb('projectLogs').doc(logId).set(updated);
+    if (changes.length) {
+      await _plDb('projectLogHistory').add({ logId, changedBy: currentUser?.name || '', changedAt: new Date().toISOString(), changes });
+    }
+    if (orig.writerId && orig.writerId !== currentUser?.id && changes.length) {
+      _fbSaveNotification(orig.writerId, 'pl_edit', `${currentUser?.name || ''}님이 "${_plNotifySubject(updated)}" 일지를 수정했습니다.`, { logId });
+    }
+    _plQuickAdd = null;
+    _plRerenderByCtx(ctx);
+    toast('✓ 추가되었습니다', 'ok');
+  } catch (e) {
+    console.error('[projectlog] ㄴ 빠른 추가 실패', e);
+    toast('저장 중 오류가 발생했습니다', 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '저장'; }
   }
 }
 
@@ -5182,7 +5232,7 @@ function _plDateItemHtml(l, hideMediaTag) {
       <span style="flex-shrink:0;">ㄴ${d.label ? ` <b>${_escHtml(d.label)}</b>` : ''}</span>
       <span style="white-space:pre-line;">${_escHtml(d.text)}</span>
     </div>`
-  ).join('') + `<span class="pl-quickadd" onclick="event.stopPropagation();_plQuickAddSub('${l.id}','date')">＋ ㄴ 추가</span>`;
+  ).join('') + _plQuickAddTailHtml(l.id, 'date');
   if (l.hasImages && l.imageCount == null) _plEnsureImageCountBadge(l.id);
   const attachIconsHtml = (l.hasImages ? `<span id="pl-imgcnt-${l.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;vertical-align:middle;" onclick="event.stopPropagation();_plOpenLogImages('${l.id}')" title="첨부 이미지 — 클릭하여 보기">📁${l.imageCount || ''}</span>` : '')
     + ((l.links && l.links.length) ? `<span style="font-size:11px;margin-left:4px;vertical-align:middle;" title="링크 ${l.links.length}개">🔗${l.links.length}</span>` : '')
