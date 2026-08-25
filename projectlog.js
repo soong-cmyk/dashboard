@@ -1333,7 +1333,7 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
     const sub = c ? `(${[c.media, c.product].filter(Boolean).join(' ')})` : '';
     return `<span class="tag pl-ref" style="cursor:pointer;" onclick="event.stopPropagation();openCalPreview(DATA.findIndex(d=>d.id==='${_escHtml(cid)}'))">🔗 ${_escHtml(cid)}${_escHtml(sub)}</span>`;
   }).join(' ');
-  const attachParts = [log.attachPath, log.attachName].filter(Boolean).map(_escHtml).join(' | ');
+  const attachParts = [log.attachPath, log.attachName].filter(Boolean).map(_escHtml).join(' / ');
   const attachPathHtml = attachParts
     ? `<span class="tag">📁 ${attachParts}${log.attachPath ? ` <span class="pl-x" style="display:inline;margin-left:2px;" onclick="event.stopPropagation();_plCopyAttachPath('${log.id}')">경로복사</span>` : ''}</span>`
     : '';
