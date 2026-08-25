@@ -12297,12 +12297,20 @@ function _fmtKpi(n) {
   return (n < 0 ? '-' : '') + Math.abs(Math.round(n)).toLocaleString();
 }
 
-function _kpiRateHtml(actual, target) {
-  if (!target) return '<span style="color:var(--text3)">—</span>';
-  const r = Math.round((actual / target - 1) * 100);
+// 목표 대비 증감률(원시 숫자) — 팀별 달성률 셀(_kpiRateHtml)과 본부 합계의 "광고주별 KPI 달성률(평균)"이
+// 같은 숫자 계산을 공유하도록 분리해둠. target이 없으면(0/미입력) 평균 계산에서 자연히 빠지게 null.
+function _kpiRateNum(actual, target) {
+  if (!target) return null;
+  return Math.round((actual / target - 1) * 100);
+}
+function _kpiRateNumHtml(r) {
+  if (r == null) return '<span style="color:var(--text3)">—</span>';
   if (r > 0)  return `<span class="kpi-up">▲${r}%</span>`;
   if (r < 0)  return `<span class="kpi-down">▼${Math.abs(r)}%</span>`;
   return `<span class="kpi-flat">±0%</span>`;
+}
+function _kpiRateHtml(actual, target) {
+  return _kpiRateNumHtml(_kpiRateNum(actual, target));
 }
 
 function _kpiYoyHtml(actual, prev) {
@@ -12571,91 +12579,163 @@ function renderKpiOrgTable() {
       ${cols.map(colHdr).join('')}
     </tr></thead><tbody>`;
 
-  let _kpiPrevBonbu = null;
-  for (const t of teamsToShow) {
-    // 본부가 바뀌는 첫 팀 블록의 맨 위 줄에만 진한 구분선을 넣어 본부 단위 구간을 한눈에 보이게 한다.
-    const isNewBonbu = _kpiPrevBonbu !== null && t.bonbuName !== _kpiPrevBonbu;
-    _kpiPrevBonbu = t.bonbuName;
-    const acts  = {}; _KPI_MONTHS.forEach(m => { acts[m]  = _kpiCalcActual(_kpiYear, t.bonbuName, t.name, m); });
-    const tgts  = {}, prevs = {}, stgts = {};
-    _KPI_MONTHS.forEach(m => {
-      const md = (t.months || []).find(x => x.month === m) || {};
-      tgts[m]  = md.target      || 0;
-      prevs[m] = md.prevYear    || 0;
-      stgts[m] = md.salesTarget || 0;
+  // 본부 그룹별로 묶기 — 이미 ORG_STRUCTURE 순서라 같은 본부 팀들이 인접해서 나열되어 있다.
+  const groups = [];
+  teamsToShow.forEach(t => {
+    const last = groups[groups.length - 1];
+    if (last && last.bonbuName === t.bonbuName) last.teams.push(t);
+    else groups.push({ bonbuName: t.bonbuName, teams: [t] });
+  });
+
+  const tdSN = 'padding:7px 10px;border:1px solid var(--border);font-weight:800;font-size:11px;color:var(--accent);background:#dde5ff;white-space:nowrap;';
+  const tdSV = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:800;white-space:nowrap;background:#dde5ff;';
+  const tdSC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:800;white-space:nowrap;background:#dde5ff;';
+
+  groups.forEach((g, gi) => {
+    const isFirstGroup = gi === 0;
+
+    // ── 본부 합계(팀이 2개 이상 보일 때만 — 1개면 팀 블록 자체가 곧 본부 전체라 중복) ──
+    // 매출 실적·목표는 팀별 값을 그대로 합산(_kpiCalcActual을 팀 없이 본부 단위로 다시 불러 합산과 동일),
+    // 광고주별 KPI 달성률만 "평균"으로 — 팀마다 목표 광고주 수 규모가 달라 단순 합산 비율보다
+    // 각 팀 달성률을 그대로 평균 내는 쪽이 요청한 지표에 맞다.
+    if (g.teams.length > 1) {
+      const bAct = {}, bTgt = {}, bClientRate = {};
+      _KPI_MONTHS.forEach(m => {
+        bAct[m] = _kpiCalcActual(_kpiYear, g.bonbuName, '', m);
+        bTgt[m] = g.teams.reduce((s, t) => s + ((t.months || []).find(x => x.month === m)?.target || 0), 0);
+        const rs = g.teams.map(t => {
+          const cl = _kpiCalcClients(_kpiYear, g.bonbuName, t.name, m);
+          const tg = (t.months || []).find(x => x.month === m)?.salesTarget || 0;
+          return _kpiRateNum(cl, tg);
+        }).filter(r => r != null);
+        bClientRate[m] = rs.length ? Math.round(rs.reduce((s, r) => s + r, 0) / rs.length) : null;
+      });
+      const totBAct = _KPI_MONTHS.reduce((s, m) => s + bAct[m], 0);
+      const totBTgt = _KPI_MONTHS.reduce((s, m) => s + bTgt[m], 0);
+      const validRates = _KPI_MONTHS.map(m => bClientRate[m]).filter(r => r != null);
+      const totBClientRate = validRates.length ? Math.round(validRates.reduce((s, r) => s + r, 0) / validRates.length) : null;
+
+      const sActCell = col => {
+        if (col.startsWith('Q')) return isFutureQ(col) ? `<td style="${tdSV}">${nd}</td>` : `<td style="${tdSV}">${_fmtKpi(qSum(bAct,col))}</td>`;
+        return col > curM ? `<td style="${tdSV}">${nd}</td>` : `<td style="${tdSV}">${_fmtKpi(bAct[col])}</td>`;
+      };
+      const sRateCell = col => {
+        const isQ = col.startsWith('Q');
+        if (isQ ? isFutureQ(col) : col > curM) return `<td style="${tdSC}">${nd}</td>`;
+        const a = isQ ? qSum(bAct,col) : (bAct[col]||0);
+        const b = isQ ? qSum(bTgt,col) : (bTgt[col]||0);
+        return `<td style="${tdSC}">${_kpiRateHtml(a,b)}</td>`;
+      };
+      const sClientRateCell = col => {
+        const isQ = col.startsWith('Q');
+        if (isQ ? isFutureQ(col) : col > curM) return `<td style="${tdSC}">${nd}</td>`;
+        if (isQ) {
+          const rs = _KPI_QTR_MAP[col].map(m => bClientRate[m]).filter(r => r != null);
+          return `<td style="${tdSC}">${_kpiRateNumHtml(rs.length ? Math.round(rs.reduce((s,r)=>s+r,0)/rs.length) : null)}</td>`;
+        }
+        return `<td style="${tdSC}">${_kpiRateNumHtml(bClientRate[col])}</td>`;
+      };
+
+      const sumRows = [
+        { label:'매출 실적',                  total:`<td style="${tdSV}">${_fmtKpi(totBAct)}</td>`,               cells: cols.map(sActCell).join('') },
+        { label:'KPI 달성률',                 total:`<td style="${tdSC}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
+        { label:'광고주별 KPI 달성률(평균)',  total:`<td style="${tdSC}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
+      ];
+      sumRows.forEach((row, ri) => {
+        html += `<tr${(ri === 0 && !isFirstGroup) ? ' class="kpi-bonbu-sep"' : ''}>
+          ${ri === 0 ? `<td style="${tdSN}position:sticky;left:0;z-index:1;" rowspan="${sumRows.length}">${_escHtml(g.bonbuName)}</td><td style="${tdSN}" rowspan="${sumRows.length}">본부 합계</td>` : ''}
+          <td style="${tdSN}">${row.label}</td>
+          ${row.total}${row.cells}
+        </tr>`;
+      });
+    }
+
+    // ── 팀별 블록 — 본부 합계가 이미 그룹의 시작을 표시해줬으면(팀 2개 이상) 굳이 또 구분선을 안 넣고,
+    // 팀이 하나뿐이라 합계를 안 보여준 경우에만 이 팀 블록 첫 줄에 구분선을 넣는다.
+    const needsOwnTopBorder = g.teams.length === 1 && !isFirstGroup;
+    g.teams.forEach((t, ti) => {
+      const acts  = {}; _KPI_MONTHS.forEach(m => { acts[m]  = _kpiCalcActual(_kpiYear, t.bonbuName, t.name, m); });
+      const tgts  = {}, prevs = {}, stgts = {};
+      _KPI_MONTHS.forEach(m => {
+        const md = (t.months || []).find(x => x.month === m) || {};
+        tgts[m]  = md.target      || 0;
+        prevs[m] = md.prevYear    || 0;
+        stgts[m] = md.salesTarget || 0;
+      });
+      const clients = {}; _KPI_MONTHS.forEach(m => { clients[m] = _kpiCalcClients(_kpiYear, t.bonbuName, t.name, m); });
+
+      const totAct     = _KPI_MONTHS.reduce((s, m) => s + acts[m], 0);
+      const totTgt     = _KPI_MONTHS.reduce((s, m) => s + tgts[m], 0);
+      const totPrev    = _KPI_MONTHS.reduce((s, m) => s + prevs[m], 0);
+      const totClients = _KPI_MONTHS.reduce((s, m) => s + clients[m], 0);
+
+      const teamLabel = `${_escHtml(t.name)}${t.category ? `<br><span style="font-size:10px;color:var(--text3);font-weight:400;">${_escHtml(t.category)}</span>` : ''}`;
+
+      const inp = (id, val, step) => `<input type="number" step="${step}" value="${val||''}" id="${id}" style="width:62px;padding:2px 4px;font-size:11px;" class="form-input">`;
+
+      const actCell = col => {
+        if (col.startsWith('Q')) return isFutureQ(col) ? `<td style="${tdQ}">${nd}</td>` : `<td style="${tdQ}">${_fmtKpi(qSum(acts,col))}</td>`;
+        return col > curM ? `<td style="${tdV}">${nd}</td>` : `<td style="${tdV}">${_fmtKpi(acts[col])}</td>`;
+      };
+      const tgtCell = col => {
+        if (col.startsWith('Q')) return `<td style="${tdQ}">${_fmtKpi(qSum(tgts,col))}</td>`;
+        if (_kpiInlineEdit) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_tgt_${t.bonbuName}_${t.name}_${col}`, tgts[col]||'', '100000')}</td>`;
+        return `<td style="${tdV}">${_fmtKpi(tgts[col])}</td>`;
+      };
+      const prevCell = col => {
+        if (col.startsWith('Q')) return `<td style="${tdQ}">${_fmtKpi(qSum(prevs,col))}</td>`;
+        if (_kpiInlineEdit) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_prev_${t.bonbuName}_${t.name}_${col}`, prevs[col]||'', '100000')}</td>`;
+        return `<td style="${tdV}">${_fmtKpi(prevs[col])}</td>`;
+      };
+      const rateCell = (col, aVals, bVals, bk) => {
+        const isQ = col.startsWith('Q'); const st = isQ ? tdQC : (bk ? tdC+'background:#fff9e6;' : tdC);
+        const future = isQ ? isFutureQ(col) : col > curM;
+        if (future) return `<td style="${st}">${nd}</td>`;
+        const a = isQ ? qSum(aVals,col) : (aVals[col]||0);
+        const b = isQ ? qSum(bVals,col) : (bVals[col]||0);
+        return `<td style="${st}">${_kpiRateHtml(a,b)}</td>`;
+      };
+      const yoyCell = col => {
+        const isQ = col.startsWith('Q'); const st = isQ ? tdQC : tdC;
+        const future = isQ ? isFutureQ(col) : col > curM;
+        if (future) return `<td style="${st}">${nd}</td>`;
+        const a = isQ ? qSum(acts,col) : (acts[col]||0);
+        const b = isQ ? qSum(prevs,col) : (prevs[col]||0);
+        return `<td style="${st}">${_kpiYoyHtml(a,b)}</td>`;
+      };
+      const clientCell = col => {
+        if (col.startsWith('Q')) return `<td style="${tdQC}background:#fff9e6;">${nd}</td>`;
+        const v = clients[col]; return `<td style="${tdC}background:#fff9e6;">${v || nd}</td>`;
+      };
+      const stgtCell = col => {
+        if (col.startsWith('Q')) return `<td style="${tdQC}background:#fff9e6;">${nd}</td>`;
+        if (_kpiInlineEdit) return `<td style="padding:2px 3px;border:1px solid var(--border);background:#fff9e6;">${inp(`ki_stgt_${t.bonbuName}_${t.name}_${col}`, stgts[col]||'', '1')}</td>`;
+        return `<td style="${tdC}background:#fff9e6;">${stgts[col] ? stgts[col]+'건' : nd}</td>`;
+      };
+
+      const TOTAL_ROWS = 8;
+      const rows = [
+        { label:'매출 실적',       total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,          cells: cols.map(actCell).join('') },
+        { label:'KPI 목표',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
+        { label:'달성률',          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts,false)).join('') },
+        { label:'전년도 매출',     total:`<td style="${tdAN}">${_fmtKpi(totPrev)}</td>`,         cells: cols.map(prevCell).join('') },
+        { label:'YoY',             total:`<td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>`, cells: cols.map(yoyCell).join('') },
+        { label:'광고주 수(실적)', total:`<td style="${tdAC}background:#fff7e6;">${totClients||nd}</td>`, cells: cols.map(clientCell).join(''), blockB:true },
+        { label:'목표 광고주 수',  total:`<td style="${tdAC}background:#fff7e6;">${nd}</td>`,  cells: cols.map(stgtCell).join(''), blockB:true },
+        { label:'달성률',          total:`<td style="${tdAC}background:#fff7e6;">${nd}</td>`,  cells: cols.map(c=>rateCell(c,clients,stgts,true)).join(''), blockB:true },
+      ];
+
+      rows.forEach((row, ri) => {
+        const bg = row.blockB ? 'background:#fff9e6;' : '';
+        const sep = ri === 0 && ti === 0 && needsOwnTopBorder;
+        html += `<tr${sep ? ' class="kpi-bonbu-sep"' : ''}>
+          ${ri === 0 ? `<td style="${tdL}position:sticky;left:0;z-index:1;" rowspan="${TOTAL_ROWS}">${_escHtml(t.bonbuName)}</td><td style="${tdL}" rowspan="${TOTAL_ROWS}">${teamLabel}</td>` : ''}
+          <td style="${tdL}${bg}">${row.label}</td>
+          ${row.total}${row.cells}
+        </tr>`;
+      });
     });
-    const clients = {}; _KPI_MONTHS.forEach(m => { clients[m] = _kpiCalcClients(_kpiYear, t.bonbuName, t.name, m); });
-
-    const totAct     = _KPI_MONTHS.reduce((s, m) => s + acts[m], 0);
-    const totTgt     = _KPI_MONTHS.reduce((s, m) => s + tgts[m], 0);
-    const totPrev    = _KPI_MONTHS.reduce((s, m) => s + prevs[m], 0);
-    const totClients = _KPI_MONTHS.reduce((s, m) => s + clients[m], 0);
-
-    const teamLabel = `${_escHtml(t.name)}${t.category ? `<br><span style="font-size:10px;color:var(--text3);font-weight:400;">${_escHtml(t.category)}</span>` : ''}`;
-
-    const inp = (id, val, step) => `<input type="number" step="${step}" value="${val||''}" id="${id}" style="width:62px;padding:2px 4px;font-size:11px;" class="form-input">`;
-
-    const actCell = col => {
-      if (col.startsWith('Q')) return isFutureQ(col) ? `<td style="${tdQ}">${nd}</td>` : `<td style="${tdQ}">${_fmtKpi(qSum(acts,col))}</td>`;
-      return col > curM ? `<td style="${tdV}">${nd}</td>` : `<td style="${tdV}">${_fmtKpi(acts[col])}</td>`;
-    };
-    const tgtCell = col => {
-      if (col.startsWith('Q')) return `<td style="${tdQ}">${_fmtKpi(qSum(tgts,col))}</td>`;
-      if (_kpiInlineEdit) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_tgt_${t.bonbuName}_${t.name}_${col}`, tgts[col]||'', '100000')}</td>`;
-      return `<td style="${tdV}">${_fmtKpi(tgts[col])}</td>`;
-    };
-    const prevCell = col => {
-      if (col.startsWith('Q')) return `<td style="${tdQ}">${_fmtKpi(qSum(prevs,col))}</td>`;
-      if (_kpiInlineEdit) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_prev_${t.bonbuName}_${t.name}_${col}`, prevs[col]||'', '100000')}</td>`;
-      return `<td style="${tdV}">${_fmtKpi(prevs[col])}</td>`;
-    };
-    const rateCell = (col, aVals, bVals, bk) => {
-      const isQ = col.startsWith('Q'); const st = isQ ? tdQC : (bk ? tdC+'background:#fff9e6;' : tdC);
-      const future = isQ ? isFutureQ(col) : col > curM;
-      if (future) return `<td style="${st}">${nd}</td>`;
-      const a = isQ ? qSum(aVals,col) : (aVals[col]||0);
-      const b = isQ ? qSum(bVals,col) : (bVals[col]||0);
-      return `<td style="${st}">${_kpiRateHtml(a,b)}</td>`;
-    };
-    const yoyCell = col => {
-      const isQ = col.startsWith('Q'); const st = isQ ? tdQC : tdC;
-      const future = isQ ? isFutureQ(col) : col > curM;
-      if (future) return `<td style="${st}">${nd}</td>`;
-      const a = isQ ? qSum(acts,col) : (acts[col]||0);
-      const b = isQ ? qSum(prevs,col) : (prevs[col]||0);
-      return `<td style="${st}">${_kpiYoyHtml(a,b)}</td>`;
-    };
-    const clientCell = col => {
-      if (col.startsWith('Q')) return `<td style="${tdQC}background:#fff9e6;">${nd}</td>`;
-      const v = clients[col]; return `<td style="${tdC}background:#fff9e6;">${v || nd}</td>`;
-    };
-    const stgtCell = col => {
-      if (col.startsWith('Q')) return `<td style="${tdQC}background:#fff9e6;">${nd}</td>`;
-      if (_kpiInlineEdit) return `<td style="padding:2px 3px;border:1px solid var(--border);background:#fff9e6;">${inp(`ki_stgt_${t.bonbuName}_${t.name}_${col}`, stgts[col]||'', '1')}</td>`;
-      return `<td style="${tdC}background:#fff9e6;">${stgts[col] ? stgts[col]+'건' : nd}</td>`;
-    };
-
-    const TOTAL_ROWS = 8;
-    const rows = [
-      { label:'매출 실적',       total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,          cells: cols.map(actCell).join('') },
-      { label:'KPI 목표',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
-      { label:'달성률',          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts,false)).join('') },
-      { label:'전년도 매출',     total:`<td style="${tdAN}">${_fmtKpi(totPrev)}</td>`,         cells: cols.map(prevCell).join('') },
-      { label:'YoY',             total:`<td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>`, cells: cols.map(yoyCell).join('') },
-      { label:'광고주 수(실적)', total:`<td style="${tdAC}background:#fff7e6;">${totClients||nd}</td>`, cells: cols.map(clientCell).join(''), blockB:true },
-      { label:'목표 광고주 수',  total:`<td style="${tdAC}background:#fff7e6;">${nd}</td>`,  cells: cols.map(stgtCell).join(''), blockB:true },
-      { label:'달성률',          total:`<td style="${tdAC}background:#fff7e6;">${nd}</td>`,  cells: cols.map(c=>rateCell(c,clients,stgts,true)).join(''), blockB:true },
-    ];
-
-    rows.forEach((row, ri) => {
-      const bg = row.blockB ? 'background:#fff9e6;' : '';
-      html += `<tr${ri === 0 && isNewBonbu ? ' class="kpi-bonbu-sep"' : ''}>
-        ${ri === 0 ? `<td style="${tdL}position:sticky;left:0;z-index:1;" rowspan="${TOTAL_ROWS}">${_escHtml(t.bonbuName)}</td><td style="${tdL}" rowspan="${TOTAL_ROWS}">${teamLabel}</td>` : ''}
-        <td style="${tdL}${bg}">${row.label}</td>
-        ${row.total}${row.cells}
-      </tr>`;
-    });
-  }
+  });
 
   html += '</tbody></table></div>';
   el.innerHTML = html;
