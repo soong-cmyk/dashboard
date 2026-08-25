@@ -2712,6 +2712,10 @@ function _plContinueFromLog(logId) {
   });
   block.items[0].logType = log.logType || '운영';
   block.items[0].progress = log.progress != null ? String(log.progress) : '';
+  // 원본 내용도 그대로 불러와서, 매번 처음부터 다시 타이핑하지 않고 그 자리에서 고쳐 쓸 수 있게 한다
+  // (예: 진척률만 30%→50%로 바뀐 거면 요약은 거의 그대로 두고 숫자만 손보면 됨).
+  block.items[0].summary = log.summary || '';
+  block.items[0].detail = (log.detail || []).map(d => ({ label: d.label || '', text: d.text || '' }));
   if (log.scope !== 'media') block.items[0].media = log.media || null;
   // 원본이 참조 캠페인 여러 개에 걸려있었으면 그것도 그대로 이어받는다 — 안 그러면 이어쓰기할 때마다
   // 조용히 빠져서, 원본이 참조로 걸려있던 캠페인 상세에는 최신 진행상황이 안 보이게 된다.
