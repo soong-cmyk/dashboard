@@ -12635,12 +12635,14 @@ function renderKpiOrgTable() {
     ? `<th style="${thQ}min-width:72px;">${col}</th>`
     : `<th style="${thC}min-width:78px;">${_KPI_ML[col]}</th>`;
 
-  // 본부 합계 위·아래(=본부합계↔이전 본부, 본부합계↔팀블록)와 같은 본부 안 팀들 사이의 경계는
-  // 전부 kpi-bonbu-sep(진하게), 팀 하나 안의 매출·광고주 두 지표 묶음 사이만 kpi-subgroup-sep(점선)로
-  // 옅게 — td마다 이미 인라인으로 1px 테두리를 박아놔서(border:1px solid var(--border)) !important
-  // 없이는 안 먹는다.
+  // 본부합계↔팀블록, 같은 본부 안 팀들 사이 경계는 kpi-bonbu-sep(기본 테두리색), 본부 자체가
+  // 끝나고 다음 본부로 넘어가는 경계(예: 1본부 2팀 맨 밑↔2본부 본부합계)만 kpi-bonbu-end-sep로
+  // 파랗게 구분한다. 팀 하나 안의 매출·광고주 두 지표 묶음 사이는 kpi-subgroup-sep(점선)로 옅게 —
+  // td마다 이미 인라인으로 1px 테두리를 박아놔서(border:1px solid var(--border)) !important 없이는
+  // 안 먹는다.
   let html = `<style>
     .kpi-bonbu-sep td{border-top:2px solid var(--border) !important;}
+    .kpi-bonbu-end-sep td{border-top:2px solid var(--accent) !important;}
     .kpi-subgroup-sep td{border-top:1px dashed var(--border2) !important;}
   </style>
   <div id="kpi-org-scroll-wrap" style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
@@ -12662,12 +12664,13 @@ function renderKpiOrgTable() {
     else groups.push({ bonbuName: t.bonbuName, teams: [t] });
   });
 
-  // 본부 합계 줄 — 진한 파랑 배경 대신 옅은 중립 배경(surface2) + 굵은 글씨 + 액센트 텍스트로만 구분.
-  const tdSN = 'padding:7px 10px;border:1px solid var(--border);font-weight:800;font-size:11px;color:var(--accent);background:var(--surface2);white-space:nowrap;';
-  const tdSV = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:800;white-space:nowrap;background:var(--surface2);';
-  const tdSC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:800;white-space:nowrap;background:var(--surface2);';
+  // 본부 합계 줄 — 연간합계·분기합계와 같은 연노랑으로 통일.
+  const tdSN = 'padding:7px 10px;border:1px solid var(--border);font-weight:800;font-size:11px;color:var(--text);background:#fff9e6;white-space:nowrap;';
+  const tdSV = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:800;white-space:nowrap;background:#fff9e6;';
+  const tdSC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:800;white-space:nowrap;background:#fff9e6;';
 
-  groups.forEach(g => {
+  groups.forEach((g, gi) => {
+    const isFirstGroup = gi === 0;
 
     // ── 본부 합계 — 팀이 하나뿐인 본부(예: 2본부)도 항상 보여준다. ──
     // 매출 실적·목표는 팀별 값을 그대로 합산(_kpiCalcActual을 팀 없이 본부 단위로 다시 불러 합산과 동일),
@@ -12717,7 +12720,8 @@ function renderKpiOrgTable() {
         { label:'광고주별 KPI 달성률(평균)',  total:`<td style="${tdSC}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
       ];
       sumRows.forEach((row, ri) => {
-        html += `<tr${ri === 0 ? ' class="kpi-bonbu-sep"' : ''}>
+        const cls = ri === 0 ? (isFirstGroup ? 'kpi-bonbu-sep' : 'kpi-bonbu-end-sep') : '';
+        html += `<tr${cls ? ` class="${cls}"` : ''}>
           ${ri === 0 ? `<td style="${tdSN}position:sticky;left:0;z-index:1;" rowspan="${sumRows.length}">${_escHtml(g.bonbuName)}</td><td style="${tdSN}" rowspan="${sumRows.length}">본부 합계</td>` : ''}
           <td style="${tdSN}">${row.label}</td>
           ${row.total}${row.cells}
