@@ -930,6 +930,9 @@ ${badgeCss}
 .pl-m{text-align:center;color:var(--text3);font-size:12px;}
 .pl-l{color:var(--text2);font-weight:700;white-space:nowrap;}
 .pl-subadd{margin-top:5px;margin-left:22px;font-size:11.5px;color:var(--accent);font-weight:700;cursor:pointer;}
+/* 일지/일자별 뷰의 접힌(토글 안 한) 행에서도 ㄴ 내용 바로 밑에 보이는 "+ ㄴ 추가" — 버튼이 아니라 글씨로 */
+.pl-quickadd{margin:2px 0 0 22px;font-size:11.5px;color:var(--accent);font-weight:700;cursor:pointer;display:inline-block;}
+.pl-quickadd:hover{text-decoration:underline;}
 .pl-add{text-align:center;border:1px dashed var(--border2);border-radius:var(--radius-sm);padding:8px;color:var(--text3);font-size:12px;font-weight:700;cursor:pointer;margin-top:8px;}
 .pl-add.block{padding:11px;border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
 /* "+ 항목 추가"(같은 그룹에 이어쓰기)와 계위를 구분하기 위해, 새 그룹 시작(매체·캠페인)은 강조색
@@ -1771,7 +1774,7 @@ function _plRenderLogRow(log, q, ctx) {
       <span style="flex-shrink:0;"><span style="color:var(--text3);">ㄴ</span>${d.label ? ` <b>${_plHighlight(d.label, q)}</b>` : ''}</span>
       <span style="white-space:pre-line;">${_plHighlight(d.text, q)}</span>
     </div>`
-  ).join('');
+  ).join('') + `<span class="pl-quickadd" onclick="event.stopPropagation();_plQuickAddSub('${log.id}','${ctx}')">＋ ㄴ 추가</span>`;
 
   const progHtml = log.progress != null
     ? `<span class="prog-wrap" style="width:46px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}%</span>`
@@ -3139,6 +3142,17 @@ function _plDateCancelInlineEdit() {
   _plInlineEditId = null;
   _plRenderDateBody();
 }
+// 접힌 상태에서도 보이는 "+ ㄴ 추가" — 새 저장경로를 만들지 않고 기존 수정 흐름(모달/인라인)을 그대로 열어서
+// 빈 ㄴ 행 하나를 추가해준다. 이렇게 해야 plSaveEdit()을 그대로 타서 이력(history)에 정상적으로 남는다.
+async function _plQuickAddSub(logId, ctx) {
+  if (ctx === 'date') await _plDateStartInlineEdit(logId);
+  else await plOpenEdit(logId);
+  if (!_plEditDraft || _plEditDraft.id !== logId) return; // 권한 없음/경합 등으로 draft가 안 열렸으면 중단
+  _plEditAddSub();
+  const newIdx = (_plEditDraft.detail || []).length - 1;
+  const el = document.getElementById(_plEditSubTextId(newIdx));
+  if (el) el.focus();
+}
 // 대상(광고주/프로젝트/캠페인/매체)은 인라인에서는 읽기 전용으로만 보여준다 — 검색해서 바꾸는 UI는
 // 모달 전용 id(#pl-e-tgt 등)에 묶여있어 여기서 그대로 재사용하면 충돌하고, 대상을 바꾸는 건 애초에
 // 자주 있는 일도 아니라서 필요하면 "수정" 대신 기존 모달로 열도록 남겨둔다.
@@ -3420,10 +3434,13 @@ function _plEditSubHtml(di, d) {
   }
   return `<div class="pl-sub"><span class="pl-m">ㄴ</span>
     ${labelControl}
-    <textarea class="pl-mini" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;" oninput="_plEditSubField(${di},'text',this.value);_plAutoGrowTextarea(this)">${_escHtml(d.text || '')}</textarea>
+    <textarea class="pl-mini" id="${_plEditSubTextId(di)}" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;" oninput="_plEditSubField(${di},'text',this.value);_plAutoGrowTextarea(this)">${_escHtml(d.text || '')}</textarea>
     <span class="pl-x" onclick="_plEditRemoveSub(${di})">✕</span>
   </div>`;
 }
+// 일자별 뷰 인라인 수정 중에는 모달(pl-e-block)이 DOM에 그대로(숨김) 남아있어서 같은 id를 쓰면
+// document.getElementById가 모달 쪽 걸 잡아버린다 — _plEditRelListId와 같은 이유로 인라인일 땐 다른 id를 쓴다.
+function _plEditSubTextId(di) { return `${_plEditDraft?.__inline ? 'pl-di' : 'pl-e'}-subtext-${di}`; }
 // ── "+ 항목 추가" — 수정 중인 로그와 같은 대상(광고주/프로젝트/캠페인/매체)으로, 별도의 새 로그가 될
 // 항목을 여기서 같이 입력할 수 있게 한다. 기본줄+하위기록만(첨부는 없음) — 저장 시 원본 수정과 별개로
 // 새 로그 문서로 생성된다(plSaveEdit).
@@ -5165,7 +5182,7 @@ function _plDateItemHtml(l, hideMediaTag) {
       <span style="flex-shrink:0;">ㄴ${d.label ? ` <b>${_escHtml(d.label)}</b>` : ''}</span>
       <span style="white-space:pre-line;">${_escHtml(d.text)}</span>
     </div>`
-  ).join('');
+  ).join('') + `<span class="pl-quickadd" onclick="event.stopPropagation();_plQuickAddSub('${l.id}','date')">＋ ㄴ 추가</span>`;
   if (l.hasImages && l.imageCount == null) _plEnsureImageCountBadge(l.id);
   const attachIconsHtml = (l.hasImages ? `<span id="pl-imgcnt-${l.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;vertical-align:middle;" onclick="event.stopPropagation();_plOpenLogImages('${l.id}')" title="첨부 이미지 — 클릭하여 보기">📁${l.imageCount || ''}</span>` : '')
     + ((l.links && l.links.length) ? `<span style="font-size:11px;margin-left:4px;vertical-align:middle;" title="링크 ${l.links.length}개">🔗${l.links.length}</span>` : '')
