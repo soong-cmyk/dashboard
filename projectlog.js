@@ -1293,6 +1293,14 @@ function _plOpenDetailLink(logId, li) {
   if (!url) return;
   window.open(url, '_blank', 'noopener');
 }
+// 경로에 따옴표·백슬래시가 섞여있을 수 있어(공유폴더 UNC 경로) onclick에 그대로 박아넣지 않고
+// logId로 찾아서 읽는다 — _plOpenDetailLink와 동일한 이유.
+function _plCopyAttachPath(logId) {
+  const log = PL_LOGS.find(x => x.id === logId);
+  const val = (log?.attachPath || '').trim();
+  if (!val) return;
+  navigator.clipboard?.writeText(val).then(() => toast('경로를 복사했습니다', 'ok')).catch(() => toast('복사에 실패했습니다', 'err'));
+}
 
 // imageCount는 이 필드가 생기기 전에 저장된 과거 로그엔 없다(undefined) — 이미지는 별도 컬렉션이라
 // 실제 개수를 알려면 조회가 필요한데, 목록의 모든 항목을 미리 조회하면 느려지므로 개수를 모르는
@@ -1325,7 +1333,11 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
     const sub = c ? `(${[c.media, c.product].filter(Boolean).join(' ')})` : '';
     return `<span class="tag pl-ref" style="cursor:pointer;" onclick="event.stopPropagation();openCalPreview(DATA.findIndex(d=>d.id==='${_escHtml(cid)}'))">🔗 ${_escHtml(cid)}${_escHtml(sub)}</span>`;
   }).join(' ');
-  const hasAttach = links || imgNote || refCampHtml;
+  const attachParts = [log.attachPath, log.attachName].filter(Boolean).map(_escHtml).join(' | ');
+  const attachPathHtml = attachParts
+    ? `<span class="tag">📁 ${attachParts}${log.attachPath ? ` <span class="pl-x" style="display:inline;margin-left:2px;" onclick="event.stopPropagation();_plCopyAttachPath('${log.id}')">경로복사</span>` : ''}</span>`
+    : '';
+  const hasAttach = links || imgNote || refCampHtml || attachPathHtml;
   const color = (PL_TYPE_COLOR[log.logType] || {}).fg || 'var(--border)';
   // 목록의 삭제 버튼은 없애고 수정 모달 안의 삭제 버튼으로 통일 — 수정/삭제 모달 하나로 합쳐서 진입점을 단순화
   // 진행중 이슈는 대응 기록 버튼을 pl-detfoot 안에 보여준다 — 완료 처리는 그 모달 안 체크박스로 흡수돼서
@@ -1336,7 +1348,7 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   // compact(일자별 뷰)는 모달을 열지 않고 그 자리에서 바로 수정 폼으로 바뀌는 인라인 수정을 쓴다.
   const editBtnHtml = readOnly ? '' : `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();${compact ? `_plDateStartInlineEdit('${log.id}')` : `plOpenEdit('${log.id}')`}">수정</button>`;
   const detfootHtml = `<div class="pl-detfoot">
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${refCampHtml}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${refCampHtml}${attachPathHtml}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
       <div style="display:flex;gap:6px;">${responseHtml}${editBtnHtml}</div>
     </div>`;
   const commentsHtml = `<div data-pl-comments-for="${log.id}" onclick="event.stopPropagation();">${_plCommentsHtml(log.id)}</div>`;
@@ -1949,7 +1961,7 @@ let _plSearchCache = {};
 // 매체·이미지·링크는 항목(item) 단위로 붙는다 — 항목 하나가 저장되면 각자 독립된 로그 문서가 되므로,
 // 블록에 걸어두면 한 블록 안의 서로 다른 항목들이 매체·링크를 강제로 공유하게 되어 실제 저장 결과와 안 맞았음
 function _plEmptyItem() {
-  return { logType: '운영', summary: '', progress: '', detail: [], media: null, campaignId: null, refCampaigns: [], links: [], images: [], optOpen: false, continuedFromId: null };
+  return { logType: '운영', summary: '', progress: '', detail: [], media: null, campaignId: null, refCampaigns: [], links: [], images: [], optOpen: false, continuedFromId: null, attachPath: '', attachName: '' };
 }
 function _plEmptyBlock(extra) {
   const block = Object.assign({
@@ -2894,9 +2906,17 @@ function _plRenderItemAttachSection(bi, ii, it) {
         <span class="pl-paste-zone" tabindex="0" style="border:1px dashed var(--border2);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--text3);cursor:text;outline:none;" onfocus="_plLastFocusedItem={bi:${bi},ii:${ii}}" onclick="this.focus()">여기 클릭 후 Ctrl+V</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span class="form-hint" style="width:36px;">링크</span>${linksHtml}<span class="tag" style="cursor:pointer;border-style:dashed;color:var(--text3);" onclick="_plAddLink(${bi},${ii})">＋ 링크</span></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="form-hint" style="width:36px;">경로</span>
+        <input type="text" class="pl-mini" style="flex:1;min-width:200px;max-width:420px;" placeholder="공유폴더 경로 (예: \\\\192.168.0.250\\공유폴더\\...)" value="${_escHtml(it.attachPath || '')}" oninput="_plItemField(${bi},${ii},'attachPath',this.value)">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="form-hint" style="width:36px;">파일명</span>
+        <input type="text" class="pl-mini" style="flex:1;min-width:160px;max-width:320px;" placeholder="파일명" value="${_escHtml(it.attachName || '')}" oninput="_plItemField(${bi},${ii},'attachName',this.value)">
+      </div>
     </div>`;
   }
-  return `<div class="pl-opt" onclick="_plItemToggleCollapse(${bi},${ii})"><span>${arrow}</span><b>이미지 · 링크</b><span>— ${it.optOpen ? '펼침' : '접힘 · 필요할 때만'}</span></div>${inner}`;
+  return `<div class="pl-opt" onclick="_plItemToggleCollapse(${bi},${ii})"><span>${arrow}</span><b>이미지 · 링크 · 첨부경로</b><span>— ${it.optOpen ? '펼침' : '접힘 · 필요할 때만'}</span></div>${inner}`;
 }
 
 // ── 유효성 검사 · 저장 ──
@@ -3023,6 +3043,7 @@ async function plSaveLog() {
           progress,
           important: false, shared: false,
           hasImages: images.length > 0, imageCount: images.length, links: (it.links || []).filter(l => (l.label || l.url || '').trim()),
+          attachPath: (it.attachPath || '').trim() || null, attachName: (it.attachName || '').trim() || null,
           threadId: null, createdAt: now, updatedAt: now,
           // "이어쓰기"로 만들어진 항목이면 원본 로그 id — _plContinueCandidates가 원본을 미완료
           // 후보에서 빼는 기준이자, 상세 펼침의 "이전/이어서 쓴 기록" 링크의 근거가 된다.
@@ -3089,7 +3110,7 @@ let _plEditSearchCache = [];
 
 const PL_FIELD_LABELS = {
   scope: '대상 유형', seller: '광고주', content: '프로젝트', campaignId: '캠페인', media: '매체', product: '상품',
-  logType: '유형', summary: '내용', progress: '진척률', state: '상태',
+  logType: '유형', summary: '내용', progress: '진척률', state: '상태', attachPath: '첨부경로', attachName: '첨부 파일명',
 };
 
 // plOpenEdit(모달)과 _plDateStartInlineEdit(일자별 뷰 인라인)가 공유하는 draft 구성 — 필드 목록이
@@ -3104,6 +3125,7 @@ function _plBuildEditDraft(log) {
     detail: (log.detail || []).map(d => ({ label: d.label || '', text: d.text || '' })),
     links: (log.links || []).map(l => Object.assign({}, l)),
     refCampaigns: [...(log.refCampaignIds || [])],
+    attachPath: log.attachPath || '', attachName: log.attachName || '',
     images: [],
     important: !!log.important, shared: !!log.shared,
     state: log.state || null, searchQuery: '',
@@ -3634,6 +3656,14 @@ function _plEditAttachHtml() {
       <span class="pl-paste-zone" tabindex="0" style="border:1px dashed var(--border2);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--text3);cursor:text;outline:none;" onclick="this.focus()">여기 클릭 후 Ctrl+V</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><label class="form-label" style="width:70px;">링크</label>${linksHtml}<span class="tag pl-edit-addbtn" style="cursor:pointer;border-style:dashed;color:var(--text3);" onclick="_plEditAddLink()">＋ 링크</span></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <label class="form-label" style="width:70px;">경로</label>
+      <input type="text" class="pl-mini" style="flex:1;min-width:200px;max-width:420px;" placeholder="공유폴더 경로 (예: \\\\192.168.0.250\\공유폴더\\...)" value="${_escHtml(d.attachPath || '')}" oninput="_plEditField('attachPath',this.value)">
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <label class="form-label" style="width:70px;">파일명</label>
+      <input type="text" class="pl-mini" style="flex:1;min-width:160px;max-width:320px;" placeholder="파일명" value="${_escHtml(d.attachName || '')}" oninput="_plEditField('attachName',this.value)">
+    </div>
   </div>`;
 }
 function _plEditAddLink() { if (!_plEditDraft.links) _plEditDraft.links = []; _plEditDraft.links.push({ label: '', url: '' }); _plEditRerender(); }
@@ -3764,7 +3794,7 @@ function _plDetailToStr(detail) {
 }
 function _plDiffFields(orig, updated) {
   const changes = [];
-  const simpleFields = ['scope', 'seller', 'content', 'campaignId', 'media', 'product', 'logType', 'summary', 'progress', 'state'];
+  const simpleFields = ['scope', 'seller', 'content', 'campaignId', 'media', 'product', 'logType', 'summary', 'progress', 'state', 'attachPath', 'attachName'];
   simpleFields.forEach(f => {
     const b = orig[f]; const a = updated[f];
     if ((b ?? '') !== (a ?? '')) {
@@ -3859,6 +3889,7 @@ async function plSaveEdit() {
       logType: d.logType, summary: d.summary.trim().slice(0, 60), detail, progress,
       state: d.state || null, important: !!d.important, shared: !!d.shared,
       links: (d.links || []).filter(l => (l.label || l.url || '').trim()),
+      attachPath: (d.attachPath || '').trim() || null, attachName: (d.attachName || '').trim() || null,
       // 대상을 캠페인/매체/내부로 바꿨는데 참조 태그가 남아있으면(필드 자체는 이미 숨겨짐) 저장 시점에 정리
       refCampaignIds: (d.scope === 'advertiser' || d.scope === 'project') ? (d.refCampaigns || []).filter(Boolean) : [],
       hasImages: images.length > 0, imageCount: images.length,
@@ -3985,7 +4016,7 @@ function _plBuildSearchText(log) {
   return [
     log.summary,
     ...(log.detail || []).map(d => `${d.label} ${d.text}`),
-    log.seller, log.content, log.media, log.product, log.writer,
+    log.seller, log.content, log.media, log.product, log.writer, log.attachName,
     ...(log.refCampaignIds || [])
   ].filter(Boolean).join(' ')
    .toLowerCase()
