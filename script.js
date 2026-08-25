@@ -12603,6 +12603,8 @@ function renderKpiOrgTable() {
   const tdAC = 'padding:6px 10px;border:1px solid var(--border);border-left:2px solid var(--accent);text-align:center;font-size:12px;white-space:nowrap;font-weight:800;';
   const tdQ  = tdV + 'background:var(--accent-light);font-weight:700;';
   const tdQC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:var(--accent-light);font-weight:700;';
+  // 광고주 관련 줄(광고주 수·목표 광고주 수·그 달성률)의 분기합계 칸만 원래 있었던 연노랑으로.
+  const tdQCAdv = tdQC.replace('background:var(--accent-light)', 'background:#fff9e6');
   const tdC  = tdV + 'text-align:center;';
   const nd   = '<span style="color:var(--text3)">—</span>';
 
@@ -12742,8 +12744,8 @@ function renderKpiOrgTable() {
         if (_kpiInlineEdit) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_prev_${t.bonbuName}_${t.name}_${col}`, prevs[col]||'', '100000')}</td>`;
         return `<td style="${tdV}">${_fmtKpi(prevs[col])}</td>`;
       };
-      const rateCell = (col, aVals, bVals) => {
-        const isQ = col.startsWith('Q'); const st = isQ ? tdQC : tdC;
+      const rateCell = (col, aVals, bVals, isAdv) => {
+        const isQ = col.startsWith('Q'); const st = isQ ? (isAdv ? tdQCAdv : tdQC) : tdC;
         const future = isQ ? isFutureQ(col) : col > curM;
         if (future) return `<td style="${st}">${nd}</td>`;
         const a = isQ ? qSum(aVals,col) : (aVals[col]||0);
@@ -12759,14 +12761,14 @@ function renderKpiOrgTable() {
         return `<td style="${st}">${_kpiYoyHtml(a,b)}</td>`;
       };
       const clientCell = col => {
-        if (col.startsWith('Q')) return `<td style="${tdQC}">${nd}</td>`;
+        if (col.startsWith('Q')) return `<td style="${tdQCAdv}">${nd}</td>`;
         const list = clientList[col] || [];
         return list.length
           ? `<td class="kpi-adv-cell" style="${tdC}">${_kpiAdvListHtml(list)}</td>`
           : `<td style="${tdC}">${nd}</td>`;
       };
       const stgtCell = col => {
-        if (col.startsWith('Q')) return `<td style="${tdQC}">${nd}</td>`;
+        if (col.startsWith('Q')) return `<td style="${tdQCAdv}">${nd}</td>`;
         if (_kpiInlineEdit) return `<td style="padding:2px 3px;border:1px solid var(--border);">${inp(`ki_stgt_${t.bonbuName}_${t.name}_${col}`, stgts[col]||'', '1')}</td>`;
         return `<td style="${tdC}">${stgts[col] ? stgts[col]+'건' : nd}</td>`;
       };
@@ -12782,7 +12784,7 @@ function renderKpiOrgTable() {
         { label:'YoY',             total:`<td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>`, cells: cols.map(yoyCell).join('') },
         { label:'광고주 수(실적)', total:`<td style="${tdAC}">${totClients||nd}</td>`, cells: cols.map(clientCell).join(''), subgroupTop:true },
         { label:'목표 광고주 수',  total:`<td style="${tdAC}">${nd}</td>`,  cells: cols.map(stgtCell).join('') },
-        { label:'달성률',          total:`<td style="${tdAC}">${nd}</td>`,  cells: cols.map(c=>rateCell(c,clients,stgts)).join('') },
+        { label:'달성률',          total:`<td style="${tdAC}">${nd}</td>`,  cells: cols.map(c=>rateCell(c,clients,stgts,true)).join('') },
       ];
 
       rows.forEach((row, ri) => {
