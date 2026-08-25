@@ -4153,6 +4153,15 @@ function _plRenderAdvertiserRows() {
   if (tbody) tbody.innerHTML = list.length ? list.map(s => _plRenderAdvertiserRow(s, q)).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text3);font-size:13px;">조건에 맞는 광고주가 없습니다.</td></tr>`;
 }
 
+// 다른 화면(KPI 등)에서 이 광고주 상세로 바로 진입하기 위한 지름길 — plJumpToLog와 같은 이유로
+// 이미 프로젝트일지 화면이면 goScreen을 다시 부르지 않고(불필요한 초기화 방지), 아니면
+// skipPush=true로 goScreen('projectlog')만 부른 뒤 바로 plOpenAdvertiserDetail로 덮어쓴다.
+function plGoToAdvertiserDetail(company) {
+  if (!company) return;
+  const onScreen = document.getElementById('screen-projectlog')?.classList.contains('active');
+  if (!onScreen) { _plPendingTab = 'advertiser'; goScreen('projectlog', true); }
+  plOpenAdvertiserDetail(company);
+}
 function plOpenAdvertiserDetail(company) {
   PL_STATE.tab = 'advertiser';
   PL_STATE.advDetailCompany = company;

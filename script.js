@@ -12286,6 +12286,40 @@ function _kpiCalcClients(year, bonbu, team, month) {
   return set.size;
 }
 
+// _kpiCalcClients와 완전히 같은 필터로 광고주 "수"가 아니라 실제 명단(+브랜드)을 뽑는다 — 본부/팀별
+// KPI 표의 "광고주 수(실적)" 칸에서 숫자 대신 목록을 항상 보여주기 위함. 광고주 상세는 브랜드가
+// 몇 개든 같은 화면(그 회사 전체)으로 가므로 브랜드별로 줄을 나누지 않고 회사당 하나로 묶는다.
+function _kpiCalcClientList(year, bonbu, team, month) {
+  const map = new Map(); // 회사명 -> 브랜드 Set
+  DATA.filter(c => {
+    if (c.status === '삭제') return false;
+    const d = c.date || '';
+    if (!d.startsWith(month ? `${year}-${month}` : year)) return false;
+    if (bonbu || team) {
+      const u = USERS.find(u => u.name === (c.ops || ''));
+      if (!u) return false;
+      if (bonbu && u.bonbu !== bonbu) return false;
+      if (team  && u.dept  !== team)  return false;
+    }
+    return true;
+  }).forEach(c => {
+    const k = c.seller || c.adv;
+    if (!k) return;
+    if (!map.has(k)) map.set(k, new Set());
+    if (c.content) map.get(k).add(c.content);
+  });
+  return [...map.entries()]
+    .map(([name, brands]) => ({ name, brands: [...brands] }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+}
+// _kpiCalcClientList 결과를 클릭 가능한 줄 목록으로 — 눌러서 프로젝트일지 광고주 상세로 이동한다.
+function _kpiAdvListHtml(list) {
+  return (list || []).map(a => {
+    const brandHtml = a.brands.length ? ` <span class="kpi-adv-brand">· ${a.brands.map(_escHtml).join(', ')}</span>` : '';
+    return `<span class="kpi-adv-line" onclick="plGoToAdvertiserDetail('${_escHtml(a.name)}')">${_escHtml(a.name)}${brandHtml}</span>`;
+  }).join('');
+}
+
 function _fmtW(n) {
   if (n == null || n === '') return '<span style="color:var(--text3)">—</span>';
   if (n === 0) return '0';
@@ -12666,7 +12700,10 @@ function renderKpiOrgTable() {
         prevs[m] = md.prevYear    || 0;
         stgts[m] = md.salesTarget || 0;
       });
-      const clients = {}; _KPI_MONTHS.forEach(m => { clients[m] = _kpiCalcClients(_kpiYear, t.bonbuName, t.name, m); });
+      // 광고주 수(clients)와 명단(clientList)이 서로 다른 계산으로 어긋나지 않게, 명단을 먼저 뽑고
+      // 개수는 그 길이로만 파생시킨다.
+      const clientList = {}; _KPI_MONTHS.forEach(m => { clientList[m] = _kpiCalcClientList(_kpiYear, t.bonbuName, t.name, m); });
+      const clients = {}; _KPI_MONTHS.forEach(m => { clients[m] = clientList[m].length; });
 
       const totAct     = _KPI_MONTHS.reduce((s, m) => s + acts[m], 0);
       const totTgt     = _KPI_MONTHS.reduce((s, m) => s + tgts[m], 0);
@@ -12709,7 +12746,10 @@ function renderKpiOrgTable() {
       };
       const clientCell = col => {
         if (col.startsWith('Q')) return `<td style="${tdQC}background:#fff9e6;">${nd}</td>`;
-        const v = clients[col]; return `<td style="${tdC}background:#fff9e6;">${v || nd}</td>`;
+        const list = clientList[col] || [];
+        return list.length
+          ? `<td class="kpi-adv-cell" style="${tdC}background:#fff9e6;">${_kpiAdvListHtml(list)}</td>`
+          : `<td style="${tdC}background:#fff9e6;">${nd}</td>`;
       };
       const stgtCell = col => {
         if (col.startsWith('Q')) return `<td style="${tdQC}background:#fff9e6;">${nd}</td>`;
