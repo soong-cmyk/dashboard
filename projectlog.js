@@ -5253,20 +5253,26 @@ function _plDateGroupedData(dateStr) {
   const logsAsc = logs.slice().sort((x, y) => (x.createdAt || '').localeCompare(y.createdAt || ''));
   const byBlock = new Map();
   logsAsc.forEach(l => {
+    // advertiser/project/campaign은 전부 "같은 프로젝트"라는 상위 정체성 하나로 합친다(campaignId는
+    // 카드 키에서 뺌) — 프로젝트 전반 로그와 그 프로젝트의 여러 캠페인 로그가 예전엔 캠페인마다 카드가
+    // 따로 떨어져서 같은 프로젝트명이 반복됐는데, 이제 카드 하나 안에서 캠페인별 소그룹으로만 나뉜다.
     // scope='media'는 seller/content가 항상 비어있어서(매체 자체가 대상) media를 키에 넣어야 서로 다른
-    // 매체가 한 카드로 뭉치지 않는다. 다른 스코프는 media를 카드 키에서 뺀 채로 그대로 유지(소그룹으로만 씀).
-    const key = `${l.scope}::${l.seller || ''}::${l.content || ''}::${l.campaignId || ''}::${l.scope === 'media' ? (l.media || '') : ''}`;
-    if (!byBlock.has(key)) byBlock.set(key, { scope: l.scope, seller: l.seller, content: l.content, campaignId: l.campaignId, media: l.media, byMedia: new Map() });
+    // 매체가 한 카드로 뭉치지 않는다.
+    const family = (l.scope === 'advertiser' || l.scope === 'project' || l.scope === 'campaign') ? 'proj' : l.scope;
+    const key = `${family}::${l.seller || ''}::${l.content || ''}::${family === 'media' ? (l.media || '') : ''}`;
+    if (!byBlock.has(key)) byBlock.set(key, { family, seller: l.seller, content: l.content, media: l.media, byGroup: new Map() });
     const block = byBlock.get(key);
-    const mediaKey = l.media || '';
-    if (!block.byMedia.has(mediaKey)) block.byMedia.set(mediaKey, []);
-    block.byMedia.get(mediaKey).push(l);
+    // 소그룹 키 = 캠페인이 있으면 캠페인 단위로, 없으면 매체 단위로 나눈다 — "매체 미지정"·"신한카드"
+    // 같은 프로젝트 전반 항목과 "국민카드 캠페인" 같은 특정 캠페인 항목이 섞여도 각자 구분되게.
+    const groupKey = l.campaignId ? `camp:${l.campaignId}` : `media:${l.media || ''}`;
+    if (!block.byGroup.has(groupKey)) block.byGroup.set(groupKey, { campaignId: l.campaignId || null, media: l.media || null, items: [] });
+    block.byGroup.get(groupKey).items.push(l);
   });
   return [...byBlock.values()].map(block => ({
-    scope: block.scope, seller: block.seller, content: block.content, campaignId: block.campaignId, media: block.media,
-    // 매체가 딱 하나뿐이면(또는 전부 미지정이면) 소그룹 헤더를 보여줄 이유가 없다 — 카드 제목에 이미
-    // 나와있거나(캠페인/매체 스코프) 굳이 나눌 필요가 없는 경우라 렌더링 쪽에서 mediaGroups.length로 판단.
-    mediaGroups: [...block.byMedia.entries()].map(([media, items]) => ({ media, items })),
+    family: block.family, seller: block.seller, content: block.content, media: block.media,
+    // 소그룹이 하나뿐이고 캠페인도 매체도 없으면 소그룹 헤더를 보여줄 이유가 없다 — 카드 제목에 이미
+    // 나와있거나(매체 스코프) 굳이 나눌 필요가 없는 경우라 렌더링 쪽에서 mediaGroups.length로 판단.
+    mediaGroups: [...block.byGroup.values()],
   }));
 }
 // 소그룹 헤더용 매체 라벨 — 직접 입력한 매체(m.media)가 있으면 그대로. 없으면(참조 캠페인만 있는
@@ -5278,6 +5284,30 @@ function _plDateGroupMediaLabel(m) {
   m.items.forEach(l => (l.refCampaignIds || []).forEach(id => ids.add(id)));
   const medias = [...new Set([...ids].map(id => DATA.find(c => c.id === id)?.media).filter(Boolean))];
   return medias.length ? medias.join('·') : '매체 미지정';
+}
+// 카드(블록) 제목 — 캠페인은 이제 카드 단위가 아니라 소그룹 단위라(_plDateSubGroupLabelHtml) 여기선
+// "광고주 > 프로젝트"까지만 보여준다. _plDateBlockLabel(나의 미완료 일지 패널에서 재사용 중)은 단일
+// 로그의 캠페인까지 보여줘야 해서 별도로 남겨두고 여긴 건드리지 않는다.
+function _plDateGroupBlockTitle(b) {
+  if (b.family === 'media') return `<span class="tag pl-scope-media">매체</span> ${_escHtml(b.media || '')}`;
+  if (b.family === 'internal') return `<span class="tag pl-inner">내부</span> ${_escHtml(b.seller || '')}${b.content ? ' &gt; ' + _escHtml(b.content) : ''}`;
+  if (b.content) return `${_escHtml(b.seller || '')} &gt; ${_escHtml(b.content)}`;
+  return `${_escHtml(b.seller || '')} <span class="form-hint">(광고주 전반)</span>`;
+}
+// 소그룹 헤더 — 캠페인이 있으면 매체 태그 옆에 "· 상품명 (캠페인ID, 클릭 시 캠페인 미리보기)"를 붙여서
+// 캠페인 단위 소그룹임을 알려준다. 캠페인이 없으면(프로젝트/광고주 전반 항목) 매체 태그만.
+function _plDateSubGroupLabelHtml(m) {
+  if (m.campaignId) {
+    const c = DATA.find(x => x.id === m.campaignId);
+    const mediaLabel = c?.media || m.media || '매체 미지정';
+    const campIdx = DATA.findIndex(x => x.id === m.campaignId);
+    const campIdTag = campIdx >= 0
+      ? `<span class="pl-click f-mono" style="font-weight:600;font-size:11px;" onclick="event.stopPropagation();openCalPreview(${campIdx})">(${_escHtml(m.campaignId)})</span>`
+      : `<span style="font-weight:600;font-size:11px;">(${_escHtml(m.campaignId)})</span>`;
+    const productHtml = c?.product ? ` <span class="form-hint">· ${_escHtml(c.product)}</span>` : '';
+    return `<span class="tag pl-media">${_escHtml(mediaLabel)}</span>${productHtml} ${campIdTag}`;
+  }
+  return `<span class="tag pl-media">${_escHtml(_plDateGroupMediaLabel(m))}</span>`;
 }
 function _plDateNav(delta) {
   const d = new Date(_plDateTabDate + 'T00:00:00');
@@ -5343,12 +5373,12 @@ function _plRenderDateBody() {
     // 소그룹 라벨로 통일해서 보여준다 — 매체가 여러 개일 때와 UI 계위를 맞추기 위함.
     return `
     <div style="${bi > 0 ? 'margin-top:24px;padding-top:22px;border-top:1px solid var(--border2);' : ''}">
-      <div style="font-size:14px;font-weight:700;margin-bottom:8px;">${_plDateBlockLabel(b)} <span style="font-weight:400;font-size:12px;color:var(--text3);">${blockCount}건</span></div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:8px;">${_plDateGroupBlockTitle(b)} <span style="font-weight:400;font-size:12px;color:var(--text3);">${blockCount}건</span></div>
       ${b.mediaGroups.map((m, mi) => {
-        const showSub = b.scope !== 'media' && (m.media || b.mediaGroups.length > 1);
+        const showSub = b.family !== 'media' && (m.media || m.campaignId || b.mediaGroups.length > 1);
         return `
         <div style="${b.mediaGroups.length > 1 && mi < b.mediaGroups.length - 1 ? 'margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--border);' : ''}">
-          ${showSub ? `<div style="margin-bottom:4px;"><span class="tag pl-media">${_escHtml(_plDateGroupMediaLabel(m))}</span></div>` : ''}
+          ${showSub ? `<div style="margin-bottom:4px;">${_plDateSubGroupLabelHtml(m)}</div>` : ''}
           ${m.items.map(l => _plDateItemHtml(l, showSub)).join('')}
         </div>
       `;}).join('')}
