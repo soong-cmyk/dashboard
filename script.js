@@ -12623,7 +12623,7 @@ function renderKpiOrgTable() {
     .kpi-bonbu-sep td{border-top:2px solid var(--border) !important;}
     .kpi-subgroup-sep td{border-top:1px dashed var(--border2) !important;}
   </style>
-  <div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
+  <div style="overflow:auto;max-height:70vh;"><table class="kpi-tbl" style="width:max-content;">
     <thead>
     <tr><th colspan="${4 + cols.length}" style="padding:4px 10px;border:1px solid var(--border);background:var(--surface2);font-size:11px;font-weight:400;color:var(--text3);text-align:right;">(단위: 원/건)</th></tr>
     <tr>
