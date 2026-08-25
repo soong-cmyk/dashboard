@@ -934,7 +934,7 @@ ${badgeCss}
 .pl-quickadd{margin:2px 0 0 22px;font-size:11.5px;color:var(--accent);font-weight:700;cursor:pointer;display:inline-block;}
 .pl-quickadd:hover{text-decoration:underline;}
 .pl-quickadd-form{display:flex;align-items:center;gap:6px;margin:3px 0 0 22px;}
-.pl-quickadd-form .pl-mini{width:auto;flex:1;min-width:120px;max-width:320px;}
+.pl-quickadd-form .pl-mini{width:auto;flex:1;min-width:120px;max-width:670px;}
 .pl-quickadd-form .pl-x{font-size:11.5px;}
 .pl-add{text-align:center;border:1px dashed var(--border2);border-radius:var(--radius-sm);padding:8px;color:var(--text3);font-size:12px;font-weight:700;cursor:pointer;margin-top:8px;}
 .pl-add.block{padding:11px;border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
