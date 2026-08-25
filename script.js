@@ -12316,6 +12316,24 @@ function _kpiCalcClientList(year, bonbu, team, month) {
     .map(([name, brands]) => ({ name, brands: [...brands] }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 }
+// 분기 전체의 distinct 광고주 수 — 월별로 센 값을 qSum처럼 그냥 더하면 여러 달에 걸쳐 있는
+// 광고주가 중복 집계되므로, 분기 3개월치 데이터를 한 Set에 모아 한 번에 디듀프해서 센다.
+function _kpiCalcClientsQuarter(year, bonbu, team, qMonths) {
+  const set = new Set();
+  DATA.filter(c => {
+    if (c.status === '삭제') return false;
+    const d = c.date || '';
+    if (!qMonths.some(m => d.startsWith(`${year}-${m}`))) return false;
+    if (bonbu || team) {
+      const u = USERS.find(u => u.name === (c.ops || ''));
+      if (!u) return false;
+      if (bonbu && u.bonbu !== bonbu) return false;
+      if (team  && u.dept  !== team)  return false;
+    }
+    return true;
+  }).forEach(c => { const k = c.seller || c.adv; if (k) set.add(k); });
+  return set.size;
+}
 // _kpiCalcClientList 결과를 광고주마다 한 줄씩 — 몇 개든 다 보여주고(칸 높이는 자유롭게 늘어남)
 // 너비만 고정. 한 줄 안에서 이름이 넘치면 CSS 말줄임(ellipsis) 처리하고, hover 시 뜨는 말풍선
 // (plShowBubble, projectlog.js — position:fixed라 칸의 overflow:hidden과 무관하게 떠서 표
@@ -12788,7 +12806,11 @@ function renderKpiOrgTable() {
         return `<td style="${st}">${_kpiYoyHtml(a,b)}</td>`;
       };
       const clientCell = col => {
-        if (col.startsWith('Q')) return `<td style="${tdQC}">${nd}</td>`;
+        if (col.startsWith('Q')) {
+          if (isFutureQ(col)) return `<td style="${tdQC}">${nd}</td>`;
+          const cnt = _kpiCalcClientsQuarter(_kpiYear, t.bonbuName, t.name, _KPI_QTR_MAP[col]);
+          return `<td style="${tdQC}">${cnt || nd}</td>`;
+        }
         const list = clientList[col] || [];
         return list.length
           ? `<td class="kpi-adv-cell" style="${tdC}">${_kpiAdvListHtml(list)}</td>`
