@@ -1228,6 +1228,10 @@ function goScreen(name, skipPush) {
     const fs = document.getElementById('stl-fake-scroll');
     if (fs) fs.style.display = 'none';
   }
+  if (name !== 'kpi') {
+    const kfs = document.getElementById('kpi-fake-scroll');
+    if (kfs) kfs.style.display = 'none';
+  }
   window.scrollTo({ top: 0, behavior: 'instant' });
   const contentEl = document.querySelector('.content');
   if (contentEl) contentEl.scrollTop = 0;
@@ -12406,6 +12410,24 @@ function renderKpi() {
   renderKpiGrandTable();
   renderKpiOrgTable();
 }
+/** KPI 본부·팀별 표 플로팅 가로스크롤바 동기화 (정산의 _stlSyncFakeScroll과 동일 패턴) */
+function _kpiSyncFakeScroll() {
+  const fake  = document.getElementById('kpi-fake-scroll');
+  const inner = document.getElementById('kpi-fake-inner');
+  if (!fake || !inner) return;
+  const wrap = document.getElementById('kpi-org-scroll-wrap');
+  if (!wrap || !document.getElementById('screen-kpi')?.classList.contains('active')) { fake.style.display = 'none'; return; }
+  // display:none 상태에선 clientWidth=0이므로 먼저 표시 후 너비 계산
+  fake.style.display = '';
+  // fake는 .main 전체 너비, wrap은 .content 패딩 안쪽 너비 → 차이만큼 inner 너비 보정
+  const widthDiff = fake.clientWidth - wrap.clientWidth;
+  inner.style.width = (wrap.scrollWidth + widthDiff) + 'px';
+  fake.onscroll = () => { wrap.scrollLeft = fake.scrollLeft; };
+  wrap.onscroll = () => { fake.scrollLeft = wrap.scrollLeft; };
+}
+window.addEventListener('resize', () => {
+  if (document.getElementById('screen-kpi')?.classList.contains('active')) _kpiSyncFakeScroll();
+});
 
 // KPI_DATA.bonbus는 Firestore에 저장된 그대로라, 조직 개편으로 없어진 본부/팀(예: 폐지된 1본부 3팀)의
 // 옛 목표 데이터가 남아있어도 그대로 뜨고 합계에도 섞여 들어간다. ORG_STRUCTURE에 있는 본부/팀만
@@ -12589,6 +12611,7 @@ function renderKpiOrgTable() {
 
   if (!teamsToShow.length) {
     el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3);font-size:13px;">KPI 데이터가 없습니다. KPI 등록/수정으로 데이터를 입력하세요.</div>';
+    setTimeout(_kpiSyncFakeScroll, 0);
     return;
   }
 
@@ -12800,6 +12823,9 @@ function renderKpiOrgTable() {
 
   html += '</tbody></table></div>';
   el.innerHTML = html;
+  // 정산 화면과 동일한 방식(setTimeout으로 렌더 후 실제 크기 확정된 뒤 동기화) — 어디서
+  // 호출되든(필터·분기토글·인라인수정 등) 매번 이 함수 끝에서 다시 맞춰준다.
+  setTimeout(_kpiSyncFakeScroll, 0);
 }
 
 function toggleKpiQtr() {
