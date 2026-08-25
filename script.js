@@ -12664,10 +12664,12 @@ function renderKpiOrgTable() {
     else groups.push({ bonbuName: t.bonbuName, teams: [t] });
   });
 
-  // 본부 합계 줄 — 연간합계·분기합계와 같은 연노랑으로 통일.
-  const tdSN = 'padding:7px 10px;border:1px solid var(--border);font-weight:800;font-size:11px;color:var(--text);background:#fff9e6;white-space:nowrap;';
-  const tdSV = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:800;white-space:nowrap;background:#fff9e6;';
-  const tdSC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:800;white-space:nowrap;background:#fff9e6;';
+  // 본부 합계 줄 — 라벨·월별 칸은 중립 배경, 연간합계·분기합계 칸만 연노랑(tdSVY/tdSCY).
+  const tdSN = 'padding:7px 10px;border:1px solid var(--border);font-weight:800;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
+  const tdSV = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:800;white-space:nowrap;';
+  const tdSC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:800;white-space:nowrap;';
+  const tdSVY = tdSV + 'background:#fff9e6;';
+  const tdSCY = tdSC + 'background:#fff9e6;';
 
   groups.forEach((g, gi) => {
     const isFirstGroup = gi === 0;
@@ -12694,30 +12696,31 @@ function renderKpiOrgTable() {
       const totBClientRate = validRates.length ? Math.round(validRates.reduce((s, r) => s + r, 0) / validRates.length) : null;
 
       const sActCell = col => {
-        if (col.startsWith('Q')) return isFutureQ(col) ? `<td style="${tdSV}">${nd}</td>` : `<td style="${tdSV}">${_fmtKpi(qSum(bAct,col))}</td>`;
-        return col > curM ? `<td style="${tdSV}">${nd}</td>` : `<td style="${tdSV}">${_fmtKpi(bAct[col])}</td>`;
+        const isQ = col.startsWith('Q'); const st = isQ ? tdSVY : tdSV;
+        if (isQ) return isFutureQ(col) ? `<td style="${st}">${nd}</td>` : `<td style="${st}">${_fmtKpi(qSum(bAct,col))}</td>`;
+        return col > curM ? `<td style="${st}">${nd}</td>` : `<td style="${st}">${_fmtKpi(bAct[col])}</td>`;
       };
       const sRateCell = col => {
-        const isQ = col.startsWith('Q');
-        if (isQ ? isFutureQ(col) : col > curM) return `<td style="${tdSC}">${nd}</td>`;
+        const isQ = col.startsWith('Q'); const st = isQ ? tdSCY : tdSC;
+        if (isQ ? isFutureQ(col) : col > curM) return `<td style="${st}">${nd}</td>`;
         const a = isQ ? qSum(bAct,col) : (bAct[col]||0);
         const b = isQ ? qSum(bTgt,col) : (bTgt[col]||0);
-        return `<td style="${tdSC}">${_kpiRateHtml(a,b)}</td>`;
+        return `<td style="${st}">${_kpiRateHtml(a,b)}</td>`;
       };
       const sClientRateCell = col => {
-        const isQ = col.startsWith('Q');
-        if (isQ ? isFutureQ(col) : col > curM) return `<td style="${tdSC}">${nd}</td>`;
+        const isQ = col.startsWith('Q'); const st = isQ ? tdSCY : tdSC;
+        if (isQ ? isFutureQ(col) : col > curM) return `<td style="${st}">${nd}</td>`;
         if (isQ) {
           const rs = _KPI_QTR_MAP[col].map(m => bClientRate[m]).filter(r => r != null);
-          return `<td style="${tdSC}">${_kpiRateNumHtml(rs.length ? Math.round(rs.reduce((s,r)=>s+r,0)/rs.length) : null)}</td>`;
+          return `<td style="${st}">${_kpiRateNumHtml(rs.length ? Math.round(rs.reduce((s,r)=>s+r,0)/rs.length) : null)}</td>`;
         }
-        return `<td style="${tdSC}">${_kpiRateNumHtml(bClientRate[col])}</td>`;
+        return `<td style="${st}">${_kpiRateNumHtml(bClientRate[col])}</td>`;
       };
 
       const sumRows = [
-        { label:'매출 실적',                  total:`<td style="${tdSV}">${_fmtKpi(totBAct)}</td>`,               cells: cols.map(sActCell).join('') },
-        { label:'KPI 달성률',                 total:`<td style="${tdSC}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
-        { label:'광고주별 KPI 달성률(평균)',  total:`<td style="${tdSC}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
+        { label:'매출 실적',                  total:`<td style="${tdSVY}">${_fmtKpi(totBAct)}</td>`,               cells: cols.map(sActCell).join('') },
+        { label:'KPI 달성률',                 total:`<td style="${tdSCY}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
+        { label:'광고주별 KPI 달성률(평균)',  total:`<td style="${tdSCY}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
       ];
       sumRows.forEach((row, ri) => {
         const cls = ri === 0 ? (isFirstGroup ? 'kpi-bonbu-sep' : 'kpi-bonbu-end-sep') : '';
