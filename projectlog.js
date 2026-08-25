@@ -421,6 +421,9 @@ const _PL_MINE_THEAD = `<tr>
 // 작성기록이 많아지면 두 표를 세로로 쌓아둔 게 스크롤이 너무 길어져서, 서브탭으로 하나씩만 보여준다.
 let _plMineSubTab = 'written'; // 'written' | 'involved' | 'commented' | 'byuser'
 let _plMineUserFilters = []; // '작성자 모아보기' 탭에서 고른 사용자 이름들(여러 명 — 직급/조직 계위 기준이 아니라 직접 선택)
+// "내가 작성한 일지" 탭 전용 필터 — 남이 댓글 단 것만. 새로고침·메뉴 재진입 시 리셋(작성자
+// 필터처럼 localStorage에 남기지 않음 — 매번 걸어두면 새 댓글 놓치기 쉬움).
+let _plMineCommentedOnly = false;
 function _plMineUserFilterKey() { return 'pl_mine_user_' + (currentUser?.id || 'anon'); }
 function _plBuildMineTabSkeleton(content) {
   // 매번 빈 값으로 리셋되면 탭 열 때마다 다시 골라야 해서, 마지막으로 고른 작성자들을 기억해둔다.
@@ -441,6 +444,7 @@ function _plBuildMineTabSkeleton(content) {
           onblur="setTimeout(()=>{const l=document.getElementById('pl-mine-user-list');if(l)l.style.display='none';},150)">
         <div class="combo-list" id="pl-mine-user-list" style="display:none;"></div>
       </div>
+      <button class="btn btn-outline btn-sm${_plMineCommentedOnly ? ' pl-toggle-on' : ''}" id="pl-mine-commented-toggle" onclick="_plMineToggleCommentedOnly()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};">💬 댓글 있는 것만</button>
       <input type="text" class="f-search" id="pl-mine-search" placeholder="검색어" style="width:160px;" oninput="_plRenderMineBody()">
     </div>
     <div class="table-card">
@@ -496,6 +500,13 @@ function _plMineSwitchSubTab(tab) {
   document.getElementById('pl-mine-vt-byuser')?.classList.toggle('active', tab === 'byuser');
   const userWrap = document.getElementById('pl-mine-user-wrap');
   if (userWrap) userWrap.style.display = tab === 'byuser' ? 'flex' : 'none';
+  const commentedToggle = document.getElementById('pl-mine-commented-toggle');
+  if (commentedToggle) commentedToggle.style.display = tab === 'written' ? '' : 'none';
+  _plRenderMineBody();
+}
+function _plMineToggleCommentedOnly() {
+  _plMineCommentedOnly = !_plMineCommentedOnly;
+  document.getElementById('pl-mine-commented-toggle')?.classList.toggle('pl-toggle-on', _plMineCommentedOnly);
   _plRenderMineBody();
 }
 function _plRenderMineBody() {
@@ -508,7 +519,9 @@ function _plRenderMineBody() {
 
   // "내가 작성한 것"(책임 소재)과 "남이 나를 끌어들인 것"(댓글 멘션 — 참고로 챙길 것)을
   // 서로 겹치지 않게 나눈다. 내가 쓴 일지에 남이 나를 멘션했더라도 작성 쪽에만 표시.
-  const writtenLogs = PL_LOGS.filter(l => l.writerId === myId && matchesQ(l));
+  const othersCommentedIds = new Set(PL_COMMENTS.filter(c => c.writerId !== myId).map(c => c.logId));
+  let writtenLogs = PL_LOGS.filter(l => l.writerId === myId && matchesQ(l));
+  if (_plMineCommentedOnly) writtenLogs = writtenLogs.filter(l => othersCommentedIds.has(l.id));
   const mentionLogIds = new Set(PL_COMMENTS.filter(c => (c.mentions || []).some(m => m.id === myId)).map(c => c.logId));
   const involvedLogs = PL_LOGS.filter(l => l.writerId !== myId && mentionLogIds.has(l.id) && matchesQ(l));
   // 내가 댓글을 단 일지 — 멘션 여부와 무관하게 댓글 작성자 기준. 내가 쓴 일지는 "작성" 쪽에만 표시.
