@@ -12618,7 +12618,7 @@ function renderKpiOrgTable() {
   // 옅게 — td마다 이미 인라인으로 1px 테두리를 박아놔서(border:1px solid var(--border)) !important
   // 없이는 안 먹는다.
   let html = `<style>
-    .kpi-bonbu-sep td{border-top:2px solid var(--accent) !important;}
+    .kpi-bonbu-sep td{border-top:2px solid var(--border) !important;}
     .kpi-subgroup-sep td{border-top:1px dashed var(--border2) !important;}
   </style>
   <div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
@@ -12645,8 +12645,7 @@ function renderKpiOrgTable() {
   const tdSV = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:800;white-space:nowrap;background:var(--surface2);';
   const tdSC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:800;white-space:nowrap;background:var(--surface2);';
 
-  groups.forEach((g, gi) => {
-    const isFirstGroup = gi === 0;
+  groups.forEach(g => {
 
     // ── 본부 합계 — 팀이 하나뿐인 본부(예: 2본부)도 항상 보여준다. ──
     // 매출 실적·목표는 팀별 값을 그대로 합산(_kpiCalcActual을 팀 없이 본부 단위로 다시 불러 합산과 동일),
@@ -12696,7 +12695,7 @@ function renderKpiOrgTable() {
         { label:'광고주별 KPI 달성률(평균)',  total:`<td style="${tdSC}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
       ];
       sumRows.forEach((row, ri) => {
-        html += `<tr${(ri === 0 && !isFirstGroup) ? ' class="kpi-bonbu-sep"' : ''}>
+        html += `<tr${ri === 0 ? ' class="kpi-bonbu-sep"' : ''}>
           ${ri === 0 ? `<td style="${tdSN}position:sticky;left:0;z-index:1;" rowspan="${sumRows.length}">${_escHtml(g.bonbuName)}</td><td style="${tdSN}" rowspan="${sumRows.length}">본부 합계</td>` : ''}
           <td style="${tdSN}">${row.label}</td>
           ${row.total}${row.cells}
