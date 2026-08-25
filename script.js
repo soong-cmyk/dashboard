@@ -12312,12 +12312,16 @@ function _kpiCalcClientList(year, bonbu, team, month) {
     .map(([name, brands]) => ({ name, brands: [...brands] }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 }
-// _kpiCalcClientList 결과를 클릭 가능한 줄 목록으로 — 눌러서 프로젝트일지 광고주 상세로 이동한다.
+// _kpiCalcClientList 결과를 칸 안에 한 줄로 — 2개 이상이면 첫 번째만 보여주고 "..."를 붙인다.
+// 칸 너비가 고정이라 한 줄 안에서도 넘칠 수 있어 CSS로 말줄임(ellipsis) 처리하고, 전체 목록은
+// 커스텀 툴팁(data-tooltip)으로 hover 시 보여준다. 클릭은 항상 첫 번째 광고주 상세로 이동.
 function _kpiAdvListHtml(list) {
-  return (list || []).map(a => {
-    const brandHtml = a.brands.length ? ` <span class="kpi-adv-brand">· ${a.brands.map(_escHtml).join(', ')}</span>` : '';
-    return `<span class="kpi-adv-line" onclick="plGoToAdvertiserDetail('${_escHtml(a.name)}')">${_escHtml(a.name)}${brandHtml}</span>`;
-  }).join('');
+  if (!list || !list.length) return '';
+  const fmt = a => `${a.name}${a.brands.length ? ' · ' + a.brands.join(', ') : ''}`;
+  const first = list[0];
+  const label = fmt(first) + (list.length > 1 ? ' ...' : '');
+  const tooltip = list.map(fmt).join(' / ');
+  return `<span class="kpi-adv-line" data-tooltip="${_escHtml(tooltip)}" onclick="plGoToAdvertiserDetail('${_escHtml(first.name)}')">${_escHtml(label)}</span>`;
 }
 
 function _fmtW(n) {
