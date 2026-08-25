@@ -12355,11 +12355,22 @@ function renderKpi() {
   renderKpiOrgTable();
 }
 
+// KPI_DATA.bonbus는 Firestore에 저장된 그대로라, 조직 개편으로 없어진 본부/팀(예: 폐지된 1본부 3팀)의
+// 옛 목표 데이터가 남아있어도 그대로 뜨고 합계에도 섞여 들어간다. ORG_STRUCTURE에 있는 본부/팀만
+// 남기고, 새로 생긴 팀(예: 3본부 2팀)은 아직 Firestore에 데이터가 없어도 0으로 채워 항상 보이게 한다.
+function _kpiValidBonbus() {
+  return ORG_STRUCTURE.map(org => {
+    const kb = (KPI_DATA.bonbus || []).find(b => b.name === org.bonbu);
+    const teams = (org.teams || []).map(teamName => (kb?.teams || []).find(t => t.name === teamName) || { name: teamName, category: '', months: [] });
+    return { name: org.bonbu, teams };
+  });
+}
+
 function renderKpiCards() {
   const el = document.getElementById('kpi-cards');
   if (!el) return;
 
-  const allTeamMonths = (KPI_DATA.bonbus || []).flatMap(b => b.teams || []).flatMap(t => t.months || []);
+  const allTeamMonths = _kpiValidBonbus().flatMap(b => b.teams || []).flatMap(t => t.months || []);
   const annualTarget  = allTeamMonths.reduce((s, m) => s + (m.target || 0), 0);
 
   const now    = new Date();
@@ -12397,7 +12408,7 @@ function renderKpiCards() {
 function renderKpiForecastBanner() {
   const el = document.getElementById('kpi-forecast-banner');
   if (!el) return;
-  const allTeamMonths = (KPI_DATA.bonbus || []).flatMap(b => b.teams || []).flatMap(t => t.months || []);
+  const allTeamMonths = _kpiValidBonbus().flatMap(b => b.teams || []).flatMap(t => t.months || []);
   const annualTarget  = allTeamMonths.reduce((s, m) => s + (m.target || 0), 0);
   const curM    = String(new Date().getMonth() + 1).padStart(2, '0');
   const passed  = _KPI_MONTHS.filter(m => m <= curM);
@@ -12429,7 +12440,7 @@ function renderKpiGrandTable() {
   const curM = String(new Date().getMonth() + 1).padStart(2, '0');
   const tgt = {}, prev = {};
   _KPI_MONTHS.forEach(m => { tgt[m] = 0; prev[m] = 0; });
-  (KPI_DATA.bonbus || []).forEach(b => (b.teams || []).forEach(t => (t.months || []).forEach(md => {
+  _kpiValidBonbus().forEach(b => (b.teams || []).forEach(t => (t.months || []).forEach(md => {
     tgt[md.month]  = (tgt[md.month]  || 0) + (md.target  || 0);
     prev[md.month] = (prev[md.month] || 0) + (md.prevYear || 0);
   })));
@@ -12514,7 +12525,7 @@ function renderKpiOrgTable() {
   const { bonbu, team } = _parseOrgFilter(_kpiOrgFilter);
 
   const teamsToShow = [];
-  (KPI_DATA.bonbus || []).forEach(b => {
+  _kpiValidBonbus().forEach(b => {
     if (bonbu && b.name !== bonbu) return;
     (b.teams || []).forEach(t => {
       if (team && t.name !== team) return;
@@ -12546,7 +12557,10 @@ function renderKpiOrgTable() {
     ? `<th style="${thQ}min-width:72px;">${col}</th>`
     : `<th style="${thC}min-width:78px;">${_KPI_ML[col]}</th>`;
 
-  let html = `<div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
+  // 본부가 바뀌는 경계 줄(kpi-bonbu-sep)만 진하게 — td마다 이미 인라인으로 1px 테두리를 박아놔서
+  // (border:1px solid var(--border)) !important 없이는 클래스 규칙이 안 먹는다.
+  let html = `<style>.kpi-bonbu-sep td{border-top:2px solid var(--text2) !important;}</style>
+  <div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
     <thead>
     <tr><th colspan="${4 + cols.length}" style="padding:4px 10px;border:1px solid var(--border);background:var(--surface2);font-size:11px;font-weight:400;color:var(--text3);text-align:right;">(단위: 원/건)</th></tr>
     <tr>
@@ -12557,7 +12571,11 @@ function renderKpiOrgTable() {
       ${cols.map(colHdr).join('')}
     </tr></thead><tbody>`;
 
+  let _kpiPrevBonbu = null;
   for (const t of teamsToShow) {
+    // 본부가 바뀌는 첫 팀 블록의 맨 위 줄에만 진한 구분선을 넣어 본부 단위 구간을 한눈에 보이게 한다.
+    const isNewBonbu = _kpiPrevBonbu !== null && t.bonbuName !== _kpiPrevBonbu;
+    _kpiPrevBonbu = t.bonbuName;
     const acts  = {}; _KPI_MONTHS.forEach(m => { acts[m]  = _kpiCalcActual(_kpiYear, t.bonbuName, t.name, m); });
     const tgts  = {}, prevs = {}, stgts = {};
     _KPI_MONTHS.forEach(m => {
@@ -12631,7 +12649,7 @@ function renderKpiOrgTable() {
 
     rows.forEach((row, ri) => {
       const bg = row.blockB ? 'background:#fff9e6;' : '';
-      html += `<tr>
+      html += `<tr${ri === 0 && isNewBonbu ? ' class="kpi-bonbu-sep"' : ''}>
         ${ri === 0 ? `<td style="${tdL}position:sticky;left:0;z-index:1;" rowspan="${TOTAL_ROWS}">${_escHtml(t.bonbuName)}</td><td style="${tdL}" rowspan="${TOTAL_ROWS}">${teamLabel}</td>` : ''}
         <td style="${tdL}${bg}">${row.label}</td>
         ${row.total}${row.cells}
