@@ -12525,14 +12525,13 @@ function renderKpiGrandTable() {
   const totTgt  = _KPI_MONTHS.reduce((s, m) => s + tgt[m], 0);
   const totPrev = _KPI_MONTHS.reduce((s, m) => s + prev[m], 0);
 
-  // 색 채운 배경 대신 중립 배경 + 액센트는 연간합계 칸의 왼쪽 테두리 정도로만 최소한으로 씀
-  // (다른 화면 표들도 색 배경 없이 hover 틴트·작은 뱃지 정도만 쓰는 것과 톤을 맞춤).
+  // 연간합계·분기합계 칸은 둘 다 "합계"라 같은 연노랑으로, 나머지는 중립 배경만.
   const thC  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
   const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:#fff9e6;font-weight:700;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
   const tdL  = 'padding:7px 12px;border:1px solid var(--border);font-weight:600;font-size:12px;color:var(--text2);background:var(--surface2);white-space:nowrap;position:sticky;left:0;z-index:1;';
   const tdV  = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:12px;white-space:nowrap;';
-  const tdAN = tdV + 'border-left:2px solid var(--accent);font-weight:800;';
-  const tdAC = 'padding:7px 10px;border:1px solid var(--border);border-left:2px solid var(--accent);text-align:center;font-size:12px;white-space:nowrap;font-weight:800;';
+  const tdAN = tdV + 'background:#fff9e6;font-weight:800;';
+  const tdAC = 'padding:7px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#fff9e6;font-weight:800;';
   const tdQ  = tdV + 'background:#fff9e6;font-weight:700;';
   const tdQC = 'padding:7px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#fff9e6;font-weight:700;';
   const tdC  = tdV + 'text-align:center;';
@@ -12582,7 +12581,7 @@ function renderKpiGrandTable() {
     <tr><th colspan="${2 + cols.length}" style="padding:4px 10px;border:1px solid var(--border);background:var(--surface2);font-size:11px;font-weight:400;color:var(--text3);text-align:right;">(단위: 원/건)</th></tr>
     <tr>
       <th style="${thC}text-align:left;min-width:110px;position:sticky;left:0;z-index:2;">구분</th>
-      <th style="${thC}min-width:90px;border-left:2px solid var(--accent);">연간합계</th>
+      <th style="${thC}min-width:90px;background:#fff9e6;">연간합계</th>
       ${cols.map(colHdr).join('')}
     </tr></thead>
     <tbody>
@@ -12616,16 +12615,14 @@ function renderKpiOrgTable() {
   }
 
   const curM = String(new Date().getMonth() + 1).padStart(2, '0');
-  // 색 채운 배경 대신 중립 배경 + 액센트는 연간합계 칸의 왼쪽 테두리 정도로만 최소한으로 씀
-  // (다른 화면 표들도 색 배경 없이 hover 틴트·작은 뱃지 정도만 쓰는 것과 톤을 맞춤).
+  // 연간합계·분기합계(Q1~Q4) 칸은 둘 다 "합계"라 같은 연노랑으로(매출·광고주 구분 없이 동일),
+  // 나머지 칸은 중립 배경만.
   const thC  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
-  // 분기합계(Q1~Q4) 칸은 월별 칸들 사이에서 눈에 띄어야 해서 원래 있었던 연노랑을 그대로 씀
-  // (매출·광고주 구분 없이 분기 칸이면 전부 동일).
   const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:#fff9e6;font-weight:700;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
   const tdL  = 'padding:7px 10px;border:1px solid var(--border);font-weight:600;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
   const tdV  = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;white-space:nowrap;';
-  const tdAN = tdV + 'border-left:2px solid var(--accent);font-weight:800;';
-  const tdAC = 'padding:6px 10px;border:1px solid var(--border);border-left:2px solid var(--accent);text-align:center;font-size:12px;white-space:nowrap;font-weight:800;';
+  const tdAN = tdV + 'background:#fff9e6;font-weight:800;';
+  const tdAC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#fff9e6;font-weight:800;';
   const tdQ  = tdV + 'background:#fff9e6;font-weight:700;';
   const tdQC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#fff9e6;font-weight:700;';
   const tdC  = tdV + 'text-align:center;';
@@ -12653,7 +12650,7 @@ function renderKpiOrgTable() {
       <th style="${thC}text-align:left;min-width:60px;position:sticky;left:0;z-index:2;">본부</th>
       <th style="${thC}text-align:left;min-width:60px;">팀</th>
       <th style="${thC}text-align:left;min-width:90px;">구분</th>
-      <th style="${thC}min-width:88px;border-left:2px solid var(--accent);">연간합계</th>
+      <th style="${thC}min-width:88px;background:#fff9e6;">연간합계</th>
       ${cols.map(colHdr).join('')}
     </tr></thead><tbody>`;
 
