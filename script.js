@@ -12503,14 +12503,16 @@ function renderKpiGrandTable() {
   const totTgt  = _KPI_MONTHS.reduce((s, m) => s + tgt[m], 0);
   const totPrev = _KPI_MONTHS.reduce((s, m) => s + prev[m], 0);
 
+  // 색 채운 배경 대신 중립 배경 + 액센트는 연간합계 칸의 왼쪽 테두리 정도로만 최소한으로 씀
+  // (다른 화면 표들도 색 배경 없이 hover 틴트·작은 뱃지 정도만 쓰는 것과 톤을 맞춤).
   const thC  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
-  const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:#e8ecff;font-weight:700;font-size:11px;color:var(--accent);text-align:center;white-space:nowrap;';
+  const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:700;font-size:11px;color:var(--accent);text-align:center;white-space:nowrap;';
   const tdL  = 'padding:7px 12px;border:1px solid var(--border);font-weight:600;font-size:12px;color:var(--text2);background:var(--surface2);white-space:nowrap;position:sticky;left:0;z-index:1;';
   const tdV  = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:12px;white-space:nowrap;';
-  const tdAN = tdV + 'background:#eef2ff;font-weight:700;';
-  const tdAC = 'padding:7px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#eef2ff;font-weight:700;';
-  const tdQ  = tdV + 'background:#eef0ff;font-weight:700;';
-  const tdQC = 'padding:7px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#eef0ff;font-weight:700;';
+  const tdAN = tdV + 'border-left:2px solid var(--accent);font-weight:800;';
+  const tdAC = 'padding:7px 10px;border:1px solid var(--border);border-left:2px solid var(--accent);text-align:center;font-size:12px;white-space:nowrap;font-weight:800;';
+  const tdQ  = tdV + 'font-weight:700;';
+  const tdQC = 'padding:7px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;font-weight:700;';
   const tdC  = tdV + 'text-align:center;';
   const nd   = '<span style="color:var(--text3)">—</span>';
 
@@ -12558,7 +12560,7 @@ function renderKpiGrandTable() {
     <tr><th colspan="${2 + cols.length}" style="padding:4px 10px;border:1px solid var(--border);background:var(--surface2);font-size:11px;font-weight:400;color:var(--text3);text-align:right;">(단위: 원/건)</th></tr>
     <tr>
       <th style="${thC}text-align:left;min-width:110px;position:sticky;left:0;z-index:2;">구분</th>
-      <th style="${thC}min-width:90px;background:#eef2ff;">연간합계</th>
+      <th style="${thC}min-width:90px;border-left:2px solid var(--accent);">연간합계</th>
       ${cols.map(colHdr).join('')}
     </tr></thead>
     <tbody>
@@ -12591,14 +12593,16 @@ function renderKpiOrgTable() {
   }
 
   const curM = String(new Date().getMonth() + 1).padStart(2, '0');
+  // 색 채운 배경 대신 중립 배경 + 액센트는 연간합계 칸의 왼쪽 테두리 정도로만 최소한으로 씀
+  // (다른 화면 표들도 색 배경 없이 hover 틴트·작은 뱃지 정도만 쓰는 것과 톤을 맞춤).
   const thC  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
-  const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:#e8ecff;font-weight:700;font-size:11px;color:var(--accent);text-align:center;white-space:nowrap;';
+  const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:700;font-size:11px;color:var(--accent);text-align:center;white-space:nowrap;';
   const tdL  = 'padding:7px 10px;border:1px solid var(--border);font-weight:600;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
   const tdV  = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;white-space:nowrap;';
-  const tdAN = tdV + 'background:#eef2ff;font-weight:700;';
-  const tdAC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#eef2ff;font-weight:700;';
-  const tdQ  = tdV + 'background:#eef0ff;font-weight:700;';
-  const tdQC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#eef0ff;font-weight:700;';
+  const tdAN = tdV + 'border-left:2px solid var(--accent);font-weight:800;';
+  const tdAC = 'padding:6px 10px;border:1px solid var(--border);border-left:2px solid var(--accent);text-align:center;font-size:12px;white-space:nowrap;font-weight:800;';
+  const tdQ  = tdV + 'font-weight:700;';
+  const tdQC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;font-weight:700;';
   const tdC  = tdV + 'text-align:center;';
   const nd   = '<span style="color:var(--text3)">—</span>';
 
@@ -12609,9 +12613,13 @@ function renderKpiOrgTable() {
     ? `<th style="${thQ}min-width:72px;">${col}</th>`
     : `<th style="${thC}min-width:78px;">${_KPI_ML[col]}</th>`;
 
-  // 본부가 바뀌는 경계 줄(kpi-bonbu-sep)만 진하게 — td마다 이미 인라인으로 1px 테두리를 박아놔서
-  // (border:1px solid var(--border)) !important 없이는 클래스 규칙이 안 먹는다.
-  let html = `<style>.kpi-bonbu-sep td{border-top:2px solid var(--text2) !important;}</style>
+  // 본부가 바뀌는 경계 줄(kpi-bonbu-sep)은 진하게, 매출·광고주 두 지표 묶음 사이(kpi-subgroup-sep)는
+  // 얇은 점선으로 — 색 구분을 없앤 대신 색 없이도 구간이 나뉘어 보이게 선으로만 표시한다. td마다
+  // 이미 인라인으로 1px 테두리를 박아놔서(border:1px solid var(--border)) !important 없이는 안 먹는다.
+  let html = `<style>
+    .kpi-bonbu-sep td{border-top:2px solid var(--text2) !important;}
+    .kpi-subgroup-sep td{border-top:1px dashed var(--border2) !important;}
+  </style>
   <div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
     <thead>
     <tr><th colspan="${4 + cols.length}" style="padding:4px 10px;border:1px solid var(--border);background:var(--surface2);font-size:11px;font-weight:400;color:var(--text3);text-align:right;">(단위: 원/건)</th></tr>
@@ -12619,7 +12627,7 @@ function renderKpiOrgTable() {
       <th style="${thC}text-align:left;min-width:60px;position:sticky;left:0;z-index:2;">본부</th>
       <th style="${thC}text-align:left;min-width:60px;">팀</th>
       <th style="${thC}text-align:left;min-width:90px;">구분</th>
-      <th style="${thC}min-width:88px;background:#eef2ff;">연간합계</th>
+      <th style="${thC}min-width:88px;border-left:2px solid var(--accent);">연간합계</th>
       ${cols.map(colHdr).join('')}
     </tr></thead><tbody>`;
 
@@ -12631,9 +12639,10 @@ function renderKpiOrgTable() {
     else groups.push({ bonbuName: t.bonbuName, teams: [t] });
   });
 
-  const tdSN = 'padding:7px 10px;border:1px solid var(--border);font-weight:800;font-size:11px;color:var(--accent);background:#dde5ff;white-space:nowrap;';
-  const tdSV = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:800;white-space:nowrap;background:#dde5ff;';
-  const tdSC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:800;white-space:nowrap;background:#dde5ff;';
+  // 본부 합계 줄 — 진한 파랑 배경 대신 옅은 중립 배경(surface2) + 굵은 글씨 + 액센트 텍스트로만 구분.
+  const tdSN = 'padding:7px 10px;border:1px solid var(--border);font-weight:800;font-size:11px;color:var(--accent);background:var(--surface2);white-space:nowrap;';
+  const tdSV = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:800;white-space:nowrap;background:var(--surface2);';
+  const tdSC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;font-weight:800;white-space:nowrap;background:var(--surface2);';
 
   groups.forEach((g, gi) => {
     const isFirstGroup = gi === 0;
@@ -12734,8 +12743,8 @@ function renderKpiOrgTable() {
         if (_kpiInlineEdit) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_prev_${t.bonbuName}_${t.name}_${col}`, prevs[col]||'', '100000')}</td>`;
         return `<td style="${tdV}">${_fmtKpi(prevs[col])}</td>`;
       };
-      const rateCell = (col, aVals, bVals, bk) => {
-        const isQ = col.startsWith('Q'); const st = isQ ? tdQC : (bk ? tdC+'background:#fff9e6;' : tdC);
+      const rateCell = (col, aVals, bVals) => {
+        const isQ = col.startsWith('Q'); const st = isQ ? tdQC : tdC;
         const future = isQ ? isFutureQ(col) : col > curM;
         if (future) return `<td style="${st}">${nd}</td>`;
         const a = isQ ? qSum(aVals,col) : (aVals[col]||0);
@@ -12751,36 +12760,38 @@ function renderKpiOrgTable() {
         return `<td style="${st}">${_kpiYoyHtml(a,b)}</td>`;
       };
       const clientCell = col => {
-        if (col.startsWith('Q')) return `<td style="${tdQC}background:#fff9e6;">${nd}</td>`;
+        if (col.startsWith('Q')) return `<td style="${tdQC}">${nd}</td>`;
         const list = clientList[col] || [];
         return list.length
-          ? `<td class="kpi-adv-cell" style="${tdC}background:#fff9e6;">${_kpiAdvListHtml(list)}</td>`
-          : `<td style="${tdC}background:#fff9e6;">${nd}</td>`;
+          ? `<td class="kpi-adv-cell" style="${tdC}">${_kpiAdvListHtml(list)}</td>`
+          : `<td style="${tdC}">${nd}</td>`;
       };
       const stgtCell = col => {
-        if (col.startsWith('Q')) return `<td style="${tdQC}background:#fff9e6;">${nd}</td>`;
-        if (_kpiInlineEdit) return `<td style="padding:2px 3px;border:1px solid var(--border);background:#fff9e6;">${inp(`ki_stgt_${t.bonbuName}_${t.name}_${col}`, stgts[col]||'', '1')}</td>`;
-        return `<td style="${tdC}background:#fff9e6;">${stgts[col] ? stgts[col]+'건' : nd}</td>`;
+        if (col.startsWith('Q')) return `<td style="${tdQC}">${nd}</td>`;
+        if (_kpiInlineEdit) return `<td style="padding:2px 3px;border:1px solid var(--border);">${inp(`ki_stgt_${t.bonbuName}_${t.name}_${col}`, stgts[col]||'', '1')}</td>`;
+        return `<td style="${tdC}">${stgts[col] ? stgts[col]+'건' : nd}</td>`;
       };
 
+      // 매출 지표(0~4번줄)와 광고주 지표(5~7번줄) 그룹은 더 이상 배경색으로 안 나누고, 5번줄(광고주 수)
+      // 위에 점선 구분선(kpi-subgroup-sep)만 넣어 두 묶음이 나뉘어 보이게 한다.
       const TOTAL_ROWS = 8;
       const rows = [
         { label:'매출 실적',       total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,          cells: cols.map(actCell).join('') },
         { label:'KPI 목표',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
-        { label:'달성률',          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts,false)).join('') },
+        { label:'달성률',          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts)).join('') },
         { label:'전년도 매출',     total:`<td style="${tdAN}">${_fmtKpi(totPrev)}</td>`,         cells: cols.map(prevCell).join('') },
         { label:'YoY',             total:`<td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>`, cells: cols.map(yoyCell).join('') },
-        { label:'광고주 수(실적)', total:`<td style="${tdAC}background:#fff7e6;">${totClients||nd}</td>`, cells: cols.map(clientCell).join(''), blockB:true },
-        { label:'목표 광고주 수',  total:`<td style="${tdAC}background:#fff7e6;">${nd}</td>`,  cells: cols.map(stgtCell).join(''), blockB:true },
-        { label:'달성률',          total:`<td style="${tdAC}background:#fff7e6;">${nd}</td>`,  cells: cols.map(c=>rateCell(c,clients,stgts,true)).join(''), blockB:true },
+        { label:'광고주 수(실적)', total:`<td style="${tdAC}">${totClients||nd}</td>`, cells: cols.map(clientCell).join(''), subgroupTop:true },
+        { label:'목표 광고주 수',  total:`<td style="${tdAC}">${nd}</td>`,  cells: cols.map(stgtCell).join('') },
+        { label:'달성률',          total:`<td style="${tdAC}">${nd}</td>`,  cells: cols.map(c=>rateCell(c,clients,stgts)).join('') },
       ];
 
       rows.forEach((row, ri) => {
-        const bg = row.blockB ? 'background:#fff9e6;' : '';
         const sep = ri === 0 && ti === 0 && needsOwnTopBorder;
-        html += `<tr${sep ? ' class="kpi-bonbu-sep"' : ''}>
+        const cls = sep ? 'kpi-bonbu-sep' : (row.subgroupTop ? 'kpi-subgroup-sep' : '');
+        html += `<tr${cls ? ` class="${cls}"` : ''}>
           ${ri === 0 ? `<td style="${tdL}position:sticky;left:0;z-index:1;" rowspan="${TOTAL_ROWS}">${_escHtml(t.bonbuName)}</td><td style="${tdL}" rowspan="${TOTAL_ROWS}">${teamLabel}</td>` : ''}
-          <td style="${tdL}${bg}">${row.label}</td>
+          <td style="${tdL}">${row.label}</td>
           ${row.total}${row.cells}
         </tr>`;
       });
@@ -12844,10 +12855,11 @@ function openKpiEditModal() {
   const sCard = 'background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0;overflow:hidden;margin-bottom:12px;';
   const sSecH = 'font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px;letter-spacing:.3px;text-transform:uppercase;';
 
+  // 항목명 텍스트로 이미 구분되므로 행마다 다른 색을 칠하지 않고 전부 중립 배경으로 통일.
   const rowMeta = [
-    { label: '매출 목표', fKey: 'tgt',  note: '원', bgH: '#eef2ff', bgC: '' },
-    { label: '전년 실적', fKey: 'prev', note: '원', bgH: '#f0fdf4', bgC: '#f0fdf4' },
-    { label: '목표 광고주 수', fKey: 'stgt', note: '건',   bgH: '#fff9e6', bgC: '#fff9e6' },
+    { label: '매출 목표', fKey: 'tgt',  note: '원', bgH: 'var(--surface2)', bgC: '' },
+    { label: '전년 실적', fKey: 'prev', note: '원', bgH: 'var(--surface2)', bgC: '' },
+    { label: '목표 광고주 수', fKey: 'stgt', note: '건', bgH: 'var(--surface2)', bgC: '' },
   ];
   const thS = 'padding:5px 8px;border:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;text-align:center;';
   const thL = 'padding:5px 10px;border:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;';
