@@ -1368,7 +1368,6 @@ function openDetail(idx, skipPush) {
   const btnDel  = document.getElementById('btn-detail-del');
   const btnTgt  = document.getElementById('btn-edit-target');
   const btnNote = document.getElementById('btn-edit-note');
-  const btn2nd  = document.getElementById('btn-2nd');
   if (btnEdit) btnEdit.style.display = canEdit(c) ? '' : 'none';
   if (btnCopy) btnCopy.style.display = hasPerm('ops') ? '' : 'none';
   const _superDel = currentUser && ['wonjoon','sukjoo'].includes(currentUser.id);
@@ -1376,16 +1375,7 @@ function openDetail(idx, skipPush) {
   if (btnDel)  btnDel.style.display  = showDel;
   if (btnTgt)  btnTgt.style.display  = canEdit(c) ? '' : 'none';
   if (btnNote) btnNote.style.display = canEdit(c) ? '' : 'none';
-  const can2nd = c.product !== '퍼미션콜' && hasPerm('ops') && (c.status === '성과입력대기' || c.status === '성과입력완료');
-  if (btn2nd) {
-    btn2nd.style.display = hasPerm('ops') ? '' : 'none';
-    btn2nd.disabled = !can2nd;
-  }
-  const wrap2nd = document.getElementById('btn-2nd-wrap');
-  if (wrap2nd) {
-    if (can2nd) wrap2nd.removeAttribute('data-tooltip');
-    else wrap2nd.setAttribute('data-tooltip', '성과입력대기 단계에서 성과 입력이 가능합니다.');
-  }
+  _updateBtn2nd(c);
   // 진행체크 클릭 가능 여부
   ['detailChkTest','detailChkSend'].forEach(id => {
     const el = document.getElementById(id);
@@ -2068,9 +2058,23 @@ function confirmSend() {
   _fbSaveCampaign(c);
   closeModal('modalSend');
   _syncDetailChks();
-  if (pendingSendIdx === currentDetailIdx) _updateStepTrack(c.status);
+  if (pendingSendIdx === currentDetailIdx) { _updateStepTrack(c.status); _updateBtn2nd(c); }
   renderTable(filtered);
   toast('🚀 발송이 확인되었습니다','ok');
+}
+// 상세보기의 "성과 입력/수정" 버튼 활성화 여부 — openDetail()과 confirmSend() 둘 다에서 호출
+// (confirmSend로 status가 바뀌어도 openDetail을 다시 열기 전까진 버튼이 안 풀리던 버그 방지)
+function _updateBtn2nd(c) {
+  const btn2nd = document.getElementById('btn-2nd');
+  if (!btn2nd) return;
+  const can2nd = c.product !== '퍼미션콜' && hasPerm('ops') && (c.status === '성과입력대기' || c.status === '성과입력완료');
+  btn2nd.style.display = hasPerm('ops') ? '' : 'none';
+  btn2nd.disabled = !can2nd;
+  const wrap2nd = document.getElementById('btn-2nd-wrap');
+  if (wrap2nd) {
+    if (can2nd) wrap2nd.removeAttribute('data-tooltip');
+    else wrap2nd.setAttribute('data-tooltip', '성과입력대기 단계에서 성과 입력이 가능합니다.');
+  }
 }
 function cancelSend() { closeModal('modalSend'); }
 
