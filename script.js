@@ -5392,7 +5392,7 @@ function _xlsxDownload(rows, filename) {
 // 헤더 뒤 " *"가 붙은 컬럼은 필수 — 파싱은 헤더 텍스트가 아니라 CAMP_COL의 위치(인덱스)로 하므로
 // 여기 문구를 자유롭게 바꿔도(예: * 표시 추가) 아래 검증 로직과 어긋나지 않는다.
 const CAMP_XLSX_HEADERS_BASIC = [
-  '상품 *', '발송일시 *', '매출처 *', '브랜드 *', '매체사 *', '광고목적', '담당자 *',
+  '상품 *', '발송일시 *', '매출처 *', '브랜드 *', '카테고리(신규 브랜드만 필수)', '매체사 *', '광고목적', '담당자 *',
   '발송예약수량 *', '서비스수량', '서비스적용(광고주) *', '서비스적용(매체) *',
   '정산기준(광고주) *', '매출단가 *', '할인단가', '광고비(수동) *', '실청구(수동) *', '수수료율(%)',
   '정산기준(매체) *', '매입단가(수동) *', '매입액(수동) *',
@@ -5403,7 +5403,7 @@ const CAMP_XLSX_HEADERS_BASIC = [
 function campXlsxDownloadTemplate() {
   if (typeof XLSX === 'undefined') { toast('엑셀 라이브러리 로드 실패. 인터넷 연결을 확인해주세요.', 'err'); return; }
   const example1 = [
-    'LMS', '2026-01-15 11:00', '단비교육', '윙크', 'KT', '신학기 등록 프로모션', '신지수',
+    'LMS', '2026-01-15 11:00', '단비교육', '윙크', '', 'KT', '신학기 등록 프로모션', '신지수',
     50000, 500, 'Y', 'N',
     '실발송', 35, '', 1750000, 1750000, 15,
     '실발송', 29.75, 1487500,
@@ -5412,7 +5412,7 @@ function campXlsxDownloadTemplate() {
     48210, 723, 65,
   ];
   const example2 = [
-    'MMS', '2026-02-03 14:30', '클린업스토리', '', 'LGU+', '설 연휴 특가', '박민호',
+    'MMS', '2026-02-03 14:30', '클린업스토리', '', '', 'LGU+', '설 연휴 특가', '박민호',
     90000, 0, 'N', 'N',
     '예약', 42, 38, 3420000, 3420000, 12,
     '예약', 36.96, 3326400,
@@ -5421,15 +5421,15 @@ function campXlsxDownloadTemplate() {
     88540, 1063, 81,
   ];
   const ws = XLSX.utils.aoa_to_sheet([CAMP_XLSX_HEADERS_BASIC, example1, example2]);
-  // 클릭률·DB등록률은 입력값이 아니라 라이브 수식 — 실발송수량(AB)·클릭수(AC)·DB등록수(AD)를
+  // 클릭률·DB등록률은 입력값이 아니라 라이브 수식 — 실발송수량(AC)·클릭수(AD)·DB등록수(AE)를
   // 고치면 엑셀에서 바로 다시 계산된다. 업로드 처리 시에도 이 값을 그대로 믿지 않고 같은 공식으로
   // 재계산해서 저장할 예정(엑셀이 재계산을 안 돌렸을 수 있어서).
   [1, 2].forEach(r => {
-    const actualRef = XLSX.utils.encode_cell({ r, c: 27 });
-    const clickRef  = XLSX.utils.encode_cell({ r, c: 28 });
-    const dbRef     = XLSX.utils.encode_cell({ r, c: 29 });
-    ws[XLSX.utils.encode_cell({ r, c: 30 })] = { t: 'n', f: `IF(${actualRef}>0,ROUND(${clickRef}/${actualRef}*100,2),"")` };
-    ws[XLSX.utils.encode_cell({ r, c: 31 })] = { t: 'n', f: `IF(${clickRef}>0,ROUND(${dbRef}/${clickRef}*100,2),"")` };
+    const actualRef = XLSX.utils.encode_cell({ r, c: 28 });
+    const clickRef  = XLSX.utils.encode_cell({ r, c: 29 });
+    const dbRef     = XLSX.utils.encode_cell({ r, c: 30 });
+    ws[XLSX.utils.encode_cell({ r, c: 31 })] = { t: 'n', f: `IF(${actualRef}>0,ROUND(${clickRef}/${actualRef}*100,2),"")` };
+    ws[XLSX.utils.encode_cell({ r, c: 32 })] = { t: 'n', f: `IF(${clickRef}>0,ROUND(${dbRef}/${clickRef}*100,2),"")` };
   });
 
   // 참고 시트 — 엑셀 자체 드롭다운을 못 만들어서(라이브러리 무료판 한계), 정확한 값을 복사해
@@ -5454,6 +5454,7 @@ function campXlsxDownloadTemplate() {
     ['상품(기본형)', 'MMS, LMS, 실시간 발송, PUSH, 카톡MSG'],
     ['서비스적용(광고주/매체)', 'Y, N'],
     ['정산기준(광고주/매체)', '실발송, 예약'],
+    ['카테고리', SELLER_BRAND_CATS.join(', ') + ' 중 하나 — 매출처·브랜드가 아래 목록에 없는 신규 건일 때만 필수'],
     [],
   ];
   const listMaxLen = Math.max(opsNames.length, mediaNames.length, sellerBrandPairs.length);
@@ -5491,13 +5492,13 @@ function _campXlsxDateTimeStr(v) {
 // 헤더 텍스트가 아니라 열 위치로 읽는다 — 그래야 헤더에 " *" 같은 표시를 자유롭게 붙여도
 // 파싱이 깨지지 않는다. CAMP_XLSX_HEADERS_BASIC의 순서와 반드시 같이 맞춰야 한다.
 const CAMP_COL = {
-  product: 0, date: 1, seller: 2, brand: 3, media: 4, adpromo: 5, ops: 6,
-  sched: 7, svc: 8, svcAdv: 9, svcMedia: 10,
-  sellBill: 11, sellUnit: 12, disc: 13, adcostFixed: 14, amtFixed: 15, comm: 16,
-  buyBill: 17, buyUnitFixed: 18, buyAmtFixed: 19,
-  revFixed: 20, agrate: 21, profitFixed: 22,
-  target: 23, dtarget: 24, msg: 25, note: 26,
-  actual: 27, clicks: 28, db: 29,
+  product: 0, date: 1, seller: 2, brand: 3, cat: 4, media: 5, adpromo: 6, ops: 7,
+  sched: 8, svc: 9, svcAdv: 10, svcMedia: 11,
+  sellBill: 12, sellUnit: 13, disc: 14, adcostFixed: 15, amtFixed: 16, comm: 17,
+  buyBill: 18, buyUnitFixed: 19, buyAmtFixed: 20,
+  revFixed: 21, agrate: 22, profitFixed: 23,
+  target: 24, dtarget: 25, msg: 26, note: 27,
+  actual: 28, clicks: 29, db: 30,
 };
 
 // 등록 모달(submitReg)의 기본형 저장 로직과 동일한 필드 매핑 — 자동계산 없이 금액은 입력값을
@@ -5513,18 +5514,32 @@ function campXlsxValidateRow(row, rowNum) {
   const dateVal = _campXlsxDateTimeStr(cell('date'));
   if (!dateVal) errors.push('발송일시 형식 오류(YYYY-MM-DD HH:MM)');
 
+  // 매출처/브랜드가 목록에 없으면 오류로 막는 대신 신규로 자동 생성한다(campXlsxImport에서 처리).
+  // 신규 브랜드일 때만 카테고리 입력을 요구 — 기존 브랜드면 시트에 뭘 적었든 기존 카테고리를 그대로 쓴다.
   const sellerName = String(cell('seller') || '').trim();
   const seller = SELLER_DATA.find(s => s.company === sellerName);
   if (!sellerName) errors.push('매출처 없음');
-  else if (!seller) errors.push(`매출처 "${sellerName}" 를 찾을 수 없음(참고 시트 목록과 정확히 일치해야 함)`);
+  const isNewSeller = !!sellerName && !seller;
 
   const brandName = String(cell('brand') || '').trim();
+  const catInput = String(cell('cat') || '').trim();
   let brandCat = '';
+  let isNewBrand = false;
   if (!brandName) errors.push('브랜드 없음');
   else if (seller) {
     const brand = (seller.brands || []).find(b => (b.name || b) === brandName);
-    if (!brand) errors.push(`브랜드 "${brandName}" 를 매출처 "${sellerName}" 에서 찾을 수 없음`);
-    else brandCat = brand.cat || '';
+    if (brand) brandCat = brand.cat || '';
+    else {
+      isNewBrand = true;
+      if (!catInput) errors.push(`브랜드 "${brandName}"는 신규 브랜드입니다 — 카테고리를 입력해주세요`);
+      else if (!SELLER_BRAND_CATS.includes(catInput)) errors.push(`카테고리는 ${SELLER_BRAND_CATS.join('/')} 중 하나여야 함(입력값: "${catInput}")`);
+      else brandCat = catInput;
+    }
+  } else if (isNewSeller) {
+    isNewBrand = true;
+    if (!catInput) errors.push(`매출처 "${sellerName}"는 신규입니다 — 브랜드 "${brandName}"의 카테고리를 입력해주세요`);
+    else if (!SELLER_BRAND_CATS.includes(catInput)) errors.push(`카테고리는 ${SELLER_BRAND_CATS.join('/')} 중 하나여야 함(입력값: "${catInput}")`);
+    else brandCat = catInput;
   }
 
   const mediaName = String(cell('media') || '').trim();
@@ -5613,7 +5628,7 @@ function campXlsxValidateRow(row, rowNum) {
     actual, db,
   };
 
-  return { rowNum, valid: errors.length === 0, errors, doc };
+  return { rowNum, valid: errors.length === 0, errors, doc, isNewSeller, isNewBrand, sellerName, brandName, brandCat };
 }
 
 function campXlsxFileSelect(input) {
@@ -5646,7 +5661,9 @@ function campXlsxRenderPreview() {
   const el = document.getElementById('camp-xlsx-preview');
   if (!el) return;
   const total = _campXlsxRows.length;
-  const validCnt = _campXlsxRows.filter(r => r.valid).length;
+  const validRows = _campXlsxRows.filter(r => r.valid);
+  const validCnt = validRows.length;
+  const newCnt = validRows.filter(r => r.isNewSeller || r.isNewBrand).length;
   const errRows = _campXlsxRows.filter(r => !r.valid);
   const errHtml = errRows.length ? `
     <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-top:8px;">
@@ -5655,8 +5672,9 @@ function campXlsxRenderPreview() {
         <tbody>${errRows.map(r => `<tr><td style="padding:4px 8px;color:var(--text3);">${r.rowNum}</td><td style="padding:4px 8px;color:var(--red);">${_escHtml(r.errors.join(', '))}</td></tr>`).join('')}</tbody>
       </table>
     </div>` : '';
+  const newHtml = newCnt ? `<div class="form-hint" style="margin-top:4px;">이 중 <b style="color:var(--accent);">${newCnt}</b>건은 매출처/브랜드를 새로 생성합니다</div>` : '';
   el.innerHTML = total
-    ? `<div class="form-hint">총 <b>${total}</b>행 · 정상 <b style="color:var(--green);">${validCnt}</b>건 · 오류 <b style="color:var(--red);">${errRows.length}</b>건${errRows.length ? ' (오류 행은 제외하고 등록합니다)' : ''}</div>${errHtml}`
+    ? `<div class="form-hint">총 <b>${total}</b>행 · 정상 <b style="color:var(--green);">${validCnt}</b>건 · 오류 <b style="color:var(--red);">${errRows.length}</b>건${errRows.length ? ' (오류 행은 제외하고 등록합니다)' : ''}</div>${newHtml}${errHtml}`
     : '';
   const importBtn = document.getElementById('camp-xlsx-import-btn');
   if (importBtn) importBtn.disabled = validCnt === 0;
@@ -5671,7 +5689,21 @@ async function campXlsxImport() {
     const now = new Date();
     const regDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     let successCnt = 0;
+    // 같은 파일 안 여러 행이 같은 신규 매출처/브랜드를 참조할 수 있어서, SELLER_DATA(구독 갱신은
+    // 비동기라 이번 루프 중엔 안 바뀜)가 아니라 이 배치 로컬 맵으로 먼저 찾아 중복 생성을 막는다.
+    const sellerBatch = new Map(SELLER_DATA.map(s => [s.company, s]));
     for (const r of validRows) {
+      if (r.isNewSeller || r.isNewBrand) {
+        const existing = sellerBatch.get(r.sellerName);
+        const seller = existing
+          ? Object.assign({}, existing, { brands: (existing.brands || []).slice() })
+          : { type: '광고주', company: r.sellerName, brands: [] };
+        if (!seller.brands.some(b => (b.name || b) === r.brandName)) {
+          seller.brands.push({ name: r.brandName, cat: r.brandCat });
+        }
+        sellerBatch.set(r.sellerName, seller);
+        await _fbSaveSeller(seller);
+      }
       const id = 'C-2026-' + String(_nextCampaignNum++).padStart(4, '0');
       const doc = Object.assign({}, r.doc, { id, regDate });
       await _fbSaveCampaign(doc);
@@ -5702,8 +5734,9 @@ function _campBuildXlsxModalShell() {
         <p class="form-hint" style="line-height:1.6;">
           MMS·LMS·실시간 발송·PUSH·카톡MSG 캠페인을 정해진 양식으로 한 번에 등록합니다. 이미 종료된 캠페인 기준이라
           업로드하는 모든 건은 <b>상태 = 성과입력완료</b>로 저장됩니다.<br>
-          매출처·브랜드·매체사·담당자는 <b>참고 시트</b>의 값과 정확히 일치해야 합니다. 금액·수수료는 자동계산 없이
-          입력한 값 그대로 저장됩니다. 양식의 컬럼명 뒤에 <b>" *"</b>가 붙은 항목은 필수입니다.<br>
+          매체사·담당자는 <b>참고 시트</b>의 값과 정확히 일치해야 합니다. 매출처·브랜드는 참고 시트에 없으면
+          <b>새로 자동 생성</b>되며, 이 경우 카테고리 컬럼 입력이 필수입니다(기존 매출처/브랜드면 무시됨).
+          금액·수수료는 자동계산 없이 입력한 값 그대로 저장됩니다. 양식의 컬럼명 뒤에 <b>" *"</b>가 붙은 항목은 필수입니다.<br>
           <b>클릭률·DB등록률은 직접 입력하는 칸이 아닙니다</b> — 실발송수량/클릭수/DB등록수를 입력하면 엑셀 수식으로
           자동 계산되고, 등록 시에도 그 세 값으로 서버에서 다시 계산해 저장합니다.
         </p>
