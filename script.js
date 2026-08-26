@@ -248,17 +248,27 @@ function checkAuth() {
   } catch(e) { return false; }
 }
 // 넷리파이에 폴더 통째로 수동 업로드하는 배포 방식이라 버전 번호를 따로 관리하지 않음 — 대신
-// script.js의 ETag(정적 호스팅이 파일 내용 기준으로 자동 부여)를 확인해서, 지난번 로그인 때와
-// 실제로 달라졌을 때만(=진짜 새 코드가 배포됐을 때만) 새로고침한다. 매 로그인마다 무조건
+// 배포되는 정적 파일들의 ETag(정적 호스팅이 파일 내용 기준으로 자동 부여)를 확인해서, 지난번
+// 확인 때와 실제로 달라졌을 때만(=진짜 새 코드가 배포됐을 때만) 새로고침한다. 매번 무조건
 // 새로고침하던 예전 방식은 12시간 세션 만료 때문에 불필요한 Firestore 재구독(읽기 낭비)을 유발했음.
+// script.js만 보면 projectlog.js/report.js/index.html/style.css만 바뀐 배포는 감지를 못 하므로
+// 실제 배포되는 정적 파일을 전부 감시한다.
+const _DEPLOY_WATCH_FILES = ['index.html', 'script.js', 'report.js', 'projectlog.js', 'style.css'];
 async function _checkDeployVersion() {
   try {
-    const res = await fetch('script.js', { method: 'HEAD', cache: 'no-store' });
-    const tag = res.headers.get('etag') || res.headers.get('last-modified');
-    if (!tag) return false; // 식별자를 못 얻으면 안전하게 새로고침 생략
-    const prevTag = localStorage.getItem('_scriptTag');
-    localStorage.setItem('_scriptTag', tag);
-    if (prevTag && prevTag !== tag) {
+    const results = await Promise.all(_DEPLOY_WATCH_FILES.map(async file => {
+      const res = await fetch(file, { method: 'HEAD', cache: 'no-store' });
+      return { file, tag: res.headers.get('etag') || res.headers.get('last-modified') };
+    }));
+    let changed = false;
+    for (const { file, tag } of results) {
+      if (!tag) continue; // 식별자를 못 얻은 파일은 스킵(안전하게 새로고침 생략)
+      const key = '_deployTag_' + file;
+      const prevTag = localStorage.getItem(key);
+      localStorage.setItem(key, tag);
+      if (prevTag && prevTag !== tag) changed = true;
+    }
+    if (changed) {
       history.replaceState(null, '', '#dashboard');
       location.reload(true);
       return true;
@@ -7453,7 +7463,7 @@ let _campWatchedYears = new Set();
 let _campWatchedCompanies = new Set();
 let _campFullyWatching = false;
 
-(function initRoute() {
+(async function initRoute() {
   if (!checkAuth()) {
     // 비로그인 상태에서 detail URL 접근 시 → 로그인 후 복원을 위해 저장
     const h = location.hash.slice(1);
@@ -7461,6 +7471,11 @@ let _campFullyWatching = false;
     goScreen('login', true);
     return;
   }
+  // 세션이 살아있어 로그인 화면 없이 바로 복원되는 경우(탭 재방문/새로고침)도
+  // login()과 마찬가지로 배포 버전을 확인한다 — 12시간 세션 동안은 로그인 화면을
+  // 거치지 않으므로 이 체크가 없으면 그 사이의 배포를 영영 못 받게 된다.
+  const _reloading = await _checkDeployVersion();
+  if (_reloading) return;
   _updateUserUI();
   // hash 기반으로 초기 스크린 결정 (새로고침 시 유지)
   const h = location.hash.slice(1); // e.g. "detail/C-2026-0047" or "dashboard"
@@ -10080,7 +10095,7 @@ function taxRegCampRender() {
     const dateStr = (c.date || '').slice(0, 7);
     return `<div class="combo-item" onmousedown="taxRegCampSelect('${c.id}')">
       <span style="font-weight:600;">${_escHtml(_cName(c))}</span>
-      <span style="color:var(--text3);font-size:11px;margin-left:6px;">${_escHtml(c.product||'')} · ${dateStr} · ${_escHtml(c.seller||c.adv||'')}</span>
+      <span style="color:var(--text3);font-size:11px;margin-left:6px;">${_escHtml(c.id||'')} · ${_escHtml(c.product||'')} · ${dateStr} · ${_escHtml(c.seller||c.adv||'')}</span>
     </div>`;
   }).join('');
   list.style.display = 'block';
