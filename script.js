@@ -4259,6 +4259,7 @@ function _getFilteredEvents(key) {
   const mediaF   = document.getElementById('calFilterMedia')?.value  || '';
   const companyF = document.getElementById('calFilterCompany')?.value || '';
   const brandF   = document.getElementById('calFilterBrand')?.value  || '';
+  const mgrF     = document.getElementById('calFilterMgr')?.value    || '';
   const { bonbu: bonbuF, team: teamF } = _parseOrgFilter(document.getElementById('calFilterOrg')?.value || '');
 
   // 탭별 상품 필터 + 날짜 매칭
@@ -4288,7 +4289,7 @@ function _getFilteredEvents(key) {
     return da < db ? -1 : da > db ? 1 : 0;
   });
 
-  if (!catF && !mediaF && !companyF && !brandF && !bonbuF && !teamF) return sortEvts(evts);
+  if (!catF && !mediaF && !companyF && !brandF && !mgrF && !bonbuF && !teamF) return sortEvts(evts);
   return sortEvts(evts.filter(ev => {
     const c = DATA[ev.idx];
     if (!c) return false;
@@ -4296,6 +4297,7 @@ function _getFilteredEvents(key) {
     if (mediaF   && c.media         !== mediaF)   return false;
     if (companyF && _cCompany(c)    !== companyF) return false;
     if (brandF   && (c.content||'') !== brandF)   return false;
+    if (mgrF     && c.ops           !== mgrF)     return false;
     if (teamF || bonbuF) {
       const opsUser = USERS.find(u => u.name === c.ops);
       const opsTeam  = opsUser ? opsUser.dept  : c.dept;
@@ -4441,14 +4443,14 @@ function _populateCalFilters() {
     orgSel.dataset.init = '1';
   }
   // 초기화 버튼 표시 여부
-  const anyActive = ['calFilterCat','calFilterMedia','calFilterCompany','calFilterBrand','calFilterOrg']
+  const anyActive = ['calFilterCat','calFilterMedia','calFilterCompany','calFilterBrand','calFilterOrg','calFilterMgr']
     .some(id => document.getElementById(id)?.value);
   const resetBtn = document.getElementById('calResetBtn');
   if (resetBtn) resetBtn.style.display = anyActive ? '' : 'none';
 }
 
 function resetCalFilters() {
-  ['calFilterCat','calFilterMedia','calFilterCompany','calFilterBrand','calFilterOrg']
+  ['calFilterCat','calFilterMedia','calFilterCompany','calFilterBrand','calFilterOrg','calFilterMgr']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   _fcClear('calFilterMedia'); _fcClear('calFilterCompany');
   renderCalendar();
@@ -4496,6 +4498,7 @@ function _updateCalMeta() {
   const mediaF   = document.getElementById('calFilterMedia')?.value   || '';
   const companyF = document.getElementById('calFilterCompany')?.value || '';
   const brandF   = document.getElementById('calFilterBrand')?.value   || '';
+  const mgrF     = document.getElementById('calFilterMgr')?.value     || '';
   const { bonbu: bonbuF, team: teamF } = _parseOrgFilter(document.getElementById('calFilterOrg')?.value || '');
   const yearStr  = String(calY);
   const monthStr = String(calM).padStart(2, '0');
@@ -4519,6 +4522,7 @@ function _updateCalMeta() {
     if (mediaF   && c.media         !== mediaF)   return false;
     if (companyF && _cCompany(c)    !== companyF) return false;
     if (brandF   && (c.content||'') !== brandF)   return false;
+    if (mgrF     && c.ops           !== mgrF)     return false;
     if (teamF || bonbuF) {
       const opsUser = USERS.find(u => u.name === c.ops);
       const opsTeam  = opsUser ? opsUser.dept  : c.dept;
@@ -4639,6 +4643,7 @@ function _computeDABars(cells, dim, todayIdx = -1) {
   const mediaF   = document.getElementById('calFilterMedia')?.value  || '';
   const companyF = document.getElementById('calFilterCompany')?.value || '';
   const brandF   = document.getElementById('calFilterBrand')?.value  || '';
+  const mgrF     = document.getElementById('calFilterMgr')?.value    || '';
   const { bonbu: bonbuF, team: teamF } = _parseOrgFilter(document.getElementById('calFilterOrg')?.value || '');
 
   // 날짜 키 → 셀 인덱스 매핑 (cur 셀만)
@@ -4663,6 +4668,7 @@ function _computeDABars(cells, dim, todayIdx = -1) {
     if (mediaF   && c.media         !== mediaF)   return false;
     if (companyF && _cCompany(c)    !== companyF) return false;
     if (brandF   && (c.content||'') !== brandF)   return false;
+    if (mgrF     && c.ops           !== mgrF)     return false;
     if (teamF || bonbuF) {
       const opsUser = USERS.find(u => u.name === c.ops);
       const opsTeam  = opsUser ? opsUser.dept  : c.dept;
@@ -11863,12 +11869,13 @@ function _populateSalesSelects() {
     if (cur) taxMgr.value = cur;
   }
   // 필터용 (빈 옵션 포함)
-  const fMgr = document.getElementById('fMgr');
-  if (fMgr) {
-    const cur = fMgr.value;
-    fMgr.innerHTML = '<option value="">담당자</option>' + nameOpts;
-    if (cur) fMgr.value = cur;
-  }
+  ['fMgr', 'calFilterMgr'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="">담당자</option>' + nameOpts;
+    if (cur) el.value = cur;
+  });
 }
 
 // Firestore 실시간 구독 — 매체사
