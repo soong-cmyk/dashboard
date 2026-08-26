@@ -2844,7 +2844,8 @@ let _plComboNavIndex = {};
 function _plComboKeyNav(event, listId) {
   const list = document.getElementById(listId);
   if (!list || list.style.display !== 'block') return false;
-  const items = [...list.querySelectorAll('.combo-item')];
+  // .combo-add("+ 새 라벨로 추가" 등)도 같이 순회 대상에 넣어서 방향키/Tab/Enter로 고를 수 있게 한다.
+  const items = [...list.querySelectorAll('.combo-item, .combo-add')];
   if (!items.length) return false;
   if (!['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) return false;
   if (event.key === 'Escape') { list.style.display = 'none'; _plComboNavIndex[listId] = -1; event.preventDefault(); return true; }
