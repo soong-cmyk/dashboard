@@ -5392,7 +5392,7 @@ function _xlsxDownload(rows, filename) {
 // 헤더 뒤 " *"가 붙은 컬럼은 필수 — 파싱은 헤더 텍스트가 아니라 CAMP_COL의 위치(인덱스)로 하므로
 // 여기 문구를 자유롭게 바꿔도(예: * 표시 추가) 아래 검증 로직과 어긋나지 않는다.
 const CAMP_XLSX_HEADERS_BASIC = [
-  '상품 *', '발송일시 *', '매출처 *', '브랜드 *', '카테고리(신규 브랜드만 필수)', '매체사 *', '광고목적', '담당자 *',
+  '상품 *', '발송일시 *', '매출처 *', '카테고리(신규 브랜드만 필수)', '브랜드 *', '매체사 *', '광고목적', '담당자 *',
   '발송예약수량 *', '서비스수량', '서비스적용(광고주) *', '서비스적용(매체) *',
   '정산기준(광고주) *', '매출단가 *', '할인단가', '광고비(수동) *', '실청구(수동) *', '수수료율(%)',
   '정산기준(매체) *', '매입단가(수동) *', '매입액(수동) *',
@@ -5403,7 +5403,7 @@ const CAMP_XLSX_HEADERS_BASIC = [
 function campXlsxDownloadTemplate() {
   if (typeof XLSX === 'undefined') { toast('엑셀 라이브러리 로드 실패. 인터넷 연결을 확인해주세요.', 'err'); return; }
   const example1 = [
-    'LMS', '2026-01-15 11:00', '단비교육', '윙크', '', 'KT', '신학기 등록 프로모션', '신지수',
+    'LMS', '2026-01-15 11:00', '단비교육', '', '윙크', 'KT', '신학기 등록 프로모션', '신지수',
     50000, 500, 'Y', 'N',
     '실발송', 35, '', 1750000, 1750000, 15,
     '실발송', 29.75, 1487500,
@@ -5492,7 +5492,7 @@ function _campXlsxDateTimeStr(v) {
 // 헤더 텍스트가 아니라 열 위치로 읽는다 — 그래야 헤더에 " *" 같은 표시를 자유롭게 붙여도
 // 파싱이 깨지지 않는다. CAMP_XLSX_HEADERS_BASIC의 순서와 반드시 같이 맞춰야 한다.
 const CAMP_COL = {
-  product: 0, date: 1, seller: 2, brand: 3, cat: 4, media: 5, adpromo: 6, ops: 7,
+  product: 0, date: 1, seller: 2, cat: 3, brand: 4, media: 5, adpromo: 6, ops: 7,
   sched: 8, svc: 9, svcAdv: 10, svcMedia: 11,
   sellBill: 12, sellUnit: 13, disc: 14, adcostFixed: 15, amtFixed: 16, comm: 17,
   buyBill: 18, buyUnitFixed: 19, buyAmtFixed: 20,
