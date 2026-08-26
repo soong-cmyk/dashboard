@@ -108,6 +108,18 @@ function _plFmtHHMM(iso) {
   const t = new Date(iso);
   return String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
 }
+// createdAt/changedAt은 toISOString()(UTC)로 저장되므로, 표시 시 new Date()로 로컬(한국)시간 변환 필수.
+// 문자열을 그대로 잘라 쓰면 UTC가 그대로 노출돼 실제보다 9시간 느리게 보인다.
+function _plFmtDateTimeLocal(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const y = String(d.getFullYear()).slice(2);
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${y}.${mo}.${day} ${hh}:${mi}`;
+}
 function _plTodayStr() { return _plFmtDateLocal(new Date()); }
 
 // ── 클릭 고정 말풍선 (script.js의 tax-memo-bubble과 같은 패턴 — projectlog 전용으로 독립 구현) ──
@@ -1640,7 +1652,7 @@ function _plCommentsHtml(logId) {
   const comments = PL_COMMENTS.filter(c => c.logId === logId).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
   const rows = comments.map(c => {
     const canDel = !!(currentUser?.isAdmin || c.writerId === currentUser?.id);
-    const when = (c.createdAt || '').replace('T', ' ').slice(2, 16).replace(/-/g, '.');
+    const when = _plFmtDateTimeLocal(c.createdAt);
     return `<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;font-size:12px;">
       <span style="font-weight:700;color:var(--text2);white-space:nowrap;">${_escHtml(c.writer || '')}</span>
       <span class="form-hint f-mono" style="white-space:nowrap;">${_escHtml(when)}</span>
@@ -3856,7 +3868,7 @@ async function plOpenHistoryModal(logId) {
     if (!bodyEl) return;
     if (!entries.length) { bodyEl.innerHTML = '<div class="form-hint" style="padding:20px;text-align:center;">이력이 없습니다.</div>'; return; }
     bodyEl.innerHTML = entries.map(e => {
-      const when = (e.changedAt || '').replace('T', ' ').slice(2, 16).replace(/-/g, '.');
+      const when = _plFmtDateTimeLocal(e.changedAt);
       const changesHtml = (e.changes || []).map(c =>
         c.field === '_create'
           ? `<div style="font-size:12px;color:var(--text2);">${_escHtml(c.label)}</div>`
