@@ -1074,6 +1074,7 @@ function _plComboSetup(inputId, listId, sourceFn, onChange) {
   const render = () => {
     const q = input.value.trim().toLowerCase();
     const items = sourceFn().filter(v => !q || v.toLowerCase().includes(q)); // .combo-list가 자체 스크롤(max-height)이라 개수 제한 불필요
+    _plComboNavIndex[listId] = -1;
     if (!items.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
     list.innerHTML = items.map((v, i) => `<div class="combo-item" data-i="${i}">${_escHtml(v)}</div>`).join('');
     list.style.display = 'block';
@@ -1090,6 +1091,7 @@ function _plComboSetup(inputId, listId, sourceFn, onChange) {
   };
   input.addEventListener('focus', render);
   input.addEventListener('input', () => { render(); change(); });
+  input.addEventListener('keydown', e => _plComboKeyNav(e, listId));
   input.addEventListener('blur', () => setTimeout(() => { list.style.display = 'none'; }, 150));
 }
 
@@ -2161,6 +2163,7 @@ function _plBlockSearch(bi, query) {
   if (block) block.searchQuery = query;
   const list = document.getElementById(`pl-tgt-list-${bi}`);
   if (!list) return;
+  _plComboNavIndex[`pl-tgt-list-${bi}`] = -1;
   const results = _plBlockSearchResults(query);
   _plSearchCache[bi] = results;
   let html = results.map((r, ri) =>
@@ -2268,6 +2271,7 @@ function _plInternalTaskInput(bi, val) {
   if (block) block.content = val;
   const list = document.getElementById(`pl-task-list-${bi}`);
   if (!list) return;
+  _plComboNavIndex[`pl-task-list-${bi}`] = -1;
   const q = (val || '').trim().toLowerCase();
   const tasks = [...new Set(PL_LOGS.filter(l => l.scope === 'internal' && l.seller === block.seller && l.content).map(l => l.content))];
   const matched = q ? tasks.filter(t => t.toLowerCase().includes(q)) : tasks;
@@ -2317,7 +2321,8 @@ function _plBlockSecondaryControl(block, bi) {
   if (block.scope === 'internal') {
     return `<div class="combo-wrap" style="position:relative;">
       <input type="text" class="f-sel" style="font-weight:700;width:140px;" id="pl-task-${bi}" value="${_escHtml(block.content || '')}" placeholder="테스크"
-        oninput="_plInternalTaskInput(${bi}, this.value)" onfocus="_plInternalTaskInput(${bi}, this.value)">
+        oninput="_plInternalTaskInput(${bi}, this.value)" onfocus="_plInternalTaskInput(${bi}, this.value)"
+        onkeydown="_plComboKeyNav(event,'pl-task-list-${bi}')">
       <div class="combo-list" id="pl-task-list-${bi}" style="display:none;"></div>
     </div>`;
   }
@@ -2372,7 +2377,8 @@ function _plRenderBlockHtml(block, bi) {
       <div class="combo-wrap" style="position:relative;">
         <input type="text" class="pl-tgt${targetLabel ? '' : ' empty'}" id="pl-tgt-${bi}"
           value="${_escHtml(targetLabel)}" placeholder="광고주·프로젝트·매체·내부업무 검색" title="클릭하면 다시 검색"
-          oninput="_plBlockSearch(${bi}, this.value)" onfocus="_plBlockSearch(${bi}, this.value)">
+          oninput="_plBlockSearch(${bi}, this.value)" onfocus="_plBlockSearch(${bi}, this.value)"
+          onkeydown="_plComboKeyNav(event,'pl-tgt-list-${bi}')">
         <div class="combo-list" id="pl-tgt-list-${bi}" style="display:none;"></div>
       </div>
       ${_plBlockSecondaryControl(block, bi)}
@@ -2494,7 +2500,8 @@ function _plRenderSubHtml(bi, ii, di, d, logType) {
   if (isCustom) {
     labelControl = `<div class="combo-wrap" style="position:relative;">
       <input type="text" class="pl-mini" id="pl-lbl-${bi}-${ii}-${di}" placeholder="라벨 직접 입력" value="${_escHtml(d.label || '')}"
-        oninput="_plSubLabelCustomInput(${bi},${ii},${di},this.value)" onfocus="_plSubLabelCustomInput(${bi},${ii},${di},this.value)">
+        oninput="_plSubLabelCustomInput(${bi},${ii},${di},this.value)" onfocus="_plSubLabelCustomInput(${bi},${ii},${di},this.value)"
+        onkeydown="_plComboKeyNav(event,'pl-lbl-list-${bi}-${ii}-${di}')">
       <div class="combo-list" id="pl-lbl-list-${bi}-${ii}-${di}" style="display:none;"></div>
     </div>`;
   } else {
@@ -2532,6 +2539,7 @@ function _plSubLabelCustomInput(bi, ii, di, val) {
   d.label = val; d.customMode = true;
   const list = document.getElementById(`pl-lbl-list-${bi}-${ii}-${di}`);
   if (!list) return;
+  _plComboNavIndex[`pl-lbl-list-${bi}-${ii}-${di}`] = -1;
   const q = val.trim().toLowerCase();
   const existing = _plExistingLabels();
   const matched = q ? existing.filter(l => l.toLowerCase().includes(q)) : existing;
@@ -3300,7 +3308,8 @@ function _plEditSecondaryControl() {
   if (d.scope === 'internal') {
     return `<div class="combo-wrap" style="position:relative;">
       <input type="text" class="f-sel" style="font-weight:700;width:140px;" id="pl-e-task" value="${_escHtml(d.content || '')}" placeholder="테스크"
-        oninput="_plEditTaskInput(this.value)" onfocus="_plEditTaskInput(this.value)">
+        oninput="_plEditTaskInput(this.value)" onfocus="_plEditTaskInput(this.value)"
+        onkeydown="_plComboKeyNav(event,'pl-e-task-list')">
       <div class="combo-list" id="pl-e-task-list" style="display:none;"></div>
     </div>`;
   }
@@ -3339,6 +3348,7 @@ function _plEditTaskInput(val) {
   _plEditDraft.content = val;
   const list = document.getElementById('pl-e-task-list');
   if (!list) return;
+  _plComboNavIndex['pl-e-task-list'] = -1;
   const q = (val || '').trim().toLowerCase();
   const tasks = [...new Set(PL_LOGS.filter(l => l.scope === 'internal' && l.seller === _plEditDraft.seller && l.content).map(l => l.content))];
   const matched = q ? tasks.filter(t => t.toLowerCase().includes(q)) : tasks;
@@ -3356,6 +3366,7 @@ function _plEditSearch(query) {
   _plEditDraft.searchQuery = query;
   const list = document.getElementById('pl-e-tgt-list');
   if (!list) return;
+  _plComboNavIndex['pl-e-tgt-list'] = -1;
   const results = _plBlockSearchResults(query);
   _plEditSearchCache = results;
   let html = results.map((r, ri) =>
@@ -3474,7 +3485,8 @@ function _plEditSubHtml(di, d) {
   if (isCustom) {
     labelControl = `<div class="combo-wrap" style="position:relative;">
       <input type="text" class="pl-mini" id="pl-e-lbl-${di}" placeholder="라벨 직접 입력" value="${_escHtml(d.label || '')}"
-        oninput="_plEditSubLabelCustomInput(${di},this.value)" onfocus="_plEditSubLabelCustomInput(${di},this.value)">
+        oninput="_plEditSubLabelCustomInput(${di},this.value)" onfocus="_plEditSubLabelCustomInput(${di},this.value)"
+        onkeydown="_plComboKeyNav(event,'pl-e-lbl-list-${di}')">
       <div class="combo-list" id="pl-e-lbl-list-${di}" style="display:none;"></div>
     </div>`;
   } else {
@@ -3521,7 +3533,8 @@ function _plEditExtraSubHtml(ei, di, d) {
   if (isCustom) {
     labelControl = `<div class="combo-wrap" style="position:relative;">
       <input type="text" class="pl-mini" id="pl-ee-lbl-${ei}-${di}" placeholder="라벨 직접 입력" value="${_escHtml(d.label || '')}"
-        oninput="_plEditExtraSubLabelCustomInput(${ei},${di},this.value)" onfocus="_plEditExtraSubLabelCustomInput(${ei},${di},this.value)">
+        oninput="_plEditExtraSubLabelCustomInput(${ei},${di},this.value)" onfocus="_plEditExtraSubLabelCustomInput(${ei},${di},this.value)"
+        onkeydown="_plComboKeyNav(event,'pl-ee-lbl-list-${ei}-${di}')">
       <div class="combo-list" id="pl-ee-lbl-list-${ei}-${di}" style="display:none;"></div>
     </div>`;
   } else {
@@ -3549,6 +3562,7 @@ function _plEditExtraSubLabelCustomInput(ei, di, val) {
   d.label = val; d.customMode = true;
   const list = document.getElementById(`pl-ee-lbl-list-${ei}-${di}`);
   if (!list) return;
+  _plComboNavIndex[`pl-ee-lbl-list-${ei}-${di}`] = -1;
   const q = val.trim().toLowerCase();
   const existing = _plExistingLabels();
   const matched = q ? existing.filter(l => l.toLowerCase().includes(q)) : existing;
@@ -3619,6 +3633,7 @@ function _plEditSubLabelCustomInput(di, val) {
   d.label = val; d.customMode = true;
   const list = document.getElementById(`pl-e-lbl-list-${di}`);
   if (!list) return;
+  _plComboNavIndex[`pl-e-lbl-list-${di}`] = -1;
   const q = val.trim().toLowerCase();
   const existing = _plExistingLabels();
   const matched = q ? existing.filter(l => l.toLowerCase().includes(q)) : existing;
@@ -3768,7 +3783,8 @@ function _plRenderEditModal() {
         <div class="combo-wrap" style="position:relative;">
           <input type="text" class="pl-tgt${_plEditTargetLabel() ? '' : ' empty'}" id="pl-e-tgt"
             value="${_escHtml(_plEditTargetLabel())}" placeholder="🔍 검색" title="클릭하면 다시 검색"
-            oninput="_plEditSearch(this.value)" onfocus="_plEditSearch(this.value)">
+            oninput="_plEditSearch(this.value)" onfocus="_plEditSearch(this.value)"
+            onkeydown="_plComboKeyNav(event,'pl-e-tgt-list')">
           <div class="combo-list" id="pl-e-tgt-list" style="display:none;"></div>
         </div>
         ${_plEditSecondaryControl()}

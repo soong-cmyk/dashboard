@@ -2582,6 +2582,7 @@ function _fcRenderList(name, q) {
   const textEl = document.getElementById(cfg.textId);
   const listEl = document.getElementById(cfg.listId);
   if (!textEl || !listEl) return;
+  delete _comboNavIdx[cfg.listId];
   const items = cfg.getItems();
   const filtered = q ? items.filter(it => cfg.matchFn ? cfg.matchFn(it, q) : it.toLowerCase().includes(q)) : items;
 
