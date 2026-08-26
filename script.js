@@ -2395,6 +2395,7 @@ function comboCloseAll() {
 function comboRender(name) {
   comboCloseAll();
   const cfg = _comboConfig(name);
+  delete _comboNavIdx[cfg.listId];
   const q = (document.getElementById(cfg.textId).value || '').trim().toLowerCase();
   const items = cfg.getItems();
   const filtered = q ? items.filter(it => it.toLowerCase().includes(q)) : items;
@@ -2448,6 +2449,32 @@ function comboClose(name) {
 
 function comboAddNew(name) {
   _comboConfig(name).onAddNew();
+}
+
+// 검색 콤보 리스트 공통 키보드 네비게이션(방향키로 하이라이트 이동, Tab/Enter로 하이라이트 항목 선택).
+// projectlog.js의 _plComboKeyNav와 같은 패턴 — 항목의 기존 mousedown 핸들러를 그대로 재사용해서
+// 리스트마다 선택 로직을 새로 안 짜도 되게 한다. 리스트가 안 열려있거나 처리 안 하는 키면 false를
+// 반환 — 호출부가 원래 동작(폼 제출 등)을 계속하게 한다.
+let _comboNavIdx = {};
+function _comboKeyNav(event, listId) {
+  const list = document.getElementById(listId);
+  if (!list || list.style.display !== 'block') return false;
+  const items = [...list.querySelectorAll('.combo-item')];
+  if (!items.length) return false;
+  if (!['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) return false;
+  if (event.key === 'Escape') { list.style.display = 'none'; delete _comboNavIdx[listId]; event.preventDefault(); return true; }
+  let idx = _comboNavIdx[listId] ?? -1;
+  if (event.key === 'Enter' || event.key === 'Tab') {
+    items[idx < 0 ? 0 : idx].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    event.preventDefault();
+    return true;
+  }
+  idx = event.key === 'ArrowDown' ? Math.min(idx + 1, items.length - 1) : Math.max(idx - 1, 0);
+  _comboNavIdx[listId] = idx;
+  items.forEach((el, i) => el.classList.toggle('pl-combo-active', i === idx));
+  items[idx].scrollIntoView({ block: 'nearest' });
+  event.preventDefault();
+  return true;
 }
 
 // ══════════════════════════════════════════
@@ -10083,6 +10110,7 @@ function taxRegCampRender() {
   const q    = (document.getElementById('tax-r-camp-text')?.value || '').trim().toLowerCase();
   const list = document.getElementById('tax-r-camp-list');
   if (!list) return;
+  delete _comboNavIdx['tax-r-camp-list'];
   const hits = DATA.filter(c => {
     if (_taxRegLinkedCamps.includes(c.id)) return false;
     const name = (_cName(c) || '').toLowerCase();

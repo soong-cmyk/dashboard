@@ -1009,6 +1009,7 @@
                   <div class="combo-wrap">
                     <input type="text" class="form-input" id="e_seller_text" placeholder="선택 또는 검색" autocomplete="off"
                       oninput="comboRender('e_seller')" onfocus="comboRender('e_seller')"
+                      onkeydown="_comboKeyNav(event,'combo-e_seller-list')"
                       onblur="comboClose('e_seller')">
                     <input type="hidden" id="e_seller">
                     <div class="combo-list" id="combo-e_seller-list"></div>
@@ -1019,7 +1020,7 @@
                     <input type="text" class="form-input" id="e_content_text" placeholder="브랜드 선택 또는 직접 입력"
                       autocomplete="off"
                       oninput="comboRender('e_content'); document.getElementById('e_content').value=this.value; autoNameEdit();"
-                      onfocus="comboRender('e_content')" onblur="comboClose('e_content')">
+                      onfocus="comboRender('e_content')" onkeydown="_comboKeyNav(event,'combo-e_content-list')" onblur="comboClose('e_content')">
                     <input type="hidden" id="e_content">
                     <div class="combo-list" id="combo-e_content-list"></div>
                   </div>
@@ -1027,7 +1028,7 @@
                 <div class="fg"><label class="form-label">매체사</label>
                   <div class="combo-wrap">
                     <input type="text" class="form-input" id="e_media_text" placeholder="선택 또는 검색" autocomplete="off"
-                      oninput="comboRender('e_media')" onfocus="comboRender('e_media')" onblur="comboClose('e_media')">
+                      oninput="comboRender('e_media')" onfocus="comboRender('e_media')" onkeydown="_comboKeyNav(event,'combo-e_media-list')" onblur="comboClose('e_media')">
                     <input type="hidden" id="e_media">
                     <div class="combo-list" id="combo-e_media-list"></div>
                   </div>
@@ -2568,7 +2569,7 @@
               <input type="text" class="form-input" id="tax-r-camp-text"
                 placeholder="캠페인명·ID·매출처 검색 (선택 — 여러 개 추가 가능)"
                 autocomplete="off" style="font-size:12px;padding:5px 8px;width:100%;"
-                oninput="taxRegCampRender()" onfocus="taxRegCampRender()" onblur="setTimeout(taxRegCampClose,180)">
+                oninput="taxRegCampRender()" onfocus="taxRegCampRender()" onkeydown="_comboKeyNav(event,'tax-r-camp-list')" onblur="setTimeout(taxRegCampClose,180)">
               <div id="tax-r-camp-list" class="combo-list" style="display:none;max-height:220px;overflow-y:auto;"></div>
             </div>
           </div>
@@ -2861,7 +2862,7 @@
               <div class="fg"><label class="form-label">광고주/대행사 <span class="req">*</span></label>
                 <div class="combo-wrap">
                   <input type="text" class="form-input" id="r_seller_text" placeholder="선택 또는 검색" autocomplete="off"
-                    oninput="comboRender('seller')" onfocus="comboRender('seller')" onblur="comboClose('seller')">
+                    oninput="comboRender('seller')" onfocus="comboRender('seller')" onkeydown="_comboKeyNav(event,'combo-seller-list')" onblur="comboClose('seller')">
                   <input type="hidden" id="r_seller">
                   <div class="combo-list" id="combo-seller-list"></div>
                 </div>
@@ -2871,7 +2872,7 @@
                   <input type="text" class="form-input" id="r_content_text" placeholder="브랜드 선택 또는 직접 입력"
                     autocomplete="off"
                     oninput="comboRender('content'); document.getElementById('r_content').value=this.value; autoNameReg();"
-                    onfocus="comboRender('content')" onblur="comboClose('content')">
+                    onfocus="comboRender('content')" onkeydown="_comboKeyNav(event,'combo-content-list')" onblur="comboClose('content')">
                   <input type="hidden" id="r_content">
                   <div class="combo-list" id="combo-content-list"></div>
                 </div>
@@ -2879,7 +2880,7 @@
               <div class="fg"><label class="form-label">매체사 <span class="req">*</span></label>
                 <div class="combo-wrap">
                   <input type="text" class="form-input" id="r_media_text" placeholder="선택 또는 검색" autocomplete="off"
-                    oninput="comboRender('media')" onfocus="comboRender('media')" onblur="comboClose('media')">
+                    oninput="comboRender('media')" onfocus="comboRender('media')" onkeydown="_comboKeyNav(event,'combo-media-list')" onblur="comboClose('media')">
                   <input type="hidden" id="r_media">
                   <div class="combo-list" id="combo-media-list"></div>
                 </div>
@@ -3939,7 +3940,7 @@
             <label class="form-label">매출처 (회사명)</label>
             <div class="combo-wrap">
               <input type="text" class="form-input" id="pm_seller_text" placeholder="선택 또는 검색" autocomplete="off"
-                oninput="comboRender('pm_seller')" onfocus="comboRender('pm_seller')" onblur="comboClose('pm_seller')">
+                oninput="comboRender('pm_seller')" onfocus="comboRender('pm_seller')" onkeydown="_comboKeyNav(event,'combo-pm_seller-list')" onblur="comboClose('pm_seller')">
               <input type="hidden" id="pm_seller">
               <div class="combo-list" id="combo-pm_seller-list"></div>
             </div>
@@ -3950,7 +3951,7 @@
               <input type="text" class="form-input" id="pm_content_text" placeholder="브랜드 선택 또는 직접 입력"
                 autocomplete="off"
                 oninput="comboRender('pm_content'); document.getElementById('pm_content').value=this.value;"
-                onfocus="comboRender('pm_content')" onblur="comboClose('pm_content')">
+                onfocus="comboRender('pm_content')" onkeydown="_comboKeyNav(event,'combo-pm_content-list')" onblur="comboClose('pm_content')">
               <input type="hidden" id="pm_content">
               <div class="combo-list" id="combo-pm_content-list"></div>
             </div>
@@ -3959,7 +3960,7 @@
             <label class="form-label">예상 매체</label>
             <div class="combo-wrap">
               <input type="text" class="form-input" id="pm_media_text" placeholder="선택 또는 검색" autocomplete="off"
-                oninput="comboRender('pm_media')" onfocus="comboRender('pm_media')" onblur="comboClose('pm_media')">
+                oninput="comboRender('pm_media')" onfocus="comboRender('pm_media')" onkeydown="_comboKeyNav(event,'combo-pm_media-list')" onblur="comboClose('pm_media')">
               <input type="hidden" id="pm_media">
               <div class="combo-list" id="combo-pm_media-list"></div>
             </div>
@@ -3985,7 +3986,7 @@
           <label class="form-label">연결 캠페인</label>
           <div class="combo-wrap">
             <input type="text" class="form-input" id="pm_linked_text" placeholder="캠페인명 검색" autocomplete="off"
-              oninput="comboRender('pm_linked')" onfocus="comboRender('pm_linked')" onblur="comboClose('pm_linked')">
+              oninput="comboRender('pm_linked')" onfocus="comboRender('pm_linked')" onkeydown="_comboKeyNav(event,'combo-pm_linked-list')" onblur="comboClose('pm_linked')">
             <input type="hidden" id="pm_linked">
             <div class="combo-list" id="combo-pm_linked-list"></div>
           </div>

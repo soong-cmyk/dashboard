@@ -2838,12 +2838,15 @@ function _plComboKeyNav(event, listId) {
   if (!list || list.style.display !== 'block') return false;
   const items = [...list.querySelectorAll('.combo-item')];
   if (!items.length) return false;
-  if (!['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(event.key)) return false;
+  if (!['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) return false;
   if (event.key === 'Escape') { list.style.display = 'none'; _plComboNavIndex[listId] = -1; event.preventDefault(); return true; }
   let idx = _plComboNavIndex[listId] ?? -1;
-  if (event.key === 'Enter') {
-    if (idx < 0) return false; // 방향키로 아무 것도 안 골랐으면 엔터는 원래 동작에 맡긴다
-    items[idx].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+  if (event.key === 'Enter' || event.key === 'Tab') {
+    // 리스트가 열려있는 동안은 방향키로 아무 것도 안 골랐어도(idx<0) 첫 항목을 고른 것으로 취급한다.
+    // (전엔 idx<0일 때 Enter를 그냥 흘려보내서, 댓글 입력창처럼 뒤에 체이닝된 onkeydown이 그 Enter를
+    // "등록" 같은 별개 동작으로 오인해 실행해버리는 문제가 있었음 — 리스트가 열려있는 한 Enter/Tab은
+    // 항상 콤보 선택으로 소비한다.)
+    items[idx < 0 ? 0 : idx].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     event.preventDefault();
     return true;
   }
