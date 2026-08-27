@@ -1893,7 +1893,8 @@ function applyFilter() {
       if (bonbu && (!u || u.bonbu !== bonbu)) return false;
       if (team  && (!u || u.dept  !== team))  return false;
     }
-    if (q && !_cName(c).toLowerCase().includes(q) && !(c.id||'').toString().toLowerCase().includes(q) && !(c.seller||c.adv||'').toLowerCase().includes(q)) return false;
+    if (q && !_cName(c).toLowerCase().includes(q) && !(c.id||'').toString().toLowerCase().includes(q)
+        && !(c.seller||c.adv||'').toLowerCase().includes(q) && !(c.media||'').toLowerCase().includes(q)) return false;
     const dateStr = (c.date || '').slice(0, 10);
     if (from && dateStr < from) return false;
     if (to   && dateStr > to)   return false;
@@ -6918,14 +6919,14 @@ function renderSellerList() {
       rows += `<tr onclick="openSellerModal(${i})" style="cursor:pointer;">
         <td class="td-dim">${rowNum + 1}</td>
         <td>${typeBadge}</td>
-        <td style="font-weight:600;">${_escHtml(s.company)}</td>
+        <td style="font-weight:600;">${_plHighlight(s.company, q)}</td>
         <td class="td-r">${(s.type === '대행사' || s.type === '랩사') && s.agrate ? s.agrate + '%' : nd}</td>
         <td class="td-dim td-r">${s.brands.length ? s.brands.length + '개' : nd}</td>
       </tr>`;
       (s.brands || []).forEach(b => {
         rows += `<tr style="background:var(--surface2);">
           <td></td><td></td>
-          <td style="padding-left:20px;font-size:12px;color:var(--text2);">└ ${_escHtml(b.name||b)}${b.cat?`<span style="color:var(--text3);margin-left:4px;">(${b.cat})</span>`:''}</td>
+          <td style="padding-left:20px;font-size:12px;color:var(--text2);">└ ${_plHighlight(b.name||b, q)}${b.cat?`<span style="color:var(--text3);margin-left:4px;">(${b.cat})</span>`:''}</td>
           <td></td><td></td>
         </tr>`;
       });

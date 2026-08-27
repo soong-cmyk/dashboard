@@ -72,13 +72,15 @@
       <div class="nav-item" id="nav-tax" onclick="goScreen('tax')">
         <span class="nav-icon">📑</span>세금계산서
       </div>
+
+<!--
       <div class="nav-item" id="nav-kpi" onclick="goScreen('kpi')">
      <span class="nav-icon">🎯</span>KPI/매출현황
       </div>
       <div class="nav-item" id="nav-projectlog" onclick="goScreen('projectlog')">
         <span class="nav-icon">✎</span>프로젝트일지
       </div>
-
+-->
 <!--
       <div class="nav-item" id="nav-pipeline" onclick="goScreen('pipeline')">
         <span class="nav-icon">📈</span>영업 리포트
@@ -483,6 +485,15 @@
             <option value="">담당자</option>
           </select>
            <div class="f-div"></div>
+          <input type="text" class="f-search" id="fQ" placeholder="🔍  광고주/대행사·매체사·캠페인명·ID 검색" oninput="applyFilter()">
+          <div class="f-div"></div>
+          <div id="drp-trigger" onclick="drpOpen()" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:13px;color:var(--text1);white-space:nowrap;user-select:none;">
+            <span id="drp-label">기간 선택</span>
+          </div>
+          <!-- hidden inputs (기존 호환) -->
+          <input type="hidden" id="fFrom">
+          <input type="hidden" id="fTo">
+          <div class="f-div"></div>
           <div class="combo-wrap" id="fAdv_wrap" style="width:140px;flex-shrink:0;">
             <input type="text" class="f-sel" id="fAdv_text" placeholder="광고주/대행사" autocomplete="off" style="width:100%;padding-right:22px;"
               oninput="fcRender('fAdv')" onfocus="fcOpen('fAdv')" onkeydown="_comboKeyNav(event,'combo-fAdv-list')" onblur="fcClose('fAdv')">
@@ -497,15 +508,6 @@
             <span class="combo-clear" onmousedown="event.preventDefault();fcClearFilter('fMedia')">✕</span>
             <div class="combo-list" id="combo-fMedia-list"></div>
           </div>
-          <div class="f-div"></div>
-          <div id="drp-trigger" onclick="drpOpen()" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:13px;color:var(--text1);white-space:nowrap;user-select:none;">
-            <span id="drp-label">기간 선택</span>
-          </div>
-          <!-- hidden inputs (기존 호환) -->
-          <input type="hidden" id="fFrom">
-          <input type="hidden" id="fTo">
-          <div class="f-div"></div>
-          <input type="text" class="f-search" id="fQ" placeholder="🔍  캠페인명 / ID / 매출처 검색" oninput="applyFilter()">
           <span class="f-reset" onclick="resetFilter()">✕ 초기화</span>
           <button class="btn btn-ghost btn-sm" id="btn-deleted-list" style="display:none;color:var(--text3);" onclick="openDeletedListModal()">🗑 삭제이력</button>
         </div>
@@ -1959,7 +1961,7 @@
         <div class="filter-bar" style="margin-bottom:14px;">
           <span class="f-label">검색</span>
           <input type="text" class="f-search" id="sellerQ" placeholder="광고주·대행사·랩사·브랜드명 통합 검색" style="width:260px;"
-            onkeydown="if(event.key==='Enter')searchSeller()">
+            oninput="searchSeller()" onkeydown="if(event.key==='Enter')searchSeller()">
           <button class="btn btn-primary btn-sm" onclick="searchSeller()">조회</button>
           <button class="btn btn-outline btn-sm" onclick="resetSellerSearch()">초기화</button>
         </div>

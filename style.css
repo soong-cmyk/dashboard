@@ -431,6 +431,9 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
 .combo-item:hover{background:var(--accent-light);}
 .combo-item.pl-combo-active,.combo-add.pl-combo-active{background:var(--accent-light);}
 .combo-add{padding:8px 12px;cursor:pointer;font-size:12px;color:var(--accent);font-weight:600;border-top:1px solid var(--border);display:flex;align-items:center;gap:4px;}
+/* 검색어 하이라이트 — 원래 프로젝트일지 화면 진입 시에만 주입되던 스타일이라, 다른 화면(매출처관리 등)의
+   실시간 검색 하이라이트가 프로젝트일지를 한 번도 안 열어도 항상 동작하도록 전역으로 옮겨둠 */
+.pl-mark{background:var(--yellow-bg);padding:0 2px;border-radius:2px;}
 .combo-add:hover{background:var(--accent-light);}
 .combo-empty{padding:8px 12px;font-size:12px;color:var(--text3);}
 .combo-all{color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);}
