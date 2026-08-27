@@ -5102,14 +5102,16 @@ function _bepMonthLabel(ym) {
   const [y, m] = ym.split('-');
   return `${y}년 ${parseInt(m)}월`;
 }
+// 고정된 최근 36개월이 아니라, 실제 캠페인 데이터가 있는 연/월만 나열(최신월 먼저) —
+// 이미 저장된 선택값이 있는데 그 달 데이터가 이후 지워졌으면 목록에서 사라지지 않게 같이 넣어준다.
 function _bepMonthOptions(selected) {
-  const now = new Date();
+  const months = new Set(DATA.filter(c => c.status !== '삭제' && c.date).map(c => (c.date || '').slice(0, 7)));
+  if (selected) months.add(selected);
+  const sorted = [...months].sort((a, b) => b.localeCompare(a));
   const opts = [`<option value="">월 선택</option>`];
-  for (let i = 0; i < 36; i++) {
-    const d  = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  sorted.forEach(ym => {
     opts.push(`<option value="${ym}"${ym === selected ? ' selected' : ''}>${_bepMonthLabel(ym)}</option>`);
-  }
+  });
   return opts.join('');
 }
 // 실제 캠페인 데이터에서 해당 월의 취급고(amt 합)·매출원가 집계 — 정산탭과 동일한 _stlAmt 기준
@@ -11426,6 +11428,10 @@ function _fbWatchCampaignYears() {
   window._db.collection('settings').doc('campaignYears').onSnapshot(doc => {
     _campKnownYears = (doc.exists && doc.data().years) ? doc.data().years.slice().sort((a, b) => a - b) : [];
     if (document.getElementById('screen-monthly')?.classList.contains('active') && typeof renderMonthly === 'function') renderMonthly();
+    if (document.getElementById('screen-kpi')?.classList.contains('active')) {
+      const yr = document.getElementById('kpi-year');
+      if (yr && typeof _kpiYearOptions === 'function') yr.innerHTML = _kpiYearOptions();
+    }
   }, e => console.error('[FB] 캠페인 연도 인덱스 구독 실패:', e));
 }
 
@@ -12572,14 +12578,22 @@ function renderKpiOrgSalesDetail() {
   }
 }
 
+// 캠페인 데이터가 있는 연도(_campKnownYears, campaignYears 인덱스) + 올해/내년은 항상 포함 —
+// 데이터가 아직 없는 내년 목표를 KPI 등록/수정에서 미리 입력해두는 워크플로가 막히지 않게.
+function _kpiYearOptions() {
+  const cy = new Date().getFullYear();
+  const years = new Set([...(_campKnownYears || []), cy, cy + 1]);
+  if (_kpiYear) years.add(+_kpiYear);
+  return [...years].sort((a, b) => b - a).map(y =>
+    `<option value="${y}"${String(y) === _kpiYear ? ' selected' : ''}>${y}년</option>`
+  ).join('');
+}
+
 function initKpiScreen() {
   kpiSwitchTab('main'); // 메뉴 들어올 때마다 전사 KPI/매출현황 탭부터 보여준다
-  const cy = new Date().getFullYear();
   const yr = document.getElementById('kpi-year');
   if (yr) {
-    yr.innerHTML = [cy - 1, cy, cy + 1].map(y =>
-      `<option value="${y}"${String(y) === _kpiYear ? ' selected' : ''}>${y}년</option>`
-    ).join('');
+    yr.innerHTML = _kpiYearOptions();
   }
   const orgSel = document.getElementById('kpi-org-filter');
   if (orgSel) {
