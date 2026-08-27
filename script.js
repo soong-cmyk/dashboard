@@ -12484,17 +12484,20 @@ function kpiSwitchTab(tab) {
   if (tab === 'bep' && !_bepCanView()) tab = 'main'; // 권한 없으면 탭 클릭이 와도 강제로 메인
   _kpiActiveTab = tab;
   document.getElementById('kpi-tab-main')?.classList.toggle('active', tab === 'main');
+  document.getElementById('kpi-tab-orgsales')?.classList.toggle('active', tab === 'orgsales');
   document.getElementById('kpi-tab-bep')?.classList.toggle('active', tab === 'bep');
-  const mainSec  = document.getElementById('kpi-main-section');
-  const bepSec   = document.getElementById('kpi-bep-section');
-  const mainCtrl = document.getElementById('kpi-main-controls');
-  if (mainSec)  mainSec.style.display  = tab === 'main' ? '' : 'none';
-  if (bepSec)   bepSec.style.display   = tab === 'bep'  ? '' : 'none';
-  if (mainCtrl) mainCtrl.style.display = tab === 'main' ? '' : 'none';
+  const mainSec     = document.getElementById('kpi-main-section');
+  const orgsalesSec = document.getElementById('kpi-orgsales-section');
+  const bepSec      = document.getElementById('kpi-bep-section');
+  const mainCtrl    = document.getElementById('kpi-main-controls');
+  if (mainSec)     mainSec.style.display     = tab === 'main'     ? '' : 'none';
+  if (orgsalesSec) orgsalesSec.style.display = tab === 'orgsales' ? '' : 'none';
+  if (bepSec)      bepSec.style.display      = tab === 'bep'      ? '' : 'none';
+  if (mainCtrl)    mainCtrl.style.display    = tab === 'main'     ? '' : 'none';
 }
 
 function initKpiScreen() {
-  kpiSwitchTab('main'); // 메뉴 들어올 때마다 KPI/매출현황 탭부터 보여준다
+  kpiSwitchTab('main'); // 메뉴 들어올 때마다 전사 KPI/매출현황 탭부터 보여준다
   const cy = new Date().getFullYear();
   const yr = document.getElementById('kpi-year');
   if (yr) {
