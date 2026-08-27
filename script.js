@@ -12494,6 +12494,90 @@ function kpiSwitchTab(tab) {
   if (orgsalesSec) orgsalesSec.style.display = tab === 'orgsales' ? '' : 'none';
   if (bepSec)      bepSec.style.display      = tab === 'bep'      ? '' : 'none';
   if (mainCtrl)    mainCtrl.style.display    = tab === 'main'     ? '' : 'none';
+  if (tab === 'orgsales') renderKpiOrgSales();
+}
+
+// ══════════════════════════════════════════
+// "본부별 매출 현황" 탭 — 본부 선택(kpi-cards UI 재사용) → 1단(그 본부만 필터링한
+// 본부·팀별 KPI 상세, renderKpiOrgTable 재사용) + 2단(그 본부 담당자가 캠페인을 등록한
+// 광고주/브랜드 전체의 "월별 목표" 리스트, 가나다순 — projectlog.js의 _plGBrandMonthlyHtml 재사용)
+// ══════════════════════════════════════════
+let _kpiOrgSalesBonbu = null;
+
+function renderKpiOrgSales() {
+  renderKpiOrgSalesCards();
+  renderKpiOrgSalesDetail();
+}
+
+function renderKpiOrgSalesCards() {
+  const el = document.getElementById('kpi-orgsales-cards');
+  if (!el) return;
+  const bonbus = ORG_STRUCTURE.map(o => o.bonbu);
+  if (!_kpiOrgSalesBonbu || !bonbus.includes(_kpiOrgSalesBonbu)) _kpiOrgSalesBonbu = bonbus[0] || null;
+  const curM = String(new Date().getMonth() + 1).padStart(2, '0');
+  const passed = _KPI_MONTHS.filter(m => m <= curM);
+  el.innerHTML = bonbus.map(name => {
+    const cum = passed.reduce((s, m) => s + _kpiCalcActual(_kpiYear, name, '', m), 0);
+    const sel = name === _kpiOrgSalesBonbu;
+    return `<div class="kpi-card" style="cursor:pointer;${sel ? 'border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);' : ''}" onclick="kpiOrgSalesSelectBonbu('${_escHtml(name)}')">
+      <div class="kpi-card-label">${_escHtml(name)}</div>
+      <div class="kpi-card-value">${_fmtW(cum)}</div>
+      <div class="kpi-card-sub">${_kpiYear}년 누적 매출 실적</div>
+    </div>`;
+  }).join('');
+}
+
+function kpiOrgSalesSelectBonbu(name) {
+  _kpiOrgSalesBonbu = name;
+  renderKpiOrgSalesCards();
+  renderKpiOrgSalesDetail();
+}
+
+// 이 본부 소속 담당자가 등록한 캠페인이 하나라도 있는 광고주+브랜드 조합 전체(가나다순) —
+// 본부/팀별 KPI 표의 광고주 집계(_kpiCalcClientList)와 같은 기준(담당자의 소속 본부로 판단).
+function _kpiOrgSalesAdvertisers(bonbu) {
+  const year = _kpiYear;
+  const pairs = new Map();
+  DATA.forEach(c => {
+    if (c.status === '삭제') return;
+    if (!(c.date || '').startsWith(year)) return;
+    const company = c.seller || c.adv;
+    if (!company) return;
+    const u = USERS.find(x => x.name === (c.ops || ''));
+    if (!u || u.bonbu !== bonbu) return;
+    const brand = c.content || '';
+    const key = company + '|' + brand;
+    if (!pairs.has(key)) pairs.set(key, { company, brand });
+  });
+  return [...pairs.values()].sort((a, b) =>
+    a.company.localeCompare(b.company, 'ko') || a.brand.localeCompare(b.brand, 'ko'));
+}
+
+function renderKpiOrgSalesDetail() {
+  const el = document.getElementById('kpi-orgsales-detail');
+  if (!el) return;
+  const bonbu = _kpiOrgSalesBonbu;
+  if (!bonbu) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="table-card" style="margin-bottom:16px;">
+      <div class="table-header"><span class="card-title">${_escHtml(bonbu)} · 본부·팀별 KPI 상세</span></div>
+      <div id="kpi-orgsales-step1-table"></div>
+    </div>
+    <div class="table-card" style="margin-bottom:16px;">
+      <div class="table-header"><span class="card-title">${_escHtml(bonbu)} 담당 광고주 · ${_kpiYear}년 월별 목표</span></div>
+      <div id="kpi-orgsales-step2-list" style="padding:14px 18px;"></div>
+    </div>`;
+  renderKpiOrgTable('kpi-orgsales-step1-table', bonbu, true);
+
+  const advertisers = _kpiOrgSalesAdvertisers(bonbu);
+  const listEl = document.getElementById('kpi-orgsales-step2-list');
+  if (listEl) {
+    listEl.innerHTML = advertisers.length
+      ? advertisers.map(({ company, brand }) => (typeof _plGBrandMonthlyHtml === 'function'
+          ? _plGBrandMonthlyHtml(company, brand, brand, _kpiYear, { showInfoColumn: true })
+          : '')).join('')
+      : '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px;">해당 본부가 담당하는 광고주가 없습니다.</div>';
+  }
 }
 
 function initKpiScreen() {
@@ -12539,6 +12623,9 @@ function renderKpi() {
   renderKpiGrandTable();
   renderKpiClientListTable();
   renderKpiOrgTable();
+  // 캠페인/KPI목표/PL_GOALS 구독 갱신 등으로 renderKpi()가 다시 불릴 때, 본부별 매출
+  // 현황 탭을 보고 있었으면 그것도 같이 최신화한다.
+  if (_kpiActiveTab === 'orgsales') renderKpiOrgSales();
 }
 /** KPI 본부·팀별 표 플로팅 가로스크롤바 동기화 (정산의 _stlSyncFakeScroll과 동일 패턴) */
 function _kpiSyncFakeScroll() {
@@ -12842,10 +12929,15 @@ function renderKpiClientListTable() {
   el.innerHTML = html;
 }
 
-function renderKpiOrgTable() {
-  const el = document.getElementById('kpi-org-table');
+// targetId/orgFilterOverride/readOnly는 "본부별 매출 현황" 탭에서 이 표를 본부 하나만 걸러
+// 재사용하기 위한 매개변수 — 인자 없이 부르면 기존과 완전히 동일(전사 KPI/매출현황 탭용).
+function renderKpiOrgTable(targetId, orgFilterOverride, readOnly) {
+  targetId = targetId || 'kpi-org-table';
+  const isMain = targetId === 'kpi-org-table';
+  const el = document.getElementById(targetId);
   if (!el) return;
-  const { bonbu, team } = _parseOrgFilter(_kpiOrgFilter);
+  const scrollWrapId = targetId + '-scroll-wrap';
+  const { bonbu, team } = _parseOrgFilter(orgFilterOverride != null ? orgFilterOverride : _kpiOrgFilter);
 
   const teamsToShow = [];
   _kpiValidBonbus().forEach(b => {
@@ -12858,7 +12950,7 @@ function renderKpiOrgTable() {
 
   if (!teamsToShow.length) {
     el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3);font-size:13px;">KPI 데이터가 없습니다. KPI 등록/수정으로 데이터를 입력하세요.</div>';
-    setTimeout(_kpiSyncFakeScroll, 0);
+    if (isMain) setTimeout(_kpiSyncFakeScroll, 0);
     return;
   }
 
@@ -12891,7 +12983,7 @@ function renderKpiOrgTable() {
     .kpi-bonbu-sep td{border-top:2px solid var(--border) !important;}
     .kpi-bonbu-end-sep td{border-top:2px solid var(--accent) !important;}
   </style>
-  <div id="kpi-org-scroll-wrap" style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
+  <div id="${scrollWrapId}" style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
     <thead>
     <tr><th colspan="${4 + cols.length}" style="padding:4px 10px;border:1px solid var(--border);background:var(--surface2);font-size:11px;font-weight:400;color:var(--text3);text-align:right;">(단위: 원/건)</th></tr>
     <tr>
@@ -13003,12 +13095,12 @@ function renderKpiOrgTable() {
       };
       const tgtCell = col => {
         if (col.startsWith('Q')) return `<td style="${tdQ}">${_fmtKpi(qSum(tgts,col))}</td>`;
-        if (_kpiInlineEdit) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_tgt_${t.bonbuName}_${t.name}_${col}`, tgts[col]||'', '100000')}</td>`;
+        if (_kpiInlineEdit && !readOnly) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_tgt_${t.bonbuName}_${t.name}_${col}`, tgts[col]||'', '100000')}</td>`;
         return `<td style="${tdV}">${_fmtKpi(tgts[col])}</td>`;
       };
       const prevCell = col => {
         if (col.startsWith('Q')) return `<td style="${tdQ}">${_fmtKpi(qSum(prevs,col))}</td>`;
-        if (_kpiInlineEdit) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_prev_${t.bonbuName}_${t.name}_${col}`, prevs[col]||'', '100000')}</td>`;
+        if (_kpiInlineEdit && !readOnly) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_prev_${t.bonbuName}_${t.name}_${col}`, prevs[col]||'', '100000')}</td>`;
         return `<td style="${tdV}">${_fmtKpi(prevs[col])}</td>`;
       };
       const rateCell = (col, aVals, bVals) => {
@@ -13050,8 +13142,9 @@ function renderKpiOrgTable() {
   html += '</tbody></table></div>';
   el.innerHTML = html;
   // 정산 화면과 동일한 방식(setTimeout으로 렌더 후 실제 크기 확정된 뒤 동기화) — 어디서
-  // 호출되든(필터·분기토글·인라인수정 등) 매번 이 함수 끝에서 다시 맞춰준다.
-  setTimeout(_kpiSyncFakeScroll, 0);
+  // 호출되든(필터·분기토글·인라인수정 등) 매번 이 함수 끝에서 다시 맞춰준다. 본부별 매출
+  // 현황 탭의 표는 이 플로팅 스크롤바 대상이 아니라 자체 overflow-x:auto만 쓴다.
+  if (isMain) setTimeout(_kpiSyncFakeScroll, 0);
 }
 
 function toggleKpiQtr() {

@@ -293,9 +293,11 @@ function _plWatchGoals() {
         if (typeof _plGRenderAnnual === 'function') _plGRenderAnnual();
         if (typeof _plGRenderMonthly === 'function') _plGRenderMonthly();
       }
-      // KPI/매출현황의 "KPI 달성률(평균)" 행이 이 데이터를 쓰므로, 그 화면이 열려있으면 같이 갱신.
-      if (document.getElementById('screen-kpi')?.classList.contains('active') && typeof renderKpiGrandTable === 'function') {
-        renderKpiGrandTable();
+      // KPI/매출현황의 "KPI 달성률(평균)" 행과, 본부별 매출 현황 탭의 광고주 월별목표 리스트가
+      // 이 데이터를 쓰므로, 그 화면이 열려있으면 같이 갱신.
+      if (document.getElementById('screen-kpi')?.classList.contains('active')) {
+        if (typeof renderKpiGrandTable === 'function') renderKpiGrandTable();
+        if (typeof _kpiActiveTab !== 'undefined' && _kpiActiveTab === 'orgsales' && typeof renderKpiOrgSales === 'function') renderKpiOrgSales();
       }
     }, err => console.error('[projectlog] 목표 구독 오류', err));
   } catch (e) {
@@ -4535,10 +4537,11 @@ function _plRenderGoalModalBody() {
   const companyGoal = _plGetGoal(_plGCompany, null, year);
   const brandRows = brandNames.length ? brandNames.map((b, bi) => {
     const g = _plGetGoal(_plGCompany, b, year);
+    const brandRec = (seller?.brands || []).find(x => (x.name || x) === b);
     const pmOptions = _plWriterNames().map(n => `<option value="${_escHtml(n)}" ${g?.pm === n ? 'selected' : ''}>${_escHtml(n)}</option>`).join('');
     return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;">
       <div style="font-size:12.5px;font-weight:600;margin-bottom:7px;">${_escHtml(b)}</div>
-      <div style="display:flex;align-items:flex-end;gap:8px;">
+      <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;">
         <div style="width:80px;">
           <label style="font-size:9.5px;color:var(--text3);display:block;margin-bottom:2px;">PM</label>
           <select class="form-input pl-goal-brand-pm" data-brand="${_escHtml(b)}" style="width:100%;">
@@ -4552,6 +4555,10 @@ function _plRenderGoalModalBody() {
         <div style="width:100px;">
           <label style="font-size:9.5px;color:var(--text3);display:block;margin-bottom:2px;">DB등록수 목표</label>
           <input type="number" class="form-input pl-goal-brand-db" data-brand="${_escHtml(b)}" placeholder="미입력" value="${g?.dbTarget || ''}" style="width:100%;">
+        </div>
+        <div style="width:130px;">
+          <label style="font-size:9.5px;color:var(--text3);display:block;margin-bottom:2px;">계약 시작일</label>
+          <input type="date" class="form-input pl-goal-brand-contract" data-brand="${_escHtml(b)}" value="${_escHtml(brandRec?.contractStart || '')}" style="width:100%;">
         </div>
       </div>
     </div>`;
@@ -4581,6 +4588,24 @@ async function _plSaveGoalModal() {
     for (const inp of inputs) {
       await _plSaveGoal(company, inp.dataset.brand, year, inp.value, pmMap[inp.dataset.brand], dbMap[inp.dataset.brand]);
     }
+    // 계약 시작일은 연도 구분이 없는 값이라(한 번 맺으면 안 바뀜) 연간 목표 문서가 아니라
+    // 매출처관리(SELLER_DATA)의 브랜드 레코드에 저장한다.
+    const seller = SELLER_DATA.find(s => s.company === company);
+    if (seller) {
+      const contractMap = {};
+      document.querySelectorAll('.pl-goal-brand-contract').forEach(inp => { contractMap[inp.dataset.brand] = inp.value; });
+      let changed = false;
+      const brands = (seller.brands || []).map(br => {
+        const name = br.name || br;
+        if (!(name in contractMap)) return br;
+        const newVal = contractMap[name] || null;
+        const cur = (typeof br === 'object' ? br.contractStart : null) || null;
+        if (newVal === cur) return br;
+        changed = true;
+        return Object.assign({}, (typeof br === 'object' ? br : { name: br }), { contractStart: newVal });
+      });
+      if (changed) await _fbSaveSeller(Object.assign({}, seller, { brands }));
+    }
     toast('✓ 목표가 저장되었습니다', 'ok');
     closeModal('pl-modal-goal');
     _plGRenderAnnual();
@@ -4608,19 +4633,43 @@ function _plGBrandMonths(company, brandKey, year) {
 // KPI/매출현황 메뉴의 표와 같은 형식(구분 | 연간합계 | 월별) — 매출/매출KPI는 script.js의
 // _fmtKpi, 매출KPI달성률은 같은 화면의 _kpiRateHtml(목표 대비 ▲▼)을 그대로 재사용해 표기를 통일한다.
 // 수정은 행마다가 아니라 표 하나에 "✎ 수정" 버튼 하나로만(→ plOpenMonthlyGoalModal).
-function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year) {
+// opts.showInfoColumn: "본부별 매출 현황" 탭처럼 여러 광고주/브랜드 표가 한 화면에 쭉 나열될
+// 때, 표마다 위에 따로 붙던 광고주명/브랜드명 대신 표 맨 왼쪽에 식별 정보 열을 넣어 표 하나만
+// 봐도 어떤 광고주 얘기인지 알 수 있게 한다(광고주 상세 화면 자체에선 이미 문맥이 있으니 안 씀).
+function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
   const months = _plGBrandMonths(company, brandKey, year);
   const nd = '<span style="color:var(--text3)">—</span>';
   const totalAdcost = months.reduce((s, m) => s + m.adcost, 0);
   const totalTarget = months.reduce((s, m) => s + m.target, 0);
+  const showInfo = !!(opts && opts.showInfoColumn);
 
   const thStyle = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:10px;color:var(--text2);text-align:center;white-space:nowrap;';
   const tdLbl   = 'padding:6px 10px;border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:11px;color:var(--text);white-space:nowrap;';
   const tdVal   = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);text-align:right;font-size:11.5px;white-space:nowrap;';
   const tdTxt   = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);text-align:left;font-size:11px;color:var(--text2);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;';
   const tdYr    = 'padding:6px 8px;border:1px solid var(--border);background:#fff9e6;text-align:right;font-size:11.5px;font-weight:700;white-space:nowrap;';
+  const tdInfo  = 'padding:6px 10px;border:1px solid var(--border);background:var(--surface2);text-align:left;font-size:11px;color:var(--text);white-space:nowrap;';
 
   const heads = months.map(m => `<th style="${thStyle}">${parseInt(m.ym.slice(5, 7), 10)}월</th>`).join('');
+
+  let infoCells = ['', '', '', '', ''];
+  if (showInfo) {
+    const opsNames = [...new Set(DATA.filter(c => (c.seller || c.adv) === company && c.status !== '삭제'
+      && (c.content || '') === (brandKey || '') && (c.date || '').startsWith(year)).map(c => c.ops).filter(Boolean))].join(', ');
+    const brandRec = SELLER_DATA.find(s => s.company === company)?.brands?.find(b => (b.name || b) === brandKey);
+    const contractDisp = brandRec?.contractStart ? brandRec.contractStart.split('-').join('. ') : nd;
+    const editIcon = _plCanEditGoal()
+      ? `<span class="pl-x" style="font-size:10px;color:var(--accent);cursor:pointer;margin-left:6px;" onclick="_plOpenGoalModalFor('${_escHtml(company)}')" title="🎯 목표 설정 모달에서 수정">✎</span>`
+      : '';
+    infoCells = [
+      `<td style="${tdInfo}font-weight:800;">${_escHtml(company)} ${brandKey ? _escHtml(brandKey) : '(브랜드 미지정)'}</td>`,
+      `<td style="${tdInfo}">${opsNames ? _escHtml(opsNames) : nd}</td>`,
+      `<td style="${tdInfo}">${contractDisp}${editIcon}</td>`,
+      `<td style="${tdInfo}color:var(--text3);font-style:italic;">광고주 KPI</td>`,
+      `<td style="${tdInfo}color:var(--text3);font-style:italic;">광고주 KPI 수기입력</td>`,
+    ];
+  }
+  const infoHead = showInfo ? `<th style="${thStyle}min-width:150px;"></th>` : '';
 
   return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
@@ -4630,32 +4679,38 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year) {
     <div style="overflow-x:auto;">
     <table class="kpi-tbl" style="width:max-content;">
       <thead><tr>
+        ${infoHead}
         <th style="${thStyle}text-align:left;min-width:120px;">구분</th>
         <th style="${thStyle}background:#fff9e6;min-width:70px;">연간합계</th>
         ${heads}
       </tr></thead>
       <tbody>
         <tr>
+          ${infoCells[0]}
           <td style="${tdLbl}">매출</td>
           <td style="${tdYr}">${_fmtKpi(totalAdcost)}</td>
           ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.adcost)}</td>`).join('')}
         </tr>
         <tr>
+          ${infoCells[1]}
           <td style="${tdLbl}">매출 KPI</td>
           <td style="${tdYr}">${_fmtKpi(totalTarget)}</td>
           ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.target)}</td>`).join('')}
         </tr>
         <tr>
+          ${infoCells[2]}
           <td style="${tdLbl}">매출 KPI 달성률</td>
           <td style="${tdYr}text-align:center;">${_kpiRateHtml(totalAdcost, totalTarget)}</td>
           ${months.map(m => `<td style="${tdVal}text-align:center;">${_kpiRateHtml(m.adcost, m.target)}</td>`).join('')}
         </tr>
         <tr>
+          ${infoCells[3]}
           <td style="${tdLbl}">월 KPI</td>
           <td style="${tdYr}text-align:center;">${nd}</td>
           ${months.map(m => `<td style="${tdTxt}" title="${_escHtml(m.monthKpi)}">${m.monthKpi ? _escHtml(m.monthKpi) : nd}</td>`).join('')}
         </tr>
         <tr>
+          ${infoCells[4]}
           <td style="${tdLbl}">광고주 KPI 달성률</td>
           <td style="${tdYr}text-align:center;">${nd}</td>
           ${months.map(m => `<td style="${tdVal}text-align:center;">${m.advKpiRate != null ? m.advKpiRate + '%' : nd}</td>`).join('')}
@@ -4664,6 +4719,12 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year) {
     </table>
     </div>
   </div>`;
+}
+// "본부별 매출 현황" 탭 표의 ✎에서, 표에 있는 광고주로 _plGCompany를 맞춰준 뒤 그 광고주의
+// "🎯 목표 설정" 모달(계약 시작일 포함)을 연다 — 광고주 상세 화면 밖에서도 같은 모달 재사용.
+function _plOpenGoalModalFor(company) {
+  _plGCompany = company;
+  plOpenGoalModal();
 }
 
 // ── 브랜드 월별 목표 입력 모달 (④의 ✎에서 진입) ──
