@@ -4643,14 +4643,24 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
   const totalTarget = months.reduce((s, m) => s + m.target, 0);
   const showInfo = !!(opts && opts.showInfoColumn);
 
-  const thStyle = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:10px;color:var(--text2);text-align:center;white-space:nowrap;';
-  const tdLbl   = 'padding:6px 10px;border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:11px;color:var(--text);white-space:nowrap;';
-  const tdVal   = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);text-align:right;font-size:11.5px;white-space:nowrap;';
-  const tdTxt   = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);text-align:left;font-size:11px;color:var(--text2);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;';
-  const tdYr    = 'padding:6px 8px;border:1px solid var(--border);background:#fff9e6;text-align:right;font-size:11.5px;font-weight:700;white-space:nowrap;';
-  const tdInfo  = 'padding:6px 10px;border:1px solid var(--border);background:var(--surface2);text-align:left;font-size:11px;color:var(--text);white-space:nowrap;';
+  // table-layout:fixed + 헤더에 고정 width — 이 표가 여러 광고주에 걸쳐 쭉 나열될 때(showInfo)
+  // 값이 없어서 "—"만 있는 칸 때문에 표마다 컬럼 폭이 제각각으로 줄어드는 걸 막고, 항상 같은
+  // 폭으로 나란히 정렬되게 한다.
+  const INFO_W = 150, LBL_W = 120, YR_W = 90, MO_W = 76;
+  const tableWidth = (showInfo ? INFO_W : 0) + LBL_W + YR_W + MO_W * months.length;
 
-  const heads = months.map(m => `<th style="${thStyle}">${parseInt(m.ym.slice(5, 7), 10)}월</th>`).join('');
+  const thStyle = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:10px;color:var(--text2);text-align:center;white-space:nowrap;overflow:hidden;';
+  const tdLbl   = 'padding:6px 10px;border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+  const tdVal   = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);text-align:right;font-size:11.5px;white-space:nowrap;overflow:hidden;';
+  const tdTxt   = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);text-align:left;font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+  const tdYr    = 'padding:6px 8px;border:1px solid var(--border);background:#fff9e6;text-align:right;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;';
+  const tdInfo  = 'padding:6px 10px;border:1px solid var(--border);background:var(--surface2);text-align:left;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+
+  const heads = months.map(m => `<th style="${thStyle}width:${MO_W}px;">${parseInt(m.ym.slice(5, 7), 10)}월</th>`).join('');
+
+  const editBtn = _plCanEditGoal()
+    ? `<span class="pl-x" style="font-size:11px;color:var(--accent);cursor:pointer;" onclick="plOpenMonthlyGoalModal('${_escHtml(brandKey)}','${_escHtml(brandLabel)}')">✎ 수정</span>`
+    : '';
 
   let infoCells = ['', '', '', '', ''];
   if (showInfo) {
@@ -4669,19 +4679,16 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
       `<td style="${tdInfo}color:var(--text3);font-style:italic;">광고주 KPI 수기입력</td>`,
     ];
   }
-  const infoHead = showInfo ? `<th style="${thStyle}min-width:150px;"></th>` : '';
+  // showInfo일 땐 표마다 따로 뜨던 "✎ 수정" 라벨줄을 없애고, 그 버튼을 표의 (1,1) 칸(정보열 헤더)
+  // 안으로 옮긴다.
+  const infoHead = showInfo ? `<th style="${thStyle}width:${INFO_W}px;text-align:left;">${editBtn}</th>` : '';
 
-  return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-      <span style="font-size:10.5px;font-weight:700;color:var(--text2);">월별 목표</span>
-      ${_plCanEditGoal() ? `<span class="pl-x" style="font-size:11px;color:var(--accent);cursor:pointer;" onclick="plOpenMonthlyGoalModal('${_escHtml(brandKey)}','${_escHtml(brandLabel)}')">✎ 수정</span>` : ''}
-    </div>
-    <div style="overflow-x:auto;">
-    <table class="kpi-tbl" style="width:max-content;">
+  const tableHtml = `<div style="overflow-x:auto;">
+    <table class="kpi-tbl" style="width:${tableWidth}px;table-layout:fixed;">
       <thead><tr>
         ${infoHead}
-        <th style="${thStyle}text-align:left;min-width:120px;">구분</th>
-        <th style="${thStyle}background:#fff9e6;min-width:70px;">연간합계</th>
+        <th style="${thStyle}text-align:left;width:${LBL_W}px;">구분</th>
+        <th style="${thStyle}background:#fff9e6;width:${YR_W}px;">연간합계</th>
         ${heads}
       </tr></thead>
       <tbody>
@@ -4717,7 +4724,17 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
         </tr>
       </tbody>
     </table>
+    </div>`;
+
+  // showInfo(본부별 매출 현황 2단)일 땐 카드 배경·"월별 목표" 라벨 없이 표만, 표 사이 간격만
+  // margin-bottom으로 유지. 원래 광고주 상세 화면(showInfo 아님)은 기존 카드 형태 그대로.
+  if (showInfo) return `<div style="margin-bottom:14px;">${tableHtml}</div>`;
+  return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+      <span style="font-size:10.5px;font-weight:700;color:var(--text2);">월별 목표</span>
+      ${editBtn}
     </div>
+    ${tableHtml}
   </div>`;
 }
 // "본부별 매출 현황" 탭 표의 ✎에서, 표에 있는 광고주로 _plGCompany를 맞춰준 뒤 그 광고주의
