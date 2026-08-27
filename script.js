@@ -5161,8 +5161,8 @@ function _fbWatchBepMonthly(year) {
 }
 
 function _bepKpiInit() {
-  const sec = document.getElementById('kpi-bep-section');
-  if (sec) sec.style.display = _bepCanView() ? '' : 'none';
+  const tabBtn = document.getElementById('kpi-tab-bep');
+  if (tabBtn) tabBtn.style.display = _bepCanView() ? '' : 'none';
   const scEditBtn = document.getElementById('bep-scenario-edit-btn');
   if (scEditBtn) scEditBtn.style.display = _bepCanEdit() ? '' : 'none';
   const moEditBtn = document.getElementById('bep-monthly-edit-btn');
@@ -12476,7 +12476,22 @@ function _kpiYoyHtml(actual, prev) {
   return `<span class="kpi-flat">±0%</span>`;
 }
 
+let _kpiActiveTab = 'main'; // 'main' | 'bep'
+function kpiSwitchTab(tab) {
+  if (tab === 'bep' && !_bepCanView()) tab = 'main'; // 권한 없으면 탭 클릭이 와도 강제로 메인
+  _kpiActiveTab = tab;
+  document.getElementById('kpi-tab-main')?.classList.toggle('active', tab === 'main');
+  document.getElementById('kpi-tab-bep')?.classList.toggle('active', tab === 'bep');
+  const mainSec  = document.getElementById('kpi-main-section');
+  const bepSec   = document.getElementById('kpi-bep-section');
+  const mainCtrl = document.getElementById('kpi-main-controls');
+  if (mainSec)  mainSec.style.display  = tab === 'main' ? '' : 'none';
+  if (bepSec)   bepSec.style.display   = tab === 'bep'  ? '' : 'none';
+  if (mainCtrl) mainCtrl.style.display = tab === 'main' ? '' : 'none';
+}
+
 function initKpiScreen() {
+  kpiSwitchTab('main'); // 메뉴 들어올 때마다 KPI/매출현황 탭부터 보여준다
   const cy = new Date().getFullYear();
   const yr = document.getElementById('kpi-year');
   if (yr) {

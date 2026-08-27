@@ -2399,39 +2399,45 @@
       <div class="screen" id="screen-kpi">
         <!-- 상단 topbar -->
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-          <h2 style="font-size:16px;font-weight:700;color:var(--text1);margin:0;">KPI/매출현황</h2>
-          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+          <div class="view-tabs" id="kpi-tabs">
+            <div class="view-tab active" id="kpi-tab-main" onclick="kpiSwitchTab('main')">KPI/매출현황</div>
+            <div class="view-tab" id="kpi-tab-bep" onclick="kpiSwitchTab('bep')" style="display:none;">BEP</div>
+          </div>
+          <div id="kpi-main-controls" style="margin-left:auto;display:flex;gap:8px;align-items:center;">
             <select class="form-sel" id="kpi-year" style="width:90px;" onchange="kpiYearChange()"></select>
             <button class="btn btn-outline" id="kpi-qtr-toggle-btn" onclick="toggleKpiQtr()" style="font-size:12px;">분기합계 숨기기</button>
             <button class="btn btn-primary" id="kpi-edit-btn" onclick="openKpiEditModal()" style="display:none;">KPI 등록/수정</button>
           </div>
         </div>
-        <!-- 요약 카드 -->
-        <div id="kpi-cards" class="kpi-cards-grid"></div>
-        <!-- Forecast 배너 -->
-        <div id="kpi-forecast-banner" style="margin-bottom:16px;"></div>
-        <!-- 섹션①: 전사 매출 KPI 월별 현황 -->
-        <div class="table-card" style="margin-bottom:16px;">
-          <div class="table-header"><span class="card-title">전사 매출 KPI 월별 현황</span></div>
-          <div id="kpi-grand-table"></div>
-        </div>
-        <!-- 섹션②: 월별 광고 리스트 -->
-        <div class="table-card" style="margin-bottom:16px;">
-          <div class="table-header"><span class="card-title">월별 광고 리스트</span></div>
-          <div id="kpi-clientlist-table"></div>
-        </div>
-        <!-- 섹션③: 본부·팀별 KPI 상세 -->
-        <div class="table-card" style="margin-bottom:16px;">
-          <div class="table-header" style="display:flex;align-items:center;gap:8px;">
-            <span class="card-title">본부·팀별 KPI 상세</span>
-            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-              <select class="form-sel" id="kpi-org-filter" style="width:140px;" onchange="kpiOrgChange()"></select>
-              <button class="btn btn-outline" id="kpi-inline-edit-btn" onclick="toggleKpiInlineEdit()" style="display:none;">전체수정</button>
-            </div>
+        <!-- 탭: KPI/매출현황 -->
+        <div id="kpi-main-section">
+          <!-- 요약 카드 -->
+          <div id="kpi-cards" class="kpi-cards-grid"></div>
+          <!-- Forecast 배너 -->
+          <div id="kpi-forecast-banner" style="margin-bottom:16px;"></div>
+          <!-- 섹션①: 전사 매출 KPI 월별 현황 -->
+          <div class="table-card" style="margin-bottom:16px;">
+            <div class="table-header"><span class="card-title">전사 매출 KPI 월별 현황</span></div>
+            <div id="kpi-grand-table"></div>
           </div>
-          <div id="kpi-org-table"></div>
+          <!-- 섹션②: 월별 광고 리스트 -->
+          <div class="table-card" style="margin-bottom:16px;">
+            <div class="table-header"><span class="card-title">월별 광고 리스트</span></div>
+            <div id="kpi-clientlist-table"></div>
+          </div>
+          <!-- 섹션③: 본부·팀별 KPI 상세 -->
+          <div class="table-card" style="margin-bottom:16px;">
+            <div class="table-header" style="display:flex;align-items:center;gap:8px;">
+              <span class="card-title">본부·팀별 KPI 상세</span>
+              <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+                <select class="form-sel" id="kpi-org-filter" style="width:140px;" onchange="kpiOrgChange()"></select>
+                <button class="btn btn-outline" id="kpi-inline-edit-btn" onclick="toggleKpiInlineEdit()" style="display:none;">전체수정</button>
+              </div>
+            </div>
+            <div id="kpi-org-table"></div>
+          </div>
         </div>
-        <!-- ── BEP 관리 (관리자/이사/대표이사/본부장 전용) ── -->
+        <!-- 탭: BEP (BEP 열람권한 있는 사람에게만 탭 자체가 보임) -->
         <div id="kpi-bep-section" style="display:none;">
           <div class="table-card" style="margin-bottom:16px;">
             <div class="table-header" style="display:flex;align-items:center;gap:8px;">
