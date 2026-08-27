@@ -334,13 +334,18 @@ function _plMonthlyGoalDocId(company, brand, ym) {
 function _plGetMonthlyGoal(company, brand, ym) {
   return PL_GOALS.find(g => g.kind === 'monthly' && g.seller === company && (g.brand || '') === (brand || '') && g.ym === ym);
 }
-async function _plSaveMonthlyGoal(company, brand, ym, valueRaw) {
+// value=매출 KPI(취급고 목표, 숫자) · monthKpi=월 KPI(자유 텍스트 메모) · advKpiRate=광고주 KPI 달성률
+// (계산식 없이 담당자가 직접 입력하는 숫자, %) — 셋 다 비어있으면 문서를 지워 "미입력"으로 되돌린다.
+async function _plSaveMonthlyGoal(company, brand, ym, valueRaw, monthKpiRaw, advKpiRateRaw) {
   const id = _plMonthlyGoalDocId(company, brand, ym);
   const value = +valueRaw || 0;
+  const monthKpi = (monthKpiRaw || '').trim();
+  const advKpiRate = (advKpiRateRaw === '' || advKpiRateRaw == null) ? null : (+advKpiRateRaw || 0);
   try {
-    if (!value) { await _plDb('projectGoals').doc(id).delete(); return; }
+    if (!value && !monthKpi && advKpiRate == null) { await _plDb('projectGoals').doc(id).delete(); return; }
     await _plDb('projectGoals').doc(id).set({
       id, kind: 'monthly', seller: company, brand: brand || null, ym, value,
+      monthKpi: monthKpi || null, advKpiRate,
       updatedAt: new Date().toISOString(), updatedBy: currentUser?.name || '',
     });
   } catch (e) {
@@ -4352,25 +4357,11 @@ function _plGSubRowsHtml(productRows) {
     <td></td>
   </tr>`).join('');
 }
-// KPI 지표명이 "DB등록수"면 캠페인 db 필드 합계로 실적·달성률을 자동 계산해준다.
-// DA/CPS/퍼미션콜은 db 필드 자체가 없는 별도 성과모델이라 그 상품만 도는 브랜드는 항상 0으로 잡힘 — 어쩔 수 없는 한계.
-function _plGDbTotal(company, brandKey, year) {
-  return DATA.filter(c => (c.seller || c.adv) === company && c.status !== '삭제'
-    && (c.content || '') === (brandKey || '') && (c.date || '').startsWith(year))
-    .reduce((s, c) => s + (c.db || 0), 0);
-}
-// 연간요약 표의 "광고예산" 합계와 동일 계산 — 브랜드 상세 패널 KPI 카드의 취급고 목표/실적 비교용
-function _plGAdcostTotal(company, brandKey, year) {
-  return DATA.filter(c => (c.seller || c.adv) === company && c.status !== '삭제'
-    && (c.content || '') === (brandKey || '') && (c.date || '').startsWith(year))
-    .reduce((s, c) => s + _campAdcost(c), 0);
-}
 // 이슈사항·리뷰회고·광고주피드백·관련자료 — 2x2 그리드, 항목별 색상칩(PL_TYPE_COLOR 재사용)으로
 // 한눈에 구분되게 하고, 칸마다 높이를 제한해(스크롤) 브랜드가 여러 개일 때 화면을 과하게 차지하지 않도록 함.
 // "+ 일지 작성"은 여기서 빼고 브랜드명 옆(_plGRenderAnnual의 head 행)으로 옮김.
 function _plGBrandDetailRow(company, brandKey, brandLabel, year, colspan) {
   const { issues, reviews, feedback, data } = _plGIssueReview(company, brandKey, year);
-  const goal = _plGetGoal(company, brandKey, year);
   const fmtLine = l => `<div style="font-size:11.5px;padding:2px 0;display:flex;gap:5px;white-space:nowrap;overflow:hidden;" title="${_escHtml(l.summary || '')}">
     <span class="f-mono form-hint" style="flex-shrink:0;">${_escHtml((l.logDate || '').slice(2).replace(/-/g, '.'))}</span>
     <span style="overflow:hidden;text-overflow:ellipsis;">${_escHtml(l.summary || '')}</span>
@@ -4381,26 +4372,13 @@ function _plGBrandDetailRow(company, brandKey, brandLabel, year, colspan) {
       ${items.length ? items.map(lineFmt || fmtLine).join('') : '<div class="form-hint" style="font-size:11.5px;">—</div>'}
     </div>
   </div>`;
-  // 취급고(연간목표)와 DB등록수(KPI) — 둘 다 목표 대비 실적 한 줄씩, 값이 있는 것만 표시
-  const turnoverLine = goal?.value
-    ? `<div style="font-size:11.5px;padding:2px 0;">취급고: <b>${_fmtMoney(goal.value)}</b> · 실적 ${_fmtMoney(_plGAdcostTotal(company, brandKey, year))} (${(_plGAdcostTotal(company, brandKey, year) / goal.value * 100).toFixed(1)}%)</div>`
-    : '';
-  const dbLine = goal?.dbTarget
-    ? `<div style="font-size:11.5px;padding:2px 0;">DB등록수: <b>${_fmtMoney(goal.dbTarget)}</b> · 실적 ${_fmtMoney(_plGDbTotal(company, brandKey, year))} (${goal.dbTarget > 0 ? (_plGDbTotal(company, brandKey, year) / goal.dbTarget * 100).toFixed(1) + '%' : '-'})</div>`
-    : '';
-  const kpiCount = (goal?.value ? 1 : 0) + (goal?.dbTarget ? 1 : 0);
-  const kpiCell = `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">
-    <span style="display:inline-block;background:#e7f5ff;color:#1864ab;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;">KPI${kpiCount ? ' · ' + kpiCount : ''}</span>
-    <div style="margin-top:5px;">
-      ${turnoverLine || dbLine ? turnoverLine + dbLine : '<div class="form-hint" style="font-size:11.5px;">—</div>'}
-    </div>
-  </div>`;
+  // 취급고 KPI 카드는 위 "월별 목표" 표로 흡수돼 중복이라 삭제. DB등록수 목표/실적도
+  // 이 화면에서는 더 이상 안 보여준다(사용자 확인 완료, 2026-08-27).
   return `<tr class="pl-g-brand-detail">
     <td></td>
     <td colspan="${colspan - 1}" style="background:var(--surface);border-top:1px solid var(--border);padding:10px 14px;">
       ${_plGBrandMonthlyHtml(company, brandKey, brandLabel, year)}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;">
-        ${kpiCell}
         ${cell('이슈사항', PL_TYPE_COLOR['이슈'], issues)}
         ${cell('리뷰·회고', PL_TYPE_COLOR['회고'], reviews)}
         ${cell('광고주 피드백', PL_TYPE_COLOR['피드백'], feedback)}
@@ -4618,34 +4596,69 @@ function _plGBrandMonths(company, brandKey, year) {
     const ym = `${year}-${String(m).padStart(2, '0')}`;
     const mcamps = yearCamps.filter(c => (c.date || '').startsWith(ym));
     const adcost = mcamps.reduce((s, c) => s + _campAdcost(c), 0);
-    const target = _plGetMonthlyGoal(company, brandKey, ym)?.value || 0;
-    months.push({ ym, adcost, target });
+    const g = _plGetMonthlyGoal(company, brandKey, ym);
+    months.push({ ym, adcost, target: g?.value || 0, monthKpi: g?.monthKpi || '', advKpiRate: g?.advKpiRate });
   }
   return months;
 }
-// 값만 보여주는 읽기전용 칸 — 수정은 항상 "✎ 수정" → 모달(plOpenMonthlyGoalModal)로만
-function _plGMonthlyTrendCellHtml(m) {
-  const rate = m.target ? (m.adcost / m.target * 100) : null;
-  const rateClass = rate == null ? '' : (rate >= 90 ? 'color:var(--green);' : rate >= 70 ? 'color:var(--yellow);' : 'color:var(--red);');
-  const rateHtml = rate == null ? '' : `<div style="font-size:10px;font-weight:700;margin-top:1px;${rateClass}">${rate.toFixed(0)}%</div>`;
-  return `<td style="padding:4px 2px;text-align:center;">
-    <div style="font-size:10px;color:${m.target ? 'var(--text2)' : 'var(--text3)'};">${m.target ? _fmtMoney(m.target) : '-'}</div>
-    ${rateHtml}
-  </td>`;
-}
+// KPI/매출현황 메뉴의 표와 같은 형식(구분 | 연간합계 | 월별) — 매출/매출KPI는 script.js의
+// _fmtKpi, 매출KPI달성률은 같은 화면의 _kpiRateHtml(목표 대비 ▲▼)을 그대로 재사용해 표기를 통일한다.
+// 수정은 행마다가 아니라 표 하나에 "✎ 수정" 버튼 하나로만(→ plOpenMonthlyGoalModal).
 function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year) {
   const months = _plGBrandMonths(company, brandKey, year);
-  const heads = ['1','2','3','4','5','6','7','8','9','10','11','12']
-    .map(m => `<th style="font-size:9px;color:var(--text3);font-weight:600;padding:2px;border-bottom:1px solid var(--border);">${m}월</th>`).join('');
+  const nd = '<span style="color:var(--text3)">—</span>';
+  const totalAdcost = months.reduce((s, m) => s + m.adcost, 0);
+  const totalTarget = months.reduce((s, m) => s + m.target, 0);
+
+  const thStyle = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:10px;color:var(--text2);text-align:center;white-space:nowrap;';
+  const tdLbl   = 'padding:6px 10px;border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:11px;color:var(--text);white-space:nowrap;';
+  const tdVal   = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);text-align:right;font-size:11.5px;white-space:nowrap;';
+  const tdTxt   = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);text-align:left;font-size:11px;color:var(--text2);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;';
+  const tdYr    = 'padding:6px 8px;border:1px solid var(--border);background:#fff9e6;text-align:right;font-size:11.5px;font-weight:700;white-space:nowrap;';
+
+  const heads = months.map(m => `<th style="${thStyle}">${parseInt(m.ym.slice(5, 7), 10)}월</th>`).join('');
+
   return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
       <span style="font-size:10.5px;font-weight:700;color:var(--text2);">월별 목표</span>
       ${_plCanEditGoal() ? `<span class="pl-x" style="font-size:11px;color:var(--accent);cursor:pointer;" onclick="plOpenMonthlyGoalModal('${_escHtml(brandKey)}','${_escHtml(brandLabel)}')">✎ 수정</span>` : ''}
     </div>
-    <table style="width:100%;border-collapse:collapse;">
-      <thead><tr>${heads}</tr></thead>
-      <tbody><tr>${months.map(m => _plGMonthlyTrendCellHtml(m)).join('')}</tr></tbody>
+    <div style="overflow-x:auto;">
+    <table class="kpi-tbl" style="width:max-content;">
+      <thead><tr>
+        <th style="${thStyle}text-align:left;min-width:120px;">구분</th>
+        <th style="${thStyle}background:#fff9e6;min-width:70px;">연간합계</th>
+        ${heads}
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td style="${tdLbl}">매출</td>
+          <td style="${tdYr}">${_fmtKpi(totalAdcost)}</td>
+          ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.adcost)}</td>`).join('')}
+        </tr>
+        <tr>
+          <td style="${tdLbl}">매출 KPI</td>
+          <td style="${tdYr}">${_fmtKpi(totalTarget)}</td>
+          ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.target)}</td>`).join('')}
+        </tr>
+        <tr>
+          <td style="${tdLbl}">매출 KPI 달성률</td>
+          <td style="${tdYr}text-align:center;">${_kpiRateHtml(totalAdcost, totalTarget)}</td>
+          ${months.map(m => `<td style="${tdVal}text-align:center;">${_kpiRateHtml(m.adcost, m.target)}</td>`).join('')}
+        </tr>
+        <tr>
+          <td style="${tdLbl}">월 KPI</td>
+          <td style="${tdYr}text-align:center;">${nd}</td>
+          ${months.map(m => `<td style="${tdTxt}" title="${_escHtml(m.monthKpi)}">${m.monthKpi ? _escHtml(m.monthKpi) : nd}</td>`).join('')}
+        </tr>
+        <tr>
+          <td style="${tdLbl}">광고주 KPI 달성률</td>
+          <td style="${tdYr}text-align:center;">${nd}</td>
+          ${months.map(m => `<td style="${tdVal}text-align:center;">${m.advKpiRate != null ? m.advKpiRate + '%' : nd}</td>`).join('')}
+        </tr>
+      </tbody>
     </table>
+    </div>
   </div>`;
 }
 
@@ -4656,12 +4669,12 @@ function _plBuildMonthlyGoalModalShell() {
   overlay.className = 'modal-overlay';
   overlay.id = 'pl-modal-monthlygoal';
   overlay.innerHTML = `
-    <div class="modal" style="width:380px;max-width:96vw;">
+    <div class="modal" style="width:620px;max-width:96vw;">
       <div class="modal-head">
         <span class="modal-title" id="pl-mg-title">🎯 월별 목표</span>
         <button class="modal-close" onclick="closeModal('pl-modal-monthlygoal')">✕</button>
       </div>
-      <div class="modal-body" id="pl-mg-body"></div>
+      <div class="modal-body" id="pl-mg-body" style="max-height:60vh;overflow-y:auto;"></div>
       <div class="modal-foot">
         <button class="btn btn-primary btn-sm" onclick="_plSaveMonthlyGoalModal()">저장</button>
       </div>
@@ -4678,17 +4691,21 @@ function plOpenMonthlyGoalModal(brandKey, brandLabel) {
   if (titleEl) titleEl.textContent = `🎯 ${brandLabel} · ${year}년 월별 목표`;
   const bodyEl = document.getElementById('pl-mg-body');
   if (bodyEl) {
-    let cells = '';
+    const headStyle = 'font-size:9.5px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.03em;';
+    let rows = `<div style="display:grid;grid-template-columns:34px 1fr 1fr 1fr;gap:8px;padding:0 2px 4px;">
+      <span></span><span style="${headStyle}">매출 KPI</span><span style="${headStyle}">월 KPI</span><span style="${headStyle}">광고주 KPI 달성률</span>
+    </div>`;
     for (let m = 1; m <= 12; m++) {
       const ym = `${year}-${String(m).padStart(2, '0')}`;
-      const val = _plGetMonthlyGoal(_plGCompany, brandKey, ym)?.value || '';
-      cells += `<div>
-        <label style="font-size:10.5px;color:var(--text3);display:block;margin-bottom:2px;">${m}월</label>
-        <input type="number" class="form-input pl-mg-input" data-ym="${ym}" value="${val}" placeholder="미입력" style="width:100%;font-size:12px;">
+      const g = _plGetMonthlyGoal(_plGCompany, brandKey, ym);
+      rows += `<div style="display:grid;grid-template-columns:34px 1fr 1fr 1fr;gap:8px;align-items:center;margin-bottom:6px;">
+        <label style="font-size:11.5px;font-weight:600;color:var(--text2);">${m}월</label>
+        <input type="number" class="form-input pl-mg-input" data-ym="${ym}" value="${g?.value || ''}" placeholder="미입력" style="font-size:12px;padding:6px 8px;">
+        <input type="text" class="form-input pl-mg-kpi-input" data-ym="${ym}" value="${_escHtml(g?.monthKpi || '')}" placeholder="메모" style="font-size:12px;padding:6px 8px;">
+        <input type="number" class="form-input pl-mg-adv-input" data-ym="${ym}" value="${g?.advKpiRate ?? ''}" placeholder="%" style="font-size:12px;padding:6px 8px;">
       </div>`;
     }
-    bodyEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">${cells}</div>
-      <div class="form-hint" style="margin-top:10px;">비워두고 저장하면 그 달 목표가 삭제됩니다.</div>`;
+    bodyEl.innerHTML = rows + `<div class="form-hint" style="margin-top:6px;">전부 비워두고 저장하면 그 달 값이 삭제됩니다. 매출 KPI 달성률은 매출 KPI 대비 자동 계산되어 여기서 따로 입력하지 않습니다.</div>`;
   }
   openModal('pl-modal-monthlygoal');
 }
@@ -4700,7 +4717,10 @@ async function _plSaveMonthlyGoalModal() {
   try {
     const inputs = [...document.querySelectorAll('.pl-mg-input')];
     for (const inp of inputs) {
-      await _plSaveMonthlyGoal(_plGCompany, brandKey, inp.dataset.ym, inp.value);
+      const ym = inp.dataset.ym;
+      const kpiInp = document.querySelector(`.pl-mg-kpi-input[data-ym="${ym}"]`);
+      const advInp = document.querySelector(`.pl-mg-adv-input[data-ym="${ym}"]`);
+      await _plSaveMonthlyGoal(_plGCompany, brandKey, ym, inp.value, kpiInp?.value, advInp?.value);
     }
     toast('✓ 월별 목표가 저장되었습니다', 'ok');
     closeModal('pl-modal-monthlygoal');
