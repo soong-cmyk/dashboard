@@ -534,7 +534,7 @@ function _plMineToggleSortByProgress() {
 // 이어쓰기로 이미 다음 기록이 만들어진 옛 기록은(진척률 값이 그때 그대로 남아있어 실제 최신
 // 진행상황을 반영 못 함) "미완료로 남은 일"에서 제외하고, 진짜 미완료(진척률<100)인 것만 골라
 // 진척률 낮은 순으로 맨 위에, 나머지(완료·진척률 없음·이미 이어진 것)는 원래 순서 그대로 뒤에 붙인다.
-function _plSortWrittenByProgress(logs) {
+function _plSortByIncompleteProgress(logs) {
   const continuedIds = new Set(PL_LOGS.filter(l => l.continuedFromId).map(l => l.continuedFromId));
   const incomplete = [], rest = [];
   logs.forEach(l => {
@@ -557,7 +557,7 @@ function _plRenderMineBody() {
   const othersCommentedIds = new Set(PL_COMMENTS.filter(c => c.writerId !== myId).map(c => c.logId));
   let writtenLogs = PL_LOGS.filter(l => l.writerId === myId && matchesQ(l));
   if (_plMineCommentedOnly) writtenLogs = writtenLogs.filter(l => othersCommentedIds.has(l.id));
-  if (_plMineSortByProgress) writtenLogs = _plSortWrittenByProgress(writtenLogs);
+  if (_plMineSortByProgress) writtenLogs = _plSortByIncompleteProgress(writtenLogs);
   const mentionLogIds = new Set(PL_COMMENTS.filter(c => (c.mentions || []).some(m => m.id === myId)).map(c => c.logId));
   const involvedLogs = PL_LOGS.filter(l => l.writerId !== myId && mentionLogIds.has(l.id) && matchesQ(l));
   // 내가 댓글을 단 일지 — 멘션 여부와 무관하게 댓글 작성자 기준. 내가 쓴 일지는 "작성" 쪽에만 표시.
@@ -4264,8 +4264,8 @@ function plRenderAdvertiserTab() {
 // ══════════════════════════════════════════════════════════
 
 let _plGCompany = null;
-let _plGState = { year: String(new Date().getFullYear()), month: '', dayProject: '', dayType: '', dayMedia: '', dayWriter: '', dayPage: 1, monthPage: 1 };
-const PL_G_DAY_PAGE_SIZE = 4;
+let _plGState = { year: String(new Date().getFullYear()), month: '', dayProject: '', dayType: '', dayMedia: '', dayWriter: '', dayOpenOnly: false, dayProgressSort: false, dayPage: 1, monthPage: 1 };
+const PL_G_DAY_PAGE_SIZE = 10;
 
 function _plCurrentYm() { return _plTodayStr().slice(0, 7); }
 
@@ -4838,6 +4838,8 @@ function _plGDailyFiltered(company) {
   if (_plGState.dayType) logs = logs.filter(l => l.logType === _plGState.dayType);
   if (_plGState.dayMedia) logs = logs.filter(l => l.media === _plGState.dayMedia);
   if (_plGState.dayWriter) logs = logs.filter(l => l.writer === _plGState.dayWriter);
+  if (_plGState.dayOpenOnly) logs = logs.filter(l => l.state === '진행중');
+  if (_plGState.dayProgressSort) logs = _plSortByIncompleteProgress(logs);
   return logs;
 }
 function _plGDayFilter(field, val) {
@@ -4845,6 +4847,16 @@ function _plGDayFilter(field, val) {
   if (field === 'type') _plGState.dayType = val;
   if (field === 'media') _plGState.dayMedia = val;
   if (field === 'writer') _plGState.dayWriter = val;
+  _plGState.dayPage = 1;
+  _plGRenderDaily();
+}
+function _plGDayToggleOpen() {
+  _plGState.dayOpenOnly = !_plGState.dayOpenOnly;
+  _plGState.dayPage = 1;
+  _plGRenderDaily();
+}
+function _plGDayToggleProgressSort() {
+  _plGState.dayProgressSort = !_plGState.dayProgressSort;
   _plGState.dayPage = 1;
   _plGRenderDaily();
 }
@@ -4885,6 +4897,8 @@ function _plGRenderDaily() {
         <select class="f-sel" onchange="_plGDayFilter('writer',this.value)">
           <option value="">작성자 전체</option>${writers.map(w => `<option value="${_escHtml(w)}" ${_plGState.dayWriter === w ? 'selected' : ''}>${_escHtml(w)}</option>`).join('')}
         </select>
+        <button class="btn btn-outline btn-sm${_plGState.dayOpenOnly ? ' pl-toggle-on' : ''}" onclick="_plGDayToggleOpen()">🔴 진행중</button>
+        <button class="btn btn-outline btn-sm${_plGState.dayProgressSort ? ' pl-toggle-on' : ''}" onclick="_plGDayToggleProgressSort()" data-tooltip="이어쓰기로 이미 이어진 옛 기록은 제외하고, 진짜 미완료인 것만 진척률 낮은 순으로 맨 위에 모읍니다">📊 미완료 낮은순</button>
         <button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="_plGExpandAll(true)">전체 펼침</button>
         <button class="btn btn-ghost btn-sm" onclick="_plGExpandAll(false)">요약만</button>
       </div>
@@ -4906,7 +4920,7 @@ function _plWriteFromAdvertiser(company) {
 function _plRenderAdvertiserDetail(content, company) {
   if (_plGCompany !== company) {
     _plGCompany = company;
-    _plGState = { year: String(new Date().getFullYear()), month: _plCurrentYm(), dayProject: '', dayType: '', dayMedia: '', dayWriter: '', dayPage: 1, monthPage: 1 };
+    _plGState = { year: String(new Date().getFullYear()), month: _plCurrentYm(), dayProject: '', dayType: '', dayMedia: '', dayWriter: '', dayOpenOnly: false, dayProgressSort: false, dayPage: 1, monthPage: 1 };
   }
   const seller = SELLER_DATA.find(s => s.company === company);
   content.innerHTML = `
