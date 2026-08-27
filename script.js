@@ -12773,23 +12773,31 @@ function renderKpiClientListTable() {
   groups.forEach((g, gi) => {
     const isFirstGroup = gi === 0;
 
-    // 본부 합계 — 팀 구분 없이(team='') 본부 전체 기준 리스트.
-    const bClientList = {}; _KPI_MONTHS.forEach(m => { bClientList[m] = _kpiCalcClientList(_kpiYear, g.bonbuName, '', m); });
-    const bTotClients = _KPI_MONTHS.reduce((s, m) => s + bClientList[m].length, 0);
-    const bCell = col => col.startsWith('Q')
-      ? listCell(_kpiCalcClientsQuarter(_kpiYear, g.bonbuName, '', _KPI_QTR_MAP[col]), true, col)
-      : listCell(bClientList[col] || [], false, col);
+    // 팀별 리스트를 먼저 구해서, 본부 합계는 광고주명을 다시 나열하지 않고 팀별 숫자를 그대로
+    // 더한 값만 보여준다(팀 간 겹치는 광고주를 디듀프한 본부 전체 리스트가 아님).
+    const teamData = g.teams.map(t => {
+      const clientList = {}; _KPI_MONTHS.forEach(m => { clientList[m] = _kpiCalcClientList(_kpiYear, t.bonbuName, t.name, m); });
+      const qCount = col => _kpiCalcClientsQuarter(_kpiYear, t.bonbuName, t.name, _KPI_QTR_MAP[col]);
+      return { t, clientList, qCount };
+    });
+
+    const bMonthSum = m => teamData.reduce((s, d) => s + d.clientList[m].length, 0);
+    const bQtrSum = col => teamData.reduce((s, d) => s + d.qCount(col), 0);
+    const bTotClients = _KPI_MONTHS.reduce((s, m) => s + bMonthSum(m), 0);
+    const bCell = col => {
+      if (col.startsWith('Q')) return `<td style="${tdQC}">${isFutureQ(col) ? nd : (bQtrSum(col) || nd)}</td>`;
+      return `<td style="${tdC}">${bMonthSum(col) || nd}</td>`;
+    };
     html += `<tr class="${isFirstGroup ? 'kpi-bonbu-sep' : 'kpi-bonbu-end-sep'}">
       <td style="${tdSN}position:sticky;left:0;z-index:1;">${_escHtml(g.bonbuName)}</td><td style="${tdSN}">본부 합계</td>
       <td style="${tdAC}">${bTotClients||nd}</td>${cols.map(bCell).join('')}
     </tr>`;
 
-    g.teams.forEach(t => {
-      const clientList = {}; _KPI_MONTHS.forEach(m => { clientList[m] = _kpiCalcClientList(_kpiYear, t.bonbuName, t.name, m); });
+    teamData.forEach(({ t, clientList, qCount }) => {
       const totClients = _KPI_MONTHS.reduce((s, m) => s + clientList[m].length, 0);
       const teamLabel = `${_escHtml(t.name)}${t.category ? `<br><span style="font-size:10px;color:var(--text3);font-weight:400;">${_escHtml(t.category)}</span>` : ''}`;
       const cell = col => col.startsWith('Q')
-        ? listCell(_kpiCalcClientsQuarter(_kpiYear, t.bonbuName, t.name, _KPI_QTR_MAP[col]), true, col)
+        ? listCell(qCount(col), true, col)
         : listCell(clientList[col] || [], false, col);
       html += `<tr class="kpi-bonbu-sep">
         <td style="${tdL}position:sticky;left:0;z-index:1;">${_escHtml(t.bonbuName)}</td><td style="${tdL}">${teamLabel}</td>
