@@ -12585,7 +12585,7 @@ function renderKpiOrgSalesDetail() {
     <div class="table-card" style="margin-bottom:16px;">
       <div class="table-header">
         <span class="card-title">${_escHtml(bonbu)} 담당 광고주 · ${_kpiYear}년 월별 목표</span>
-        <div id="kpi-orgsales-brand-filter-wrap" style="position:relative;margin-left:auto;">
+        <div id="kpi-orgsales-brand-filter-wrap" style="position:relative;">
           <button type="button" class="btn btn-outline btn-sm" id="kpi-orgsales-brand-filter-btn" onclick="kpiOrgSalesBrandFilterOpen(event)">${_kpiOrgSalesBrandFilterLabel(advertisers.length)} ▾</button>
           <div class="combo-list" id="kpi-orgsales-brand-filter-list" style="display:none;position:absolute;left:auto;right:0;top:100%;margin-top:4px;max-height:280px;overflow-y:auto;width:max-content;min-width:220px;z-index:50;">
             <div style="padding:4px 10px;border-bottom:1px solid var(--border);display:flex;gap:10px;">
