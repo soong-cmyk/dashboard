@@ -436,6 +436,8 @@ let _plMineUserFilters = []; // '작성자 모아보기' 탭에서 고른 사용
 // "내가 작성한 일지" 탭 전용 필터 — 남이 댓글 단 것만. 새로고침·메뉴 재진입 시 리셋(작성자
 // 필터처럼 localStorage에 남기지 않음 — 매번 걸어두면 새 댓글 놓치기 쉬움).
 let _plMineCommentedOnly = false;
+// "내가 작성한 일지" 탭 전용 정렬 — 미완료(진척률<100) 중 낮은 순으로 맨 위에 모아 보여준다.
+let _plMineSortByProgress = false;
 function _plMineUserFilterKey() { return 'pl_mine_user_' + (currentUser?.id || 'anon'); }
 function _plBuildMineTabSkeleton(content) {
   // 매번 빈 값으로 리셋되면 탭 열 때마다 다시 골라야 해서, 마지막으로 고른 작성자들을 기억해둔다.
@@ -457,6 +459,7 @@ function _plBuildMineTabSkeleton(content) {
         <div class="combo-list" id="pl-mine-user-list" style="display:none;"></div>
       </div>
       <button class="btn btn-outline btn-sm${_plMineCommentedOnly ? ' pl-toggle-on' : ''}" id="pl-mine-commented-toggle" onclick="_plMineToggleCommentedOnly()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};">💬 댓글 있는 것만</button>
+      <button class="btn btn-outline btn-sm${_plMineSortByProgress ? ' pl-toggle-on' : ''}" id="pl-mine-progress-toggle" onclick="_plMineToggleSortByProgress()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};" data-tooltip="이어쓰기로 이미 이어진 옛 기록은 제외하고, 진짜 미완료인 것만 진척률 낮은 순으로 맨 위에 모읍니다">📊 미완료 낮은순</button>
       <input type="text" class="f-search" id="pl-mine-search" placeholder="검색어" style="width:160px;" oninput="_plRenderMineBody()">
     </div>
     <div class="table-card">
@@ -514,12 +517,32 @@ function _plMineSwitchSubTab(tab) {
   if (userWrap) userWrap.style.display = tab === 'byuser' ? 'flex' : 'none';
   const commentedToggle = document.getElementById('pl-mine-commented-toggle');
   if (commentedToggle) commentedToggle.style.display = tab === 'written' ? '' : 'none';
+  const progressToggle = document.getElementById('pl-mine-progress-toggle');
+  if (progressToggle) progressToggle.style.display = tab === 'written' ? '' : 'none';
   _plRenderMineBody();
 }
 function _plMineToggleCommentedOnly() {
   _plMineCommentedOnly = !_plMineCommentedOnly;
   document.getElementById('pl-mine-commented-toggle')?.classList.toggle('pl-toggle-on', _plMineCommentedOnly);
   _plRenderMineBody();
+}
+function _plMineToggleSortByProgress() {
+  _plMineSortByProgress = !_plMineSortByProgress;
+  document.getElementById('pl-mine-progress-toggle')?.classList.toggle('pl-toggle-on', _plMineSortByProgress);
+  _plRenderMineBody();
+}
+// 이어쓰기로 이미 다음 기록이 만들어진 옛 기록은(진척률 값이 그때 그대로 남아있어 실제 최신
+// 진행상황을 반영 못 함) "미완료로 남은 일"에서 제외하고, 진짜 미완료(진척률<100)인 것만 골라
+// 진척률 낮은 순으로 맨 위에, 나머지(완료·진척률 없음·이미 이어진 것)는 원래 순서 그대로 뒤에 붙인다.
+function _plSortWrittenByProgress(logs) {
+  const continuedIds = new Set(PL_LOGS.filter(l => l.continuedFromId).map(l => l.continuedFromId));
+  const incomplete = [], rest = [];
+  logs.forEach(l => {
+    if (l.progress != null && l.progress < 100 && !continuedIds.has(l.id)) incomplete.push(l);
+    else rest.push(l);
+  });
+  incomplete.sort((a, b) => a.progress - b.progress);
+  return [...incomplete, ...rest];
 }
 function _plRenderMineBody() {
   // 최근 구독 범위보다 오래된 내 이력도 다 보여야 하는 탭이라 전체를 열어둔다.
@@ -534,6 +557,7 @@ function _plRenderMineBody() {
   const othersCommentedIds = new Set(PL_COMMENTS.filter(c => c.writerId !== myId).map(c => c.logId));
   let writtenLogs = PL_LOGS.filter(l => l.writerId === myId && matchesQ(l));
   if (_plMineCommentedOnly) writtenLogs = writtenLogs.filter(l => othersCommentedIds.has(l.id));
+  if (_plMineSortByProgress) writtenLogs = _plSortWrittenByProgress(writtenLogs);
   const mentionLogIds = new Set(PL_COMMENTS.filter(c => (c.mentions || []).some(m => m.id === myId)).map(c => c.logId));
   const involvedLogs = PL_LOGS.filter(l => l.writerId !== myId && mentionLogIds.has(l.id) && matchesQ(l));
   // 내가 댓글을 단 일지 — 멘션 여부와 무관하게 댓글 작성자 기준. 내가 쓴 일지는 "작성" 쪽에만 표시.
