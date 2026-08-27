@@ -4673,7 +4673,9 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
       : '';
     const nameLabel = `${company} ${brandKey ? brandKey : '(브랜드 미지정)'}`;
     infoCells = [
-      `<td style="${tdInfo}font-weight:800;" title="${_escHtml(nameLabel)}">${_escHtml(nameLabel)}</td>`,
+      // 정산탭 캠페인 상세 표(stl-s3)의 말풍선 툴팁과 동일한 방식/UI 재사용 — 셀이 좁아 "..."으로
+      // 잘려도 마우스를 올리면(따라다니는 말풍선) 전체 이름이 보인다.
+      `<td style="${tdInfo}font-weight:800;cursor:default;" onmousemove="showMemoBubbleAtMouse(event,'${_escHtml(nameLabel)}')" onmouseleave="hideMemoBubble()">${_escHtml(nameLabel)}</td>`,
       `<td style="${tdInfo}">${opsNames ? _escHtml(opsNames) : nd}</td>`,
       `<td style="${tdInfo}">${contractDisp}${editIcon}</td>`,
       `<td style="${tdInfo}color:var(--text3);font-style:italic;">광고주 KPI</td>`,
