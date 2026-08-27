@@ -4671,8 +4671,9 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
     const editIcon = _plCanEditGoal()
       ? `<span class="pl-x" style="font-size:10px;color:var(--accent);cursor:pointer;margin-left:6px;" onclick="_plOpenGoalModalFor('${_escHtml(company)}')" title="🎯 목표 설정 모달에서 수정">✎</span>`
       : '';
+    const nameLabel = `${company} ${brandKey ? brandKey : '(브랜드 미지정)'}`;
     infoCells = [
-      `<td style="${tdInfo}font-weight:800;">${_escHtml(company)} ${brandKey ? _escHtml(brandKey) : '(브랜드 미지정)'}</td>`,
+      `<td style="${tdInfo}font-weight:800;" title="${_escHtml(nameLabel)}">${_escHtml(nameLabel)}</td>`,
       `<td style="${tdInfo}">${opsNames ? _escHtml(opsNames) : nd}</td>`,
       `<td style="${tdInfo}">${contractDisp}${editIcon}</td>`,
       `<td style="${tdInfo}color:var(--text3);font-style:italic;">광고주 KPI</td>`,

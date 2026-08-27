@@ -12548,11 +12548,32 @@ function _kpiOrgSalesAdvertisers(bonbu) {
     a.company.localeCompare(b.company, 'ko') || a.brand.localeCompare(b.brand, 'ko'));
 }
 
+// 브랜드 필터 — 체크박스 드롭다운으로 원하는 광고주/브랜드만 골라 볼 수 있게.
+// 본부나 연도가 바뀌면(목록 자체가 달라지므로) 새 목록 전체 선택으로 리셋한다.
+let _kpiOrgSalesBrandFilter = { bonbu: null, year: null, keys: new Set() };
+function _kpiOrgSalesBrandKey(company, brand) { return company + '|' + (brand || ''); }
+
 function renderKpiOrgSalesDetail() {
   const el = document.getElementById('kpi-orgsales-detail');
   if (!el) return;
   const bonbu = _kpiOrgSalesBonbu;
   if (!bonbu) { el.innerHTML = ''; return; }
+
+  const advertisers = _kpiOrgSalesAdvertisers(bonbu);
+  if (_kpiOrgSalesBrandFilter.bonbu !== bonbu || _kpiOrgSalesBrandFilter.year !== _kpiYear) {
+    _kpiOrgSalesBrandFilter = { bonbu, year: _kpiYear, keys: new Set(advertisers.map(a => _kpiOrgSalesBrandKey(a.company, a.brand))) };
+  }
+
+  const filterItems = advertisers.map(({ company, brand }) => {
+    const key = _kpiOrgSalesBrandKey(company, brand);
+    const label = `${company} ${brand || '(브랜드 미지정)'}`;
+    const checked = _kpiOrgSalesBrandFilter.keys.has(key);
+    return `<label style="display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;cursor:pointer;white-space:nowrap;">
+      <input type="checkbox" data-key="${_escHtml(key)}" ${checked ? 'checked' : ''} onchange="kpiOrgSalesBrandFilterToggle(this)">
+      <span>${_escHtml(label)}</span>
+    </label>`;
+  }).join('');
+
   el.innerHTML = `
     <div class="table-card" style="margin-bottom:16px;">
       <div class="table-header">
@@ -12562,20 +12583,71 @@ function renderKpiOrgSalesDetail() {
       <div id="kpi-orgsales-step1-table"></div>
     </div>
     <div class="table-card" style="margin-bottom:16px;">
-      <div class="table-header"><span class="card-title">${_escHtml(bonbu)} 담당 광고주 · ${_kpiYear}년 월별 목표</span></div>
+      <div class="table-header">
+        <span class="card-title">${_escHtml(bonbu)} 담당 광고주 · ${_kpiYear}년 월별 목표</span>
+        <div id="kpi-orgsales-brand-filter-wrap" style="position:relative;margin-left:auto;">
+          <button type="button" class="btn btn-outline btn-sm" id="kpi-orgsales-brand-filter-btn" onclick="kpiOrgSalesBrandFilterOpen(event)">${_kpiOrgSalesBrandFilterLabel(advertisers.length)} ▾</button>
+          <div class="combo-list" id="kpi-orgsales-brand-filter-list" style="display:none;position:absolute;left:auto;right:0;top:100%;margin-top:4px;max-height:280px;overflow-y:auto;width:max-content;min-width:220px;z-index:50;">
+            <div style="padding:4px 10px;border-bottom:1px solid var(--border);display:flex;gap:10px;">
+              <span class="pl-x" style="color:var(--accent);cursor:pointer;font-size:11px;" onclick="kpiOrgSalesBrandFilterSetAll(true)">전체 선택</span>
+              <span class="pl-x" style="color:var(--accent);cursor:pointer;font-size:11px;" onclick="kpiOrgSalesBrandFilterSetAll(false)">전체 해제</span>
+            </div>
+            ${filterItems || '<div class="form-hint" style="padding:8px 10px;">광고주가 없습니다.</div>'}
+          </div>
+        </div>
+      </div>
       <div id="kpi-orgsales-step2-list" style="padding:14px 18px;"></div>
     </div>`;
   renderKpiOrgTable('kpi-orgsales-step1-table', bonbu, true);
+  renderKpiOrgSalesStep2List();
+}
 
-  const advertisers = _kpiOrgSalesAdvertisers(bonbu);
+function _kpiOrgSalesBrandFilterLabel(total) {
+  const n = _kpiOrgSalesBrandFilter.keys.size;
+  return n >= total ? `브랜드 필터 (전체 ${total})` : `브랜드 필터 (${n}/${total})`;
+}
+
+function kpiOrgSalesBrandFilterOpen(e) {
+  e.stopPropagation();
+  const panel = document.getElementById('kpi-orgsales-brand-filter-list');
+  if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+// 드롭다운 바깥을 누르면 닫힘 — 안쪽(체크박스 클릭 포함)은 그대로 열려있게 유지.
+document.addEventListener('mousedown', e => {
+  const panel = document.getElementById('kpi-orgsales-brand-filter-list');
+  if (!panel || panel.style.display === 'none') return;
+  if (!e.target.closest('#kpi-orgsales-brand-filter-wrap')) panel.style.display = 'none';
+});
+
+function kpiOrgSalesBrandFilterToggle(el) {
+  const key = el.dataset.key;
+  if (el.checked) _kpiOrgSalesBrandFilter.keys.add(key);
+  else _kpiOrgSalesBrandFilter.keys.delete(key);
+  const advertisers = _kpiOrgSalesAdvertisers(_kpiOrgSalesBonbu);
+  const btn = document.getElementById('kpi-orgsales-brand-filter-btn');
+  if (btn) btn.textContent = _kpiOrgSalesBrandFilterLabel(advertisers.length) + ' ▾';
+  renderKpiOrgSalesStep2List();
+}
+
+function kpiOrgSalesBrandFilterSetAll(checkAll) {
+  const advertisers = _kpiOrgSalesAdvertisers(_kpiOrgSalesBonbu);
+  _kpiOrgSalesBrandFilter.keys = checkAll ? new Set(advertisers.map(a => _kpiOrgSalesBrandKey(a.company, a.brand))) : new Set();
+  document.querySelectorAll('#kpi-orgsales-brand-filter-list input[type="checkbox"]').forEach(chk => { chk.checked = checkAll; });
+  const btn = document.getElementById('kpi-orgsales-brand-filter-btn');
+  if (btn) btn.textContent = _kpiOrgSalesBrandFilterLabel(advertisers.length) + ' ▾';
+  renderKpiOrgSalesStep2List();
+}
+
+function renderKpiOrgSalesStep2List() {
   const listEl = document.getElementById('kpi-orgsales-step2-list');
-  if (listEl) {
-    listEl.innerHTML = advertisers.length
-      ? advertisers.map(({ company, brand }) => (typeof _plGBrandMonthlyHtml === 'function'
-          ? _plGBrandMonthlyHtml(company, brand, brand, _kpiYear, { showInfoColumn: true })
-          : '')).join('')
-      : '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px;">해당 본부가 담당하는 광고주가 없습니다.</div>';
-  }
+  if (!listEl) return;
+  const advertisers = _kpiOrgSalesAdvertisers(_kpiOrgSalesBonbu)
+    .filter(a => _kpiOrgSalesBrandFilter.keys.has(_kpiOrgSalesBrandKey(a.company, a.brand)));
+  listEl.innerHTML = advertisers.length
+    ? advertisers.map(({ company, brand }) => (typeof _plGBrandMonthlyHtml === 'function'
+        ? _plGBrandMonthlyHtml(company, brand, brand, _kpiYear, { showInfoColumn: true })
+        : '')).join('')
+    : '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px;">선택된 조건에 맞는 광고주가 없습니다.</div>';
 }
 
 // 캠페인 데이터가 있는 연도(_campKnownYears, campaignYears 인덱스) + 올해/내년은 항상 포함 —
