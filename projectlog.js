@@ -398,7 +398,7 @@ function _plRenderShell() {
           <button class="view-tab" id="pl-vt-log" onclick="plSwitchTab('log')">일지</button>
           <button class="view-tab" id="pl-vt-advertiser" onclick="plSwitchTab('advertiser')">광고주</button>
           <button class="view-tab" id="pl-vt-media" onclick="plSwitchTab('media')">매체</button>
-          <button class="view-tab" id="pl-vt-campaign" onclick="plSwitchTab('campaign')">캠페인</button>
+          <button class="view-tab" id="pl-vt-campaign" onclick="plSwitchTab('campaign')" style="display:none;">캠페인</button>
           <button class="view-tab" id="pl-vt-internal" onclick="plSwitchTab('internal')">내부업무</button>
         </div>
         <div class="view-tabs">
