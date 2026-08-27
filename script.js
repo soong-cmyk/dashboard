@@ -5066,7 +5066,8 @@ function renderDashboard() {
 // 계산: 매출이익 = 매출(취급고) - 매출원가 / 매출이익율 = 매출이익/매출 / 영업이익 = 매출이익-판관비 / 영업이익율 = 영업이익/매출
 let BEP_SCENARIO       = {};
 let BEP_MONTHLY        = {};
-let _bepYear           = String(new Date().getFullYear());
+// 연도는 KPI/매출현황 전체 공통(#kpi-year, _kpiYear)을 그대로 쓴다 — BEP만 따로 연도를
+// 고르던 걸 하나로 통일(2026-08-28).
 let _bepScenarioUnsub  = null;
 let _bepMonthlyUnsub   = null;
 let _bepScenarioEdit   = false;
@@ -5172,20 +5173,8 @@ function _bepKpiInit() {
   if (moEditBtn) moEditBtn.style.display = _bepCanEdit() ? '' : 'none';
   if (!_bepCanView() || _bepInited) return;
   _bepInited = true;
-  const yr = document.getElementById('bep-year');
-  if (yr) {
-    const cy = new Date().getFullYear();
-    yr.innerHTML = [cy - 1, cy, cy + 1].map(y =>
-      `<option value="${y}"${String(y) === _bepYear ? ' selected' : ''}>${y}년</option>`).join('');
-  }
   _fbWatchBepScenario();
-  _fbWatchBepMonthly(_bepYear);
-}
-
-function bepYearChange() {
-  _bepYear = document.getElementById('bep-year')?.value || String(new Date().getFullYear());
-  _bepMonthlyEdit = false;
-  _fbWatchBepMonthly(_bepYear);
+  _fbWatchBepMonthly(_kpiYear);
 }
 
 // ── 표1: 시나리오 비교 ──
@@ -5290,7 +5279,7 @@ function renderBepMonthlyTable() {
   const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   const rows = _KPI_MONTHS.map(m => {
-    const ym = `${_bepYear}-${m}`;
+    const ym = `${_kpiYear}-${m}`;
     const isFuture = ym > curYM;
     if (isFuture) return { m, isFuture, d: null, sgaVal: 150000000 };
     const md = _bepMonthData(m);
@@ -5339,7 +5328,7 @@ async function toggleBepMonthlyEdit() {
       const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const months = {};
       _KPI_MONTHS.forEach(m => {
-        if (`${_bepYear}-${m}` > curYM) {
+        if (`${_kpiYear}-${m}` > curYM) {
           const existing = _bepMonthData(m);
           if (existing) months[m] = existing;
           return;
@@ -5347,8 +5336,8 @@ async function toggleBepMonthlyEdit() {
         months[m] = { sga: Math.round(+(document.getElementById(`bep_mo_sga_${m}`)?.value) || 0) };
       });
       if (!window._db) throw new Error('DB 연결 없음');
-      await window._db.collection('settings').doc('bep_monthly_' + _bepYear).set({ year: _bepYear, months });
-      BEP_MONTHLY = { year: _bepYear, months };
+      await window._db.collection('settings').doc('bep_monthly_' + _kpiYear).set({ year: _kpiYear, months });
+      BEP_MONTHLY = { year: _kpiYear, months };
       _bepMonthlyEdit = false;
       if (btn) { btn.disabled = false; btn.textContent = '수정'; btn.className = 'btn btn-outline btn-sm'; }
       renderBepMonthlyTable();
@@ -12612,6 +12601,10 @@ function kpiYearChange() {
   // 전년 실적 비교가 있어서 선택 연도뿐 아니라 그 전년도도 같이 로드
   _campEnsureYearLoaded(_kpiYear, 'screen-kpi');
   _campEnsureYearLoaded(+_kpiYear - 1, 'screen-kpi');
+  // 연도가 KPI/매출현황 전체(전사·본부별·BEP) 공통이라, BEP 월별 데이터도 새 연도로 다시 구독.
+  if (_bepInited && _bepCanView()) { _bepMonthlyEdit = false; _fbWatchBepMonthly(_kpiYear); }
+  // 본부별 매출 현황 탭을 보고 있으면 그 탭도 새 연도로 다시 그린다.
+  if (_kpiActiveTab === 'orgsales') renderKpiOrgSales();
 }
 
 function kpiOrgChange() {
