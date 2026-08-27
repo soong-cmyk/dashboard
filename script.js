@@ -12560,7 +12560,10 @@ function renderKpiOrgSalesDetail() {
   if (!bonbu) { el.innerHTML = ''; return; }
   el.innerHTML = `
     <div class="table-card" style="margin-bottom:16px;">
-      <div class="table-header"><span class="card-title">${_escHtml(bonbu)} · 본부·팀별 KPI 상세</span></div>
+      <div class="table-header">
+        <span class="card-title">${_escHtml(bonbu)} · 본부·팀별 KPI 상세</span>
+        <button class="btn btn-outline" id="kpi-qtr-toggle-btn-orgsales" onclick="toggleKpiQtr()" style="font-size:12px;margin-left:auto;">${_kpiShowQtr ? '분기합계 숨기기' : '분기합계 보기'}</button>
+      </div>
       <div id="kpi-orgsales-step1-table"></div>
     </div>
     <div class="table-card" style="margin-bottom:16px;">
@@ -13154,6 +13157,9 @@ function toggleKpiQtr() {
   renderKpiGrandTable();
   renderKpiClientListTable();
   renderKpiOrgTable();
+  // 본부별 매출 현황 탭을 보고 있으면 그 탭의 1단 표(같은 _kpiShowQtr를 씀)도 다시 그려서
+  // 버튼 라벨과 표 둘 다 새 상태로 맞춘다(카드는 무관하니 detail만).
+  if (_kpiActiveTab === 'orgsales') renderKpiOrgSalesDetail();
 }
 
 async function toggleKpiInlineEdit() {
