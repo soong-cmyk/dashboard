@@ -12649,6 +12649,18 @@ function renderKpiGrandTable() {
   const totTgt  = _KPI_MONTHS.reduce((s, m) => s + tgt[m], 0);
   const totPrev = _KPI_MONTHS.reduce((s, m) => s + prev[m], 0);
 
+  // "KPI 달성률(평균)" — 계산이 아니라 프로젝트일지 브랜드상세에서 담당자가 수기로 입력하는
+  // "광고주 KPI 달성률"(PL_GOALS, kind:'monthly', advKpiRate)들을 월별로 모아 평균낸 것.
+  const advRatesByMonth = {};
+  _KPI_MONTHS.forEach(m => { advRatesByMonth[m] = []; });
+  (typeof PL_GOALS !== 'undefined' ? PL_GOALS : []).forEach(g => {
+    if (g.kind === 'monthly' && g.advKpiRate != null && (g.ym || '').startsWith(_kpiYear)) {
+      const m = (g.ym || '').slice(5, 7);
+      if (advRatesByMonth[m]) advRatesByMonth[m].push(g.advKpiRate);
+    }
+  });
+  const avgOf = arr => arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : null;
+
   // 연간합계·분기합계 칸은 둘 다 "합계"라 같은 연노랑으로, 나머지는 중립 배경만.
   const thC  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
   const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:#fff9e6;font-weight:700;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
@@ -12680,14 +12692,6 @@ function renderKpiGrandTable() {
   const tgtCell = (col) => col.startsWith('Q')
     ? `<td style="${tdQ}">${_fmtKpi(qSum(tgt, col))}</td>`
     : `<td style="${tdV}">${_fmtKpi(tgt[col])}</td>`;
-  const rateCell = (col, aVals, bVals) => {
-    const s = col.startsWith('Q');
-    const a = s ? qSum(aVals, col) : aVals[col] || 0;
-    const b = s ? qSum(bVals, col) : bVals[col] || 0;
-    const future = col.startsWith('Q') ? isFutureQ(col) : col > curM;
-    const st = s ? tdQC : tdC;
-    return future ? `<td style="${st}">${nd}</td>` : `<td style="${st}">${_kpiRateHtml(a, b)}</td>`;
-  };
   const yoyCell = (col, aVals, bVals) => {
     const s = col.startsWith('Q');
     const a = s ? qSum(aVals, col) : aVals[col] || 0;
@@ -12699,6 +12703,13 @@ function renderKpiGrandTable() {
   const prevCell = (col) => col.startsWith('Q')
     ? `<td style="${tdQ}">${_fmtKpi(qSum(prev, col))}</td>`
     : `<td style="${tdV}">${_fmtKpi(prev[col])}</td>`;
+  const advRateCell = (col) => {
+    const st = col.startsWith('Q') ? tdQC : tdC;
+    const vals = col.startsWith('Q') ? _KPI_QTR_MAP[col].flatMap(m => advRatesByMonth[m] || []) : (advRatesByMonth[col] || []);
+    const avg = avgOf(vals);
+    return `<td style="${st}">${avg == null ? nd : avg + '%'}</td>`;
+  };
+  const totalAdvAvg = avgOf(_KPI_MONTHS.flatMap(m => advRatesByMonth[m] || []));
 
   el.innerHTML = `<div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
     <thead>
@@ -12711,7 +12722,7 @@ function renderKpiGrandTable() {
     <tbody>
       <tr><td style="${tdL}">광고 매출 실적</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(actCell).join('')}</tr>
       <tr><td style="${tdL}">KPI 목표</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
-      <tr><td style="${tdL}">KPI 달성률</td><td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>${cols.map(c=>rateCell(c,act,tgt)).join('')}</tr>
+      <tr><td style="${tdL}">KPI 달성률(평균)</td><td style="${tdAC}">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
       <tr><td style="${tdL}">전년도 매출</td><td style="${tdAN}">${_fmtKpi(totPrev)}</td>${cols.map(prevCell).join('')}</tr>
       <tr><td style="${tdL}">YoY</td><td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>${cols.map(c=>yoyCell(c,act,prev)).join('')}</tr>
     </tbody>

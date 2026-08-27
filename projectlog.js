@@ -293,6 +293,10 @@ function _plWatchGoals() {
         if (typeof _plGRenderAnnual === 'function') _plGRenderAnnual();
         if (typeof _plGRenderMonthly === 'function') _plGRenderMonthly();
       }
+      // KPI/매출현황의 "KPI 달성률(평균)" 행이 이 데이터를 쓰므로, 그 화면이 열려있으면 같이 갱신.
+      if (document.getElementById('screen-kpi')?.classList.contains('active') && typeof renderKpiGrandTable === 'function') {
+        renderKpiGrandTable();
+      }
     }, err => console.error('[projectlog] 목표 구독 오류', err));
   } catch (e) {
     console.error('[projectlog] 목표 구독 실패', e);
@@ -5839,3 +5843,7 @@ function plOpenXlsxImport() {
 if (document.getElementById('screen-projectlog')?.classList.contains('active')) {
   plInit();
 }
+// PL_GOALS(광고주/브랜드 목표)는 원래 프로젝트일지 화면에 들어가야만 구독이 시작됐는데,
+// KPI/매출현황 메뉴의 "KPI 달성률(평균)" 행이 여기서 수기로 입력한 광고주 KPI 달성률을
+// 평균내 써야 해서, 프로젝트일지를 한 번도 안 열어도 항상 로드되도록 여기서 바로 시작한다.
+_plWatchGoals();
