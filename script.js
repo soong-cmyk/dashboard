@@ -255,6 +255,9 @@ function checkAuth() {
 // 실제 배포되는 정적 파일을 전부 감시한다.
 const _DEPLOY_WATCH_FILES = ['index.html', 'script.js', 'report.js', 'projectlog.js', 'style.css'];
 async function _checkDeployVersion() {
+  // file:// 로 직접 열어서 로컬 테스트할 땐 fetch가 CORS로 무조건 막혀서(브라우저가 콘솔에
+  // 에러를 대량으로 찍음) 이 체크 자체가 의미 없다 — 실제 배포(http/https)에서만 동작하면 된다.
+  if (location.protocol === 'file:') return false;
   try {
     const results = await Promise.all(_DEPLOY_WATCH_FILES.map(async file => {
       const res = await fetch(file, { method: 'HEAD', cache: 'no-store' });
