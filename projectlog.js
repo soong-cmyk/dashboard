@@ -4680,15 +4680,19 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
       `<td style="${tdInfo}color:var(--text3);font-style:italic;">광고주 KPI 수기입력</td>`,
     ];
   }
-  // showInfo일 땐 표마다 따로 뜨던 "✎ 수정" 라벨줄을 없애고, 그 버튼을 표의 (1,1) 칸(정보열 헤더)
-  // 안으로 옮긴다.
+  // "✎ 수정" 라벨줄을 따로 안 두고, showInfo면 (1,1) 정보열 헤더에, 아니면 "구분" 헤더 칸
+  // 안에 버튼을 넣는다.
   const infoHead = showInfo ? `<th style="${thStyle}width:${INFO_W}px;text-align:left;">${editBtn}</th>` : '';
+  const lblHeadContent = showInfo ? '구분' : editBtn;
+  // showInfo(여러 표가 나열)일 땐 표끼리 폭이 어긋나지 않게 고정 px, 광고주 상세 화면(단독
+  // 표시)일 땐 카드 배경을 없앤 만큼 가로 100%를 채운다.
+  const tableWidthStyle = showInfo ? `width:${tableWidth}px;` : 'width:100%;';
 
   const tableHtml = `<div style="overflow-x:auto;">
-    <table class="kpi-tbl" style="width:${tableWidth}px;table-layout:fixed;">
+    <table class="kpi-tbl" style="${tableWidthStyle}table-layout:fixed;">
       <thead><tr>
         ${infoHead}
-        <th style="${thStyle}text-align:left;width:${LBL_W}px;">구분</th>
+        <th style="${thStyle}text-align:left;width:${LBL_W}px;">${lblHeadContent}</th>
         <th style="${thStyle}background:#fff9e6;width:${YR_W}px;">연간합계</th>
         ${heads}
       </tr></thead>
@@ -4727,16 +4731,9 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
     </table>
     </div>`;
 
-  // showInfo(본부별 매출 현황 2단)일 땐 카드 배경·"월별 목표" 라벨 없이 표만, 표 사이 간격만
-  // margin-bottom으로 유지. 원래 광고주 상세 화면(showInfo 아님)은 기존 카드 형태 그대로.
-  if (showInfo) return `<div style="margin-bottom:14px;">${tableHtml}</div>`;
-  return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-      <span style="font-size:10.5px;font-weight:700;color:var(--text2);">월별 목표</span>
-      ${editBtn}
-    </div>
-    ${tableHtml}
-  </div>`;
+  // 카드 배경·"월별 목표" 라벨 없이 표만 두고, 표 사이/아래 간격만 margin-bottom으로 유지
+  // ("✎ 수정"은 위에서 구분/정보열 헤더 안으로 옮겨 별도 라벨줄이 필요 없다).
+  return `<div style="margin-bottom:14px;">${tableHtml}</div>`;
 }
 // "본부별 매출 현황" 탭 표의 ✎에서, 표에 있는 광고주로 _plGCompany를 맞춰준 뒤 그 광고주의
 // "🎯 목표 설정" 모달(계약 시작일 포함)을 연다 — 광고주 상세 화면 밖에서도 같은 모달 재사용.
