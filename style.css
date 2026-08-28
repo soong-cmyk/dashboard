@@ -857,9 +857,9 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
 .kpi-tbl th { padding:8px 10px; border:1px solid var(--border); background:var(--surface2); font-weight:600; color:var(--text2); white-space:nowrap; }
 .kpi-tbl td { padding:7px 10px; border:1px solid var(--border); white-space:nowrap; }
 .kpi-tbl tbody tr:hover td { background:var(--surface2); }
-.kpi-up   { color:var(--green); font-weight:700; }
-.kpi-down { color:var(--red);   font-weight:700; }
-.kpi-flat { color:var(--text3); }
+.kpi-up   { color:var(--green); font-weight:700; font-size:10px; }
+.kpi-down { color:var(--red);   font-weight:700; font-size:10px; }
+.kpi-flat { color:var(--text3); font-size:10px; }
 /* 광고주 목록 칸 — 너비는 고정(overflow:hidden, hover 때도 안 풀어줌 — 표 너비가 흔들리지 않게),
    높이는 광고주 수만큼 자유롭게 늘어난다. 줄 하나가 너비를 넘치면 말줄임표로 자르고, 전체 텍스트는
    hover 시 뜨는 말풍선(plShowBubble, position:fixed)으로 — 칸의 overflow:hidden과 무관하게 뜬다. */
