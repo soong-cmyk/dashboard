@@ -11465,6 +11465,17 @@ async function notifDeleteAll() {
   }
 }
 
+async function notifDeleteOne(id) {
+  if (!window._db) return;
+  if (!confirm('이 알림을 삭제하시겠습니까?')) return;
+  const idx = NOTIFICATIONS.findIndex(n => n.id === id);
+  if (idx !== -1) NOTIFICATIONS.splice(idx, 1);
+  _renderNotifList();
+  _updateNotifBadge();
+  try { await window._db.collection('notifications').doc(id).delete(); }
+  catch(e) { console.error('[FB] 알림 삭제 실패:', e); }
+}
+
 async function notifMarkAllRead() {
   if (!window._db) return;
   const unread = NOTIFICATIONS.filter(n => !n.read);
@@ -11497,6 +11508,7 @@ function _renderNotifList() {
     const timeStr = dt ? `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}` : '';
     const logId = PL_NOTIF_TYPES.has(n.type) ? n.meta?.logId : null;
     const jumpBtn = logId ? `<span style="flex-shrink:0;color:var(--accent);font-weight:700;cursor:pointer;font-size:12px;" onclick="event.stopPropagation();closeModal('modalNotif');plJumpToLog('${logId}')">일지 보기 →</span>` : '';
+    const delBtn = `<span style="flex-shrink:0;color:var(--text3);cursor:pointer;font-size:14px;" title="삭제" onclick="event.stopPropagation();notifDeleteOne('${n.id}')">×</span>`;
     return `<div style="display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);${n.read ? '' : 'background:var(--primary-light);'}">
       <div style="flex-shrink:0;margin-top:4px;">
         <div style="width:8px;height:8px;border-radius:50%;background:${n.read ? 'var(--border)' : 'var(--primary)'};"></div>
@@ -11506,6 +11518,7 @@ function _renderNotifList() {
         <div style="font-size:11px;color:var(--text3);margin-top:3px;">${timeStr}</div>
       </div>
       ${jumpBtn}
+      ${delBtn}
     </div>`;
   }).join('');
 }
