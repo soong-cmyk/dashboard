@@ -7115,7 +7115,21 @@ function openSellerModal(idx, defaultType) {
   document.getElementById('sel-brand-ym').value = '';
   selTypeChange();
   renderSellerBrands();
+  _sellerSyncSaveBtn();
   openModal('modalSeller');
+}
+// 브랜드명을 입력만 하고 '추가'를 안 누른 채 저장하면 그 브랜드가 안 남으므로, 입력창에
+// 뭐라도 쳐져 있는 동안은 저장을 막는다 — '추가'를 눌러 입력창이 비워져야(addSellerBrand)
+// 다시 활성화된다. 비활성 상태에서 버튼에 마우스를 올리면 data-tooltip 말풍선으로 안내.
+function _sellerSyncSaveBtn() {
+  const hasPending = !!(document.getElementById('sel-brand-input')?.value || '').trim();
+  const btn  = document.getElementById('sel-save-btn');
+  const wrap = document.getElementById('sel-save-btn-wrap');
+  if (btn) btn.disabled = hasPending;
+  if (wrap) {
+    if (hasPending) wrap.setAttribute('data-tooltip', '브랜드 추가 후 저장할 수 있습니다');
+    else wrap.removeAttribute('data-tooltip');
+  }
 }
 
 function selTypeChange() {
@@ -7179,6 +7193,7 @@ function addSellerBrand() {
   inp.value = '';
   document.getElementById('sel-brand-ym').value = '';
   renderSellerBrands();
+  _sellerSyncSaveBtn();
 }
 
 function removeSellerBrand(i) {

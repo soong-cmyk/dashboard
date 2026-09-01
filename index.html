@@ -3448,6 +3448,7 @@
           <label class="form-label">브랜드 목록</label>
           <div style="display:flex;gap:6px;margin-bottom:8px;">
             <input type="text" class="form-input" id="sel-brand-input" placeholder="브랜드명 입력"
+              oninput="_sellerSyncSaveBtn()"
               onkeydown="if(event.key==='Enter'){event.preventDefault();addSellerBrand();}" style="flex:1;">
             <select class="form-sel" id="sel-brand-cat" style="width:72px;">
               <option value="">선택</option>
@@ -3479,7 +3480,7 @@
         <button class="btn btn-outline" id="sel-del-btn" onclick="deleteSellerItem()"
           style="margin-right:auto;color:var(--red);">삭제</button>
         <button class="btn btn-outline" onclick="closeModal('modalSeller')">취소</button>
-        <button class="btn btn-primary" id="sel-save-btn" onclick="saveSeller()">저장</button>
+        <span id="sel-save-btn-wrap" class="tooltip-up" style="display:inline-block;"><button class="btn btn-primary" id="sel-save-btn" onclick="saveSeller()">저장</button></span>
       </div>
     </div>
   </div>

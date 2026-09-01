@@ -538,6 +538,8 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
   z-index:9999;
 }
 [data-tooltip]:hover::after{opacity:1;}
+/* 아래쪽에 공간이 없는 위치(모달 하단 고정 푸터 등)에서 쓰는 변형 — 말풍선을 위로 띄운다 */
+[data-tooltip].tooltip-up::after{top:auto;bottom:calc(100% + 8px);}
 
 /* ══════════════════════════════════════════
    MOBILE RESPONSIVE (max-width: 768px)
