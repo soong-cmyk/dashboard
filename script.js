@@ -65,8 +65,11 @@ let KPI_DATA       = {};
 let _kpiYear       = String(new Date().getFullYear());
 let _kpiOrgFilter  = '';
 let _kpiUnsub      = null;
-let _kpiInlineEdit = false;
-let _kpiShowQtr    = true;
+let _kpiShowQtr    = false;
+// "본부·팀별 KPI 상세" 표에서 본부합계 줄을 누르면 그 본부의 팀 상세를 접었다 펼쳤다 —
+// targetId(같은 함수를 쓰는 표가 여럿이라)+본부명으로 키를 잡는다. "펼친 것"만 기록해서
+// 기본은 전부 접힘 상태(Set에 없으면 접힘)로 시작한다.
+let _kpiOrgExpandedBonbus = new Set();
 
 // ══════════════════════════════════════════
 // TAX INVOICE DATA
@@ -12580,14 +12583,14 @@ function kpiSwitchTab(tab) {
   document.getElementById('kpi-tab-main')?.classList.toggle('active', tab === 'main');
   document.getElementById('kpi-tab-orgsales')?.classList.toggle('active', tab === 'orgsales');
   document.getElementById('kpi-tab-bep')?.classList.toggle('active', tab === 'bep');
-  const mainSec     = document.getElementById('kpi-main-section');
-  const orgsalesSec = document.getElementById('kpi-orgsales-section');
-  const bepSec      = document.getElementById('kpi-bep-section');
-  const mainCtrl    = document.getElementById('kpi-main-controls');
-  if (mainSec)     mainSec.style.display     = tab === 'main'     ? '' : 'none';
-  if (orgsalesSec) orgsalesSec.style.display = tab === 'orgsales' ? '' : 'none';
-  if (bepSec)      bepSec.style.display      = tab === 'bep'      ? '' : 'none';
-  if (mainCtrl)    mainCtrl.style.display    = tab === 'main'     ? '' : 'none';
+  const mainSec        = document.getElementById('kpi-main-section');
+  const orgsalesSec    = document.getElementById('kpi-orgsales-section');
+  const bepSec         = document.getElementById('kpi-bep-section');
+  const mainCtrl       = document.getElementById('kpi-main-controls');
+  if (mainSec)        mainSec.style.display        = tab === 'main'        ? '' : 'none';
+  if (orgsalesSec)    orgsalesSec.style.display    = tab === 'orgsales'    ? '' : 'none';
+  if (bepSec)         bepSec.style.display         = tab === 'bep'         ? '' : 'none';
+  if (mainCtrl)        mainCtrl.style.display       = (tab === 'main')       ? '' : 'none';
   if (tab === 'orgsales') renderKpiOrgSales();
 }
 
@@ -12615,7 +12618,7 @@ function renderKpiOrgSalesCards() {
     const sel = name === _kpiOrgSalesBonbu;
     return `<div class="kpi-card" style="cursor:pointer;${sel ? 'border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);' : ''}" onclick="kpiOrgSalesSelectBonbu('${_escHtml(name)}')">
       <div class="kpi-card-label">${_escHtml(name)}</div>
-      <div class="kpi-card-value">${_fmtW(cum)}</div>
+      <div class="kpi-card-value">${_fmtMoney(cum)}원</div>
       <div class="kpi-card-sub">${_kpiYear}년 누적 매출 실적</div>
     </div>`;
   }).join('');
@@ -12700,7 +12703,7 @@ function renderKpiOrgSalesDetail() {
       </div>
       <div id="kpi-orgsales-step2-list" style="padding:14px 18px;min-height:300px;"></div>
     </div>`;
-  renderKpiOrgTable('kpi-orgsales-step1-table', bonbu, true);
+  renderKpiOrgTable('kpi-orgsales-step1-table', bonbu);
   renderKpiOrgSalesStep2List();
 }
 
@@ -12790,10 +12793,8 @@ function initKpiScreen() {
     orgSel.value = _kpiOrgFilter;
   }
   const canEdit = _kpiCanEdit();
-  ['kpi-edit-btn', 'kpi-inline-edit-btn'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = canEdit ? '' : 'none';
-  });
+  const editBtnEl = document.getElementById('kpi-edit-btn');
+  if (editBtnEl) editBtnEl.style.display = canEdit ? '' : 'none';
   _fbWatchKpiTargets(_kpiYear);
   _bepKpiInit();
 }
@@ -12880,12 +12881,12 @@ function renderKpiCards() {
   el.innerHTML = `
     <div class="kpi-card">
       <div class="kpi-card-label">연간 매출 KPI (전사)</div>
-      <div class="kpi-card-value">${_fmtW(annualTarget)}</div>
+      <div class="kpi-card-value">${_fmtMoney(annualTarget)}원</div>
       <div class="kpi-card-sub">${_kpiYear}년 목표</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-card-label">누적 매출 실적 (1월~${parseInt(curM)}월)</div>
-      <div class="kpi-card-value">${_fmtW(cumActual)}</div>
+      <div class="kpi-card-value">${_fmtMoney(cumActual)}원</div>
       <div class="kpi-card-sub">${yoyHtml || '&nbsp;'}</div>
     </div>
     <div class="kpi-card">
@@ -13021,8 +13022,9 @@ function renderKpiGrandTable() {
   </table></div>`;
 }
 
-// 본부/팀별 "월별 광고 리스트" — renderKpiOrgTable()의 "광고주 수(실적)" 행이었던 걸
-// 별도 표로 분리했다. 지표 하나짜리라 구분 컬럼·rowspan 없이 팀당 한 줄.
+// 본부/팀별 "월별 광고 리스트" — 광고주 1명당 1행, 활동한 달 칸에 이름을 그대로 표기.
+// 행은 첫 활동월 빠른 순 정렬(같은 달이면 이름 가나다순). 분기합계 열은 표시하지 않는다
+// (2026-08-28: 여러 광고주를 한 칸에 나열하던 이전 방식에서 이 방식으로 교체).
 function renderKpiClientListTable() {
   const el = document.getElementById('kpi-clientlist-table');
   if (!el) return;
@@ -13042,28 +13044,39 @@ function renderKpiClientListTable() {
     return;
   }
 
-  const curM = String(new Date().getMonth() + 1).padStart(2, '0');
   const thC  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
-  const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:#fff9e6;font-weight:700;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
   const tdL  = 'padding:7px 10px;border:1px solid var(--border);font-weight:600;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
   const tdSN = 'padding:7px 10px;border:1px solid var(--border);font-weight:800;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
   const tdC  = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;';
-  const tdAC = tdC + 'background:#fff9e6;font-weight:800;';
-  const tdQC = tdC + 'background:#fff9e6;font-weight:700;';
-  const nd   = '<span style="color:var(--text3)">—</span>';
+  const tdAC = tdC + 'background:#fff9e6;font-weight:600;';
+  // 광고주명이 나오는 행(광고주 1명당 1행) 전용 — 위아래 테두리 없이 세로 여백만 아주 좁게(1px)
+  // 줘서 행끼리 촘촘하게 이어지게 한다. 좌우 구분선은 그대로 유지.
+  const tdCN  = 'padding:0 10px;line-height:16px;border-left:1px solid var(--border);border-right:1px solid var(--border);border-top:none;border-bottom:none;text-align:center;font-size:14px;white-space:nowrap;';
+  const tdACN = tdCN + 'background:#fff9e6;font-weight:600;';
+  const nd   = ''; // 빈 값은 "—" 대신 그냥 공란(2026-08-28)
 
-  const cols = _kpiShowQtr ? _KPI_QTR_COLS : _KPI_MONTHS;
-  const isFutureQ = q => _KPI_QTR_MAP[q].every(m => m > curM);
-  const colHdr = col => col.startsWith('Q')
-    ? `<th style="${thQ}min-width:72px;">${col}</th>`
-    : `<th style="${thC}min-width:78px;">${_KPI_ML[col]}</th>`;
+  // 분기합계 열은 이 표에서는 생략 — 항상 12개월만 표시(_kpiShowQtr 토글과 무관).
+  const cols = _KPI_MONTHS;
+  const colHdr = col => `<th style="${thC}min-width:78px;">${_KPI_ML[col]}</th>`;
 
-  // 본부합계↔팀 경계는 kpi-bonbu-sep(기본 테두리색), 본부가 끝나고 다음 본부로 넘어가는 경계만
-  // kpi-bonbu-end-sep(파랑) — renderKpiOrgTable()과 같은 규칙. 이 표만 따로 열어도(예: 필터로
-  // renderKpiOrgTable을 안 그리는 상황) 스타일이 항상 있게 여기서도 주입해둔다.
+  // style.css:117 tbody tr{border-bottom:1px solid var(--border);}가 진짜 원인 — border-collapse에서는
+  // td에 아무리 border-bottom:0 !important를 줘도 "더 굵은 쪽이 이긴다" 규칙 때문에 tr의 1px에 밀려서
+  // 계속 보였다. tr 자체의 border-bottom을 죽여야 진짜로 없어진다(2026-08-28, 사용자가 원인 직접 지목).
   let html = `<style>
     .kpi-bonbu-sep td{border-top:2px solid var(--border) !important;}
     .kpi-bonbu-end-sep td{border-top:2px solid var(--accent) !important;}
+    #kpi-clientlist-table tbody tr{border-bottom:0 !important;}
+    #kpi-clientlist-table td{border-bottom:0 !important;}
+    #kpi-clientlist-table td.kpi-adv-row-cell{border-top:0 !important;border-bottom:0 !important;}
+    /* 본부합계 줄(kpi-bonbu-sep/end-sep)만 border-bottom을 다시 살린다 — 광고주 데이터 행과 달리
+       숫자 요약 줄이라 위아래 구분선이 있는 게 자연스럽다(2026-08-31). */
+    #kpi-clientlist-table tr.kpi-bonbu-sep td,
+    #kpi-clientlist-table tr.kpi-bonbu-end-sep td{border-bottom:1px solid var(--border) !important;}
+    /* 같은 본부 안에서 팀이 바뀌는 경계줄 — 본부합계와 같은 두께/색의 구분선(2026-08-31) */
+    #kpi-clientlist-table tr.kpi-team-sep td{border-top:1px solid var(--border) !important;}
+    #kpi-clientlist-table .kpi-adv-line{font-size:12px;line-height:1.3;}
+    /* 각 팀의 첫 번째 광고주 행만 line-height를 다르게(2026-08-31) */
+    #kpi-clientlist-table tr.kpi-row-first .kpi-adv-line{line-height:1.5;}
   </style>
   <div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
     <thead>
@@ -13081,46 +13094,68 @@ function renderKpiClientListTable() {
     else groups.push({ bonbuName: t.bonbuName, teams: [t] });
   });
 
-  // isQ=true면 val은 distinct 광고주 수(숫자), false면 val은 그 달 광고주 목록(배열).
-  const listCell = (val, isQ, col) => {
-    if (isQ && isFutureQ(col)) return `<td style="${tdQC}">${nd}</td>`;
-    if (isQ) return `<td style="${tdQC}">${val || nd}</td>`;
-    return val.length ? `<td class="kpi-adv-cell" style="${tdC}">${_kpiAdvListHtml(val)}</td>` : `<td style="${tdC}">${nd}</td>`;
-  };
-
   groups.forEach((g, gi) => {
     const isFirstGroup = gi === 0;
 
-    // 팀별 리스트를 먼저 구해서, 본부 합계는 광고주명을 다시 나열하지 않고 팀별 숫자를 그대로
-    // 더한 값만 보여준다(팀 간 겹치는 광고주를 디듀프한 본부 전체 리스트가 아님).
     const teamData = g.teams.map(t => {
       const clientList = {}; _KPI_MONTHS.forEach(m => { clientList[m] = _kpiCalcClientList(_kpiYear, t.bonbuName, t.name, m); });
-      const qCount = col => _kpiCalcClientsQuarter(_kpiYear, t.bonbuName, t.name, _KPI_QTR_MAP[col]);
-      return { t, clientList, qCount };
+      return { t, clientList };
     });
 
     const bMonthSum = m => teamData.reduce((s, d) => s + d.clientList[m].length, 0);
-    const bQtrSum = col => teamData.reduce((s, d) => s + d.qCount(col), 0);
     const bTotClients = _KPI_MONTHS.reduce((s, m) => s + bMonthSum(m), 0);
-    const bCell = col => {
-      if (col.startsWith('Q')) return `<td style="${tdQC}">${isFutureQ(col) ? nd : (bQtrSum(col) || nd)}</td>`;
-      return `<td style="${tdC}">${bMonthSum(col) || nd}</td>`;
-    };
+    const bCell = col => `<td style="${tdC}">${bMonthSum(col) || nd}</td>`;
     html += `<tr class="${isFirstGroup ? 'kpi-bonbu-sep' : 'kpi-bonbu-end-sep'}">
       <td style="${tdSN}position:sticky;left:0;z-index:1;">${_escHtml(g.bonbuName)}</td><td style="${tdSN}">본부 합계</td>
       <td style="${tdAC}">${bTotClients||nd}</td>${cols.map(bCell).join('')}
     </tr>`;
 
-    teamData.forEach(({ t, clientList, qCount }) => {
-      const totClients = _KPI_MONTHS.reduce((s, m) => s + clientList[m].length, 0);
-      const teamLabel = _escHtml(t.name);
-      const cell = col => col.startsWith('Q')
-        ? listCell(qCount(col), true, col)
-        : listCell(clientList[col] || [], false, col);
-      html += `<tr class="kpi-bonbu-sep">
-        <td style="${tdL}position:sticky;left:0;z-index:1;">${_escHtml(t.bonbuName)}</td><td style="${tdL}">${teamLabel}</td>
-        <td style="${tdAC}">${totClients||nd}</td>${cols.map(cell).join('')}
-      </tr>`;
+    teamData.forEach(({ t, clientList }, ti) => {
+      // 광고주 1명당 1행 — 활동한 달 칸에 이름을 그대로 표기, 첫 활동월 빠른 순 정렬.
+      const companies = new Map();
+      _KPI_MONTHS.forEach((m, idx) => {
+        (clientList[m] || []).forEach(({ name, brands }) => {
+          if (!companies.has(name)) companies.set(name, { firstIdx: idx, active: new Array(12).fill(false), brandsByMonth: new Array(12).fill(null) });
+          const c = companies.get(name);
+          c.active[idx] = true;
+          c.brandsByMonth[idx] = brands;
+        });
+      });
+      const rows = [...companies.entries()]
+        .map(([name, v]) => ({ name, ...v }))
+        .sort((a, b) => a.firstIdx - b.firstIdx || a.name.localeCompare(b.name, 'ko'));
+
+      if (!rows.length) {
+        html += `<tr class="kpi-bonbu-sep">
+          <td style="${tdL}position:sticky;left:0;z-index:1;">${_escHtml(t.bonbuName)}</td><td style="${tdL}">${_escHtml(t.name)}</td>
+          <td style="${tdAC}">${nd}</td>${cols.map(() => `<td style="${tdC}">${nd}</td>`).join('')}
+        </tr>`;
+        return;
+      }
+
+      rows.forEach((r, ri) => {
+        const activeCnt = r.active.filter(Boolean).length;
+        const rowCells = cols.map((col, mi) => {
+          if (!r.active[mi]) return `<td class="kpi-adv-row-cell" style="${tdCN}">${nd}</td>`;
+          const brands = r.brandsByMonth[mi];
+          const full = brands.length ? `${r.name} · ${brands.join(', ')}` : r.name;
+          return `<td class="kpi-adv-cell kpi-adv-row-cell" style="${tdCN}"><span class="kpi-adv-line" data-adv="${_escHtml(full)}" onmouseenter="plShowBubble(this,this.dataset.adv)" onmouseleave="plHideBubble()" onclick="plGoToAdvertiserDetail('${_escHtml(r.name)}')">${_escHtml(r.name)}</span></td>`;
+        }).join('');
+        // 광고주 데이터 행은 어떤 행에도 kpi-bonbu-sep 클래스를 붙이지 않는다 — 그 클래스의
+        // border-top:...!important 규칙이 있으면 tdCN/tdACN의 border-top:none이 무시돼서
+        // 광고주명 칸에 위 테두리가 보여버린다(팀 경계선보다 "광고주 칸엔 테두리 없음"이 우선).
+        // kpi-adv-row-cell 클래스 + 위 스코프 CSS로 한 번 더 못박아서 어떤 경우에도 안 보이게 한다.
+        // 같은 본부 안에서 팀이 바뀌는 첫 행(ti>0 && ri===0)에만 kpi-team-sep로 구분선 표시.
+        // 팀의 첫 행(ri===0)에는 kpi-row-first도 같이 붙여서 그 행의 광고주명 line-height만 다르게 준다.
+        const rowClasses = [];
+        if (ri === 0) rowClasses.push('kpi-row-first');
+        if (ti > 0 && ri === 0) rowClasses.push('kpi-team-sep');
+        const rowClsAttr = rowClasses.length ? ` class="${rowClasses.join(' ')}"` : '';
+        html += `<tr${rowClsAttr}>
+          ${ri === 0 ? `<td style="${tdL}position:sticky;left:0;z-index:1;" rowspan="${rows.length}">${_escHtml(t.bonbuName)}</td><td style="${tdL}" rowspan="${rows.length}">${_escHtml(t.name)}</td>` : ''}
+          <td class="kpi-adv-row-cell" style="${tdACN}">${activeCnt}</td>${rowCells}
+        </tr>`;
+      });
     });
   });
 
@@ -13128,9 +13163,9 @@ function renderKpiClientListTable() {
   el.innerHTML = html;
 }
 
-// targetId/orgFilterOverride/readOnly는 "본부별 매출 현황" 탭에서 이 표를 본부 하나만 걸러
+// targetId/orgFilterOverride는 "본부별 매출 현황" 탭에서 이 표를 본부 하나만 걸러
 // 재사용하기 위한 매개변수 — 인자 없이 부르면 기존과 완전히 동일(전사 KPI/매출현황 탭용).
-function renderKpiOrgTable(targetId, orgFilterOverride, readOnly) {
+function renderKpiOrgTable(targetId, orgFilterOverride) {
   targetId = targetId || 'kpi-org-table';
   const isMain = targetId === 'kpi-org-table';
   const el = document.getElementById(targetId);
@@ -13254,15 +13289,19 @@ function renderKpiOrgTable(targetId, orgFilterOverride, readOnly) {
         { label:'KPI 달성률',                 total:`<td style="${tdSCY}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
         { label:'광고주별 KPI 달성률(평균)',  total:`<td style="${tdSCY}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
       ];
+      const collapseKey = `${targetId}::${g.bonbuName}`;
+      const isCollapsed = !_kpiOrgExpandedBonbus.has(collapseKey);
+      const arrow = isCollapsed ? '▸' : '▾';
       sumRows.forEach((row, ri) => {
         const cls = ri === 0 ? (isFirstGroup ? 'kpi-bonbu-sep' : 'kpi-bonbu-end-sep') : '';
-        html += `<tr${cls ? ` class="${cls}"` : ''}>
-          ${ri === 0 ? `<td style="${tdSN}position:sticky;left:0;z-index:1;" rowspan="${sumRows.length}">${_escHtml(g.bonbuName)}</td><td style="${tdSN}" rowspan="${sumRows.length}">본부 합계</td>` : ''}
+        html += `<tr${cls ? ` class="${cls}"` : ''} style="cursor:pointer;" onclick="_kpiOrgToggleBonbu('${_escHtml(targetId)}','${_escHtml(g.bonbuName)}')">
+          ${ri === 0 ? `<td style="${tdSN}position:sticky;left:0;z-index:1;" rowspan="${sumRows.length}"><span style="display:inline-block;width:12px;">${arrow}</span>${_escHtml(g.bonbuName)}</td><td style="${tdSN}" rowspan="${sumRows.length}">본부 합계</td>` : ''}
           <td style="${tdSN}">${row.label}</td>
           ${row.total}${row.cells}
         </tr>`;
       });
     }
+    if (!_kpiOrgExpandedBonbus.has(`${targetId}::${g.bonbuName}`)) return; // 펼친 적 없는(=접힌) 본부는 팀 상세 생략
 
     // ── 팀별 블록 — 이제 본부 합계가 항상 앞에 있으므로, 모든 팀 블록의 첫 줄은 항상 구분선을 받는다
     // (첫 팀이면 본부합계↔팀 경계, 두 번째 팀부터는 팀↔팀 경계 — 둘 다 같은 색 kpi-bonbu-sep).
@@ -13281,20 +13320,16 @@ function renderKpiOrgTable(targetId, orgFilterOverride, readOnly) {
 
       const teamLabel = _escHtml(t.name);
 
-      const inp = (id, val, step) => `<input type="number" step="${step}" value="${val||''}" id="${id}" style="width:62px;padding:2px 4px;font-size:11px;" class="form-input">`;
-
       const actCell = col => {
         if (col.startsWith('Q')) return isFutureQ(col) ? `<td style="${tdQ}">${nd}</td>` : `<td style="${tdQ}">${_fmtKpi(qSum(acts,col))}</td>`;
         return col > curM ? `<td style="${tdV}">${nd}</td>` : `<td style="${tdV}">${_fmtKpi(acts[col])}</td>`;
       };
       const tgtCell = col => {
         if (col.startsWith('Q')) return `<td style="${tdQ}">${_fmtKpi(qSum(tgts,col))}</td>`;
-        if (_kpiInlineEdit && !readOnly) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_tgt_${t.bonbuName}_${t.name}_${col}`, tgts[col]||'', '100000')}</td>`;
         return `<td style="${tdV}">${_fmtKpi(tgts[col])}</td>`;
       };
       const prevCell = col => {
         if (col.startsWith('Q')) return `<td style="${tdQ}">${_fmtKpi(qSum(prevs,col))}</td>`;
-        if (_kpiInlineEdit && !readOnly) return `<td style="${tdV}padding:2px 3px;">${inp(`ki_prev_${t.bonbuName}_${t.name}_${col}`, prevs[col]||'', '100000')}</td>`;
         return `<td style="${tdV}">${_fmtKpi(prevs[col])}</td>`;
       };
       const rateCell = (col, aVals, bVals) => {
@@ -13313,14 +13348,14 @@ function renderKpiOrgTable(targetId, orgFilterOverride, readOnly) {
         const b = isQ ? qSum(prevs,col) : (prevs[col]||0);
         return `<td style="${st}">${_kpiYoyHtml(a,b)}</td>`;
       };
-      const TOTAL_ROWS = 5;
+      // 전년도 매출·YoY 행은 일단 숨김 처리 — 계산 로직(totPrev/prevCell/yoyCell)은 그대로
+      // 두고 렌더링에서만 뺐다(2026-08-28, 나중에 다시 보여줄 수도 있어 삭제하지 않음).
       const rows = [
         { label:'매출 실적',       total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,          cells: cols.map(actCell).join('') },
         { label:'KPI 목표',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
         { label:'달성률',          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts)).join('') },
-        { label:'전년도 매출',     total:`<td style="${tdAN}">${_fmtKpi(totPrev)}</td>`,         cells: cols.map(prevCell).join('') },
-        { label:'YoY',             total:`<td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>`, cells: cols.map(yoyCell).join('') },
       ];
+      const TOTAL_ROWS = rows.length;
 
       rows.forEach((row, ri) => {
         const cls = ri === 0 ? 'kpi-bonbu-sep' : '';
@@ -13341,6 +13376,16 @@ function renderKpiOrgTable(targetId, orgFilterOverride, readOnly) {
   if (isMain) setTimeout(_kpiSyncFakeScroll, 0);
 }
 
+// 본부합계 줄 클릭 — 그 본부의 팀 상세를 접었다 펼쳤다. renderKpiOrgTable()이 targetId별로
+// 인자가 달라서(본부별 매출현황 탭의 1단은 bonbu 강제), 같은 조합으로 다시 그린다.
+function _kpiOrgToggleBonbu(targetId, bonbuName) {
+  const key = `${targetId}::${bonbuName}`;
+  if (_kpiOrgExpandedBonbus.has(key)) _kpiOrgExpandedBonbus.delete(key);
+  else _kpiOrgExpandedBonbus.add(key);
+  if (targetId === 'kpi-orgsales-step1-table') renderKpiOrgTable(targetId, _kpiOrgSalesBonbu);
+  else renderKpiOrgTable(targetId);
+}
+
 function toggleKpiQtr() {
   _kpiShowQtr = !_kpiShowQtr;
   const btn = document.getElementById('kpi-qtr-toggle-btn');
@@ -13351,41 +13396,6 @@ function toggleKpiQtr() {
   // 본부별 매출 현황 탭을 보고 있으면 그 탭의 1단 표(같은 _kpiShowQtr를 씀)도 다시 그려서
   // 버튼 라벨과 표 둘 다 새 상태로 맞춘다(카드는 무관하니 detail만).
   if (_kpiActiveTab === 'orgsales') renderKpiOrgSalesDetail();
-}
-
-async function toggleKpiInlineEdit() {
-  if (!_kpiCanEdit()) return;
-  const btn = document.getElementById('kpi-inline-edit-btn');
-  if (_kpiInlineEdit) {
-    if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
-    try {
-      const year   = _kpiYear;
-      const bonbus = ORG_STRUCTURE.map(org => {
-        const teams = (org.teams || []).map(teamName => {
-          const months = _KPI_MONTHS.map(m => ({
-            month:       m,
-            target:      Math.round(+(document.getElementById(`ki_tgt_${org.bonbu}_${teamName}_${m}`)?.value)||0),
-            prevYear:    Math.round(+(document.getElementById(`ki_prev_${org.bonbu}_${teamName}_${m}`)?.value)||0),
-          }));
-          return { name: teamName, months };
-        });
-        return { name: org.bonbu, teams };
-      });
-      if (!window._db) throw new Error('DB 연결 없음');
-      await window._db.collection('settings').doc('kpi_targets_' + year).set({ year, bonbus });
-      _kpiInlineEdit = false;
-      if (btn) { btn.disabled = false; btn.textContent = '전체수정'; btn.className = 'btn btn-outline'; }
-      _fbWatchKpiTargets(year);
-      toast('저장 완료', 'ok');
-    } catch(e) {
-      toast('저장 실패: ' + e.message, 'err');
-      if (btn) { btn.disabled = false; btn.textContent = '전체저장'; }
-    }
-  } else {
-    _kpiInlineEdit = true;
-    if (btn) { btn.textContent = '전체저장'; btn.className = 'btn btn-primary'; }
-    renderKpiOrgTable();
-  }
 }
 
 
@@ -13447,8 +13457,9 @@ function openKpiEditModal() {
       </div>`;
     }).join('');
     return `<div style="margin-bottom:8px;">
-      <div style="padding:10px 16px;margin-bottom:10px;border-radius:8px;background:var(--accent);">
-        <span style="font-weight:800;font-size:15px;color:#fff;">${_escHtml(org.bonbu)}</span>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <span style="font-weight:800;font-size:14px;color:var(--accent);white-space:nowrap;">[${_escHtml(org.bonbu)}]</span>
+        <span style="flex:1;border-top:1px solid var(--border);"></span>
       </div>
       <div style="display:flex;flex-direction:column;gap:12px;">${teamCards}</div>
     </div>`;
@@ -13459,7 +13470,7 @@ function openKpiEditModal() {
   if (!mEl) { mEl = document.createElement('div'); mEl.id = mId; mEl.className = 'modal-overlay'; document.body.appendChild(mEl); }
 
   mEl.style.zIndex = '200';
-  mEl.innerHTML = `<div class="modal" style="width:min(1060px,95vw);max-height:92vh;overflow-y:auto;overflow-x:hidden;">
+  mEl.innerHTML = `<div class="modal" style="width:min(1230px,96vw);max-height:92vh;overflow-y:auto;overflow-x:hidden;">
     <div class="modal-head">
       <span class="modal-title">KPI 등록/수정
         <select class="form-sel" id="ki_year" style="width:90px;font-size:13px;margin-left:8px;">

@@ -2412,7 +2412,7 @@
           <!-- 연도는 전사·본부별·BEP 세 탭 공통이라 탭별 컨트롤과 분리해 항상 보이게 둔다 -->
           <select class="form-sel" id="kpi-year" style="width:90px;margin-left:auto;" onchange="kpiYearChange()"></select>
           <div id="kpi-main-controls" style="display:flex;gap:8px;align-items:center;">
-            <button class="btn btn-outline" id="kpi-qtr-toggle-btn" onclick="toggleKpiQtr()" style="font-size:12px;">분기합계 숨기기</button>
+            <button class="btn btn-outline" id="kpi-qtr-toggle-btn" onclick="toggleKpiQtr()" style="font-size:12px;">분기합계 보기</button>
             <button class="btn btn-primary" id="kpi-edit-btn" onclick="openKpiEditModal()" style="display:none;">KPI 등록/수정</button>
           </div>
         </div>
@@ -2438,7 +2438,6 @@
               <span class="card-title">본부·팀별 KPI 상세</span>
               <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
                 <select class="form-sel" id="kpi-org-filter" style="width:140px;" onchange="kpiOrgChange()"></select>
-                <button class="btn btn-outline" id="kpi-inline-edit-btn" onclick="toggleKpiInlineEdit()" style="display:none;">전체수정</button>
               </div>
             </div>
             <div id="kpi-org-table"></div>
