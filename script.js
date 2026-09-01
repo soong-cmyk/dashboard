@@ -9727,9 +9727,12 @@ function renderTaxList() {
     const isDone      = rep.taxStatus === '완료';
     const isPaid      = rep.paid === '완료';
     const isCollapsed = _taxCollapsed.has(gid);
-    const canDelete   = !!(currentUser?.isAdmin || currentUser?.name === (rep.createdBy || rep.manager));
+    // 수정발행 등록 가능 여부(canCorrect) — 관리자 또는 본인 요청건이면 가능(완료 여부와 무관, canStatus와도 별개).
+    const canCorrect  = !!(currentUser?.isAdmin || currentUser?.name === (rep.createdBy || rep.manager));
+    // 삭제 가능 여부 — 발행완료 건은 관리자만 삭제 가능(완료 처리 후 실수로 지우면 되돌리기 부담이 커서, 2026-09-01).
+    // canCorrect와 별개 변수로 둬야 삭제 제한이 수정발행 등록 버튼까지 같이 가리지 않는다.
+    const canDelete   = !!(currentUser?.isAdmin || (!isDone && currentUser?.name === (rep.createdBy || rep.manager)));
     const canStatus   = ['wonjoon','yoonhee','admin'].includes(currentUser?.id);
-    const canCorrect  = canDelete; // 수정발행 등록 — 관리자 또는 본인 요청건이면 가능 (완료 처리 권한(canStatus)과는 별개)
     const canPaid     = true;
     const supplySum   = dispItems.reduce((s, t) => s + _taxRefSupplyAmt(t), 0);
     const vatSum      = dispItems.reduce((s, t) => s + (t.vatAmt    || 0), 0);
@@ -12089,6 +12092,11 @@ async function _fbSaveTaxDeleteLog(t, reason = '삭제') {
     await window._db.collection('taxDeleteLog').add(log);
   } catch(e) { console.error('[FB] 삭제이력 저장 실패:', e); }
 }
+// 삭제이력 모달에서 "복원" 버튼을 누르면 이 배열에서 로그 데이터를 찾아 새 항목을 만든다.
+// taxDeleteLog엔 company/bizName/month/content/supplyAmt/taxType 등 일부 필드만 남아있어서
+// (청구일·발행예정일·연락처·메모·발행상태 등은 기록 안 됨), 이 값들로만 새 항목을 만들고
+// 나머지는 등록 모달을 바로 열어서 직접 채우게 한다 — "완전 복원"이 아니라 "부분 복원"이다.
+let _taxDeleteLogRows = [];
 async function openTaxDeleteLog() {
   const body = document.getElementById('tax-delete-log-body');
   if (!body) return;
@@ -12105,9 +12113,8 @@ async function openTaxDeleteLog() {
       const d = new Date(iso);
       return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
     };
-    const rows = snap.docs.map(d => {
-      const l = d.data();
-      return `<tr>
+    _taxDeleteLogRows = snap.docs.map(d => ({ logId: d.id, ...d.data() }));
+    const rows = _taxDeleteLogRows.map(l => `<tr>
         <td>${fmtDate(l.deletedAt)}</td>
         <td>${_escHtml(l.deletedBy || '—')}</td>
         <td>${_escHtml(l.company || '—')}</td>
@@ -12116,8 +12123,8 @@ async function openTaxDeleteLog() {
         <td>${_escHtml(l.content || '—')}</td>
         <td style="text-align:right;">${l.supplyAmt ? l.supplyAmt.toLocaleString() + '원' : '—'}</td>
         <td style="text-align:center;color:var(--text3);font-size:11px;">${l.isRef ? '참조' : '수동'}</td>
-      </tr>`;
-    }).join('');
+        <td style="text-align:center;"><button class="btn btn-ghost btn-sm" style="font-size:11px;" onclick="_taxRestoreFromLog('${l.logId}')">복원</button></td>
+      </tr>`).join('');
     body.innerHTML = `<div style="overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead><tr style="background:var(--surface2);color:var(--text2);font-size:12px;">
@@ -12129,6 +12136,7 @@ async function openTaxDeleteLog() {
           <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);">품목</th>
           <th style="padding:8px 10px;text-align:right;border-bottom:1px solid var(--border);">공급가액</th>
           <th style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--border);">항목</th>
+          <th style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--border);">복원</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -12137,6 +12145,31 @@ async function openTaxDeleteLog() {
     body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--red);">이력 조회 실패</div>';
     console.error(e);
   }
+}
+// 로그에 남은 필드만으로 새 항목을 만들고, 나머지(청구일·발행예정일·연락처·메모 등)는
+// 등록 모달을 열어 직접 채우게 한다 — taxDeleteLog가 그 필드들을 저장하지 않아서 완전 복원은 불가능.
+async function _taxRestoreFromLog(logId) {
+  const l = _taxDeleteLogRows.find(x => x.logId === logId);
+  if (!l) return;
+  if (!confirm(`"${l.company || ''} / ${l.month || ''}" 건을 복원하시겠습니까?\n청구일·발행예정일·연락처·메모는 기록에 없어 복원 후 직접 입력해야 합니다.`)) return;
+  const groupId = _taxNextGroupId();
+  const supply = l.supplyAmt || 0;
+  const t = {
+    id: _taxNextId(), groupId, campaignId: l.campaignId || null,
+    taxType: l.taxType || 'adv', createdBy: currentUser?.name || '',
+    manager: '', month: l.month || '', reqDate: '', issueDate: '',
+    taxStatus: '',
+    payDue: '', paid: null, payInDate: null, unpaid: null,
+    company: l.company || '', bizName: l.bizName || l.company || '',
+    content: l.content || '', supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
+    contactEmail: '', memo: '',
+  };
+  TAX_DATA.push(t);
+  await _fbSaveTax(t);
+  closeModal('modalTaxDeleteLog');
+  renderTaxList();
+  toast('복원했습니다 — 나머지 항목을 채워주세요', 'ok');
+  openTaxReg(groupId);
 }
 function _fbWatchTax() {
   if (!window._db) return;
