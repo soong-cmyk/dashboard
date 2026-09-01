@@ -1292,9 +1292,9 @@ function goScreen(name, skipPush) {
   // 캠페인 등록 버튼: 대시보드·캘린더·캠페인 목록에서만 표시
   const btnReg = document.getElementById('btn-reg');
   if (btnReg) btnReg.style.display = ['dashboard','calendar','campaigns'].includes(name) ? '' : 'none';
-  // 일괄등록 템플릿 버튼: 캠페인 목록에서만 (대량 데이터 작업이라 등록 버튼보다 좁게)
+  // 일괄등록 템플릿 버튼: 캠페인 목록·캘린더에서만 (대량 데이터 작업이라 등록 버튼보다 좁게)
   const btnCampBulk = document.getElementById('btn-camp-bulk');
-  if (btnCampBulk) btnCampBulk.style.display = (name === 'campaigns' && (currentUser?.isAdmin || currentUser?.id === 'soongeun')) ? '' : 'none';
+  if (btnCampBulk) btnCampBulk.style.display = (['campaigns','calendar'].includes(name) && (currentUser?.isAdmin || currentUser?.id === 'soongeun')) ? '' : 'none';
 
   if (name === 'dashboard') renderDashboard();
   if (name === 'perf') initPerfScreen();
