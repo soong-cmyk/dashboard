@@ -18,7 +18,7 @@
 // 기존 컬렉션 접근 시 데이터 변경 대신 에러가 발생한다.
 // ══════════════════════════════════════════════════════════
 const PL_WRITABLE = ['projectLogs', 'projectLogHistory', 'projectLogDeleted', 'projectLogImages',
-                      'projectLogComments', 'projectGoals'];
+                      'projectLogComments', 'projectGoals', 'projectLogTasks'];
 
 function _plDb(name) {
   if (!PL_WRITABLE.includes(name)) {
@@ -176,6 +176,14 @@ document.addEventListener('click', e => {
   if (!b || b.dataset.sticky !== '1') return;
   if (!e.target.closest('.pl-bubble-cell')) plHideBubble();
 });
+// 대상 검색 콤보(pl-tgt-list-N) — 리스트 바깥을 클릭하면 닫는다. onmousedown으로 항목을 고르면
+// 그 안에서 이미 display:none 처리되므로 여기선 "그냥 바깥 클릭"만 신경 쓰면 된다.
+document.addEventListener('click', e => {
+  document.querySelectorAll('[id^="pl-tgt-list-"]').forEach(list => {
+    if (list.style.display === 'none') return;
+    if (!e.target.closest('.combo-wrap')?.contains(list)) list.style.display = 'none';
+  });
+});
 
 // ══════════════════════════════════════════════════════════
 // 데이터 구독
@@ -246,6 +254,8 @@ function _plEnsureDateLoaded(dateStr) {
 // ── 댓글 구독 (로그와 분리 — 로그 목록 전체 리렌더를 피하기 위함) ──
 let PL_COMMENTS = [];
 let _plWatchCommentsStarted = false;
+// 인라인 수정 중인 댓글 id 집합 — "수정/삭제" 버튼을 누른 댓글만 여기 담겨 입력창으로 바뀐다.
+let _plCommentEditing = new Set();
 
 function _plWatchComments() {
   if (_plWatchCommentsStarted || !window._db) return;
@@ -258,6 +268,25 @@ function _plWatchComments() {
     }, err => console.error('[projectlog] 댓글 구독 오류', err));
   } catch (e) {
     console.error('[projectlog] 댓글 구독 실패', e);
+  }
+}
+
+// 내부업무 프로젝트의 "미리 만들어둔 테스크" — 테스크는 원래 PL_LOGS.content에 찍힌 문자열일
+// 뿐 마스터데이터가 아니라서, 로그 하나 없이 이름만 미리 등록해두려면 별도로 보관할 곳이 필요하다.
+// 실제 테스크 목록(_plInternalClientRows)은 이 목록과 PL_LOGS의 content를 합쳐서 만든다.
+let PL_INTERNAL_TASKS = [];
+let _plWatchInternalTasksStarted = false;
+function _plWatchInternalTasks() {
+  if (_plWatchInternalTasksStarted || !window._db) return;
+  _plWatchInternalTasksStarted = true;
+  try {
+    _plDb('projectLogTasks').onSnapshot(snap => {
+      PL_INTERNAL_TASKS = snap.docs.map(d => d.data());
+      if (document.getElementById('pl-internal-tbody')) _plRenderInternalListBody();
+      if (document.getElementById('pl-tab-content')?.dataset.plTab === 'internal-detail') plRenderInternalTab();
+    }, err => console.error('[projectlog] 내부업무 테스크 구독 오류', err));
+  } catch (e) {
+    console.error('[projectlog] 내부업무 테스크 구독 실패', e);
   }
 }
 // 접힌 행의 💬 뱃지 — 목록 전체를 다시 그리면 열려있는 댓글 입력창의 타이핑 중인 내용이 날아가므로,
@@ -374,6 +403,7 @@ function plInit() {
   _plWatchLogs();
   _plWatchComments();
   _plWatchGoals();
+  _plWatchInternalTasks();
   // 사이드바 메뉴로 진입할 때는 항상 일자별 탭부터. 내부에서 특정 탭 지정 시(_plPendingTab)에만 그 탭으로.
   PL_STATE.tab = _plPendingTab || 'date';
   PL_STATE.advDetailCompany = null;
@@ -620,9 +650,9 @@ function plRenderMineTab() {
 }
 
 // ══════════════════════════════════════════════════════════
-// C-3. 내부업무 — 클라이언트(자유입력, 마스터데이터 없음)별 드릴다운.
+// C-3. 내부업무 — 프로젝트(자유입력, 마스터데이터 없음)별 드릴다운.
 // 매출·목표 개념이 없는 데이터라 광고주 탭처럼 무겁게 만들지 않고, 목록 → 클릭 시
-// 그 클라이언트의 로그 전체를 보여주는 단순 아카이브 형태로 둔다.
+// 그 프로젝트의 로그 전체를 보여주는 단순 아카이브 형태로 둔다.
 // ══════════════════════════════════════════════════════════
 
 function _plInternalClientRows() {
@@ -632,20 +662,23 @@ function _plInternalClientRows() {
     byClient.get(l.seller).push(l);
   });
   return [...byClient.entries()].map(([client, logs]) => {
-    const taskCount = new Set(logs.map(l => l.content).filter(Boolean)).size;
+    // 로그에 실제로 찍힌 테스크명 + 로그 없이 미리 등록만 해둔 테스크명(PL_INTERNAL_TASKS)을 합친다.
+    const placeholderNames = PL_INTERNAL_TASKS.filter(t => t.client === client).map(t => t.name);
+    const tasks = [...new Set([...logs.map(l => l.content).filter(Boolean), ...placeholderNames])]
+      .sort((a, b) => a.localeCompare(b, 'ko'));
     const lastDate = logs.reduce((max, l) => (l.logDate || '') > max ? (l.logDate || '') : max, '');
-    return { client, count: logs.length, taskCount, lastDate };
+    return { client, count: logs.length, tasks, taskCount: tasks.length, lastDate };
   }).sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''));
 }
 function _plBuildInternalTabSkeleton(content) {
   content.innerHTML = `
     <div class="filter-bar" style="margin-bottom:14px;">
-      <input type="text" class="f-search" id="pl-internal-search" placeholder="🔍 클라이언트 검색" style="width:200px;" oninput="_plRenderInternalListBody()">
+      <input type="text" class="f-search" id="pl-internal-search" placeholder="🔍 프로젝트 검색" style="width:200px;" oninput="_plRenderInternalListBody()">
       <span class="table-count" style="margin-left:auto;" id="pl-internal-count"></span>
     </div>
     <div class="table-card">
       <div class="table-wrap"><table class="pl-lgt" style="width:100%;">
-        <thead><tr><th>클라이언트</th><th style="width:110px;">테스크 수</th><th style="width:90px;">기록 건수</th><th style="width:100px;">최근 작성일</th></tr></thead>
+        <thead><tr><th>프로젝트</th><th>태스크</th><th style="width:110px;">테스크 수</th><th style="width:90px;">기록 건수</th><th style="width:100px;">최근 작성일</th></tr></thead>
         <tbody id="pl-internal-tbody"></tbody>
       </table></div>
     </div>
@@ -657,14 +690,18 @@ function _plRenderInternalListBody() {
   if (q) rows = rows.filter(r => r.client.toLowerCase().includes(q));
   const tbody = document.getElementById('pl-internal-tbody');
   if (tbody) {
-    tbody.innerHTML = rows.length ? rows.map(r => `
+    tbody.innerHTML = rows.length ? rows.map(r => {
+      const taskTags = r.tasks.map(t => `<span class="tag pl-brand">${_escHtml(t)}</span>`).join(' ') || '<span class="td-dim">—</span>';
+      return `
       <tr class="pl-lg-head" style="cursor:pointer;" onclick="_plOpenInternalDetail('${_escHtml(r.client)}')">
         <td>${_escHtml(r.client)}</td>
+        <td>${taskTags}</td>
         <td class="td-c">${r.taskCount || '—'}</td>
         <td class="td-c">${r.count}</td>
         <td class="f-mono td-num">${_escHtml((r.lastDate || '').slice(2).replace(/-/g, '.'))}</td>
       </tr>
-    `).join('') : `<tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text3);font-size:13px;">내부업무 기록이 없습니다.</td></tr>`;
+    `;
+    }).join('') : `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text3);font-size:13px;">내부업무 기록이 없습니다.</td></tr>`;
   }
   const cntEl = document.getElementById('pl-internal-count');
   if (cntEl) cntEl.innerHTML = `<b>${rows.length}</b>곳`;
@@ -720,17 +757,37 @@ function _plRenderInternalLogRow(log) {
 function _plWriteFromInternal(client) {
   plOpenWrite({ scope: 'internal', seller: client, content: null, campaignId: null, media: null, product: null });
 }
+// 광고주 상세 "③ 일간 기록"의 프로젝트(브랜드) 필터와 같은 패턴 — 다른 프로젝트로 넘어가면 초기화.
+let _plInternalDetailLastClient = null;
+let _plInternalDetailTaskFilter = '';
+function _plInternalDetailTaskFilterChange(val) {
+  _plInternalDetailTaskFilter = val;
+  plRenderInternalTab();
+}
 function _plRenderInternalDetail(content, client) {
-  const logs = PL_LOGS.filter(l => l.scope === 'internal' && l.seller === client)
+  if (_plInternalDetailLastClient !== client) {
+    _plInternalDetailLastClient = client;
+    _plInternalDetailTaskFilter = '';
+  }
+  const allLogs = PL_LOGS.filter(l => l.scope === 'internal' && l.seller === client);
+  const tasks = _plInternalClientRows().find(r => r.client === client)?.tasks || [];
+  const logs = allLogs
+    .filter(l => !_plInternalDetailTaskFilter || (l.content || '') === _plInternalDetailTaskFilter)
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   content.innerHTML = `
     <div class="filter-bar" style="margin-bottom:14px;">
       <span class="pl-x" style="font-size:13px;color:var(--accent);cursor:pointer;" onclick="_plInternalBackToList()">← 내부업무 목록</span>
       <span style="font-weight:700;font-size:14px;margin-left:10px;">${_escHtml(client)}</span>
-      <button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="_plWriteFromInternal('${_escHtml(client)}')">+ 이 클라이언트로 기록</button>
+      <button class="btn btn-outline btn-sm" onclick="openInternalEditModal('${_escHtml(client)}')">✎ 수정</button>
+      <button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="_plWriteFromInternal('${_escHtml(client)}')">+ 이 프로젝트로 기록</button>
     </div>
     <div class="table-card">
-      <div class="table-header"><span class="card-title">기록 ${logs.length}건</span></div>
+      <div class="table-header">
+        <span class="card-title">기록 ${logs.length}건</span>
+        <select class="f-sel" onchange="_plInternalDetailTaskFilterChange(this.value)">
+          <option value="">테스크 전체</option>${tasks.map(t => `<option value="${_escHtml(t)}" ${_plInternalDetailTaskFilter === t ? 'selected' : ''}>${_escHtml(t)}</option>`).join('')}
+        </select>
+      </div>
       <div class="table-wrap"><table class="pl-lgt" style="width:100%;">
         <thead><tr>
           <th style="width:22px;"></th><th style="width:78px;">작성일</th><th style="width:110px;">테스크</th><th style="width:60px;">유형</th>
@@ -741,6 +798,199 @@ function _plRenderInternalDetail(content, client) {
     </div>
   `;
 }
+
+// ── 내부업무 프로젝트/테스크 일괄 수정 모달 ──────────────────────────
+// 매출처 수정 모달과 같은 UX(제목 입력 + 하위 목록 표 + 추가)를 내부업무에 맞게 재구성.
+// - 제목(프로젝트명) 변경: 이 프로젝트의 로그 전부(seller)와 테스크 placeholder 전부(client)를 일괄 변경
+// - 테스크 행 이름 변경: 그 테스크명을 쓰는 로그 전부(content)와 매칭되는 placeholder를 일괄 변경
+// - 테스크 행 추가: 로그 없이 이름만 미리 등록 — PL_INTERNAL_TASKS(projectLogTasks)에 저장
+// - 테스크 행 삭제(×): 로그를 지우는 게 아니라 그 테스크를 쓰는 로그들을 "미분류"(content:null)로 되돌리고,
+//   미리 등록해둔 placeholder였으면 그것만 지운다.
+let _plInternalEditDraft = null;
+// 편집 모드로 전환된 행의 _key 집합 — 댓글 인라인 수정과 같은 패턴(평소엔 텍스트+"수정/삭제",
+// 누르면 [입력창][수정][×]로 바뀜). 배열 splice로 행이 지워지면 인덱스가 밀리므로 인덱스 대신
+// 각 행에 붙인 고유 _key로 추적한다.
+let _plInternalEditRowEditing = new Set();
+function openInternalEditModal(client) {
+  const row = _plInternalClientRows().find(r => r.client === client);
+  const names = row?.tasks || [];
+  _plInternalEditRowEditing = new Set();
+  _plInternalEditDraft = {
+    origClient: client,
+    client,
+    originalNames: names.slice(),
+    tasks: names.map(name => ({ name, _origName: name, _key: _plUid() })),
+  };
+  if (!document.getElementById('modalInternalEdit')) _plBuildInternalEditModalShell();
+  _plInternalEditRenderModal();
+  openModal('modalInternalEdit');
+}
+function _plUid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+function _plBuildInternalEditModalShell() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modalInternalEdit';
+  overlay.innerHTML = `
+    <div class="modal" style="width:480px;max-width:96vw;">
+      <div class="modal-head">
+        <span class="modal-title">프로젝트 수정</span>
+        <button class="modal-close" onclick="closeModal('modalInternalEdit')">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">프로젝트명</label>
+        <input type="text" class="form-input" id="pl-ie-client" oninput="_plInternalEditClientInput(this.value)" style="margin-bottom:14px;width:100%;">
+        <label class="form-label">테스크 목록</label>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <input type="text" class="form-input" id="pl-ie-task-input" placeholder="테스크명 입력" style="flex:1;"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();_plInternalEditAddTask();}">
+          <button class="btn btn-primary btn-sm" onclick="_plInternalEditAddTask()">추가</button>
+        </div>
+        <table style="width:100%;font-size:12px;border-collapse:collapse;">
+          <tbody id="pl-ie-task-list"></tbody>
+        </table>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('modalInternalEdit')">취소</button>
+        <span id="pl-ie-save-btn-wrap" class="tooltip-up" style="display:inline-block;"><button class="btn btn-primary" id="pl-ie-save-btn" onclick="saveInternalEdit()">저장</button></span>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+function _plInternalEditRenderModal() {
+  const d = _plInternalEditDraft;
+  if (!d) return;
+  const titleEl = document.getElementById('pl-ie-client');
+  if (titleEl) titleEl.value = d.client;
+  const listEl = document.getElementById('pl-ie-task-list');
+  if (!listEl) return;
+  listEl.innerHTML = d.tasks.length ? d.tasks.map(t => {
+    if (_plInternalEditRowEditing.has(t._key)) {
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:2px;" colspan="2">
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="text" class="form-input" id="pl-ie-task-edit-${t._key}" value="${_escHtml(t.name)}" style="flex:1;font-size:12px;padding:5px 6px;"
+              onkeydown="if(event.key==='Enter'&&!event.isComposing){event.stopPropagation();_plInternalEditConfirmRename('${t._key}');}else if(event.key==='Escape'){event.stopPropagation();_plInternalEditCancelRow('${t._key}');}">
+            <span class="pl-x" onclick="_plInternalEditConfirmRename('${t._key}')">저장</span>
+            <span class="pl-x" onclick="_plInternalEditRemoveTask('${t._key}')">×</span>
+          </div>
+        </td>
+      </tr>`;
+    }
+    return `<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:5px 4px;font-size:12px;">${_escHtml(t.name)}</td>
+      <td style="padding:5px 4px;text-align:right;white-space:nowrap;width:70px;">
+        <span class="pl-x" onclick="_plInternalEditToggleRow('${t._key}')">수정/삭제</span>
+      </td>
+    </tr>`;
+  }).join('') : `<tr><td style="color:var(--text3);font-size:12px;padding:8px 4px;">테스크 없음</td></tr>`;
+  _plInternalEditSyncSaveBtn();
+}
+// 매출처 수정 모달의 "브랜드명 입력창에 뭐라도 쳐져 있으면 저장 비활성화"와 같은 패턴 —
+// 여기서는 "테스크 행이 편집 모드로 열려있으면"(아직 저장 안 누름) 그 상태에 해당한다.
+function _plInternalEditSyncSaveBtn() {
+  const hasPending = _plInternalEditRowEditing.size > 0;
+  const btn  = document.getElementById('pl-ie-save-btn');
+  const wrap = document.getElementById('pl-ie-save-btn-wrap');
+  if (btn) btn.disabled = hasPending;
+  if (wrap) {
+    if (hasPending) wrap.setAttribute('data-tooltip', '수정사항을 저장해주세요');
+    else wrap.removeAttribute('data-tooltip');
+  }
+}
+function _plInternalEditClientInput(val) {
+  if (_plInternalEditDraft) _plInternalEditDraft.client = val;
+}
+function _plInternalEditToggleRow(key) {
+  _plInternalEditRowEditing.add(key);
+  _plInternalEditRenderModal();
+  setTimeout(() => {
+    const inp = document.getElementById(`pl-ie-task-edit-${key}`);
+    if (inp) { inp.focus(); inp.selectionStart = inp.selectionEnd = inp.value.length; }
+  }, 0);
+}
+function _plInternalEditCancelRow(key) {
+  _plInternalEditRowEditing.delete(key);
+  _plInternalEditRenderModal();
+}
+function _plInternalEditConfirmRename(key) {
+  const t = _plInternalEditDraft?.tasks.find(x => x._key === key);
+  const input = document.getElementById(`pl-ie-task-edit-${key}`);
+  if (!t || !input) return;
+  const val = input.value.trim();
+  if (!val) { toast('테스크명을 입력해주세요', 'err'); return; }
+  t.name = val;
+  _plInternalEditRowEditing.delete(key);
+  _plInternalEditRenderModal();
+}
+function _plInternalEditAddTask() {
+  const inp = document.getElementById('pl-ie-task-input');
+  const val = (inp?.value || '').trim();
+  if (!val) return;
+  if (_plInternalEditDraft.tasks.some(t => t.name === val)) { toast('이미 있는 테스크입니다', 'warn'); return; }
+  _plInternalEditDraft.tasks.push({ name: val, _origName: null, _key: _plUid() });
+  inp.value = '';
+  _plInternalEditRenderModal();
+}
+function _plInternalEditRemoveTask(key) {
+  const t = _plInternalEditDraft.tasks.find(x => x._key === key);
+  if (!t) return;
+  if (!confirm(`"${t.name}" 테스크를 삭제(미분류로 되돌리기)하시겠습니까?`)) return;
+  const idx = _plInternalEditDraft.tasks.findIndex(x => x._key === key);
+  if (idx !== -1) _plInternalEditDraft.tasks.splice(idx, 1);
+  _plInternalEditRowEditing.delete(key);
+  _plInternalEditRenderModal();
+}
+async function saveInternalEdit() {
+  const d = _plInternalEditDraft;
+  if (!d) return;
+  const newClient = (d.client || '').trim();
+  if (!newClient) { toast('프로젝트명을 입력해주세요', 'err'); return; }
+  const saveBtn = document.querySelector('#modalInternalEdit .btn-primary');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중…'; }
+  try {
+    // 1) 프로젝트명 변경 — 이 프로젝트의 로그 전부 + 테스크 placeholder 전부의 client를 갱신.
+    //    이후 단계는 전부 newClient 기준으로 조회해야 한다(제목이 이미 바뀐 상태이므로).
+    if (newClient !== d.origClient) {
+      const logsToRename = PL_LOGS.filter(l => l.scope === 'internal' && l.seller === d.origClient);
+      await Promise.all(logsToRename.map(l => _plDb('projectLogs').doc(l.id).update({ seller: newClient })));
+      const placeholdersToRename = PL_INTERNAL_TASKS.filter(t => t.client === d.origClient);
+      await Promise.all(placeholdersToRename.map(t => _plDb('projectLogTasks').doc(t.id).update({ client: newClient })));
+    }
+    // 2) 테스크 이름 변경 — _origName이 있고 지금 이름과 다른 것들
+    const renamed = d.tasks.filter(t => t._origName && t._origName !== t.name);
+    for (const t of renamed) {
+      const logsToRename = PL_LOGS.filter(l => l.scope === 'internal' && l.seller === newClient && l.content === t._origName);
+      await Promise.all(logsToRename.map(l => _plDb('projectLogs').doc(l.id).update({ content: t.name })));
+      const placeholdersToRename = PL_INTERNAL_TASKS.filter(x => x.client === newClient && x.name === t._origName);
+      await Promise.all(placeholdersToRename.map(x => _plDb('projectLogTasks').doc(x.id).update({ name: t.name })));
+    }
+    // 3) 새 테스크 추가 — _origName이 없는 것들(로그 없이 미리 등록)
+    const added = d.tasks.filter(t => !t._origName);
+    for (const t of added) {
+      const ref = _plDb('projectLogTasks').doc();
+      await ref.set({ id: ref.id, client: newClient, name: t.name, createdAt: new Date().toISOString() });
+    }
+    // 4) 삭제(=미분류로 되돌림) — 원래 있었는데 지금 목록엔 없는 이름들
+    const currentOrigNames = new Set(d.tasks.map(t => t._origName).filter(Boolean));
+    const removedNames = d.originalNames.filter(name => !currentOrigNames.has(name));
+    for (const name of removedNames) {
+      const logsToUnclassify = PL_LOGS.filter(l => l.scope === 'internal' && l.seller === newClient && l.content === name);
+      await Promise.all(logsToUnclassify.map(l => _plDb('projectLogs').doc(l.id).update({ content: null })));
+      const placeholdersToDelete = PL_INTERNAL_TASKS.filter(x => x.client === newClient && x.name === name);
+      await Promise.all(placeholdersToDelete.map(x => _plDb('projectLogTasks').doc(x.id).delete()));
+    }
+    closeModal('modalInternalEdit');
+    if (PL_STATE.internalDetailClient === d.origClient) PL_STATE.internalDetailClient = newClient;
+    plRenderInternalTab();
+    toast('저장했습니다', 'ok');
+  } catch (e) {
+    console.error('[projectlog] 내부업무 프로젝트 수정 실패', e);
+    toast('수정 중 오류가 발생했습니다', 'err');
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '저장'; }
+  }
+}
+
 function plRenderInternalTab() {
   const content = document.getElementById('pl-tab-content');
   if (!content) return;
@@ -1429,7 +1679,7 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
     ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenResponseModal('${log.id}')">+ 대응 기록</button>`
     : '';
   // compact(일자별 뷰)는 모달을 열지 않고 그 자리에서 바로 수정 폼으로 바뀌는 인라인 수정을 쓴다.
-  const editBtnHtml = readOnly ? '' : `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();${compact ? `_plDateStartInlineEdit('${log.id}')` : `plOpenEdit('${log.id}')`}">수정</button>`;
+  const editBtnHtml = readOnly ? '' : `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();${compact ? `_plDateStartInlineEdit('${log.id}')` : `plOpenEdit('${log.id}')`}">수정/삭제</button>`;
   const detfootHtml = `<div class="pl-detfoot">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${refCampHtml}${attachPathHtml}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
       <div style="display:flex;gap:6px;">${responseHtml}${editBtnHtml}</div>
@@ -1700,11 +1950,19 @@ function _plCommentsHtml(logId) {
   const rows = comments.map(c => {
     const canDel = !!(currentUser?.isAdmin || c.writerId === currentUser?.id);
     const when = _plFmtDateTimeLocal(c.createdAt);
+    if (canDel && _plCommentEditing.has(c.id)) {
+      return `<div style="display:flex;gap:6px;align-items:center;padding:4px 0;font-size:12px;">
+        <input type="text" class="pl-mini" id="pl-cm-edit-${c.id}" value="${_escHtml(c.content).replace(/"/g,'&quot;')}" maxlength="500" style="flex:1;"
+          onkeydown="if(event.key==='Enter'&&!event.isComposing){event.stopPropagation();plSaveCommentEdit('${c.id}');}else if(event.key==='Escape'){event.stopPropagation();_plCommentCancelEdit('${c.id}');}">
+        <span class="pl-x" onclick="plSaveCommentEdit('${c.id}')">저장</span>
+        <span class="pl-x" onclick="plDeleteComment('${c.id}')">삭제</span>
+      </div>`;
+    }
     return `<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;font-size:12px;">
       <span style="font-weight:700;color:var(--text2);white-space:nowrap;">${_escHtml(c.writer || '')}</span>
       <span class="form-hint f-mono" style="white-space:nowrap;">${_escHtml(when)}</span>
       <span style="flex:1;">${_plHighlightMentions(c.content)}</span>
-      ${canDel ? `<span class="pl-x" onclick="plDeleteComment('${c.id}')">삭제</span>` : ''}
+      ${canDel ? `<span class="pl-x" onclick="_plCommentToggleEdit('${c.id}')">수정/삭제</span>` : ''}
     </div>`;
   }).join('');
   return `<div style="border-top:1px dashed var(--border);margin-top:9px;padding-top:8px;">
@@ -1761,6 +2019,49 @@ async function plAddComment(logId) {
     toast('댓글 등록 중 오류가 발생했습니다', 'err');
   }
 }
+// 댓글 하나가 속한 로그의 댓글 영역만 다시 그린다 — 목록 전체를 다시 그리면 다른 곳에서
+// 타이핑 중이던 내용이 날아가므로(_plRerenderOpenComments 주석과 동일한 이유).
+function _plCommentReRender(commentId) {
+  const c = PL_COMMENTS.find(x => x.id === commentId);
+  if (!c) return;
+  const el = document.querySelector(`[data-pl-comments-for="${c.logId}"]`);
+  if (el) el.innerHTML = _plCommentsHtml(c.logId);
+}
+function _plCommentToggleEdit(commentId) {
+  _plCommentEditing.add(commentId);
+  _plCommentReRender(commentId);
+  setTimeout(() => {
+    const inp = document.getElementById(`pl-cm-edit-${commentId}`);
+    if (inp) { inp.focus(); inp.selectionStart = inp.selectionEnd = inp.value.length; }
+  }, 0);
+}
+function _plCommentCancelEdit(commentId) {
+  _plCommentEditing.delete(commentId);
+  _plCommentReRender(commentId);
+}
+async function plSaveCommentEdit(commentId) {
+  const input = document.getElementById(`pl-cm-edit-${commentId}`);
+  // 원래 조용히 return만 하고 끝나서 실패해도 아무 표시가 안 됐음 — 인풋을 못 찾는 상황이면
+  // 콘솔에라도 남겨서 다음에 똑같은 문제가 생기면 바로 원인을 알 수 있게 한다(2026-09-01).
+  if (!input) { console.error('[projectlog] 댓글 수정 입력창을 찾을 수 없음', commentId); toast('수정창을 찾을 수 없습니다. 다시 시도해주세요', 'err'); return; }
+  const content = input.value.trim();
+  if (!content) { toast('내용을 입력해주세요', 'err'); return; }
+  if (content.length > 500) { toast('댓글은 500자까지 입력할 수 있습니다', 'err'); return; }
+  try {
+    const mentions = _plParseMentions(content);
+    await _plDb('projectLogComments').doc(commentId).update({ content, mentions });
+  } catch (e) {
+    console.error('[projectlog] 댓글 수정 실패', e);
+    toast('수정 중 오류가 발생했습니다', 'err');
+    return;
+  }
+  // onSnapshot 재렌더링 타이밍에 기대지 않고 여기서 직접 편집모드를 끝내고 다시 그린다 —
+  // 로컬 캐시 echo가 이 지점보다 먼저 도착하면 그때는 아직 _plCommentEditing에 commentId가
+  // 남아있어 "편집모드 그대로, 내용만 저장된 값"으로 다시 그려지고 그 뒤로 아무도 다시 안 그려서
+  // 저장은 됐는데 화면은 편집모드에 멈춰있는 것처럼 보이는 경쟁 상태가 있었다(2026-09-01).
+  _plCommentEditing.delete(commentId);
+  _plCommentReRender(commentId);
+}
 async function plDeleteComment(commentId) {
   const c = PL_COMMENTS.find(x => x.id === commentId);
   if (!c) return;
@@ -1768,6 +2069,7 @@ async function plDeleteComment(commentId) {
   if (!confirm('이 댓글을 삭제하시겠습니까?')) return;
   try {
     await _plDb('projectLogComments').doc(commentId).delete();
+    _plCommentEditing.delete(commentId);
   } catch (e) {
     console.error('[projectlog] 댓글 삭제 실패', e);
     toast('삭제 중 오류가 발생했습니다', 'err');
@@ -2185,7 +2487,7 @@ function _plBlockSearchResults(query) {
       mediaResults.push({ type: 'media', label: m.company, sub: '매체 전반', media: m.company });
     }
   });
-  // 내부 업무는 (클라이언트, 테스크) 조합별로 따로 잡아서 — 테스크명만으로도 검색되게
+  // 내부 업무는 (프로젝트, 테스크) 조합별로 따로 잡아서 — 테스크명만으로도 검색되게
   const internalMap = new Map();
   PL_LOGS.filter(l => l.scope === 'internal' && l.seller)
     .sort((a, b) => (b.logDate || '').localeCompare(a.logDate || ''))
@@ -2297,6 +2599,19 @@ function _plHandlePendingNewTarget(kind, company) {
   if (document.getElementById('pl-modal-write')?.classList.contains('open')) _plRenderWriteModal();
 }
 
+// 브랜드 select에서 "＋ 새로운 브랜드 등록"을 고르면 값 반영 대신 이 블록의 매출처를
+// 그대로 들고 '매출처 수정' 모달을 열어 브랜드를 추가하게 한다. 셀렉트 선택 자체는 취소해야
+// 하므로(block.content를 그 문자열로 바꾸면 안 됨) 다시 그려서 원래 선택값으로 되돌린다.
+function _plBlockBrandSelectChange(bi, value) {
+  if (value === '__new_brand__') {
+    const block = _plDraft.blocks[bi];
+    const idx = block ? SELLER_DATA.findIndex(s => s.company === block.seller) : -1;
+    if (idx !== -1) openSellerModal(idx);
+    _plRenderWriteModal();
+    return;
+  }
+  _plBlockSetProject(bi, value);
+}
 function _plBlockSetProject(bi, value) {
   const block = _plDraft.blocks[bi];
   if (!block) return;
@@ -2342,8 +2657,8 @@ function _plBlockSecondaryControl(block, bi) {
       const val = v || '';
       const label = v || '브랜드 선택 (선택)';
       return `<option value="${_escHtml(val)}" ${(block.content || '') === val ? 'selected' : ''}>${_escHtml(label)}</option>`;
-    }).join('');
-    const brandSelect = `<select class="f-sel" style="font-weight:700;" onchange="_plBlockSetProject(${bi}, this.value)">${brandOpts}</select>`;
+    }).join('') + `<option value="__new_brand__">＋ 새로운 브랜드 등록</option>`;
+    const brandSelect = `<select class="f-sel" style="font-weight:700;" onchange="_plBlockBrandSelectChange(${bi}, this.value)">${brandOpts}</select>`;
 
     // 캠페인 select는 이 블록이 "이미 캠페인 하나로 좁혀진 상태"(캠페인 상세의 "+일지작성"으로 들어온
     // 경우 등)일 때만 보여준다 — 광고주/프로젝트 단계에서 이걸 노출하면 눌러서 블록 전체가 그 캠페인
@@ -3022,7 +3337,7 @@ function _plValidateDraft() {
     if (b.scope === 'campaign' && !b.campaignId) errors.push(`블록 ${bi + 1}: 캠페인이 선택되지 않았습니다.`);
     if (b.scope === 'media' && !b.media) errors.push(`블록 ${bi + 1}: 매체를 선택해주세요.`);
     if (b.scope === 'project' && (!b.seller || !b.content)) errors.push(`블록 ${bi + 1}: 광고주·프로젝트를 확인해주세요.`);
-    if (b.scope === 'internal' && !b.seller) errors.push(`블록 ${bi + 1}: 클라이언트를 입력해주세요.`);
+    if (b.scope === 'internal' && !b.seller) errors.push(`블록 ${bi + 1}: 프로젝트를 입력해주세요.`);
     validItems.forEach((it, ii) => {
       if (!it.logType) errors.push(`블록 ${bi + 1} 항목 ${ii + 1}: 유형을 선택해주세요.`);
       if ((it.summary || '').length > 60) errors.push(`블록 ${bi + 1} 항목 ${ii + 1}: 내용은 60자 이하로 입력해주세요.`);
@@ -3305,7 +3620,7 @@ function _plBuildEditModalShell() {
     <div class="modal" style="width:920px;max-width:96vw;">
       <div class="modal-head">
         <div>
-          <div class="modal-title" style="display:flex;align-items:center;gap:8px;"><span id="pl-e-title">✎ 일지 수정</span> <span id="pl-e-delbtn-head"></span></div>
+          <div class="modal-title" style="display:flex;align-items:center;gap:8px;"><span id="pl-e-title">✎ 일지 수정</span></div>
           <div id="pl-e-badges" style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;align-items:center;"></div>
         </div>
         <button class="modal-close" onclick="closeModal('pl-modal-edit')">✕</button>
@@ -3314,6 +3629,7 @@ function _plBuildEditModalShell() {
         <div id="pl-e-block"></div>
       </div>
       <div class="modal-foot">
+        <span id="pl-e-delbtn-head"></span>
         <span class="form-hint" id="pl-e-foothint">변경 이력이 자동 기록됩니다 (삭제는 작성자·관리자만 가능)</span>
         <div style="margin-left:auto;display:flex;gap:8px;" id="pl-e-footbtns"></div>
       </div>
@@ -5944,7 +6260,7 @@ function _plXlsxValidateRow(row, rowNum) {
       if (!camp) errors.push(`캠페인ID "${campaignId}" 를 찾을 수 없음`);
     }
   } else if (scope === 'advertiser' || scope === 'project' || scope === 'internal') {
-    if (!seller) errors.push('광고주(또는 내부업무 클라이언트)가 없음');
+    if (!seller) errors.push('광고주(또는 내부업무 프로젝트)가 없음');
   } else if (scope === 'media') {
     if (!mediaInput) errors.push('매체 유형인데 매체명이 없음');
   }
