@@ -7694,14 +7694,19 @@ function _stlAmt(c) {
     const billQty = c.db || c.qty || 0;  // DB등록수 우선, 없으면 정산수량
     const qty     = c.qty      || 0;  // 정산예정수량 (stlRate 계산용)
     const unit    = c.sellUnit || 0;
-    const adc     = c.adcostFixed || billQty * unit;
+    // adcostFixed/buyAmtFixed는 ||가 아니라 ??로 봐야 한다 — 수기입력값이 정확히 0원이면
+    // ||는 falsy로 보고 자동계산으로 빠져버려 "0원 직접입력"이 무시된다(2026-09-01, profitFixed
+    // 버그 확인하다가 같이 발견).
+    const adc     = c.adcostFixed ?? billQty * unit;
     const adcVat  = Math.round(adc * 0.1);
     const rev     = Math.round(adc * (c.comm   || 0) / 100);
     // 매입액 우선순위: buyAmtFixed > buyUnit × billQty > adc - rev(comm% 역산)
-    const buyAmt  = c.buyAmtFixed || (c.buyUnit ? billQty * c.buyUnit : adc - rev);
+    const buyAmt  = c.buyAmtFixed ?? (c.buyUnit ? billQty * c.buyUnit : adc - rev);
     const buyVat  = Math.round(buyAmt * 0.1);
     const agFee   = Math.round(adc * (c.agrate || 0) / 100);
-    const prf     = (c.buyAmtFixed || c.buyUnit) ? (adc - buyAmt - agFee) : (rev - agFee);
+    // 이익(profitFixed) 수기입력이 있으면 그 값을 그대로 쓴다 — 여태 이 분기만 profitFixed를
+    // 무시하고 항상 재계산해서, 상세보기 이익란이 수정 모달에 입력한 값과 다르게 보이던 버그(2026-09-01).
+    const prf     = c.profitFixed ?? ((c.buyAmtFixed || c.buyUnit) ? (adc - buyAmt - agFee) : (rev - agFee));
     const prfRate = adc > 0 ? (prf / adc * 100) : 0;
     const stlRate = qty > 0 ? (billQty / qty * 100) : 0;
     return { actual: billQty, qty, eu: unit, adc, amt: adc, adcVat, buyAmt, buyVat, stlRate, agFee, prf, prfRate };
