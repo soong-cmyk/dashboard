@@ -5499,6 +5499,13 @@ const CAMP_COL = {
 // 등록 모달(submitReg)의 기본형 저장 로직과 동일한 필드 매핑 — 자동계산 없이 금액은 입력값을
 // 그대로 Fixed 필드에 저장하고(수기입력), 성과 데이터가 있는 캠페인이라 상태는 무조건
 // '성과입력완료'로 고정한다. row는 헤더를 제외한 원시 배열(한 행)이다.
+// 중복 판정 기준: 발송일시+매체사+매출처+브랜드+상품+담당자+타겟이 전부 같으면 같은 캠페인으로
+// 본다(같은 파일을 실수로 두 번 올리는 상황을 잡는 게 목적). 타겟까지 넣은 이유는, 나머지가 전부
+// 같아도 타겟 조건이 다르면 같은 날 같은 매체로 세그먼트만 나눠 보낸 별개 캠페인일 수 있어서다.
+// 기존 DB(DATA)와 겹치는 경우, 같은 파일 안에서 같은 행이 두 번 들어간 경우 둘 다 이 키로 잡는다.
+function _campXlsxDupKey(date, media, seller, brand, product, ops, target) {
+  return [date, media, seller, brand, product, ops, target].join('|');
+}
 function campXlsxValidateRow(row, rowNum) {
   const errors = [];
   const cell = key => row[CAMP_COL[key]];
@@ -5537,10 +5544,13 @@ function campXlsxValidateRow(row, rowNum) {
     else brandCat = catInput;
   }
 
+  // 매출처/브랜드와 같은 방식 — 목록에 없으면 막는 대신 이름만으로 신규 매체사를 자동 생성한다
+  // (campXlsxImport에서 처리). 이 템플릿은 금액도 전부 수동입력이라 c1Base/c1Adj 같은 수수료
+  // 기준값이 비어 있어도 이 캠페인 저장엔 영향 없음 — 나중에 매체사관리에서 채우면 된다.
   const mediaName = String(cell('media') || '').trim();
   const media = MEDIA_DATA.find(m => m.type === '매체사' && m.active !== false && m.company === mediaName);
   if (!mediaName) errors.push('매체사 없음');
-  else if (!media) errors.push(`매체사 "${mediaName}" 를 찾을 수 없음(참고 시트 목록과 정확히 일치해야 함)`);
+  const isNewMedia = !!mediaName && !media;
 
   const opsName = String(cell('ops') || '').trim();
   const opsUser = USERS.find(u => !u.isAdmin && u.id !== 'user' && u.name === opsName);
@@ -5582,6 +5592,16 @@ function campXlsxValidateRow(row, rowNum) {
 
   const target = String(cell('target') || '').trim();
   if (!target) errors.push('타겟조건 없음');
+
+  // 중복 체크 — 발송일시+매체사+매출처+브랜드+상품+담당자+타겟이 전부 같은 캠페인이 기존 DB에
+  // 이미 있으면 같은 파일을 실수로 두 번 올린 것으로 보고 막는다. 같은 파일 안에서의 중복은
+  // campXlsxFileSelect에서 전체 행을 모은 뒤 한 번 더 검사한다.
+  const dupKey = _campXlsxDupKey(dateVal, mediaName, sellerName, brandName, product, opsName, target);
+  const dupExisting = dateVal && DATA.find(c =>
+    _campXlsxDupKey(c.date, c.media, c.seller || c.adv, c.content, c.product, c.ops, c.target) === dupKey
+  );
+  if (dupExisting) errors.push(`이미 등록된 캠페인과 중복됨(기존 ID: ${dupExisting.id})`);
+
   const dtarget = String(cell('dtarget') || '').trim();
   const msg = String(cell('msg') || '').trim();
   if (!msg) errors.push('발송문구 없음');
@@ -5602,7 +5622,7 @@ function campXlsxValidateRow(row, rowNum) {
     regDate: '', // 커밋 시점에 채움(파일 읽는 시점과 실제 저장 시점이 다를 수 있어서)
     promo: adpromo, cat: brandCat,
     date: dateVal, media: mediaName, product,
-    clicks, ctr,
+    clicks, ctr, dbr,
     status: '성과입력완료', testOk: true, sent: true,
     regUser: currentUser ? currentUser.id : '',
     seller: sellerName, adv: sellerName,
@@ -5623,7 +5643,7 @@ function campXlsxValidateRow(row, rowNum) {
     actual, db,
   };
 
-  return { rowNum, valid: errors.length === 0, errors, doc, isNewSeller, isNewBrand, sellerName, brandName, brandCat };
+  return { rowNum, valid: errors.length === 0, errors, doc, isNewSeller, isNewBrand, sellerName, brandName, brandCat, isNewMedia, mediaName, dupKey };
 }
 
 function campXlsxFileSelect(input) {
@@ -5642,6 +5662,16 @@ function campXlsxFileSelect(input) {
         .map((row, i) => ({ row, rowNum: i + 2 }))
         .filter(({ row }) => row.some(v => String(v ?? '').trim() !== ''))
         .map(({ row, rowNum }) => campXlsxValidateRow(row, rowNum));
+      // 같은 파일 안에서의 중복 — 기존 DB 대조는 campXlsxValidateRow가 이미 했으니, 여기선
+      // 이번 파일의 행끼리만 같은 dupKey가 두 번 이상 나오면 처음 등장한 행만 남기고 나머지를 에러 처리.
+      const seenKeys = new Set();
+      _campXlsxRows.forEach(r => {
+        // 핵심 필드가 다 채워진 행끼리만 비교 — 이미 다른 이유로 빈 값투성이인 행들이 서로
+        // "중복"으로 잘못 잡히는 걸 막는다(그런 행은 각자의 개별 오류로 이미 걸린다).
+        if (!(r.doc.date && r.doc.media && r.doc.seller && r.doc.product && r.doc.ops && r.doc.target)) return;
+        if (seenKeys.has(r.dupKey)) { r.errors.push('같은 파일 안에 동일한 캠페인이 중복 입력됨'); r.valid = false; }
+        else seenKeys.add(r.dupKey);
+      });
     } catch (err) {
       console.error('[캠페인 일괄등록] 엑셀 읽기 실패', err);
       toast('엑셀 파일을 읽을 수 없습니다', 'err');
@@ -5668,8 +5698,16 @@ function campXlsxRenderPreview() {
       </table>
     </div>` : '';
   const newHtml = newCnt ? `<div class="form-hint" style="margin-top:4px;">이 중 <b style="color:var(--accent);">${newCnt}</b>건은 매출처/브랜드를 새로 생성합니다</div>` : '';
+  const newMediaRows = validRows.filter(r => r.isNewMedia);
+  const newMediaHtml = newMediaRows.length ? `
+    <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-top:8px;">
+      <table style="width:100%;font-size:12px;">
+        <thead><tr style="background:var(--surface2);"><th style="padding:5px 8px;text-align:left;">행</th><th style="padding:5px 8px;text-align:left;">신규 매체사</th></tr></thead>
+        <tbody>${newMediaRows.map(r => `<tr><td style="padding:4px 8px;color:var(--text3);">${r.rowNum}</td><td style="padding:4px 8px;color:var(--accent);">${_escHtml(r.mediaName)} 매체사를 새로 생성합니다</td></tr>`).join('')}</tbody>
+      </table>
+    </div>` : '';
   el.innerHTML = total
-    ? `<div class="form-hint">총 <b>${total}</b>행 · 정상 <b style="color:var(--green);">${validCnt}</b>건 · 오류 <b style="color:var(--red);">${errRows.length}</b>건${errRows.length ? ' (오류 행은 제외하고 등록합니다)' : ''}</div>${newHtml}${errHtml}`
+    ? `<div class="form-hint">총 <b>${total}</b>행 · 정상 <b style="color:var(--green);">${validCnt}</b>건 · 오류 <b style="color:var(--red);">${errRows.length}</b>건${errRows.length ? ' (오류 행은 제외하고 등록합니다)' : ''}</div>${newHtml}${newMediaHtml}${errHtml}`
     : '';
   const importBtn = document.getElementById('camp-xlsx-import-btn');
   if (importBtn) importBtn.disabled = validCnt === 0;
@@ -5687,6 +5725,9 @@ async function campXlsxImport() {
     // 같은 파일 안 여러 행이 같은 신규 매출처/브랜드를 참조할 수 있어서, SELLER_DATA(구독 갱신은
     // 비동기라 이번 루프 중엔 안 바뀜)가 아니라 이 배치 로컬 맵으로 먼저 찾아 중복 생성을 막는다.
     const sellerBatch = new Map(SELLER_DATA.map(s => [s.company, s]));
+    // 매체사도 매출처와 같은 이유로 배치 로컬 Set으로 중복 생성을 막는다 — 이름만으로 생성하고
+    // 수수료 기준값(c1Base 등)은 비워둔 채 나중에 매체사관리에서 채우면 된다.
+    const mediaBatch = new Set(MEDIA_DATA.map(m => m.company));
     for (const r of validRows) {
       if (r.isNewSeller || r.isNewBrand) {
         const existing = sellerBatch.get(r.sellerName);
@@ -5698,6 +5739,12 @@ async function campXlsxImport() {
         }
         sellerBatch.set(r.sellerName, seller);
         await _fbSaveSeller(seller);
+      }
+      if (r.isNewMedia && !mediaBatch.has(r.mediaName)) {
+        mediaBatch.add(r.mediaName);
+        const today = now;
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        await _fbSaveMedia({ type: '매체사', company: r.mediaName, createdAt: todayStr });
       }
       const id = 'C-2026-' + String(_nextCampaignNum++).padStart(4, '0');
       const doc = Object.assign({}, r.doc, { id, regDate });
@@ -5729,8 +5776,9 @@ function _campBuildXlsxModalShell() {
         <p class="form-hint" style="line-height:1.6;">
           MMS·LMS·실시간 발송·PUSH·카톡MSG 캠페인을 정해진 양식으로 한 번에 등록합니다. 이미 종료된 캠페인 기준이라
           업로드하는 모든 건은 <b>상태 = 성과입력완료</b>로 저장됩니다.<br>
-          매체사·담당자는 <b>참고 시트</b>의 값과 정확히 일치해야 합니다. 매출처·브랜드는 참고 시트에 없으면
-          <b>새로 자동 생성</b>되며, 이 경우 카테고리 컬럼 입력이 필수입니다(기존 매출처/브랜드면 무시됨).
+          담당자는 <b>참고 시트</b>의 값과 정확히 일치해야 합니다. 매출처·브랜드·매체사는 참고 시트에 없으면
+          <b>새로 자동 생성</b>되며, 이 경우 매출처·브랜드는 카테고리 컬럼 입력이 필수입니다(기존이면 무시됨).
+          매체사는 이름만으로 생성되므로 수수료 기준값 등은 나중에 매체사관리에서 입력해야 합니다.
           금액·수수료는 자동계산 없이 입력한 값 그대로 저장됩니다. 양식의 컬럼명 뒤에 <b>" *"</b>가 붙은 항목은 필수입니다.<br>
           <b>클릭률·DB등록률은 직접 입력하는 칸이 아닙니다</b> — 실발송수량/클릭수/DB등록수를 입력하면 엑셀 수식으로
           자동 계산되고, 등록 시에도 그 세 값으로 서버에서 다시 계산해 저장합니다.
