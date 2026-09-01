@@ -10440,7 +10440,7 @@ function taxManualCalcTotal() {
   const supplyEl = document.getElementById('tax-r-supply-total');
   const vatEl    = document.getElementById('tax-r-vat-total');
   if (supplyEl) supplyEl.textContent = total.toLocaleString();
-  if (vatEl)    vatEl.textContent    = Math.round(total * 1.1).toLocaleString();
+  if (vatEl)    vatEl.value          = Math.round(total * 1.1).toLocaleString();
 }
 
 function taxManualPaidChange(chk) {
@@ -10529,6 +10529,16 @@ async function saveTaxReg() {
       supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
       contactEmail: email, memo,
     });
+  }
+  // 부가세포함 합계 칸을 사용자가 직접 고쳤으면, 자동계산 합계와의 차액을 마지막 행에 얹어서
+  // 실제 저장되는 vatAmt 합계가 화면에 입력한 숫자와 정확히 일치하게 맞춘다(2026-09-01).
+  {
+    const vatTotalInput = parseFloat((document.getElementById('tax-r-vat-total')?.value || '').toString().replace(/,/g, '')) || 0;
+    if (saved.length && vatTotalInput > 0) {
+      const naturalVatSum = saved.reduce((s, t) => s + t.vatAmt, 0);
+      const diff = vatTotalInput - naturalVatSum;
+      if (diff !== 0) saved[saved.length - 1].vatAmt += diff;
+    }
   }
   // 연결된 캠페인: 참조 항목(isRef) 생성 + 이중발행 방지 플래그 (다중 지원)
   // (수정발행 등록 모드에서는 _taxRegLinkedCamps가 항상 비어있어 이 루프가 실행되지 않음 — 캠페인 재연결 안 함)
@@ -10855,7 +10865,7 @@ function taxGenNext() {
           </table>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;margin-bottom:16px;">
             <button class="btn btn-ghost btn-sm" onclick="taxGenManualAddRow(${gi},${repYear},${repMon})">+ 항목 추가</button>
-            <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-${gi}">${supplyTotal ? supplyTotal.toLocaleString() : '0'}</b>원 &nbsp;·&nbsp; 부가세포함 <b id="tax-gen-m-vat-${gi}">${supplyTotal ? Math.round(supplyTotal*1.1).toLocaleString() : '0'}</b>원</span>
+            <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-${gi}">${supplyTotal ? supplyTotal.toLocaleString() : '0'}</b>원 &nbsp;·&nbsp; 부가세포함 <input type="text" id="tax-gen-m-vat-${gi}" class="form-input" style="width:90px;display:inline-block;text-align:right;font-size:12px;padding:2px 6px;" value="${supplyTotal ? Math.round(supplyTotal*1.1).toLocaleString() : '0'}">원</span>
           </div>
 
           <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.4px;margin-bottom:6px;">불러온 캠페인 (참조) <span style="color:var(--primary,#1a73e8);font-weight:700;">${campaigns.length}건</span></div>
@@ -10981,7 +10991,7 @@ function taxGenManualCalcTotal(gi) {
   const supplyEl = document.getElementById(`tax-gen-m-supply-${gi}`);
   const vatEl    = document.getElementById(`tax-gen-m-vat-${gi}`);
   if (supplyEl) supplyEl.textContent = total.toLocaleString();
-  if (vatEl)    vatEl.textContent    = Math.round(total * 1.1).toLocaleString();
+  if (vatEl)    vatEl.value          = Math.round(total * 1.1).toLocaleString();
 }
 
 function taxToggleRef(ids) {
@@ -11143,7 +11153,7 @@ function taxEditGroup(gid) {
         </table>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;margin-bottom:16px;">
           <button class="btn btn-ghost btn-sm" onclick="taxGenManualAddRow(0,${repYear},${repMon})">+ 항목 추가</button>
-          <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-0">${manualTotal.toLocaleString()}</b>원 &nbsp;·&nbsp; 부가세포함 <b id="tax-gen-m-vat-0">${Math.round(manualTotal*1.1).toLocaleString()}</b>원</span>
+          <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-0">${manualTotal.toLocaleString()}</b>원 &nbsp;·&nbsp; 부가세포함 <input type="text" id="tax-gen-m-vat-0" class="form-input" style="width:90px;display:inline-block;text-align:right;font-size:12px;padding:2px 6px;" value="${Math.round(manualTotal*1.1).toLocaleString()}">원</span>
         </div>
 
         <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.4px;margin-bottom:6px;">불러온 캠페인 (참조)</div>
@@ -11236,6 +11246,17 @@ async function confirmTaxEdit() {
     });
   }
 
+  // 부가세포함 합계 칸을 사용자가 직접 고쳤으면 차액을 마지막 수동입력 행에 얹는다(2026-09-01).
+  // 이 시점의 newItems는 전부 manualRows에서 만든 항목뿐이라(ref rows는 아래에서 추가됨) 그대로 대상.
+  {
+    const vatTotalInput = parseFloat((document.getElementById('tax-gen-m-vat-0')?.value || '').toString().replace(/,/g, '')) || 0;
+    if (newItems.length && vatTotalInput > 0) {
+      const naturalVatSum = newItems.reduce((s, t) => s + t.vatAmt, 0);
+      const diff = vatTotalInput - naturalVatSum;
+      if (diff !== 0) newItems[newItems.length - 1].vatAmt += diff;
+    }
+  }
+
   // Build ref rows (preserve campaignId / isRef from original)
   const campRows = [...card.querySelectorAll('.tax-gen-camp-row')];
   for (const tr of campRows) {
@@ -11300,7 +11321,9 @@ async function confirmTaxAutoGen() {
 
     const groupId = _taxNextGroupId();
 
-    // 수동 입력 항목 저장
+    // 수동 입력 항목 — 부가세포함 합계를 사용자가 직접 고쳤을 수 있어서, 일단 배열에 모아
+    // 자동계산 합계와 비교한 뒤 차액을 마지막 행에 얹고 나서 저장한다(2026-09-01).
+    const cardManualItems = [];
     for (const tr of manualRows) {
       const y       = tr.querySelector('.tax-gen-m-year')?.value    || '';
       const m       = tr.querySelector('.tax-gen-m-mon')?.value     || '';
@@ -11310,7 +11333,7 @@ async function confirmTaxAutoGen() {
       const email   = tr.querySelector('.tax-gen-m-email')?.value.trim()   || '';
       const memo    = tr.querySelector('.tax-gen-m-memo')?.value.trim()    || '';
       if (!content && !supply) continue;
-      const t = {
+      cardManualItems.push({
         id: _taxNextId(), groupId, campaignId: null,
         taxType: cardTaxType, createdBy: currentUser?.name || '',
         manager: '', month, reqDate: commonReq, issueDate: issDate,
@@ -11322,7 +11345,17 @@ async function confirmTaxAutoGen() {
         company: cardCompany, bizName: cardTaxType === 'adv' ? cardCompany : (MEDIA_DATA.find(mm => mm.company === cardCompany)?.invoiceTo || cardCompany),
         content, supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
         contactEmail: email, memo
-      };
+      });
+    }
+    {
+      const vatTotalInput = parseFloat((document.getElementById(`tax-gen-m-vat-${card.dataset.gi}`)?.value || '').toString().replace(/,/g, '')) || 0;
+      if (cardManualItems.length && vatTotalInput > 0) {
+        const naturalVatSum = cardManualItems.reduce((s, t) => s + t.vatAmt, 0);
+        const diff = vatTotalInput - naturalVatSum;
+        if (diff !== 0) cardManualItems[cardManualItems.length - 1].vatAmt += diff;
+      }
+    }
+    for (const t of cardManualItems) {
       TAX_DATA.push(t);
       await _fbSaveTax(t);
       _savedItems.push(t);
