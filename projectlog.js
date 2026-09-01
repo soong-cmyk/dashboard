@@ -697,12 +697,21 @@ function _plRenderInternalLogRow(log) {
   const progHtml = log.progress != null
     ? `<span class="prog-wrap" style="width:46px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}%</span>`
     : '<span class="td-dim">—</span>';
+  // 하위 기록(log.detail, "ㄴ" 라인)이 _plRenderLogRow에는 있는데 여기엔 빠져 있었음 — 펼침
+  // 상세박스는 요약/하위기록을 반복 표시하지 않게 돼 있어서(2026-08-28), 이게 없으면 "내용"이
+  // 어디에도 안 보이는 상태가 된다(2026-08-31, 사용자 리포트로 발견).
+  const subLinesHtml = (log.detail || []).filter(d => (d.text || '').trim()).map(d =>
+    `<div style="font-size:11px;color:var(--text2);padding:1px 0;display:flex;gap:4px;">
+      <span style="flex-shrink:0;"><span style="color:var(--text3);">ㄴ</span>${d.label ? ` <b>${_escHtml(d.label)}</b>` : ''}</span>
+      <span style="white-space:pre-line;">${_escHtml(d.text)}</span>
+    </div>`
+  ).join('') + _plQuickAddTailHtml(log.id, 'internal');
   const rowHtml = `<tr id="pl-row-${log.id}" class="pl-lg-head" onclick="_plToggleRowGuarded(event,'${log.id}','internal')" style="cursor:pointer;">
     <td class="pl-lg-arrow">${arrow}</td>
     <td class="f-mono td-num">${dateShort}</td>
     <td>${log.content ? _escHtml(log.content) : '<span class="td-dim">—</span>'}</td>
     <td><span class="badge pl-lg-${log.logType}">${_escHtml(log.logType)}</span></td>
-    <td><div>${starHtml}${_escHtml(log.summary || '')}${attachIconsHtml}${stateHtml}${cmtBadgeHtml}</div></td>
+    <td><div>${starHtml}${_escHtml(log.summary || '')}${attachIconsHtml}${stateHtml}${cmtBadgeHtml}</div>${subLinesHtml}</td>
     <td class="td-c">${progHtml}</td>
     <td>${_escHtml(log.writer || '—')}</td>
   </tr>`;
@@ -1475,15 +1484,12 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
     </div>`;
     return `<div class="pl-detbox" style="border-left-color:${color};">${metaHtml}${threadHtml}${continuePrevHtml}${threadChildrenHtml}${continueNextHtml}${detfootHtml}${commentsHtml}</div>`;
   }
-  const subRowsArr = (log.detail || []).filter(d => (d.text || '').trim());
-  const subRows = subRowsArr.length
-    ? subRowsArr.map(d => `<span class="pl-m">ㄴ</span><span class="pl-l">${_plHighlight(d.label || '', q)}</span><span style="white-space:pre-line;">${_plHighlight(d.text, q)}</span>`).join('')
-    : `<span class="form-hint" style="grid-column:1/-1;">하위 기록이 없습니다.</span>`;
+  // 요약(summary)·하위기록(subRows)은 목록 행(_plRenderLogRow)의 <td>에 이미 그대로 보이므로
+  // (접힌 상태에서도 다 보이게 만든 subLinesHtml), 펼침 상세박스에서는 반복해서 보여주지 않는다
+  // — 여기서만 볼 수 있는 것(스레드/이어쓰기 링크·첨부·댓글)만 남긴다(2026-08-28, 사용자 지적).
   return `<div class="pl-detbox" style="border-left-color:${color};">
     ${threadHtml}
     ${continuePrevHtml}
-    <div style="font-size:13px;font-weight:600;margin-bottom:6px;white-space:pre-line;">${_plHighlight(log.summary || '', q)}</div>
-    <div class="pl-lgsub">${subRows}</div>
     ${threadChildrenHtml}
     ${continueNextHtml}
     ${detfootHtml}
