@@ -6972,7 +6972,7 @@ function renderSellerList() {
         <td class="td-dim td-r">${s.brands.length ? s.brands.length + '개' : nd}</td>
       </tr>`;
       (s.brands || []).forEach(b => {
-        rows += `<tr style="background:var(--surface2);">
+        rows += `<tr onclick="openSellerModal(${i})" style="background:var(--surface2);cursor:pointer;">
           <td></td><td></td>
           <td style="padding-left:20px;font-size:12px;color:var(--text2);">└ ${_plHighlight(b.name||b, q)}${b.cat?`<span style="color:var(--text3);margin-left:4px;">(${b.cat})</span>`:''}</td>
           <td></td><td></td>
@@ -6999,7 +6999,7 @@ function renderSellerList() {
         <td class="td-dim td-r">${s.brands.length ? s.brands.length + '개' : nd}</td>
       </tr>`;
       (s.brands || []).forEach(b => {
-        advRows += `<tr style="background:var(--surface2);">
+        advRows += `<tr onclick="openSellerModal(${i})" style="background:var(--surface2);cursor:pointer;">
           <td></td>
           <td style="padding-left:20px;font-size:12px;color:var(--text2);">└ ${_escHtml(b.name||b)}${b.cat?`<span style="color:var(--text3);margin-left:4px;">(${b.cat})</span>`:''}</td>
           <td></td>
@@ -7022,7 +7022,7 @@ function renderSellerList() {
         <td class="td-dim td-r">${s.brands.length ? s.brands.length + '개' : nd}</td>
       </tr>`;
       (s.brands || []).forEach(b => {
-        labRows += `<tr style="background:var(--surface2);">
+        labRows += `<tr onclick="openSellerModal(${i})" style="background:var(--surface2);cursor:pointer;">
           <td></td>
           <td style="padding-left:20px;font-size:12px;color:var(--text2);">└ ${_escHtml(b.name||b)}${b.cat?`<span style="color:var(--text3);margin-left:4px;">(${b.cat})</span>`:''}</td>
           <td></td><td></td>
@@ -7045,7 +7045,7 @@ function renderSellerList() {
         <td class="td-dim td-r">${s.brands.length ? s.brands.length + '개' : nd}</td>
       </tr>`;
       (s.brands || []).forEach(b => {
-        agencyRows += `<tr style="background:var(--surface2);">
+        agencyRows += `<tr onclick="openSellerModal(${i})" style="background:var(--surface2);cursor:pointer;">
           <td></td>
           <td style="padding-left:20px;font-size:12px;color:var(--text2);">└ ${_escHtml(b.name||b)}${b.cat?`<span style="color:var(--text3);margin-left:4px;">(${b.cat})</span>`:''}</td>
           <td></td><td></td>
