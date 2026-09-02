@@ -4503,7 +4503,7 @@ function _plAdvFiltered() {
 function _plRenderAdvertiserRow(s, q) {
   const camps = DATA.filter(c => (c.seller || c.adv) === s.company && c.status !== '삭제');
   const yearCamps = camps.filter(c => (c.date || '').startsWith(PL_ADV_YEAR));
-  const adcost = yearCamps.reduce((sum, c) => sum + _campAdcost(c), 0);
+  const adcost = yearCamps.reduce((sum, c) => sum + _campTurnover(c), 0);
   const logs = PL_LOGS.filter(l => l.seller === s.company);
   const lastLog = _plAdvLastLog(s.company);
   const cat = _plAdvSellerCat(s);
@@ -4646,7 +4646,7 @@ function _plGAnnualRows(company, year) {
     const months = [...new Set(bcamps.map(c => (c.date || '').slice(5, 7)))].filter(Boolean);
     const products = [...new Set(bcamps.map(c => c.product).filter(Boolean))];
     const prodLabel = products.length === 0 ? '—' : products.join('·');
-    const adcost = bcamps.reduce((s, c) => s + _campAdcost(c), 0);
+    const adcost = bcamps.reduce((s, c) => s + _campTurnover(c), 0);
     const qty = bcamps.reduce((s, c) => s + (c.qty || 0), 0);
     const actual = bcamps.reduce((s, c) => s + (c.actual || 0), 0);
     const profit = bcamps.reduce((s, c) => s + _campProfit(c), 0);
@@ -4684,7 +4684,7 @@ function _plGProductRows(company, brandKey, year) {
   return products.map(product => {
     const pcamps = camps.filter(c => c.product === product);
     const months = [...new Set(pcamps.map(c => (c.date || '').slice(5, 7)))].filter(Boolean);
-    const adcost = pcamps.reduce((s, c) => s + _campAdcost(c), 0);
+    const adcost = pcamps.reduce((s, c) => s + _campTurnover(c), 0);
     const qty = pcamps.reduce((s, c) => s + (c.qty || 0), 0);
     const actual = pcamps.reduce((s, c) => s + (c.actual || 0), 0);
     const profit = pcamps.reduce((s, c) => s + _campProfit(c), 0);
@@ -4948,7 +4948,7 @@ function _plGBrandMonths(company, brandKey, year) {
   for (let m = 1; m <= 12; m++) {
     const ym = `${year}-${String(m).padStart(2, '0')}`;
     const mcamps = yearCamps.filter(c => (c.date || '').startsWith(ym));
-    const adcost = mcamps.reduce((s, c) => s + _campAdcost(c), 0);
+    const adcost = mcamps.reduce((s, c) => s + _campTurnover(c), 0);
     const g = _plGetMonthlyGoal(company, brandKey, ym);
     months.push({ ym, adcost, target: g?.value || 0, monthKpi: g?.monthKpi || '', advKpiRate: g?.advKpiRate });
   }
@@ -5192,7 +5192,7 @@ function _plGMonthlyRows(company, ym) {
     const bcamps = camps.filter(c => (c.content || '') === brand);
     const products = [...new Set(bcamps.map(c => c.product).filter(Boolean))];
     const medias = [...new Set(bcamps.map(c => c.media).filter(Boolean))];
-    const adcost = bcamps.reduce((s, c) => s + _campAdcost(c), 0);
+    const adcost = bcamps.reduce((s, c) => s + _campTurnover(c), 0);
     const qty = bcamps.reduce((s, c) => s + (c.qty || 0), 0);
     const actual = bcamps.reduce((s, c) => s + (c.actual || 0), 0);
     const dbTotal = bcamps.reduce((s, c) => s + (c.db || 0), 0);
@@ -5217,7 +5217,7 @@ function _plGMonthlyProductRows(company, brandKey, ym) {
   return products.map(product => {
     const pcamps = camps.filter(c => c.product === product);
     const medias = [...new Set(pcamps.map(c => c.media).filter(Boolean))];
-    const adcost = pcamps.reduce((s, c) => s + _campAdcost(c), 0);
+    const adcost = pcamps.reduce((s, c) => s + _campTurnover(c), 0);
     const qty = pcamps.reduce((s, c) => s + (c.qty || 0), 0);
     const actual = pcamps.reduce((s, c) => s + (c.actual || 0), 0);
     const dbTotal = pcamps.reduce((s, c) => s + (c.db || 0), 0);

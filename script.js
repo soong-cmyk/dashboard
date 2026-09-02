@@ -7798,6 +7798,14 @@ function _campProfit(c) {
   return _stlAmt(c).prf || 0;
 }
 
+// 캠페인 매출(실청구액, 할인 반영) — KPI/매출현황·BEP의 "매출"/"취급고"와 같은 amt 기준.
+// _campAdcost(할인전 정가)와 달리 amtFixed 수동입력만 우선하고(adcostFixed는 무관, 그건
+// adc 전용 오버라이드), _stlHas로 정산데이터 유무를 가려 미입력 캠페인을 0으로 처리한다.
+function _campTurnover(c) {
+  if (!_stlHas(c)) return 0;
+  return _stlAmt(c).amt || 0;
+}
+
 /** 정산 동적 필터 드롭다운 채우기 (매출처·담당자·본부·팀) */
 function _stlPopulateDynFilters() {
   // 광고주/대행사 — 본부/팀·담당자 선택 시 해당 범위 캠페인의 광고주만 표시
