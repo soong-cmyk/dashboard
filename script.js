@@ -5066,8 +5066,8 @@ function renderDashboard() {
 // BEP 관리 (KPI 메뉴)
 // ══════════════════════════════════════════
 // 표1: KPI/BEP/영업이익 비교 — 월BEP·As-is·매출KPI-1·매출KPI-2 4개 시나리오 고정 비교
-// 표2: 월별 BEP 추이 — 연도 내 12개월 시계열, 매출/매출원가/판관비만 입력받고 나머지는 자동계산
-// 계산: 매출이익 = 매출(취급고) - 매출원가 / 매출이익율 = 매출이익/매출 / 영업이익 = 매출이익-판관비 / 영업이익율 = 영업이익/매출
+// 표2: 월별 BEP 추이 — 연도 내 12개월 시계열, 취급고/매출원가/판관비만 입력받고 나머지는 자동계산
+// 계산: 매출이익 = 취급고 - 매출원가 / 매출이익율 = 매출이익/취급고 / 영업이익 = 매출이익-판관비 / 영업이익율 = 영업이익/취급고
 let BEP_SCENARIO       = {};
 let BEP_MONTHLY        = {};
 // 연도는 KPI/매출현황 전체 공통(#kpi-year, _kpiYear)을 그대로 쓴다 — BEP만 따로 연도를
@@ -5219,7 +5219,7 @@ function renderBepScenarioTable() {
   el.innerHTML = `<div style="overflow-x:auto;"><table class="bep-tbl" style="width:max-content;">
     <thead><tr><th style="${thC}text-align:left;min-width:100px;">구분</th>${colHead}</tr></thead>
     <tbody>
-      <tr><td style="${tdL}">매출(취급고)</td>${edit ? inputRow('turnover') : valRow('turnover')}</tr>
+      <tr><td style="${tdL}">취급고</td>${edit ? inputRow('turnover') : valRow('turnover')}</tr>
       <tr><td style="${tdL}">매출원가</td>${edit ? inputRow('cogs') : valRow('cogs')}</tr>
       <tr><td style="${tdL}">매출이익</td>${derived.map(d => `<td style="${tdHiB}color:#fff;">${_fmtBepWon(d.profit)}</td>`).join('')}</tr>
       <tr><td style="${tdL}">매출이익율</td>${derived.map(d => `<td style="${tdV}">${_fmtBepPct(d.profitRate)}</td>`).join('')}</tr>
@@ -5276,7 +5276,7 @@ function _bepMonthData(m) {
   return (BEP_MONTHLY.months || {})[m] || null;
 }
 
-// 매출(취급고)·매출원가는 항상 실제 캠페인 데이터에서 자동 집계(수정 불가) — 판관비만 회사 공통비용이라 월별 수동 입력
+// 취급고·매출원가는 항상 실제 캠페인 데이터에서 자동 집계(수정 불가) — 판관비만 회사 공통비용이라 월별 수동 입력
 function renderBepMonthlyTable() {
   const el = document.getElementById('bep-monthly-table');
   if (!el) return;
@@ -5322,7 +5322,7 @@ function renderBepMonthlyTable() {
       ${_KPI_MONTHS.map(m => `<th style="${thC}">${_KPI_ML[m]}</th>`).join('')}
     </tr></thead>
     <tbody>
-      <tr><td style="${tdL}">매출(취급고)</td><td style="${tdVA}">${_fmtBepWon(sumOf('turnover'))}</td>${rows.map(r => valCell(r, 'turnover')).join('')}</tr>
+      <tr><td style="${tdL}">취급고</td><td style="${tdVA}">${_fmtBepWon(sumOf('turnover'))}</td>${rows.map(r => valCell(r, 'turnover')).join('')}</tr>
       <tr><td style="${tdL}">매출원가</td><td style="${tdVA}">${_fmtBepWon(sumOf('cogs'))}</td>${rows.map(r => valCell(r, 'cogs')).join('')}</tr>
       <tr><td style="${tdL}">매출이익</td><td style="${tdHiB}background:#fff9e6;color:#111;">${_fmtBepWon(sumOf('profit'))}</td>${rows.map(r => r.d ? `<td style="${tdHiB}color:#fff;">${_fmtBepWon(r.d.profit)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
       <tr><td style="${tdL}">매출이익율</td><td style="${tdVA}">${avgOf('profitRate') == null ? '—' : _fmtBepPct(avgOf('profitRate'))}</td>${rows.map(r => r.d ? `<td style="${tdV}">${_fmtBepPct(r.d.profitRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
@@ -12512,10 +12512,11 @@ function _kpiCanEdit() {
   return !!(currentUser?.isAdmin || ['대표이사','이사','본부장'].includes(currentUser?.rank));
 }
 
-// 광고비(할인전 정가 기준, _campAdcost와 동일) — 매출 규모를 보는 KPI/매출현황 메뉴에서는
-// 할인 반영 여부가 중요하지 않아(할인은 정산 때만 필요한 개념) 광고비 기준으로 집계한다.
+// 매출 — 계산 자체는 광고비(할인전 정가 기준, _campAdcost와 동일)와 같다. 회사에서 "광고비"를
+// "매출"과 같은 의미로 인식해 라벨은 매출로 쓰되, 할인 반영 여부는 중요하지 않다(할인은 정산
+// 때만 필요한 개념)는 뜻에서 매출 규모를 보는 KPI/매출현황 메뉴는 광고비 기준으로 집계한다.
 // 예전엔 _stlAmt(c).prf(이익)→그 다음엔 .amt(할인후 실청구)를 썼었으나, 최종적으로 BEP(진짜
-// 손익 분석용, 할인후 유지)와는 별개로 KPI 쪽은 광고비 기준으로 확정(2026-09-02).
+// 손익 분석용, "취급고"라는 별개 이름으로 할인후 유지)와는 구분해 확정(2026-09-02).
 function _kpiCalcActual(year, bonbu, team, month) {
   return DATA.filter(c => {
     if (c.status === '삭제') return false;
@@ -12698,7 +12699,7 @@ function renderKpiOrgSalesCards() {
     return `<div class="kpi-card" style="cursor:pointer;${sel ? 'border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);' : ''}" onclick="kpiOrgSalesSelectBonbu('${_escHtml(name)}')">
       <div class="kpi-card-label">${_escHtml(name)}</div>
       <div class="kpi-card-value">${_fmtMoney(cum)}원</div>
-      <div class="kpi-card-sub">${_kpiYear}년 누적 광고비</div>
+      <div class="kpi-card-sub">${_kpiYear}년 누적 매출</div>
     </div>`;
   }).join('');
 }
@@ -12961,12 +12962,12 @@ function renderKpiCards() {
 
   el.innerHTML = `
     <div class="kpi-card">
-      <div class="kpi-card-label">연간 광고비 KPI (전사)</div>
+      <div class="kpi-card-label">연간 매출 KPI (전사)</div>
       <div class="kpi-card-value">${_fmtMoney(annualTarget)}원</div>
       <div class="kpi-card-sub">${_kpiYear}년 목표</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-card-label">누적 광고비 (1월~${parseInt(curM)}월)</div>
+      <div class="kpi-card-label">누적 매출 (1월~${parseInt(curM)}월)</div>
       <div class="kpi-card-value">${_fmtMoney(cumActual)}원</div>
       <div class="kpi-card-sub">${yoyHtml || '&nbsp;'}</div>
     </div>
@@ -13098,10 +13099,10 @@ function renderKpiGrandTable() {
       ${cols.map(colHdr).join('')}
     </tr></thead>
     <tbody>
-      <tr><td style="${tdL}">광고비</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(actCell).join('')}</tr>
-      <tr><td style="${tdL}">광고비KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
+      <tr><td style="${tdL}">매출</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(actCell).join('')}</tr>
+      <tr><td style="${tdL}">매출KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
       <tr><td style="${tdL}">KPI 달성률(평균)</td><td style="${tdAC}">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
-      <tr><td style="${tdL}">전년도 광고비</td><td style="${tdAN}">${_fmtKpi(totPrev)}</td>${cols.map(prevCell).join('')}</tr>
+      <tr><td style="${tdL}">전년도 매출</td><td style="${tdAN}">${_fmtKpi(totPrev)}</td>${cols.map(prevCell).join('')}</tr>
       <tr><td style="${tdL}">YoY</td><td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>${cols.map(c=>yoyCell(c,act,prev)).join('')}</tr>
     </tbody>
   </table></div>`;
@@ -13370,7 +13371,7 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       };
 
       const sumRows = [
-        { label:'광고비',                  total:`<td style="${tdSVY}">${_fmtKpi(totBAct)}</td>`,               cells: cols.map(sActCell).join('') },
+        { label:'매출',                  total:`<td style="${tdSVY}">${_fmtKpi(totBAct)}</td>`,               cells: cols.map(sActCell).join('') },
         { label:'KPI 달성률',                 total:`<td style="${tdSCY}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
         { label:'광고주별 KPI 달성률(평균)',  total:`<td style="${tdSCY}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
       ];
@@ -13436,8 +13437,8 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       // 전년도 매출·YoY 행은 일단 숨김 처리 — 계산 로직(totPrev/prevCell/yoyCell)은 그대로
       // 두고 렌더링에서만 뺐다(2026-08-28, 나중에 다시 보여줄 수도 있어 삭제하지 않음).
       const rows = [
-        { label:'광고비',       total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,          cells: cols.map(actCell).join('') },
-        { label:'광고비 KPI',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
+        { label:'매출',       total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,          cells: cols.map(actCell).join('') },
+        { label:'매출 KPI',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
         { label:'달성률',          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts)).join('') },
       ];
       const TOTAL_ROWS = rows.length;
@@ -13540,7 +13541,7 @@ function _kiBuildBodyHtml(year, kpiData) {
               </thead>
               <tbody>
                 <tr>
-                  <td style="${thL}">광고비 KPI<span style="font-size:10px;color:var(--text3);margin-left:4px;">(원)</span></td>
+                  <td style="${thL}">매출 KPI<span style="font-size:10px;color:var(--text3);margin-left:4px;">(원)</span></td>
                   ${_KPI_MONTHS.map(m => {
                     const md = (kt.months || []).find(x => x.month === m) || {};
                     const displayV = md.target || '';
