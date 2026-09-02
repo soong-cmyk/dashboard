@@ -5194,9 +5194,8 @@ function renderBepScenarioTable() {
   const thC    = 'padding:9px 12px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:12px;color:var(--text2);text-align:center;min-width:140px;';
   const tdL    = 'padding:8px 12px;border:1px solid var(--border);font-weight:600;font-size:12px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
   const tdV    = 'padding:8px 12px;border:1px solid var(--border);text-align:right;font-size:12px;';
-  const tdHiB  = 'padding:8px 12px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:700;';
-  // 매출이익/영업이익 — 배경색 대신 위아래 굵은 테두리로만 강조(2026-09-02, 검정 배경이 너무 튄다는 지적으로 변경)
-  const hiB    = 'border-top:2px solid var(--text2);border-bottom:2px solid var(--text2);';
+  // 매출이익/영업이익 — 연간합계 컬럼과 같은 연노랑 배경으로 강조(2026-09-02, 검정 배경 대신)
+  const tdHiB  = 'padding:8px 12px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:700;background:#fff9e6;';
 
   // 구분(시나리오 카테고리) 라벨은 고정값 — 수정 불가. As-is는 헤더 자체가 월 선택 셀렉트박스(선택 즉시 실데이터 반영+저장)
   const colHead = cols.map(c => {
@@ -5223,10 +5222,10 @@ function renderBepScenarioTable() {
     <tbody>
       <tr><td style="${tdL}">매출</td>${edit ? inputRow('turnover') : valRow('turnover')}</tr>
       <tr><td style="${tdL}">매출원가</td>${edit ? inputRow('cogs') : valRow('cogs')}</tr>
-      <tr><td style="${tdL}${hiB}">매출이익</td>${derived.map(d => `<td style="${tdHiB}${hiB}">${_fmtBepWon(d.profit)}</td>`).join('')}</tr>
+      <tr><td style="${tdL}background:#fff9e6;">매출이익</td>${derived.map(d => `<td style="${tdHiB}">${_fmtBepWon(d.profit)}</td>`).join('')}</tr>
       <tr><td style="${tdL}">매출이익율</td>${derived.map(d => `<td style="${tdV}">${_fmtBepPct(d.profitRate)}</td>`).join('')}</tr>
       <tr><td style="${tdL}">판관비</td>${edit ? inputRow('sga') : valRow('sga')}</tr>
-      <tr><td style="${tdL}${hiB}">영업이익</td>${derived.map(d => `<td style="${tdHiB}${hiB}color:${d.opProfit>=0?'var(--red)':'#1971c2'};">${_fmtBepWon(d.opProfit)}</td>`).join('')}</tr>
+      <tr><td style="${tdL}background:#fff9e6;">영업이익</td>${derived.map(d => `<td style="${tdHiB}color:${d.opProfit>=0?'var(--red)':'#1971c2'};">${_fmtBepWon(d.opProfit)}</td>`).join('')}</tr>
       <tr><td style="${tdL}">영업이익율</td>${derived.map(d => `<td style="${tdV}color:${d.opRate>=0?'var(--red)':'#1971c2'};font-weight:600;">${_fmtBepPct(d.opRate)}</td>`).join('')}</tr>
     </tbody>
   </table></div>`;
@@ -5299,11 +5298,10 @@ function renderBepMonthlyTable() {
   const thC   = 'padding:9px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;min-width:92px;';
   const tdL   = 'padding:8px 10px;border:1px solid var(--border);font-weight:600;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;position:sticky;left:0;z-index:1;';
   const tdV   = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:11px;';
-  const tdHiB = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:11px;font-weight:700;';
   const tdDim = `${tdV}color:var(--text3);`;
   const tdVA  = tdV + 'background:#fff9e6;font-weight:700;';
-  // 매출이익/영업이익 — 배경색 대신 위아래 굵은 테두리로만 강조(2026-09-02, 검정 배경이 너무 튄다는 지적으로 변경)
-  const hiB   = 'border-top:2px solid var(--text2);border-bottom:2px solid var(--text2);';
+  // 매출이익/영업이익 — 연간합계 컬럼과 같은 연노랑 배경으로 강조(2026-09-02, 검정 배경 대신)
+  const tdHiB = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:11px;font-weight:700;background:#fff9e6;';
 
   const valCell = (r, field) => r.d ? `<td style="${tdV}">${_fmtBepWon(r.d[field])}</td>` : `<td style="${tdDim}">—</td>`;
   const sgaCell = (r) => {
@@ -5328,10 +5326,10 @@ function renderBepMonthlyTable() {
     <tbody>
       <tr><td style="${tdL}">매출</td><td style="${tdVA}">${_fmtBepWon(sumOf('turnover'))}</td>${rows.map(r => valCell(r, 'turnover')).join('')}</tr>
       <tr><td style="${tdL}">매출원가</td><td style="${tdVA}">${_fmtBepWon(sumOf('cogs'))}</td>${rows.map(r => valCell(r, 'cogs')).join('')}</tr>
-      <tr><td style="${tdL}${hiB}">매출이익</td><td style="${tdHiB}${hiB}background:#fff9e6;">${_fmtBepWon(sumOf('profit'))}</td>${rows.map(r => r.d ? `<td style="${tdHiB}${hiB}">${_fmtBepWon(r.d.profit)}</td>` : `<td style="${tdDim}${hiB}">—</td>`).join('')}</tr>
+      <tr><td style="${tdL}background:#fff9e6;">매출이익</td><td style="${tdHiB}">${_fmtBepWon(sumOf('profit'))}</td>${rows.map(r => r.d ? `<td style="${tdHiB}">${_fmtBepWon(r.d.profit)}</td>` : `<td style="${tdDim}background:#fff9e6;">—</td>`).join('')}</tr>
       <tr><td style="${tdL}">매출이익율</td><td style="${tdVA}">${avgOf('profitRate') == null ? '—' : _fmtBepPct(avgOf('profitRate'))}</td>${rows.map(r => r.d ? `<td style="${tdV}">${_fmtBepPct(r.d.profitRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
       <tr><td style="${tdL}">판관비</td><td style="${tdVA}">${_fmtBepWon(sgaSum)}</td>${rows.map(r => sgaCell(r)).join('')}</tr>
-      <tr><td style="${tdL}${hiB}">영업이익</td><td style="${tdHiB}${hiB}background:#fff9e6;color:${sumOf('opProfit')>=0?'var(--red)':'#1971c2'};">${_fmtBepWon(sumOf('opProfit'))}</td>${rows.map(r => r.d ? `<td style="${tdHiB}${hiB}color:${r.d.opProfit>=0?'var(--red)':'#1971c2'};">${_fmtBepWon(r.d.opProfit)}</td>` : `<td style="${tdDim}${hiB}">—</td>`).join('')}</tr>
+      <tr><td style="${tdL}background:#fff9e6;">영업이익</td><td style="${tdHiB}color:${sumOf('opProfit')>=0?'var(--red)':'#1971c2'};">${_fmtBepWon(sumOf('opProfit'))}</td>${rows.map(r => r.d ? `<td style="${tdHiB}color:${r.d.opProfit>=0?'var(--red)':'#1971c2'};">${_fmtBepWon(r.d.opProfit)}</td>` : `<td style="${tdDim}background:#fff9e6;">—</td>`).join('')}</tr>
       <tr><td style="${tdL}">영업이익율</td><td style="${tdVA}color:${(avgOf('opRate')||0)>=0?'var(--red)':'#1971c2'};">${avgOf('opRate') == null ? '—' : _fmtBepPct(avgOf('opRate'))}</td>${rows.map(r => r.d ? `<td style="${tdV}color:${r.d.opRate>=0?'var(--red)':'#1971c2'};font-weight:600;">${_fmtBepPct(r.d.opRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
     </tbody>
   </table></div>`;
