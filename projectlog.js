@@ -1351,9 +1351,12 @@ function _plMediaNamesRecent()   { return _plSortByRecentLog(_plMediaNames(),   
 
 function plSwitchTab(name) {
   PL_STATE.tab = name;
-  if (name !== 'advertiser') PL_STATE.advDetailCompany = null;
-  if (name !== 'media') PL_STATE.mediaDetailCompany = null;
-  if (name !== 'internal') PL_STATE.internalDetailClient = null;
+  // 탭 버튼을 누르면(지금 그 탭의 상세화면을 보고 있던 중이어도) 항상 그 탭의 목록 초기화면으로
+  // 돌아간다 — 광고주/매체/내부업무 전부 동일하게. 상세화면 진입은 plOpenAdvertiserDetail 등
+  // 별도 함수가 담당하고 plSwitchTab을 거치지 않으므로, 여기서 무조건 초기화해도 안전하다.
+  PL_STATE.advDetailCompany = null;
+  PL_STATE.mediaDetailCompany = null;
+  PL_STATE.internalDetailClient = null;
   if (name !== 'date') _plInlineEditId = null; // 다른 탭으로 나가면 인라인 수정 상태도 같이 정리
   _plUpdateTabButtons();
   plRenderActiveTab();
