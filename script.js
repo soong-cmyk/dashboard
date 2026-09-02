@@ -5244,7 +5244,7 @@ function renderBepScenarioTable() {
       <tr><td style="${tdL}">매출</td>${edit ? inputRow('turnover') : valRow('turnover')}</tr>
       <tr><td style="${tdL}">매출원가</td>${edit ? inputRow('cogs') : valRow('cogs')}</tr>
       <tr><td style="${tdL}background:#fff9e6;">매출이익</td>${derived.map(d => `<td style="${tdHiB}">${_fmtBepWon(d.profit)}</td>`).join('')}</tr>
-      <tr><td style="${tdL}">매출이익율</td>${derived.map(d => `<td style="${tdV}">${_fmtBepPct(d.profitRate)}</td>`).join('')}</tr>
+      <tr><td style="${tdL}">매출이익율</td>${derived.map(d => `<td style="${tdV}color:${d.profitRate>=0?'var(--red)':'#1971c2'};font-weight:600;">${_fmtBepPct(d.profitRate)}</td>`).join('')}</tr>
       <tr><td style="${tdL}">판관비</td>${edit ? inputRow('sga') : valRow('sga')}</tr>
       <tr><td style="${tdL}background:#fff9e6;">영업이익</td>${derived.map(d => `<td style="${tdHiB}color:${d.opProfit>=0?'var(--red)':'#1971c2'};">${_fmtBepWon(d.opProfit)}</td>`).join('')}</tr>
       <tr><td style="${tdL}">영업이익율</td>${derived.map(d => `<td style="${tdV}color:${d.opRate>=0?'var(--red)':'#1971c2'};font-weight:600;">${_fmtBepPct(d.opRate)}</td>`).join('')}</tr>
@@ -5348,7 +5348,7 @@ function renderBepMonthlyTable() {
       <tr><td style="${tdL}">매출</td><td style="${tdVA}">${_fmtBepWon(sumOf('turnover'))}</td>${rows.map(r => valCell(r, 'turnover')).join('')}</tr>
       <tr><td style="${tdL}">매출원가</td><td style="${tdVA}">${_fmtBepWon(sumOf('cogs'))}</td>${rows.map(r => valCell(r, 'cogs')).join('')}</tr>
       <tr><td style="${tdL}background:#fff9e6;">매출이익</td><td style="${tdHiB}">${_fmtBepWon(sumOf('profit'))}</td>${rows.map(r => r.d ? `<td style="${tdHiB}">${_fmtBepWon(r.d.profit)}</td>` : `<td style="${tdDim}background:#fff9e6;">—</td>`).join('')}</tr>
-      <tr><td style="${tdL}">매출이익율</td><td style="${tdVA}">${avgOf('profitRate') == null ? '—' : _fmtBepPct(avgOf('profitRate'))}</td>${rows.map(r => r.d ? `<td style="${tdV}">${_fmtBepPct(r.d.profitRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
+      <tr><td style="${tdL}">매출이익율</td><td style="${tdVA}color:${(avgOf('profitRate')||0)>=0?'var(--red)':'#1971c2'};">${avgOf('profitRate') == null ? '—' : _fmtBepPct(avgOf('profitRate'))}</td>${rows.map(r => r.d ? `<td style="${tdV}color:${r.d.profitRate>=0?'var(--red)':'#1971c2'};font-weight:600;">${_fmtBepPct(r.d.profitRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
       <tr><td style="${tdL}">판관비</td><td style="${tdVA}">${_fmtBepWon(sgaSum)}</td>${rows.map(r => sgaCell(r)).join('')}</tr>
       <tr><td style="${tdL}background:#fff9e6;">영업이익</td><td style="${tdHiB}color:${sumOf('opProfit')>=0?'var(--red)':'#1971c2'};">${_fmtBepWon(sumOf('opProfit'))}</td>${rows.map(r => r.d ? `<td style="${tdHiB}color:${r.d.opProfit>=0?'var(--red)':'#1971c2'};">${_fmtBepWon(r.d.opProfit)}</td>` : `<td style="${tdDim}background:#fff9e6;">—</td>`).join('')}</tr>
       <tr><td style="${tdL}">영업이익율</td><td style="${tdVA}color:${(avgOf('opRate')||0)>=0?'var(--red)':'#1971c2'};">${avgOf('opRate') == null ? '—' : _fmtBepPct(avgOf('opRate'))}</td>${rows.map(r => r.d ? `<td style="${tdV}color:${r.d.opRate>=0?'var(--red)':'#1971c2'};font-weight:600;">${_fmtBepPct(r.d.opRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
