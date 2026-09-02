@@ -308,7 +308,7 @@ function _plRerenderOpenComments() {
   });
 }
 
-// ── 광고주/브랜드 연간 목표 구독 (매출처관리와 분리 — 연도별 문서, 광고비 기준) ──
+// ── 광고주/브랜드 연간 목표 구독 (매출처관리와 분리 — 연도별 문서, 매출 기준) ──
 let PL_GOALS = [];
 let _plWatchGoalsStarted = false;
 
@@ -339,7 +339,7 @@ function _plGoalDocId(company, brand, year) {
 function _plGetGoal(company, brand, year) {
   return PL_GOALS.find(g => g.seller === company && (g.brand || '') === (brand || '') && g.year === year);
 }
-// 연간 광고비 목표는 더 이상 여기서 직접 입력받지 않는다 — 월별 목표(_plSaveMonthlyGoal)
+// 연간 매출 목표는 더 이상 여기서 직접 입력받지 않는다 — 월별 목표(_plSaveMonthlyGoal)
 // 12개월 합으로 자동 계산해서 보여준다(2026-08-28, 두 값이 따로 놀던 문제를 없앰). DB등록수
 // 목표는 실제로 어디서도 달성률 등으로 쓰이지 않는 죽은 값이라 함께 폐지 — 이제 이 연간
 // 문서엔 광고주 KPI(연 단위로만 존재하는 값)만 남는다.
@@ -361,19 +361,19 @@ async function _plSaveGoal(company, brand, year, advKpiDescRaw) {
     throw e;
   }
 }
-// 브랜드의 그 해 연간 광고비 목표 = 월별 목표 12개월 합(_plGBrandMonths 재사용).
+// 브랜드의 그 해 연간 매출 목표 = 월별 목표 12개월 합(_plGBrandMonths 재사용).
 function _plGBrandAnnualTarget(company, brand, year) {
   return _plGBrandMonths(company, brand, year).reduce((s, m) => s + m.target, 0);
 }
 
-// ── 브랜드별 월간 목표 (광고비) — 연간 목표(_plSaveGoal)와 별개 문서. ②월간요약에서 인라인 입력 ──
+// ── 브랜드별 월간 목표 (매출) — 연간 목표(_plSaveGoal)와 별개 문서. ②월간요약에서 인라인 입력 ──
 function _plMonthlyGoalDocId(company, brand, ym) {
   return `pgmo_${encodeURIComponent(company)}_${encodeURIComponent(brand || '')}_${ym}`;
 }
 function _plGetMonthlyGoal(company, brand, ym) {
   return PL_GOALS.find(g => g.kind === 'monthly' && g.seller === company && (g.brand || '') === (brand || '') && g.ym === ym);
 }
-// value=광고비 KPI(광고비 목표, 숫자) · monthKpi=월 KPI(자유 텍스트 메모) · advKpiRate=광고주 KPI 달성률
+// value=매출 KPI(매출 목표, 숫자) · monthKpi=월 KPI(자유 텍스트 메모) · advKpiRate=광고주 KPI 달성률
 // (계산식 없이 담당자가 직접 입력하는 숫자, %) — 셋 다 비어있으면 문서를 지워 "미입력"으로 되돌린다.
 async function _plSaveMonthlyGoal(company, brand, ym, valueRaw, monthKpiRaw, advKpiRateRaw) {
   const id = _plMonthlyGoalDocId(company, brand, ym);
@@ -4547,7 +4547,7 @@ function _plBuildAdvertiserTabSkeleton(content) {
       <div class="table-wrap"><table style="width:100%;">
         <thead><tr>
           <th style="width:26px;"></th><th>광고주</th><th style="width:70px;">유형</th><th style="width:80px;">업종</th>
-          <th>프로젝트</th><th class="td-r" style="width:110px;">${_escHtml(PL_ADV_YEAR)} 광고비</th>
+          <th>프로젝트</th><th class="td-r" style="width:110px;">${_escHtml(PL_ADV_YEAR)} 매출</th>
           <th class="td-r" style="width:60px;">캠페인</th><th class="td-r" style="width:56px;">기록</th><th style="width:80px;">최근 기록</th>
         </tr></thead>
         <tbody id="pl-adv-tbody"></tbody>
@@ -4696,7 +4696,7 @@ function _plGProductRows(company, brandKey, year) {
 // 상품별 서브행 — 부모(브랜드) 행과 같은 표 안에 이어지는 진짜 <tr>. 브랜드명 칸은 부모 행에서
 // rowspan으로 이 행들까지 덮으므로 여기서는 그 칸(프로젝트 열)을 아예 렌더링하지 않는다.
 // PM은 컬럼이 아니라 부모 행의 브랜드명 아래 표시(_plGRenderAnnual)하므로 여기선 담당자만 전용 칸.
-// 연간목표(광고비)는 브랜드 단위 값이라 상품별 행엔 아예 해당사항이 없어 컬럼 자체를 두지 않음(브랜드 상세 패널의 KPI 카드에서만 표시)
+// 연간목표(매출)는 브랜드 단위 값이라 상품별 행엔 아예 해당사항이 없어 컬럼 자체를 두지 않음(브랜드 상세 패널의 KPI 카드에서만 표시)
 function _plGSubRowsHtml(productRows) {
   return productRows.map(r => `<tr class="pl-g-subrow" style="background:var(--surface2);">
     <td class="td-dim f-mono">${_escHtml(r.months)}</td>
@@ -4724,7 +4724,7 @@ function _plGBrandDetailRow(company, brandKey, brandLabel, year, colspan) {
       ${items.length ? items.map(lineFmt || fmtLine).join('') : '<div class="form-hint" style="font-size:11.5px;">—</div>'}
     </div>
   </div>`;
-  // 광고비 KPI 카드는 위 "월별 목표" 표로 흡수돼 중복이라 삭제. DB등록수 목표/실적도
+  // 매출 KPI 카드는 위 "월별 목표" 표로 흡수돼 중복이라 삭제. DB등록수 목표/실적도
   // 이 화면에서는 더 이상 안 보여준다(사용자 확인 완료, 2026-08-27).
   // 광고주 KPI(advKpiDesc)는 지금까지 KPI 메뉴에서만 보이고 광고주 상세엔 표시되는 곳이
   // 없었다 — 이슈사항 등과 같은 카드 UI로 여기에도 추가한다(사용자 확인, 2026-08-28).
@@ -4782,7 +4782,7 @@ function _plGRenderAnnual() {
   // 브랜드가 많아 스크롤이 길어져도 컬럼명을 다시 확인할 수 있도록, 브랜드 그룹이 시작될 때마다 미니 헤더 행을 끼워넣는다.
   // <thead>는 테이블당 하나만 허용되고 소스 위치와 무관하게 항상 맨 위에 그려지므로(위 합계행 이동 때와 동일한 이유),
   // 진짜 <thead>가 아니라 헤더처럼 보이는 <tr>을 <tbody> 안에 반복해서 넣는 방식으로 구현.
-  // 숫자 컬럼(광고비·요청수량·발송수량·기록)은 데이터 셀이 td-r로 오른쪽 정렬되므로, 헤더도 같은
+  // 숫자 컬럼(매출·요청수량·발송수량·기록)은 데이터 셀이 td-r로 오른쪽 정렬되므로, 헤더도 같은
   // 정렬로 맞춰야 위아래가 수직으로 이어져 보인다 — 안 맞으면 헤더는 좌측, 데이터는 우측이라 어긋나 보임.
   const miniHeadStyle = 'background:var(--surface2);padding:8px 14px;text-align:left;font-size:10.5px;font-weight:700;color:var(--text2);letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap;';
   const miniHeadStyleR = miniHeadStyle.replace('text-align:left', 'text-align:right');
@@ -4790,7 +4790,7 @@ function _plGRenderAnnual() {
     <th style="${miniHeadStyle}">프로젝트</th>
     <th style="${miniHeadStyle}">집행월</th>
     <th style="${miniHeadStyle}">광고상품</th>
-    <th class="td-r" style="${miniHeadStyleR}">광고비</th>
+    <th class="td-r" style="${miniHeadStyleR}">매출</th>
     <th class="td-r" style="${miniHeadStyleR}">요청수량</th>
     <th class="td-r" style="${miniHeadStyleR}">발송수량</th>
     <th style="${miniHeadStyle}">수익율</th>
@@ -4831,7 +4831,7 @@ function _plGRenderAnnual() {
         ${_plCanEditGoal() ? `<button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="plOpenGoalModal()">🎯 목표 설정</button>` : ''}
       </div>
       <div class="table-wrap"><table style="width:100%;">
-        <thead><tr><th>프로젝트</th><th>집행월</th><th>광고상품</th><th class="td-r">광고비</th><th class="td-r">요청수량</th><th class="td-r">발송수량</th><th>수익율</th><th>담당자</th><th class="td-r">기록</th></tr></thead>
+        <thead><tr><th>프로젝트</th><th>집행월</th><th>광고상품</th><th class="td-r">매출</th><th class="td-r">요청수량</th><th class="td-r">발송수량</th><th>수익율</th><th>담당자</th><th class="td-r">기록</th></tr></thead>
         <tbody>${totalRow}${bodyRows || `<tr><td colspan="${COLS}" style="text-align:center;padding:24px;color:var(--text3);">${_escHtml(year)}년 캠페인이 없습니다.</td></tr>`}</tbody>
       </table></div>
     </div>`;
@@ -4897,7 +4897,7 @@ function _plRenderGoalModalBody() {
       <div style="font-size:12.5px;font-weight:600;margin-bottom:7px;">${_escHtml(b)}</div>
       <div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;">
         <div style="width:220px;flex-shrink:0;">
-          <label style="font-size:9.5px;color:var(--text3);display:block;margin-bottom:2px;">광고비 목표(월별 합)</label>
+          <label style="font-size:9.5px;color:var(--text3);display:block;margin-bottom:2px;">매출 목표(월별 합)</label>
           <div style="display:flex;align-items:center;gap:6px;">
             <div class="form-input auto" style="border:none;width:100%;">${brandTarget ? _fmtMoney(brandTarget) : '미입력'}</div>
             <button type="button" class="btn btn-outline btn-sm" style="white-space:nowrap;padding:6px 10px;font-size:11.5px;" onclick="_plOpenMonthlyGoalModalFor('${_escHtml(_plGCompany)}','${_escHtml(year)}','${_escHtml(b)}','${_escHtml(b)}')">월별 입력 →</button>
@@ -4912,9 +4912,9 @@ function _plRenderGoalModalBody() {
   }).join('') : '<div class="form-hint">매출처관리에 등록된 브랜드가 없습니다.</div>';
   const body = document.getElementById('pl-goal-body');
   if (body) body.innerHTML = `
-    <div class="form-label" style="margin-bottom:6px;">광고주 전체 목표(광고비) — 브랜드별 월별 목표의 합</div>
+    <div class="form-label" style="margin-bottom:6px;">광고주 전체 목표(매출) — 브랜드별 월별 목표의 합</div>
     <div class="form-input auto" style="border:none;margin-bottom:16px;width:100%;">${totalTargetAll ? _fmtMoney(totalTargetAll) : '미입력'}</div>
-    <div class="form-label" style="margin-bottom:6px;">브랜드별 목표(광고비) · 광고주 KPI</div>
+    <div class="form-label" style="margin-bottom:6px;">브랜드별 목표(매출) · 광고주 KPI</div>
     ${brandRows}
     <div class="form-hint" style="margin-top:8px;">광고주 KPI는 비워두고 저장하면 삭제됩니다. ${_escHtml(year)}년에만 적용됩니다.</div>
   `;
@@ -4954,8 +4954,8 @@ function _plGBrandMonths(company, brandKey, year) {
   }
   return months;
 }
-// KPI/매출현황 메뉴의 표와 같은 형식(구분 | 연간합계 | 월별) — 광고비/광고비KPI는 script.js의
-// _fmtKpi, 광고비KPI달성률은 같은 화면의 _kpiRateHtml(목표 대비 ▲▼)을 그대로 재사용해 표기를 통일한다.
+// KPI/매출현황 메뉴의 표와 같은 형식(구분 | 연간합계 | 월별) — 매출/매출KPI는 script.js의
+// _fmtKpi, 매출KPI달성률은 같은 화면의 _kpiRateHtml(목표 대비 ▲▼)을 그대로 재사용해 표기를 통일한다.
 // 수정은 행마다가 아니라 표 하나에 "✎ 수정" 버튼 하나로만(→ plOpenMonthlyGoalModal).
 // opts.showInfoColumn: "본부별 매출 현황" 탭처럼 여러 광고주/브랜드 표가 한 화면에 쭉 나열될
 // 때, 표마다 위에 따로 붙던 광고주명/브랜드명 대신 표 맨 왼쪽에 식별 정보 열을 넣어 표 하나만
@@ -5047,19 +5047,19 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
       <tbody>
         <tr>
           ${infoCells[0]}
-          <td style="${tdLbl}">광고비</td>
+          <td style="${tdLbl}">매출</td>
           <td style="${tdYr}">${_fmtKpi(totalAdcost)}</td>
           ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.adcost)}</td>`).join('')}
         </tr>
         <tr>
           ${infoCells[1]}
-          <td style="${tdLbl}">광고비 KPI</td>
+          <td style="${tdLbl}">매출 KPI</td>
           <td style="${tdYr}">${_fmtKpi(totalTarget)}</td>
           ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.target)}</td>`).join('')}
         </tr>
         <tr>
           ${infoCells[2]}
-          <td style="${tdLbl}">광고비 KPI 달성률</td>
+          <td style="${tdLbl}">매출 KPI 달성률</td>
           <td style="${tdYr}text-align:center;">${_kpiRateHtml(totalAdcost, totalTarget)}</td>
           ${months.map(m => `<td style="${tdVal}text-align:center;">${_kpiRateHtml(m.adcost, m.target)}</td>`).join('')}
         </tr>
@@ -5177,7 +5177,7 @@ async function _plSaveMonthlyGoalModal() {
     _plGRenderAnnual();
     _plGRenderMonthly();
     // "🎯 목표 설정" 모달이 이 모달 아래에 열려있는 채였다면(월별 입력 → 링크로 진입한 경우),
-    // 방금 바뀐 월별 합계가 그 모달의 읽기전용 광고비 목표에도 바로 반영되게 다시 그린다.
+    // 방금 바뀐 월별 합계가 그 모달의 읽기전용 매출 목표에도 바로 반영되게 다시 그린다.
     if (document.getElementById('pl-modal-goal')?.classList.contains('open')) _plRenderGoalModalBody();
   } catch (e) {
     toast('저장 중 오류가 발생했습니다', 'err');
@@ -5266,7 +5266,7 @@ function _plGRenderMonthly() {
   _plGState.monthPage = Math.min(Math.max(1, _plGState.monthPage), totalPages);
   const pageRows = rows.slice((_plGState.monthPage - 1) * PL_G_MONTH_PAGE_SIZE, _plGState.monthPage * PL_G_MONTH_PAGE_SIZE);
   const monthLabel = _plCompressMonths([ym.slice(5, 7)]);
-  const COLS = 11; // 프로젝트 + 집행월 + 광고상품 + 매체사 + 목표(광고비) + 광고비 + 달성률 + 요청수량 + 발송수량 + 캠페인상태 + DB등록수
+  const COLS = 11; // 프로젝트 + 집행월 + 광고상품 + 매체사 + 목표(매출) + 매출 + 달성률 + 요청수량 + 발송수량 + 캠페인상태 + DB등록수
   const bodyRows = pageRows.map(r => {
     const productRows = _plGMonthlyProductRows(_plGCompany, r.brandKey, ym);
     const rowspan = 1 + productRows.length;
@@ -5298,7 +5298,7 @@ function _plGRenderMonthly() {
         <input type="month" class="f-date" id="pl-g-month" value="${_escHtml(ym)}" onchange="_plGMonthChange(this.value)" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       </div>
       <div class="table-wrap" style="overflow-y:hidden;"><table class="pl-g-monthly-tbl" style="width:100%;">
-        <thead><tr><th>프로젝트</th><th>집행월</th><th>광고상품</th><th>매체사</th><th class="td-r">목표(광고비)</th><th class="td-r">광고비</th><th>달성률</th><th class="td-r">요청수량</th><th class="td-r">발송수량</th><th>캠페인 상태</th><th>DB등록수</th></tr></thead>
+        <thead><tr><th>프로젝트</th><th>집행월</th><th>광고상품</th><th>매체사</th><th class="td-r">목표(매출)</th><th class="td-r">매출</th><th>달성률</th><th class="td-r">요청수량</th><th class="td-r">발송수량</th><th>캠페인 상태</th><th>DB등록수</th></tr></thead>
         <tbody>${bodyRows || `<tr><td colspan="${COLS}" style="text-align:center;padding:24px;color:var(--text3);">해당 월 캠페인이 없습니다.</td></tr>`}</tbody>
       </table></div>
       ${rows.length ? `<div class="pagination" style="justify-content:flex-end;gap:12px;">${_plGMonthPaginationHtml(rows.length, _plGState.monthPage, totalPages)}</div>` : ''}
