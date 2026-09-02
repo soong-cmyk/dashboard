@@ -12512,6 +12512,10 @@ function _kpiCanEdit() {
   return !!(currentUser?.isAdmin || ['대표이사','이사','본부장'].includes(currentUser?.rank));
 }
 
+// 광고비(할인전 정가 기준, _campAdcost와 동일) — 매출 규모를 보는 KPI/매출현황 메뉴에서는
+// 할인 반영 여부가 중요하지 않아(할인은 정산 때만 필요한 개념) 광고비 기준으로 집계한다.
+// 예전엔 _stlAmt(c).prf(이익)→그 다음엔 .amt(할인후 실청구)를 썼었으나, 최종적으로 BEP(진짜
+// 손익 분석용, 할인후 유지)와는 별개로 KPI 쪽은 광고비 기준으로 확정(2026-09-02).
 function _kpiCalcActual(year, bonbu, team, month) {
   return DATA.filter(c => {
     if (c.status === '삭제') return false;
@@ -12525,7 +12529,7 @@ function _kpiCalcActual(year, bonbu, team, month) {
       if (team  && u.dept  !== team)  return false;
     }
     return true;
-  }).reduce((s, c) => s + (_stlAmt(c).prf || 0), 0);
+  }).reduce((s, c) => s + (_campAdcost(c) || 0), 0);
 }
 
 // 본부 소속 담당자가 등록한 캠페인의 광고주+브랜드 중, 그 달 projectGoals(kind:'monthly')에
@@ -12694,7 +12698,7 @@ function renderKpiOrgSalesCards() {
     return `<div class="kpi-card" style="cursor:pointer;${sel ? 'border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);' : ''}" onclick="kpiOrgSalesSelectBonbu('${_escHtml(name)}')">
       <div class="kpi-card-label">${_escHtml(name)}</div>
       <div class="kpi-card-value">${_fmtMoney(cum)}원</div>
-      <div class="kpi-card-sub">${_kpiYear}년 누적 매출 실적</div>
+      <div class="kpi-card-sub">${_kpiYear}년 누적 광고비</div>
     </div>`;
   }).join('');
 }
@@ -12957,12 +12961,12 @@ function renderKpiCards() {
 
   el.innerHTML = `
     <div class="kpi-card">
-      <div class="kpi-card-label">연간 매출 KPI (전사)</div>
+      <div class="kpi-card-label">연간 광고비 KPI (전사)</div>
       <div class="kpi-card-value">${_fmtMoney(annualTarget)}원</div>
       <div class="kpi-card-sub">${_kpiYear}년 목표</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-card-label">누적 매출 실적 (1월~${parseInt(curM)}월)</div>
+      <div class="kpi-card-label">누적 광고비 (1월~${parseInt(curM)}월)</div>
       <div class="kpi-card-value">${_fmtMoney(cumActual)}원</div>
       <div class="kpi-card-sub">${yoyHtml || '&nbsp;'}</div>
     </div>
@@ -13094,10 +13098,10 @@ function renderKpiGrandTable() {
       ${cols.map(colHdr).join('')}
     </tr></thead>
     <tbody>
-      <tr><td style="${tdL}">광고 매출 실적</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(actCell).join('')}</tr>
-      <tr><td style="${tdL}">매출KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
+      <tr><td style="${tdL}">광고비</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(actCell).join('')}</tr>
+      <tr><td style="${tdL}">광고비KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
       <tr><td style="${tdL}">KPI 달성률(평균)</td><td style="${tdAC}">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
-      <tr><td style="${tdL}">전년도 매출</td><td style="${tdAN}">${_fmtKpi(totPrev)}</td>${cols.map(prevCell).join('')}</tr>
+      <tr><td style="${tdL}">전년도 광고비</td><td style="${tdAN}">${_fmtKpi(totPrev)}</td>${cols.map(prevCell).join('')}</tr>
       <tr><td style="${tdL}">YoY</td><td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>${cols.map(c=>yoyCell(c,act,prev)).join('')}</tr>
     </tbody>
   </table></div>`;
@@ -13366,7 +13370,7 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       };
 
       const sumRows = [
-        { label:'매출 실적',                  total:`<td style="${tdSVY}">${_fmtKpi(totBAct)}</td>`,               cells: cols.map(sActCell).join('') },
+        { label:'광고비',                  total:`<td style="${tdSVY}">${_fmtKpi(totBAct)}</td>`,               cells: cols.map(sActCell).join('') },
         { label:'KPI 달성률',                 total:`<td style="${tdSCY}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
         { label:'광고주별 KPI 달성률(평균)',  total:`<td style="${tdSCY}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
       ];
@@ -13432,8 +13436,8 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       // 전년도 매출·YoY 행은 일단 숨김 처리 — 계산 로직(totPrev/prevCell/yoyCell)은 그대로
       // 두고 렌더링에서만 뺐다(2026-08-28, 나중에 다시 보여줄 수도 있어 삭제하지 않음).
       const rows = [
-        { label:'매출 실적',       total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,          cells: cols.map(actCell).join('') },
-        { label:'KPI 목표',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
+        { label:'광고비',       total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,          cells: cols.map(actCell).join('') },
+        { label:'광고비 KPI',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
         { label:'달성률',          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts)).join('') },
       ];
       const TOTAL_ROWS = rows.length;
@@ -13536,7 +13540,7 @@ function _kiBuildBodyHtml(year, kpiData) {
               </thead>
               <tbody>
                 <tr>
-                  <td style="${thL}">매출 KPI<span style="font-size:10px;color:var(--text3);margin-left:4px;">(원)</span></td>
+                  <td style="${thL}">광고비 KPI<span style="font-size:10px;color:var(--text3);margin-left:4px;">(원)</span></td>
                   ${_KPI_MONTHS.map(m => {
                     const md = (kt.months || []).find(x => x.month === m) || {};
                     const displayV = md.target || '';
