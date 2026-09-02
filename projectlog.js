@@ -2638,8 +2638,11 @@ function _plInternalTaskInput(bi, val) {
   const q = (val || '').trim().toLowerCase();
   const tasks = [...new Set(PL_LOGS.filter(l => l.scope === 'internal' && l.seller === block.seller && l.content).map(l => l.content))];
   const matched = q ? tasks.filter(t => t.toLowerCase().includes(q)) : tasks;
-  if (!matched.length) { list.style.display = 'none'; return; }
-  list.innerHTML = matched.slice(0, 10).map(t => `<div class="combo-item" onmousedown="_plInternalTaskPick(${bi},'${_escHtml(t)}')">${_escHtml(t)}</div>`).join('');
+  // 특정 테스크 없이 프로젝트 전체에 대한 기록도 쓸 수 있다는 걸 보여주려고, 검색어와 무관하게
+  // 맨 위에 항상 고정 — 브랜드 선택의 "브랜드 미지정"과 같은 취지. content를 빈 문자열로 두면
+  // .filter(Boolean) 기준으로 "테스크 없음" 취급되어 목록/태그에도 안 잡힌다(2026-09-02).
+  const pinnedHtml = `<div class="combo-item" style="color:var(--text3);" onmousedown="_plInternalTaskPick(${bi},'')">테스크 미지정</div>`;
+  list.innerHTML = pinnedHtml + matched.slice(0, 10).map(t => `<div class="combo-item" onmousedown="_plInternalTaskPick(${bi},'${_escHtml(t)}')">${_escHtml(t)}</div>`).join('');
   list.style.display = 'block';
 }
 function _plInternalTaskPick(bi, val) {
@@ -3717,8 +3720,8 @@ function _plEditTaskInput(val) {
   const q = (val || '').trim().toLowerCase();
   const tasks = [...new Set(PL_LOGS.filter(l => l.scope === 'internal' && l.seller === _plEditDraft.seller && l.content).map(l => l.content))];
   const matched = q ? tasks.filter(t => t.toLowerCase().includes(q)) : tasks;
-  if (!matched.length) { list.style.display = 'none'; return; }
-  list.innerHTML = matched.slice(0, 10).map(t => `<div class="combo-item" onmousedown="_plEditTaskPick('${_escHtml(t)}')">${_escHtml(t)}</div>`).join('');
+  const pinnedHtml = `<div class="combo-item" style="color:var(--text3);" onmousedown="_plEditTaskPick('')">테스크 미지정</div>`;
+  list.innerHTML = pinnedHtml + matched.slice(0, 10).map(t => `<div class="combo-item" onmousedown="_plEditTaskPick('${_escHtml(t)}')">${_escHtml(t)}</div>`).join('');
   list.style.display = 'block';
 }
 function _plEditTaskPick(val) {
