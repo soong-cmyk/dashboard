@@ -12945,7 +12945,9 @@ function renderKpiCards() {
 
   const cumActual = passed.reduce((s, m) => s + _kpiCalcActual(_kpiYear, '', '', m), 0);
   const cumTarget = passed.reduce((s, m) => s + allTeamMonths.filter(x => x.month === m).reduce((ss, x) => ss + (x.target || 0), 0), 0);
-  const cumPrev   = passed.reduce((s, m) => s + allTeamMonths.filter(x => x.month === m).reduce((ss, x) => ss + (x.prevYear || 0), 0), 0);
+  // 전년실적은 팀별이 아니라 "전사" 통짜 버킷에서 읽는다(renderKpiGrandTable과 동일 소스, 2026-09-02).
+  const jeonsaMonths = ((KPI_DATA.bonbus || []).find(b => b.name === '전사')?.teams || []).find(t => t.name === '전사')?.months || [];
+  const cumPrev   = passed.reduce((s, m) => s + (jeonsaMonths.find(x => x.month === m)?.prevYear || 0), 0);
 
   const kpiPct  = cumTarget ? Math.round(cumActual / cumTarget * 100) : 0;
   const progW   = annualTarget ? Math.min(100, Math.round(cumActual / annualTarget * 100)) : 0;
@@ -13008,8 +13010,12 @@ function renderKpiGrandTable() {
   _KPI_MONTHS.forEach(m => { tgt[m] = 0; prev[m] = 0; });
   _kpiValidBonbus().forEach(b => (b.teams || []).forEach(t => (t.months || []).forEach(md => {
     tgt[md.month]  = (tgt[md.month]  || 0) + (md.target  || 0);
-    prev[md.month] = (prev[md.month] || 0) + (md.prevYear || 0);
   })));
+  // "전년도 매출" — 팀별로 안 쪼개고 그 해 문서의 "전사" 통짜 버킷에서 바로 읽는다
+  // (등록/수정 모달의 "전사 전년 실적" 입력과 짝, 2026-09-02).
+  const jb = (KPI_DATA.bonbus || []).find(b => b.name === '전사') || {};
+  const jt = (jb.teams || []).find(t => t.name === '전사') || {};
+  (jt.months || []).forEach(md => { prev[md.month] = (prev[md.month] || 0) + (md.prevYear || 0); });
 
   const act = {};
   _KPI_MONTHS.forEach(m => { act[m] = _kpiCalcActual(_kpiYear, '', '', m); });
@@ -13089,7 +13095,7 @@ function renderKpiGrandTable() {
     </tr></thead>
     <tbody>
       <tr><td style="${tdL}">광고 매출 실적</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(actCell).join('')}</tr>
-      <tr><td style="${tdL}">KPI 목표</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
+      <tr><td style="${tdL}">매출KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
       <tr><td style="${tdL}">KPI 달성률(평균)</td><td style="${tdAC}">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
       <tr><td style="${tdL}">전년도 매출</td><td style="${tdAN}">${_fmtKpi(totPrev)}</td>${cols.map(prevCell).join('')}</tr>
       <tr><td style="${tdL}">YoY</td><td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>${cols.map(c=>yoyCell(c,act,prev)).join('')}</tr>
@@ -13474,28 +13480,45 @@ function toggleKpiQtr() {
 }
 
 
-function openKpiEditModal() {
-  if (!_kpiCanEdit()) return;
-  const cy = new Date().getFullYear();
-
-  const sCard = 'background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0;overflow:hidden;margin-bottom:12px;';
-  const sSecH = 'font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px;letter-spacing:.3px;text-transform:uppercase;';
-
-  // 항목명 텍스트로 이미 구분되므로 행마다 다른 색을 칠하지 않고 전부 중립 배경으로 통일.
-  // "목표 광고주 수"는 폐지 — 필요 없어진 입력이라 삭제(2026-08-28). 기존에 저장된 값이 있는
-  // 달은 renderKpiOrgTable의 "광고주별 KPI 달성률(평균)" 행에서 계속 읽지만, 여기서 새로
-  // 입력할 방법은 없다.
-  const rowMeta = [
-    { label: '매출 목표', fKey: 'tgt',  note: '원', bgH: 'var(--surface2)', bgC: '' },
-    { label: '전년 실적', fKey: 'prev', note: '원', bgH: 'var(--surface2)', bgC: '' },
-  ];
+// 등록/수정 모달 본문 HTML — "전사" 카드(전년 실적, 회사 전체 통짜 한 줄) + 본부/팀별 카드
+// (매출KPI만, 팀별). 전년실적을 팀별로 따로 입력하던 걸 폐지하고 전사 단위 하나로 합쳤다
+// (2026-09-02) — 그 해 보고 있는 연도 기준 "작년 실적"은 팀 단위로 쪼갤 필요가 없어서.
+function _kiBuildBodyHtml(year, kpiData) {
   const thS = 'padding:5px 8px;border:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;text-align:center;';
   const thL = 'padding:5px 10px;border:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;';
+  const sCard = 'background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0;overflow:hidden;margin-bottom:12px;';
 
+  const jb = ((kpiData && kpiData.bonbus) || []).find(b => b.name === '전사') || {};
+  const jt = (jb.teams || []).find(t => t.name === '전사') || {};
+  const jeonsaCard = `<div style="${sCard}">
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--accent-light);border-bottom:1px solid var(--border);">
+      <span style="font-weight:700;font-size:13px;">전사</span>
+    </div>
+    <div style="padding:12px 14px;">
+      <div style="overflow-x:auto;">
+        <table style="border-collapse:collapse;font-size:11px;width:max-content;">
+          <thead><tr>
+            <th style="${thL}min-width:72px;background:var(--surface2);">항목</th>
+            ${_KPI_MONTHS.map(m => `<th style="${thS}min-width:68px;background:var(--surface2);">${_KPI_ML[m]}</th>`).join('')}
+          </tr></thead>
+          <tbody><tr>
+            <td style="${thL}">전년 실적<span style="font-size:10px;color:var(--text3);margin-left:4px;">(원)</span></td>
+            ${_KPI_MONTHS.map(m => {
+              const md = (jt.months || []).find(x => x.month === m) || {};
+              const displayV = md.prevYear || '';
+              return `<td style="padding:2px 3px;border:1px solid var(--border);"><input type="number" class="form-input" style="width:80px;padding:2px 4px;font-size:11px;" id="ki_prev_전사_전사_${m}" value="${displayV}" step="100000"></td>`;
+            }).join('')}
+          </tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+
+  // "목표 광고주 수"·"담당 카테고리"는 폐지되어 어디서도 안 읽음(2026-08-28).
   // 본부끼리 더 뚜렷하게 구분되도록 본부명은 진한 배경 헤더 바로 따로 빼고, 그 아래 팀 카드들을
   // 묶는다(팀 카드 안에는 이제 본부명 반복 표시 없이 팀명만).
   const teamSections = ORG_STRUCTURE.map(org => {
-    const kb = (KPI_DATA.bonbus || []).find(b => b.name === org.bonbu) || {};
+    const kb = ((kpiData && kpiData.bonbus) || []).find(b => b.name === org.bonbu) || {};
     const teamCards = (org.teams || []).map(teamName => {
       const kt = (kb.teams || []).find(t => t.name === teamName) || {};
       return `<div style="${sCard}padding:0;overflow:hidden;">
@@ -13512,19 +13535,14 @@ function openKpiEditModal() {
                 </tr>
               </thead>
               <tbody>
-                ${rowMeta.map(({ label, fKey, note, bgH, bgC }) => {
-                  const tdI = `padding:2px 3px;border:1px solid var(--border);background:${bgC};`;
-                  const thRow = `${thL}background:${bgH};`;
-                  return `<tr>
-                    <td style="${thRow}">${label}<span style="font-size:10px;color:var(--text3);margin-left:4px;">(${note})</span></td>
-                    ${_KPI_MONTHS.map(m => {
-                      const md = (kt.months || []).find(x => x.month === m) || {};
-                      const raw = fKey === 'tgt' ? md.target : md.prevYear;
-                      const displayV = raw || '';
-                      return `<td style="${tdI}"><input type="number" class="form-input" style="width:80px;padding:2px 4px;font-size:11px;" id="ki_${fKey}_${org.bonbu}_${teamName}_${m}" value="${displayV}" step="100000"></td>`;
-                    }).join('')}
-                  </tr>`;
-                }).join('')}
+                <tr>
+                  <td style="${thL}">매출 KPI<span style="font-size:10px;color:var(--text3);margin-left:4px;">(원)</span></td>
+                  ${_KPI_MONTHS.map(m => {
+                    const md = (kt.months || []).find(x => x.month === m) || {};
+                    const displayV = md.target || '';
+                    return `<td style="padding:2px 3px;border:1px solid var(--border);"><input type="number" class="form-input" style="width:80px;padding:2px 4px;font-size:11px;" id="ki_tgt_${org.bonbu}_${teamName}_${m}" value="${displayV}" step="100000"></td>`;
+                  }).join('')}
+                </tr>
               </tbody>
             </table>
           </div>
@@ -13540,6 +13558,21 @@ function openKpiEditModal() {
     </div>`;
   }).join('');
 
+  return jeonsaCard + teamSections;
+}
+
+// 2026년부터 (올해+1)까지 — 2025년은 등록/수정 대상에서 제외(전사 전년실적 개념 자체가 2026년
+// 화면 안으로 들어왔으므로 2025년을 따로 고를 필요가 없어졌다, 2026-09-02).
+// 해가 지나도 앞부분(2026)은 안 없어지고 뒤로만 늘어난다.
+function _kiYearOptions() {
+  const cy = new Date().getFullYear();
+  const years = [];
+  for (let y = 2026; y <= cy + 1; y++) years.push(y);
+  return years.map(y => `<option value="${y}"${String(y)===_kpiYear?' selected':''}>${y}년</option>`).join('');
+}
+
+function openKpiEditModal() {
+  if (!_kpiCanEdit()) return;
   const mId = 'modalKpiEdit';
   let mEl = document.getElementById(mId);
   if (!mEl) { mEl = document.createElement('div'); mEl.id = mId; mEl.className = 'modal-overlay'; document.body.appendChild(mEl); }
@@ -13548,15 +13581,14 @@ function openKpiEditModal() {
   mEl.innerHTML = `<div class="modal" style="width:min(1230px,96vw);max-height:92vh;overflow-y:auto;overflow-x:hidden;">
     <div class="modal-head">
       <span class="modal-title">KPI 등록/수정
-        <select class="form-sel" id="ki_year" style="width:90px;font-size:13px;margin-left:8px;">
-          ${[cy-1,cy,cy+1].map(y=>`<option value="${y}"${String(y)===_kpiYear?' selected':''}>${y}년</option>`).join('')}
+        <select class="form-sel" id="ki_year" style="width:90px;font-size:13px;margin-left:8px;" onchange="_kiYearChange(this.value)">
+          ${_kiYearOptions()}
         </select>
       </span>
       <button class="modal-close" onclick="closeModal('${mId}')">✕</button>
     </div>
     <div class="modal-body" style="overflow:visible;">
-      <div style="display:flex;flex-direction:column;gap:12px;">${teamSections}</div>
-
+      <div id="ki_body" style="display:flex;flex-direction:column;gap:12px;">${_kiBuildBodyHtml(_kpiYear, KPI_DATA)}</div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline" onclick="document.getElementById('${mId}').style.display='none'">취소</button>
@@ -13566,23 +13598,50 @@ function openKpiEditModal() {
   openModal(mId);
 }
 
+// 연도 select를 바꾸면 그 연도의 실제 데이터를 다시 불러와서 다시 그린다 — 예전엔 onchange가
+// 아예 없어서 다른 연도를 골라도 입력창 내용이 안 바뀌던 버그였다(2026-09-02).
+async function _kiYearChange(year) {
+  const bodyEl = document.getElementById('ki_body');
+  if (!bodyEl) return;
+  bodyEl.style.opacity = '0.5';
+  try {
+    let data;
+    if (String(year) === String(_kpiYear)) data = KPI_DATA;
+    else if (window._db) {
+      const doc = await window._db.collection('settings').doc('kpi_targets_' + year).get();
+      data = doc.exists ? doc.data() : {};
+    } else data = {};
+    bodyEl.innerHTML = _kiBuildBodyHtml(year, data);
+  } catch (e) {
+    console.error('[FB] KPI 연도별 데이터 조회 실패', e);
+    toast('해당 연도 데이터를 불러오지 못했습니다', 'err');
+  } finally {
+    bodyEl.style.opacity = '';
+  }
+}
+
 async function saveKpiTargets() {
   if (!_kpiCanEdit()) return;
   const year = document.getElementById('ki_year')?.value || _kpiYear;
 
+  // "담당 카테고리"·"목표 광고주 수" 둘 다 이제 어디서도 안 읽는 값이라 완전히 폐지(2026-08-28).
   const bonbus = ORG_STRUCTURE.map(org => {
     const teams = (org.teams || []).map(teamName => {
-      // "담당 카테고리"·"목표 광고주 수" 둘 다 이제 어디서도 안 읽는 값이라 완전히 폐지
-      // (2026-08-28) — 팀 라벨 표시에서도 카테고리를 뺐다.
       const months = _KPI_MONTHS.map(m => ({
-        month:       m,
-        target:      Math.round(+(document.getElementById(`ki_tgt_${org.bonbu}_${teamName}_${m}`)?.value)  || 0),
-        prevYear:    Math.round(+(document.getElementById(`ki_prev_${org.bonbu}_${teamName}_${m}`)?.value) || 0),
+        month:  m,
+        target: Math.round(+(document.getElementById(`ki_tgt_${org.bonbu}_${teamName}_${m}`)?.value) || 0),
       }));
       return { name: teamName, months };
     });
     return { name: org.bonbu, teams };
   });
+  // 전사 전년실적 — 팀별로 안 쪼개고 회사 전체 통짜 한 줄로 별도 버킷에 저장(2026-09-02).
+  // ORG_STRUCTURE엔 '전사'라는 본부가 없어서 _kpiValidBonbus() 등 본부별 합산 로직과 안 겹친다.
+  const jeonsaMonths = _KPI_MONTHS.map(m => ({
+    month: m,
+    prevYear: Math.round(+(document.getElementById(`ki_prev_전사_전사_${m}`)?.value) || 0),
+  }));
+  bonbus.push({ name: '전사', teams: [{ name: '전사', months: jeonsaMonths }] });
 
   const data = { year, bonbus };
   if (!window._db) { toast('DB 연결 없음', 'err'); return; }
@@ -13591,8 +13650,8 @@ async function saveKpiTargets() {
   try {
     await window._db.collection('settings').doc('kpi_targets_' + year).set(data);
     closeModal('modalKpiEdit');
-    if (year !== _kpiYear) {
-      _kpiYear = year;
+    if (String(year) !== String(_kpiYear)) {
+      _kpiYear = String(year);
       const yr = document.getElementById('kpi-year');
       if (yr) yr.value = year;
     }
