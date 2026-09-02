@@ -12512,11 +12512,10 @@ function _kpiCanEdit() {
   return !!(currentUser?.isAdmin || ['대표이사','이사','본부장'].includes(currentUser?.rank));
 }
 
-// 매출 — 계산 자체는 광고비(할인전 정가 기준, _campAdcost와 동일)와 같다. 회사에서 "광고비"를
-// "매출"과 같은 의미로 인식해 라벨은 매출로 쓰되, 할인 반영 여부는 중요하지 않다(할인은 정산
-// 때만 필요한 개념)는 뜻에서 매출 규모를 보는 KPI/매출현황 메뉴는 광고비 기준으로 집계한다.
-// 예전엔 _stlAmt(c).prf(이익)→그 다음엔 .amt(할인후 실청구)를 썼었으나, 최종적으로 BEP(진짜
-// 손익 분석용, "취급고"라는 별개 이름으로 할인후 유지)와는 구분해 확정(2026-09-02).
+// 매출 — 정산수량×할인단가(실청구액, _stlAmt(c).amt) 기준. 한때 _stlAmt(c).prf(이익)를
+// 합산해 라벨은 매출인데 실제론 이익을 보여줬고, 그다음엔 할인 반영 안 된 광고비(adc, 정산
+// 수량×매출단가) 기준으로 잠깐 바꿨었으나, 최종적으로 할인이 반영된 실청구액 기준으로
+// 확정(2026-09-02). BEP의 "취급고"도 같은 amt 기준이라 이제 두 메뉴가 다시 일치한다.
 function _kpiCalcActual(year, bonbu, team, month) {
   return DATA.filter(c => {
     if (c.status === '삭제') return false;
@@ -12530,7 +12529,7 @@ function _kpiCalcActual(year, bonbu, team, month) {
       if (team  && u.dept  !== team)  return false;
     }
     return true;
-  }).reduce((s, c) => s + (_campAdcost(c) || 0), 0);
+  }).reduce((s, c) => s + (_stlAmt(c).amt || 0), 0);
 }
 
 // 본부 소속 담당자가 등록한 캠페인의 광고주+브랜드 중, 그 달 projectGoals(kind:'monthly')에
