@@ -5456,6 +5456,10 @@ function _plGCampProductOptionsHtml(company) {
   const prods = [...new Set(DATA.filter(c => (c.seller || c.adv || '') === company && c.product).map(c => c.product))].sort();
   return prods.map(p => `<option value="${_escHtml(p)}">${_escHtml(p)}</option>`).join('');
 }
+function _plGCampOpsOptionsHtml(company) {
+  const opsNames = [...new Set(DATA.filter(c => (c.seller || c.adv || '') === company && c.ops).map(c => c.ops))].sort((a, b) => a.localeCompare(b, 'ko'));
+  return opsNames.map(o => `<option value="${_escHtml(o)}">${_escHtml(o)}</option>`).join('');
+}
 
 function _plGBuildCampSkeleton(campEl, company) {
   const companyAttr = _escHtml(company);
@@ -5466,6 +5470,8 @@ function _plGBuildCampSkeleton(campEl, company) {
       <select class="f-sel" id="pl-gcamp-product" onchange="_plGCampState.page=1;_plGRenderCampRows('${companyAttr}');"><option value="">상품 전체</option>${_plGCampProductOptionsHtml(company)}</select>
       <select class="f-sel" id="pl-gcamp-status" onchange="_plGCampState.page=1;_plGRenderCampRows('${companyAttr}');"><option value="">상태 전체</option>${_plStatusOptionsHtml()}</select>
       <select class="f-sel" id="pl-gcamp-record" onchange="_plGCampState.page=1;_plGRenderCampRows('${companyAttr}');"><option value="">기록 전체</option><option value="has">기록있음</option><option value="none">기록없음</option></select>
+      <select class="f-sel" id="pl-gcamp-org" onchange="_plGCampState.page=1;_plGRenderCampRows('${companyAttr}');"><option value="">본부/팀 전체</option>${_buildOrgSelectHTML()}</select>
+      <select class="f-sel" id="pl-gcamp-ops" onchange="_plGCampState.page=1;_plGRenderCampRows('${companyAttr}');"><option value="">담당자 전체</option>${_plGCampOpsOptionsHtml(company)}</select>
       <select class="f-sel" id="pl-gcamp-sort" style="margin-left:auto;" onchange="_plGRenderCampRows('${companyAttr}');"><option value="recent">정렬: 최근 기록순</option><option value="date">정렬: 발송일순</option></select>
     </div>
     <div class="table-card">
@@ -5473,7 +5479,7 @@ function _plGBuildCampSkeleton(campEl, company) {
       <div class="table-wrap"><table style="width:100%;">
         <thead><tr>
           <th style="width:90px;">캠페인ID</th><th style="width:90px;">브랜드</th><th style="width:80px;">매체</th><th style="width:60px;">상품</th>
-          <th style="width:70px;">발송일</th><th style="width:90px;">상태</th><th class="td-r" style="width:56px;">기록</th><th style="width:80px;">최근기록</th><th style="width:76px;"></th><th style="width:56px;"></th>
+          <th style="width:70px;">발송일</th><th style="width:90px;">상태</th><th style="width:70px;">담당자</th><th style="width:76px;"></th><th style="width:76px;"></th>
         </tr></thead>
         <tbody id="pl-gcamp-tbody"></tbody>
       </table></div>
@@ -5488,6 +5494,8 @@ function _plGCampFiltered(company) {
   const product = document.getElementById('pl-gcamp-product')?.value || '';
   const status = document.getElementById('pl-gcamp-status')?.value || '';
   const record = document.getElementById('pl-gcamp-record')?.value || '';
+  const ops = document.getElementById('pl-gcamp-ops')?.value || '';
+  const { bonbu, team } = _parseOrgFilter(document.getElementById('pl-gcamp-org')?.value || '');
   let list = DATA.filter(c => {
     if (c.status === '삭제') return false;
     if ((c.seller || c.adv || '') !== company) return false;
@@ -5495,6 +5503,12 @@ function _plGCampFiltered(company) {
     if (media && c.media !== media) return false;
     if (product && c.product !== product) return false;
     if (status && c.status !== status) return false;
+    if (ops && c.ops !== ops) return false;
+    if (bonbu || team) {
+      const u = USERS.find(u => u.name === c.ops);
+      if (bonbu && (!u || u.bonbu !== bonbu)) return false;
+      if (team  && (!u || u.dept  !== team))  return false;
+    }
     if (record) {
       const cnt = _plCampaignLogsAll(c.id).length;
       if (record === 'has' && cnt === 0) return false;
@@ -5514,7 +5528,6 @@ function _plGCampFiltered(company) {
 
 function _plGCampRow(c) {
   const logs = _plCampaignLogsAll(c.id);
-  const lastLog = logs.reduce((m, l) => (!m || (l.logDate || '') > (m.logDate || '')) ? l : m, null);
   const statusColor = (typeof STATUS_COLORS !== 'undefined' ? STATUS_COLORS[c.status] : null) || '#999';
   const dateShort = (c.date || '').slice(2, 10).replace(/-/g, '.');
   const idx = DATA.indexOf(c);
@@ -5525,10 +5538,9 @@ function _plGCampRow(c) {
     <td class="td-dim">${_escHtml(c.product || '—')}</td>
     <td class="f-mono td-num">${dateShort}</td>
     <td><span class="badge" style="background:${statusColor}22;color:${statusColor};">${_escHtml(c.status || '—')}</span></td>
-    <td class="td-num td-r">${logs.length || '—'}</td>
-    <td class="${lastLog ? 'f-mono td-num' : 'td-dim'}">${lastLog ? _escHtml(lastLog.logDate.slice(2).replace(/-/g, '.')) : '—'}</td>
+    <td class="td-dim">${_escHtml(c.ops || '—')}</td>
     <td><button class="btn btn-outline btn-sm" onclick="openCalPreview(${idx})">🔍 간략보기</button></td>
-    <td><button class="btn btn-outline btn-sm" onclick="plOpenCampaignLogs('${_escHtml(c.id)}')">✎ 일지</button></td>
+    <td><button class="btn btn-outline btn-sm" onclick="plOpenCampaignLogs('${_escHtml(c.id)}')">✎ 일지${logs.length ? ` (${logs.length})` : ''}</button></td>
   </tr>`;
 }
 
@@ -5549,7 +5561,7 @@ function _plGRenderCampRows(company) {
   _plGCampState.page = Math.min(Math.max(1, _plGCampState.page), totalPages);
   const pageItems = filtered.slice((_plGCampState.page - 1) * PL_CAMP_PAGE_SIZE, _plGCampState.page * PL_CAMP_PAGE_SIZE);
   const tbody = document.getElementById('pl-gcamp-tbody');
-  if (tbody) tbody.innerHTML = pageItems.length ? pageItems.map(_plGCampRow).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text3);">조건에 맞는 캠페인이 없습니다.</td></tr>`;
+  if (tbody) tbody.innerHTML = pageItems.length ? pageItems.map(_plGCampRow).join('') : `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text3);">조건에 맞는 캠페인이 없습니다.</td></tr>`;
   const pagEl = document.getElementById('pl-gcamp-pagination');
   if (pagEl) pagEl.innerHTML = _plGCampPaginationHtml(filtered.length, _plGCampState.page, totalPages);
 }
