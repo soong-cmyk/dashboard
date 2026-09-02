@@ -13121,13 +13121,13 @@ function renderKpiClientListTable() {
 
   const thC  = 'padding:8px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
   const tdL  = 'padding:7px 10px;border:1px solid var(--border);font-weight:600;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
-  const tdSN = 'padding:7px 10px;border:1px solid var(--border);font-weight:800;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
-  const tdC  = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;';
-  const tdAC = tdC + 'background:#fff9e6;font-weight:600;';
+  const tdSN = 'padding:4px 10px;border:1px solid var(--border);font-weight:800;font-size:10px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
+  const tdC  = 'padding:4px 10px;border:1px solid var(--border);text-align:center;font-size:10px;white-space:nowrap;';
+  const tdAC = tdC + 'background:#fff9e6;font-size:11px;font-weight:500;';
   // 광고주명이 나오는 행(광고주 1명당 1행) 전용 — 위아래 테두리 없이 세로 여백만 아주 좁게(1px)
   // 줘서 행끼리 촘촘하게 이어지게 한다. 좌우 구분선은 그대로 유지.
   const tdCN  = 'padding:0 10px;line-height:16px;border-left:1px solid var(--border);border-right:1px solid var(--border);border-top:none;border-bottom:none;text-align:center;font-size:14px;white-space:nowrap;';
-  const tdACN = tdCN + 'background:#fff9e6;font-weight:600;';
+  const tdACN = tdCN + 'background:#fff9e6;font-size:11px;font-weight:500;';
   const nd   = ''; // 빈 값은 "—" 대신 그냥 공란(2026-08-28)
 
   // 분기합계 열은 이 표에서는 생략 — 항상 12개월만 표시(_kpiShowQtr 토글과 무관).
