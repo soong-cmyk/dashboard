@@ -5066,8 +5066,8 @@ function renderDashboard() {
 // BEP 관리 (KPI 메뉴)
 // ══════════════════════════════════════════
 // 표1: KPI/BEP/영업이익 비교 — 월BEP·As-is·매출KPI-1·매출KPI-2 4개 시나리오 고정 비교
-// 표2: 월별 BEP 추이 — 연도 내 12개월 시계열, 취급고/매출원가/판관비만 입력받고 나머지는 자동계산
-// 계산: 매출이익 = 취급고 - 매출원가 / 매출이익율 = 매출이익/취급고 / 영업이익 = 매출이익-판관비 / 영업이익율 = 영업이익/취급고
+// 표2: 월별 BEP 추이 — 연도 내 12개월 시계열, 매출/매출원가/판관비만 입력받고 나머지는 자동계산
+// 계산: 매출이익 = 매출 - 매출원가 / 매출이익율 = 매출이익/매출 / 영업이익 = 매출이익-판관비 / 영업이익율 = 영업이익/매출
 let BEP_SCENARIO       = {};
 let BEP_MONTHLY        = {};
 // 연도는 KPI/매출현황 전체 공통(#kpi-year, _kpiYear)을 그대로 쓴다 — BEP만 따로 연도를
@@ -5118,7 +5118,7 @@ function _bepMonthOptions(selected) {
   });
   return opts.join('');
 }
-// 실제 캠페인 데이터에서 해당 월의 취급고(amt 합)·매출원가 집계 — 정산탭과 동일한 _stlAmt 기준
+// 실제 캠페인 데이터에서 해당 월의 매출(amt 합)·매출원가 집계 — 정산탭과 동일한 _stlAmt 기준
 // 매출원가는 buyAmt를 그대로 합산하지 않고 turnover-prf로 역산함: _stlAmt의 prf는 대행료(agFee) 차감 및
 // profitFixed 수동입력까지 반영된 "검증된" 매출이익 값이라(정산탭·KPI 실적 계산과 동일 기준),
 // 단순 amt-buyAmt로 계산하면 대행료가 안 빠져서 매출이익이 늘 과대계상되는 문제가 있었음
@@ -5219,7 +5219,7 @@ function renderBepScenarioTable() {
   el.innerHTML = `<div style="overflow-x:auto;"><table class="bep-tbl" style="width:max-content;">
     <thead><tr><th style="${thC}text-align:left;min-width:100px;">구분</th>${colHead}</tr></thead>
     <tbody>
-      <tr><td style="${tdL}">취급고</td>${edit ? inputRow('turnover') : valRow('turnover')}</tr>
+      <tr><td style="${tdL}">매출</td>${edit ? inputRow('turnover') : valRow('turnover')}</tr>
       <tr><td style="${tdL}">매출원가</td>${edit ? inputRow('cogs') : valRow('cogs')}</tr>
       <tr><td style="${tdL}">매출이익</td>${derived.map(d => `<td style="${tdHiB}color:#fff;">${_fmtBepWon(d.profit)}</td>`).join('')}</tr>
       <tr><td style="${tdL}">매출이익율</td>${derived.map(d => `<td style="${tdV}">${_fmtBepPct(d.profitRate)}</td>`).join('')}</tr>
@@ -5276,7 +5276,7 @@ function _bepMonthData(m) {
   return (BEP_MONTHLY.months || {})[m] || null;
 }
 
-// 취급고·매출원가는 항상 실제 캠페인 데이터에서 자동 집계(수정 불가) — 판관비만 회사 공통비용이라 월별 수동 입력
+// 매출·매출원가는 항상 실제 캠페인 데이터에서 자동 집계(수정 불가) — 판관비만 회사 공통비용이라 월별 수동 입력
 function renderBepMonthlyTable() {
   const el = document.getElementById('bep-monthly-table');
   if (!el) return;
@@ -5322,7 +5322,7 @@ function renderBepMonthlyTable() {
       ${_KPI_MONTHS.map(m => `<th style="${thC}">${_KPI_ML[m]}</th>`).join('')}
     </tr></thead>
     <tbody>
-      <tr><td style="${tdL}">취급고</td><td style="${tdVA}">${_fmtBepWon(sumOf('turnover'))}</td>${rows.map(r => valCell(r, 'turnover')).join('')}</tr>
+      <tr><td style="${tdL}">매출</td><td style="${tdVA}">${_fmtBepWon(sumOf('turnover'))}</td>${rows.map(r => valCell(r, 'turnover')).join('')}</tr>
       <tr><td style="${tdL}">매출원가</td><td style="${tdVA}">${_fmtBepWon(sumOf('cogs'))}</td>${rows.map(r => valCell(r, 'cogs')).join('')}</tr>
       <tr><td style="${tdL}">매출이익</td><td style="${tdHiB}background:#fff9e6;color:#111;">${_fmtBepWon(sumOf('profit'))}</td>${rows.map(r => r.d ? `<td style="${tdHiB}color:#fff;">${_fmtBepWon(r.d.profit)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
       <tr><td style="${tdL}">매출이익율</td><td style="${tdVA}">${avgOf('profitRate') == null ? '—' : _fmtBepPct(avgOf('profitRate'))}</td>${rows.map(r => r.d ? `<td style="${tdV}">${_fmtBepPct(r.d.profitRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
@@ -7798,7 +7798,7 @@ function _campProfit(c) {
   return _stlAmt(c).prf || 0;
 }
 
-// 캠페인 매출(실청구액, 할인 반영) — KPI/매출현황·BEP의 "매출"/"취급고"와 같은 amt 기준.
+// 캠페인 매출(실청구액, 할인 반영) — KPI/매출현황·BEP의 "매출"과 같은 amt 기준.
 // _campAdcost(할인전 정가)와 달리 amtFixed 수동입력만 우선하고(adcostFixed는 무관, 그건
 // adc 전용 오버라이드), _stlHas로 정산데이터 유무를 가려 미입력 캠페인을 0으로 처리한다.
 function _campTurnover(c) {
@@ -12523,7 +12523,7 @@ function _kpiCanEdit() {
 // 매출 — 정산수량×할인단가(실청구액, _stlAmt(c).amt) 기준. 한때 _stlAmt(c).prf(이익)를
 // 합산해 라벨은 매출인데 실제론 이익을 보여줬고, 그다음엔 할인 반영 안 된 광고비(adc, 정산
 // 수량×매출단가) 기준으로 잠깐 바꿨었으나, 최종적으로 할인이 반영된 실청구액 기준으로
-// 확정(2026-09-02). BEP의 "취급고"도 같은 amt 기준이라 이제 두 메뉴가 다시 일치한다.
+// 확정(2026-09-02). BEP의 "매출"도 같은 amt 기준이라 이제 두 메뉴가 다시 일치한다.
 function _kpiCalcActual(year, bonbu, team, month) {
   return DATA.filter(c => {
     if (c.status === '삭제') return false;
@@ -13107,7 +13107,7 @@ function renderKpiGrandTable() {
     </tr></thead>
     <tbody>
       <tr><td style="${tdL}">매출</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(actCell).join('')}</tr>
-      <tr><td style="${tdL}">매출KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
+      <tr><td style="${tdL}">매출 KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
       <tr><td style="${tdL}">KPI 달성률(평균)</td><td style="${tdAC}">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
       <tr><td style="${tdL}">전년도 매출</td><td style="${tdAN}">${_fmtKpi(totPrev)}</td>${cols.map(prevCell).join('')}</tr>
       <tr><td style="${tdL}">YoY</td><td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>${cols.map(c=>yoyCell(c,act,prev)).join('')}</tr>
