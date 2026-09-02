@@ -4352,6 +4352,24 @@ function goToday() {
   renderCalendar();
 }
 
+// 피커를 열 때 현재 보고 있는 연/월이 미리 채워져 있도록, calTitle을 갱신하는 3곳
+// (월/주/일 뷰 렌더 함수) 전부에서 이것도 같이 호출해 <input type="month"> 값을 맞춰둔다.
+function _calSyncTitleInput() {
+  const inp = document.getElementById('cal-title-input');
+  if (inp) inp.value = `${calY}-${String(calM).padStart(2, '0')}`;
+}
+// #calTitle 클릭 시 뜨는 <input type="month"> 네이티브 피커에서 연/월을 고르면 호출됨.
+// 일/주 뷰에서는 calDate의 "일"은 유지하고 연/월만 옮긴다(그 달 마지막 날을 넘지 않게 clamp).
+function _calMonthPicked(val) {
+  if (!val) return;
+  const [y, m] = val.split('-').map(Number);
+  const day = calView === 'month' ? 1 : Math.min(calDate.getDate(), new Date(y, m, 0).getDate());
+  calDate = new Date(y, m - 1, day);
+  calY = y;
+  calM = m;
+  renderCalendar();
+}
+
 function changeNav(d) {
   if (calView === 'month') {
     calDate = new Date(calY, calM - 1 + d, 1);
@@ -4594,6 +4612,7 @@ function _renderCalTodayList(today) {
 // ── 월 뷰 ──
 function renderMonthView() {
   document.getElementById('calTitle').textContent = `${calY}년 ${calM}월`;
+  _calSyncTitleInput();
   const grid = document.getElementById('calGrid');
   grid.innerHTML = '';
   grid.className = 'cal-grid';
@@ -4792,6 +4811,7 @@ function renderWeekView() {
   const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
   document.getElementById('calTitle').textContent =
     `${sunday.getFullYear()}년  ${fmt(sunday)} – ${fmt(saturday)}`;
+  _calSyncTitleInput();
 
   const grid = document.getElementById('calGrid');
   grid.innerHTML = '';
@@ -4836,6 +4856,7 @@ function renderDayView() {
   const d = calDate;
   document.getElementById('calTitle').textContent =
     `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${DAY_KO[d.getDay()]})`;
+  _calSyncTitleInput();
 
   const grid = document.getElementById('calGrid');
   grid.innerHTML = '';

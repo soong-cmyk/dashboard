@@ -308,7 +308,13 @@
             <div class="view-tab active" id="vt-month" onclick="setCalView('month')">월</div>
           </div>
           <button class="cal-nav" onclick="changeNav(-1)">‹</button>
-          <div class="cal-title" id="calTitle">2026년 2월</div>
+          <div class="cal-title" style="position:relative;cursor:pointer;">
+            <span id="calTitle">2026년 2월</span>
+            <input type="month" id="cal-title-input"
+              style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none;"
+              onchange="_calMonthPicked(this.value)"
+              onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[calendar] showPicker 실패',e);}">
+          </div>
           <button class="cal-nav" onclick="changeNav(1)">›</button>
           <button class="cal-nav" onclick="goToday()"
             style="width:auto;padding:0 10px;font-size:12px;font-weight:600;">오늘</button>
