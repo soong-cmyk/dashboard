@@ -5299,6 +5299,7 @@ function renderBepMonthlyTable() {
   const tdV   = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:11px;';
   const tdHiB = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:11px;font-weight:700;background:#1f2937;';
   const tdDim = `${tdV}color:var(--text3);`;
+  const tdVA  = tdV + 'background:#fff9e6;font-weight:700;';
 
   const valCell = (r, field) => r.d ? `<td style="${tdV}">${_fmtBepWon(r.d[field])}</td>` : `<td style="${tdDim}">—</td>`;
   const sgaCell = (r) => {
@@ -5307,19 +5308,27 @@ function renderBepMonthlyTable() {
     return `<td style="${tdV}">${_fmtBepWon(r.d.sga)}</td>`;
   };
 
+  // 연간합계 — 금액 행은 실적이 있는(미래 아닌) 달만 합산, %행(이익율)은 그 달들의 평균.
+  // 판관비는 미래 달도 가정값(sgaVal)이 항상 있어서 12개월 전부 합산한다.
+  const validRows = rows.filter(r => r.d);
+  const sumOf = field => validRows.reduce((s, r) => s + (r.d[field] || 0), 0);
+  const avgOf = field => validRows.length ? validRows.reduce((s, r) => s + (r.d[field] || 0), 0) / validRows.length : null;
+  const sgaSum = rows.reduce((s, r) => s + (r.sgaVal || 0), 0);
+
   el.innerHTML = `<div style="overflow-x:auto;"><table class="bep-tbl" style="width:max-content;">
     <thead><tr>
       <th style="${thC}text-align:left;position:sticky;left:0;z-index:2;">구분</th>
+      <th style="${thC}background:#fff9e6;">연간합계</th>
       ${_KPI_MONTHS.map(m => `<th style="${thC}">${_KPI_ML[m]}</th>`).join('')}
     </tr></thead>
     <tbody>
-      <tr><td style="${tdL}">매출(취급고)</td>${rows.map(r => valCell(r, 'turnover')).join('')}</tr>
-      <tr><td style="${tdL}">매출원가</td>${rows.map(r => valCell(r, 'cogs')).join('')}</tr>
-      <tr><td style="${tdL}">매출이익</td>${rows.map(r => r.d ? `<td style="${tdHiB}color:#fff;">${_fmtBepWon(r.d.profit)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
-      <tr><td style="${tdL}">매출이익율</td>${rows.map(r => r.d ? `<td style="${tdV}">${_fmtBepPct(r.d.profitRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
-      <tr><td style="${tdL}">판관비</td>${rows.map(r => sgaCell(r)).join('')}</tr>
-      <tr><td style="${tdL}">영업이익</td>${rows.map(r => r.d ? `<td style="${tdHiB}color:${r.d.opProfit>=0?'var(--green)':'var(--red)'};">${_fmtBepWon(r.d.opProfit)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
-      <tr><td style="${tdL}">영업이익율</td>${rows.map(r => r.d ? `<td style="${tdV}color:${r.d.opRate>=0?'var(--green)':'var(--red)'};font-weight:600;">${_fmtBepPct(r.d.opRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
+      <tr><td style="${tdL}">매출(취급고)</td><td style="${tdVA}">${_fmtBepWon(sumOf('turnover'))}</td>${rows.map(r => valCell(r, 'turnover')).join('')}</tr>
+      <tr><td style="${tdL}">매출원가</td><td style="${tdVA}">${_fmtBepWon(sumOf('cogs'))}</td>${rows.map(r => valCell(r, 'cogs')).join('')}</tr>
+      <tr><td style="${tdL}">매출이익</td><td style="${tdHiB}background:#fff9e6;color:#111;">${_fmtBepWon(sumOf('profit'))}</td>${rows.map(r => r.d ? `<td style="${tdHiB}color:#fff;">${_fmtBepWon(r.d.profit)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
+      <tr><td style="${tdL}">매출이익율</td><td style="${tdVA}">${avgOf('profitRate') == null ? '—' : _fmtBepPct(avgOf('profitRate'))}</td>${rows.map(r => r.d ? `<td style="${tdV}">${_fmtBepPct(r.d.profitRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
+      <tr><td style="${tdL}">판관비</td><td style="${tdVA}">${_fmtBepWon(sgaSum)}</td>${rows.map(r => sgaCell(r)).join('')}</tr>
+      <tr><td style="${tdL}">영업이익</td><td style="${tdHiB}background:#fff9e6;color:${sumOf('opProfit')>=0?'var(--green)':'var(--red)'};">${_fmtBepWon(sumOf('opProfit'))}</td>${rows.map(r => r.d ? `<td style="${tdHiB}color:${r.d.opProfit>=0?'var(--green)':'var(--red)'};">${_fmtBepWon(r.d.opProfit)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
+      <tr><td style="${tdL}">영업이익율</td><td style="${tdVA}color:${(avgOf('opRate')||0)>=0?'var(--green)':'var(--red)'};">${avgOf('opRate') == null ? '—' : _fmtBepPct(avgOf('opRate'))}</td>${rows.map(r => r.d ? `<td style="${tdV}color:${r.d.opRate>=0?'var(--green)':'var(--red)'};font-weight:600;">${_fmtBepPct(r.d.opRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
     </tbody>
   </table></div>`;
 }
