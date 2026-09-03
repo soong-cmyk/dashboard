@@ -5147,9 +5147,8 @@ function _bepCalcMonthActual(ym) {
   let turnover = 0, profit = 0;
   DATA.filter(c => c.status !== '삭제' && _stlHas(c) && (c.date || '').startsWith(ym))
     .forEach(c => {
-      const stl = _stlAmt(c);
-      turnover += stl.amt || 0;
-      profit   += stl.prf || 0;
+      turnover += _campTurnover(c);
+      profit   += _stlAmt(c).prf || 0;
     });
   return { turnover, cogs: turnover - profit };
 }
@@ -7826,7 +7825,13 @@ function _campProfit(c) {
 // adc 전용 오버라이드), _stlHas로 정산데이터 유무를 가려 미입력 캠페인을 0으로 처리한다.
 function _campTurnover(c) {
   if (!_stlHas(c)) return 0;
-  return _stlAmt(c).amt || 0;
+  const s = _stlAmt(c);
+  // CPS 중 쿠팡×하나카드/롯데카드 건은 총 CPS 수수료(매체 몫까지 포함된 amt)가 아니라
+  // 브레인큐브 몫만(수수료-매체수수료, prf) 매출로 집계 — 사용자 확정(2026-09-03)
+  if (c.product === 'CPS' && (c.adv === '쿠팡' || c.seller === '쿠팡') && ['하나카드', '롯데카드'].includes(c.media)) {
+    return s.prf || 0;
+  }
+  return s.amt || 0;
 }
 
 /** 정산 동적 필터 드롭다운 채우기 (매출처·담당자·본부·팀) */
@@ -12543,10 +12548,11 @@ function _kpiCanEdit() {
   return !!(currentUser?.isAdmin || ['대표이사','이사','본부장'].includes(currentUser?.rank));
 }
 
-// 매출 — 정산수량×할인단가(실청구액, _stlAmt(c).amt) 기준. 한때 _stlAmt(c).prf(이익)를
-// 합산해 라벨은 매출인데 실제론 이익을 보여줬고, 그다음엔 할인 반영 안 된 광고비(adc, 정산
-// 수량×매출단가) 기준으로 잠깐 바꿨었으나, 최종적으로 할인이 반영된 실청구액 기준으로
-// 확정(2026-09-02). BEP의 "매출"도 같은 amt 기준이라 이제 두 메뉴가 다시 일치한다.
+// 매출 — 정산수량×할인단가(실청구액) 기준, _campTurnover(c)로 계산(CPS 중 쿠팡×하나카드/
+// 롯데카드 건은 그 안에서 예외적으로 총 CPS 수수료 대신 브레인큐브 몫만 잡음, 2026-09-03).
+// 한때 _stlAmt(c).prf(이익)를 합산해 라벨은 매출인데 실제론 이익을 보여줬고, 그다음엔 할인
+// 반영 안 된 광고비(adc, 정산수량×매출단가) 기준으로 잠깐 바꿨었으나, 최종적으로 할인이
+// 반영된 실청구액 기준으로 확정(2026-09-02). BEP의 "매출"도 같은 기준이라 두 메뉴가 일치한다.
 function _kpiCalcActual(year, bonbu, team, month) {
   return DATA.filter(c => {
     if (c.status === '삭제') return false;
@@ -12560,7 +12566,7 @@ function _kpiCalcActual(year, bonbu, team, month) {
       if (team  && u.dept  !== team)  return false;
     }
     return true;
-  }).reduce((s, c) => s + (_stlAmt(c).amt || 0), 0);
+  }).reduce((s, c) => s + _campTurnover(c), 0);
 }
 
 // 본부 소속 담당자가 등록한 캠페인의 광고주+브랜드 중, 그 달 projectGoals(kind:'monthly')에
