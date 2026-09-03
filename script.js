@@ -12732,6 +12732,8 @@ function renderKpiOrgSales() {
   renderKpiOrgSalesDetail();
 }
 
+// 본부 "고르는 것"(칩)과 "보여주는 것"(카드)을 분리 — #kpi-cards(정보 표시용)와 똑같이 생긴
+// 카드 3개를 나열하던 예전 방식은 클릭 가능한 줄 모른다는 지적으로 교체(2026-09-03, B안 채택).
 function renderKpiOrgSalesCards() {
   const el = document.getElementById('kpi-orgsales-cards');
   if (!el) return;
@@ -12739,15 +12741,16 @@ function renderKpiOrgSalesCards() {
   if (!_kpiOrgSalesBonbu || !bonbus.includes(_kpiOrgSalesBonbu)) _kpiOrgSalesBonbu = bonbus[0] || null;
   const curM = String(new Date().getMonth() + 1).padStart(2, '0');
   const passed = _KPI_MONTHS.filter(m => m <= curM);
-  el.innerHTML = bonbus.map(name => {
-    const cum = passed.reduce((s, m) => s + _kpiCalcActual(_kpiYear, name, '', m), 0);
-    const sel = name === _kpiOrgSalesBonbu;
-    return `<div class="kpi-card" style="cursor:pointer;${sel ? 'background:var(--accent-light);border-width:3px;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);' : ''}" onclick="kpiOrgSalesSelectBonbu('${_escHtml(name)}')">
-      <div class="kpi-card-label"${sel ? ' style="color:var(--text1);font-size:13px;"' : ''}>${_escHtml(name)}</div>
-      <div class="kpi-card-value">${_fmtMoney(cum)}원</div>
-      <div class="kpi-card-sub">${_kpiYear}년 누적 매출</div>
+  const cums = bonbus.map(name => passed.reduce((s, m) => s + _kpiCalcActual(_kpiYear, name, '', m), 0));
+  const selIdx = Math.max(0, bonbus.indexOf(_kpiOrgSalesBonbu));
+  const chipsHtml = bonbus.map((name, i) => `<button type="button" class="kpi-orgsel-chip${i === selIdx ? ' active' : ''}" onclick="kpiOrgSalesSelectBonbu('${_escHtml(name)}')"><span class="dot"></span>${_escHtml(name)}</button>`).join('');
+  el.innerHTML = `
+    <div class="kpi-orgsel-chiprow">${chipsHtml}</div>
+    <div class="kpi-orgsel-bigcard">
+      <div class="lbl">${_escHtml(bonbus[selIdx] || '')}</div>
+      <div class="val">${_fmtMoney(cums[selIdx] || 0)}원</div>
+      <div class="sub">${_kpiYear}년 누적 매출</div>
     </div>`;
-  }).join('');
 }
 
 function kpiOrgSalesSelectBonbu(name) {
