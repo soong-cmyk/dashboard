@@ -13404,6 +13404,10 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
         if (isQ) return isFutureQ(col) ? `<td style="${st}">${nd}</td>` : `<td style="${st}">${_fmtKpi(qSum(bAct,col))}</td>`;
         return col > curM ? `<td style="${st}">${nd}</td>` : `<td style="${st}">${_fmtKpi(bAct[col])}</td>`;
       };
+      const sTgtCell = col => {
+        const isQ = col.startsWith('Q'); const st = isQ ? tdSVY : tdSV;
+        return isQ ? `<td style="${st}">${_fmtKpi(qSum(bTgt,col))}</td>` : `<td style="${st}">${_fmtKpi(bTgt[col])}</td>`;
+      };
       const sRateCell = col => {
         const isQ = col.startsWith('Q'); const st = isQ ? tdSCY : tdSC;
         if (isQ ? isFutureQ(col) : col > curM) return `<td style="${st}">${nd}</td>`;
@@ -13423,6 +13427,7 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
 
       const sumRows = [
         { label:'매출',                  total:`<td style="${tdSVY}">${_fmtKpi(totBAct)}</td>`,               cells: cols.map(sActCell).join('') },
+        { label:'매출 KPI',                   total:`<td style="${tdSVY}">${_fmtKpi(totBTgt)}</td>`,               cells: cols.map(sTgtCell).join('') },
         { label:'KPI 달성률',                 total:`<td style="${tdSCY}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
         { label:'광고주별 KPI 달성률(평균)',  total:`<td style="${tdSCY}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
       ];
