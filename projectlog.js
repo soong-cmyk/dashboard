@@ -322,10 +322,14 @@ function _plWatchGoals() {
         if (typeof _plGRenderAnnual === 'function') _plGRenderAnnual();
         if (typeof _plGRenderMonthly === 'function') _plGRenderMonthly();
       }
-      // KPI/매출현황의 "KPI 달성률(평균)" 행과, 본부별 매출 현황 탭의 광고주 월별목표 리스트가
-      // 이 데이터를 쓰므로, 그 화면이 열려있으면 같이 갱신.
+      // KPI/매출현황의 "KPI 달성률(평균)" 행과, 본부·팀별 KPI 상세의 "광고주별 KPI 달성률(평균)"
+      // 행, 본부별 매출 현황 탭의 광고주 월별목표 리스트가 이 데이터를 쓰므로, 그 화면이 열려있으면
+      // 같이 갱신 — renderKpiOrgTable을 빼먹으면, 화면 처음 열렸을 때 이 구독이 늦게 도착해서
+      // PL_GOALS가 비어있는 채로 이미 한 번 그려진 표가 본부 접기/펼치기로 다시 그릴 때까지
+      // "—"로 남아있는 문제가 있었다(2026-09-03, 사용자가 실사례로 재현).
       if (document.getElementById('screen-kpi')?.classList.contains('active')) {
         if (typeof renderKpiGrandTable === 'function') renderKpiGrandTable();
+        if (typeof renderKpiOrgTable === 'function') renderKpiOrgTable();
         if (typeof _kpiActiveTab !== 'undefined' && _kpiActiveTab === 'orgsales' && typeof renderKpiOrgSales === 'function') renderKpiOrgSales();
       }
     }, err => console.error('[projectlog] 목표 구독 오류', err));
