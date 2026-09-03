@@ -855,26 +855,32 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
 .kpi-card-sub   { font-size:11px; color:var(--text3); margin-top:4px; min-height:16px; }
 .kpi-card-prog  { height:5px; border-radius:3px; background:var(--border); margin-top:8px; overflow:hidden; }
 .kpi-card-prog-bar { height:100%; border-radius:3px; transition:width .4s; }
-/* 본부별 매출 현황의 본부 선택 — #kpi-cards(정보 표시용)와 생김새가 똑같아서 클릭 가능한
-   줄 몰랐다는 지적으로, "고르는 것"(칩)과 "보여주는 것"(카드)을 아예 다른 모양으로 분리(2026-09-03) */
-.kpi-orgsel-chiprow { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
-.kpi-orgsel-chip {
-  appearance:none; font:inherit; cursor:pointer; user-select:none;
-  background:var(--surface); border:1.5px solid var(--border); color:var(--text2);
-  font-size:12.5px; font-weight:600; padding:7px 16px; border-radius:999px; transition:.15s;
-  display:inline-flex; align-items:center; gap:6px;
+/* 본부별 매출 현황의 본부 선택 카드 — #kpi-cards(정보 표시용)와 생김새가 똑같아서 클릭
+   가능한 줄 몰랐다는 지적으로, 왼쪽 컬러바+라디오점+"선택됨" 문구로 어포던스만 명확히
+   함(2026-09-03, C안 채택 — 카드 그리드 레이아웃 자체는 유지). */
+.kpi-orgsel-card {
+  position:relative; background:var(--surface); border:1px solid var(--border);
+  border-left:4px solid var(--border2); border-radius:var(--radius);
+  padding:16px 20px 16px 18px; cursor:pointer; user-select:none;
+  transition:.15s; box-shadow:var(--shadow);
 }
-.kpi-orgsel-chip:hover { border-color:var(--border2); color:var(--text1); }
-.kpi-orgsel-chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
-.kpi-orgsel-chip .dot { width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.5; }
-.kpi-orgsel-chip.active .dot { opacity:1; }
-.kpi-orgsel-bigcard {
-  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
-  padding:22px 26px; box-shadow:var(--shadow); margin-bottom:16px;
+.kpi-orgsel-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-md); }
+.kpi-orgsel-card .top { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.kpi-orgsel-card .kpi-card-label { margin-bottom:0; }
+.kpi-orgsel-card .radio {
+  width:16px; height:16px; border-radius:50%; border:2px solid var(--border2);
+  flex-shrink:0; position:relative; transition:.15s;
 }
-.kpi-orgsel-bigcard .lbl { font-size:12px; color:var(--text3); font-weight:600; margin-bottom:8px; }
-.kpi-orgsel-bigcard .val { font-size:28px; font-weight:800; color:var(--text1); letter-spacing:-.3px; }
-.kpi-orgsel-bigcard .sub { font-size:12px; color:var(--text3); margin-top:6px; }
+.kpi-orgsel-card .radio::after {
+  content:''; position:absolute; inset:3px; border-radius:50%; background:var(--accent);
+  transform:scale(0); transition:.15s;
+}
+.kpi-orgsel-card .hint { font-size:10.5px; color:var(--text3); margin-top:8px; display:flex; align-items:center; gap:3px; }
+.kpi-orgsel-card.active { border-left-color:var(--accent); background:var(--accent-light); box-shadow:var(--shadow-md); }
+.kpi-orgsel-card.active .radio { border-color:var(--accent); }
+.kpi-orgsel-card.active .radio::after { transform:scale(1); }
+.kpi-orgsel-card.active .kpi-card-label { color:var(--text1); font-size:13px; }
+.kpi-orgsel-card.active .hint { color:var(--accent); font-weight:700; }
 .kpi-tbl { border-collapse:collapse; font-size:12px; }
 .kpi-tbl th { padding:8px 10px; border:1px solid var(--border); background:var(--surface2); font-weight:600; color:var(--text2); white-space:nowrap; }
 .kpi-tbl td { padding:7px 10px; border:1px solid var(--border); white-space:nowrap; }

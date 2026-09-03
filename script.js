@@ -12732,8 +12732,10 @@ function renderKpiOrgSales() {
   renderKpiOrgSalesDetail();
 }
 
-// 본부 "고르는 것"(칩)과 "보여주는 것"(카드)을 분리 — #kpi-cards(정보 표시용)와 똑같이 생긴
-// 카드 3개를 나열하던 예전 방식은 클릭 가능한 줄 모른다는 지적으로 교체(2026-09-03, B안 채택).
+// 본부 선택 카드 — #kpi-cards(정보 표시용)와 똑같이 생겨서 클릭 가능한 줄 모른다는 지적으로,
+// 카드 그리드는 그대로 두되 왼쪽 컬러바+라디오점+"선택됨" 문구로 어포던스만 명확히 함
+// (2026-09-03, C안 채택 — 칩+큰카드로 분리하는 B안도 만들어봤으나 카드 레이아웃을 유지하는
+// 이 쪽으로 최종 확정).
 function renderKpiOrgSalesCards() {
   const el = document.getElementById('kpi-orgsales-cards');
   if (!el) return;
@@ -12741,16 +12743,16 @@ function renderKpiOrgSalesCards() {
   if (!_kpiOrgSalesBonbu || !bonbus.includes(_kpiOrgSalesBonbu)) _kpiOrgSalesBonbu = bonbus[0] || null;
   const curM = String(new Date().getMonth() + 1).padStart(2, '0');
   const passed = _KPI_MONTHS.filter(m => m <= curM);
-  const cums = bonbus.map(name => passed.reduce((s, m) => s + _kpiCalcActual(_kpiYear, name, '', m), 0));
-  const selIdx = Math.max(0, bonbus.indexOf(_kpiOrgSalesBonbu));
-  const chipsHtml = bonbus.map((name, i) => `<button type="button" class="kpi-orgsel-chip${i === selIdx ? ' active' : ''}" onclick="kpiOrgSalesSelectBonbu('${_escHtml(name)}')"><span class="dot"></span>${_escHtml(name)}</button>`).join('');
-  el.innerHTML = `
-    <div class="kpi-orgsel-chiprow">${chipsHtml}</div>
-    <div class="kpi-orgsel-bigcard">
-      <div class="lbl">${_escHtml(bonbus[selIdx] || '')}</div>
-      <div class="val">${_fmtMoney(cums[selIdx] || 0)}원</div>
-      <div class="sub">${_kpiYear}년 누적 매출</div>
+  el.innerHTML = bonbus.map(name => {
+    const cum = passed.reduce((s, m) => s + _kpiCalcActual(_kpiYear, name, '', m), 0);
+    const sel = name === _kpiOrgSalesBonbu;
+    return `<div class="kpi-orgsel-card${sel ? ' active' : ''}" onclick="kpiOrgSalesSelectBonbu('${_escHtml(name)}')">
+      <div class="top"><div class="kpi-card-label">${_escHtml(name)}</div><div class="radio"></div></div>
+      <div class="kpi-card-value">${_fmtMoney(cum)}원</div>
+      <div class="kpi-card-sub">${_kpiYear}년 누적 매출</div>
+      <div class="hint">${sel ? '● 선택됨 — 클릭하여 변경' : '클릭하여 선택'}</div>
     </div>`;
+  }).join('');
 }
 
 function kpiOrgSalesSelectBonbu(name) {
