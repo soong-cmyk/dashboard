@@ -5724,11 +5724,13 @@ function campXlsxRenderPreview() {
   const validCnt = validRows.length;
   const newCnt = validRows.filter(r => r.isNewSeller || r.isNewBrand).length;
   const errRows = _campXlsxRows.filter(r => !r.valid);
-  const errHtml = errRows.length ? `
+  // 오류 행만 보여주면 정상 행은 뭐가 문제였는지(=문제 없었는지) 확인할 길이 없어서, 모든
+  // 행을 다 나열하고 정상 행은 초록 "정상"으로, 오류 행은 기존처럼 빨간 사유로 표기한다(2026-09-03).
+  const errHtml = total ? `
     <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-top:8px;">
       <table style="width:100%;font-size:12px;">
-        <thead><tr style="background:var(--surface2);"><th style="padding:5px 8px;text-align:left;">행</th><th style="padding:5px 8px;text-align:left;">오류</th></tr></thead>
-        <tbody>${errRows.map(r => `<tr><td style="padding:4px 8px;color:var(--text3);">${r.rowNum}</td><td style="padding:4px 8px;color:var(--red);">${_escHtml(r.errors.join(', '))}</td></tr>`).join('')}</tbody>
+        <thead><tr style="background:var(--surface2);"><th style="padding:5px 8px;text-align:left;">행</th><th style="padding:5px 8px;text-align:left;">결과</th></tr></thead>
+        <tbody>${_campXlsxRows.map(r => `<tr><td style="padding:4px 8px;color:var(--text3);">${r.rowNum}</td><td style="padding:4px 8px;color:${r.valid ? 'var(--green)' : 'var(--red)'};">${r.valid ? '정상' : _escHtml(r.errors.join(', '))}</td></tr>`).join('')}</tbody>
       </table>
     </div>` : '';
   const newHtml = newCnt ? `<div class="form-hint" style="margin-top:4px;">이 중 <b style="color:var(--accent);">${newCnt}</b>건은 매출처/브랜드를 새로 생성합니다</div>` : '';
