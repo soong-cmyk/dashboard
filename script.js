@@ -13375,7 +13375,7 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
 
   // 본부 합계 줄 — 라벨·월별 칸은 중립 배경, 연간합계·분기합계 칸만 연노랑(tdSVY/tdSCY).
   const tdSN = 'padding:7px 10px;border:1px solid var(--border);font-weight:800;font-size:11px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
-  const tdSV = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:800;white-space:nowrap;';
+  const tdSV = 'padding:6px 10px;border:1px solid var(--border);text-align:right;font-size:12px;font-weight:600;white-space:nowrap;';
   const tdSC = 'padding:6px 10px;border:1px solid var(--border);text-align:center;font-size:10px;font-weight:800;white-space:nowrap;';
   const tdSVY = tdSV + 'background:#fff9e6;';
   const tdSCY = tdSC + 'background:#fff9e6;';
