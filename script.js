@@ -13097,8 +13097,8 @@ function renderKpiGrandTable() {
   const cols = _kpiShowQtr ? _KPI_QTR_COLS : _KPI_MONTHS;
 
   const colHdr = col => col.startsWith('Q')
-    ? `<th style="${thQ}min-width:72px;">${col}</th>`
-    : `<th style="${thC}min-width:78px;">${_KPI_ML[col]}</th>`;
+    ? `<th style="${thQ}">${col}</th>`
+    : `<th style="${thC}">${_KPI_ML[col]}</th>`;
 
   const actCell = (col) => {
     if (col.startsWith('Q')) {
@@ -13140,12 +13140,19 @@ function renderKpiGrandTable() {
     return `<td style="${st}">${_kpiRateHtml(a, b)}</td>`;
   };
 
-  el.innerHTML = `<div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
+  // 셀 너비를 min-width가 아니라 colgroup+table-layout:fixed로 고정 — min-width만 쓰면 내용
+  // 길이(긴 라벨·숫자자릿수)에 따라 실제 렌더링 너비가 달라져서, 본부·팀별 상세와 월 세로줄이
+  // 화면/데이터에 따라 어긋났었다(2026-09-03, 사용자 지적). 본부·팀별 상세와 같은 폭(GRAND_LABEL_W
+  // = 본부·팀별 상세의 본부+팀+구분 합)을 쓰고, 월/분기 칸도 두 표가 같은 값을 쓰도록 상수화.
+  const GRAND_LABEL_W = 270, YR_W = 110, MONTH_W = 92, QTR_W = 85;
+  const colgroupHtml = `<colgroup><col style="width:${GRAND_LABEL_W}px;"><col style="width:${YR_W}px;">${cols.map(c => `<col style="width:${c.startsWith('Q') ? QTR_W : MONTH_W}px;">`).join('')}</colgroup>`;
+  el.innerHTML = `<div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;table-layout:fixed;">
+    ${colgroupHtml}
     <thead>
     <tr><th colspan="${2 + cols.length}" style="padding:4px 10px;border:1px solid var(--border);background:var(--surface2);font-size:11px;font-weight:400;color:var(--text3);text-align:right;">(단위: 원/건)</th></tr>
     <tr>
-      <th style="${thC}text-align:left;min-width:210px;position:sticky;left:0;z-index:2;">구분</th>
-      <th style="${thC}min-width:90px;background:#fff9e6;">연간합계</th>
+      <th style="${thC}text-align:left;position:sticky;left:0;z-index:2;">구분</th>
+      <th style="${thC}background:#fff9e6;">연간합계</th>
       ${cols.map(colHdr).join('')}
     </tr></thead>
     <tbody>
@@ -13343,8 +13350,14 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
   const qSum     = (vals, q) => _KPI_QTR_MAP[q].reduce((s, m) => s + (vals[m] || 0), 0);
   const isFutureQ = q => _KPI_QTR_MAP[q].every(m => m > curM);
   const colHdr   = col => col.startsWith('Q')
-    ? `<th style="${thQ}min-width:72px;">${col}</th>`
-    : `<th style="${thC}min-width:78px;">${_KPI_ML[col]}</th>`;
+    ? `<th style="${thQ}">${col}</th>`
+    : `<th style="${thC}">${_KPI_ML[col]}</th>`;
+
+  // 셀 너비를 min-width가 아니라 colgroup+table-layout:fixed로 고정 — 그랜드테이블과 같은
+  // 상수(BONBU_W+TEAM_W+GUBUN_W = 그랜드테이블 GRAND_LABEL_W)를 써서 월 세로줄이 두 표에서
+  // 항상 같은 위치에 오도록 한다(2026-09-03, min-width만으론 내용 길이에 따라 어긋났었음).
+  const BONBU_W = 60, TEAM_W = 60, GUBUN_W = 150, YR_W = 110, MONTH_W = 92, QTR_W = 85;
+  const colgroupHtml = `<colgroup><col style="width:${BONBU_W}px;"><col style="width:${TEAM_W}px;"><col style="width:${GUBUN_W}px;"><col style="width:${YR_W}px;">${cols.map(c => `<col style="width:${c.startsWith('Q') ? QTR_W : MONTH_W}px;">`).join('')}</colgroup>`;
 
   // 본부합계↔팀블록, 같은 본부 안 팀들 사이 경계는 kpi-bonbu-sep(기본 테두리색), 본부 자체가
   // 끝나고 다음 본부로 넘어가는 경계(예: 1본부 2팀 맨 밑↔2본부 본부합계)만 kpi-bonbu-end-sep로
@@ -13354,14 +13367,15 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
     .kpi-bonbu-sep td{border-top:2px solid var(--border) !important;}
     .kpi-bonbu-end-sep td{border-top:2px solid var(--accent) !important;}
   </style>
-  <div id="${scrollWrapId}" style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
+  <div id="${scrollWrapId}" style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;table-layout:fixed;">
+    ${colgroupHtml}
     <thead>
     <tr><th colspan="${4 + cols.length}" style="padding:4px 10px;border:1px solid var(--border);background:var(--surface2);font-size:11px;font-weight:400;color:var(--text3);text-align:right;">(단위: 원/건)</th></tr>
     <tr>
-      <th style="${thC}text-align:left;min-width:60px;position:sticky;left:0;z-index:2;">본부</th>
-      <th style="${thC}text-align:left;min-width:60px;">팀</th>
-      <th style="${thC}text-align:left;min-width:90px;">구분</th>
-      <th style="${thC}min-width:88px;background:#fff9e6;">연간합계</th>
+      <th style="${thC}text-align:left;position:sticky;left:0;z-index:2;">본부</th>
+      <th style="${thC}text-align:left;">팀</th>
+      <th style="${thC}text-align:left;">구분</th>
+      <th style="${thC}background:#fff9e6;">연간합계</th>
       ${cols.map(colHdr).join('')}
     </tr></thead><tbody>`;
 
