@@ -12569,10 +12569,12 @@ function _kpiCalcActual(year, bonbu, team, month) {
   }).reduce((s, c) => s + _campTurnover(c), 0);
 }
 
-// 본부 소속 담당자가 등록한 캠페인의 광고주+브랜드 중, 그 달 projectGoals(kind:'monthly')에
-// 수기입력된 advKpiRate("월 KPI 달성률" — 본부별 매출현황 2단 리스트 5행과 동일 값)들의 평균.
-// "목표 광고주 수"는 이제 입력받지 않아 관련 없음(2026-08-28, 사용자 지적으로 계산식 교체).
-function _kpiBonbuAdvKpiRateAvg(bonbu, ym) {
+// 본부(팀 인자를 주면 그 팀만) 소속 담당자가 등록한 캠페인의 광고주+브랜드 중, 그 달
+// projectGoals(kind:'monthly')에 수기입력된 advKpiRate("월 KPI 달성률" — 본부별 매출현황
+// 2단 리스트 5행과 동일 값)들의 평균. "목표 광고주 수"는 이제 입력받지 않아 관련 없음
+// (2026-08-28, 사용자 지적으로 계산식 교체). team 인자는 본부·팀별 상세의 팀 행에서 재사용
+// 하려고 추가(2026-09-03) — 생략하면 예전과 동일하게 본부 전체 기준.
+function _kpiBonbuAdvKpiRateAvg(bonbu, ym, team) {
   const pairs = new Set();
   DATA.forEach(c => {
     if (c.status === '삭제') return;
@@ -12581,6 +12583,7 @@ function _kpiBonbuAdvKpiRateAvg(bonbu, ym) {
     if (!company) return;
     const u = USERS.find(x => x.name === (c.ops || ''));
     if (!u || u.bonbu !== bonbu) return;
+    if (team && u.dept !== team) return;
     pairs.add(company + '|' + (c.content || ''));
   });
   const rates = [];
@@ -13452,6 +13455,12 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       const totTgt     = _KPI_MONTHS.reduce((s, m) => s + tgts[m], 0);
       const totPrev    = _KPI_MONTHS.reduce((s, m) => s + prevs[m], 0);
 
+      // "광고주별 KPI 달성률(평균)" — 본부 합계 행과 같은 계산을 팀 단위로(team 인자 추가, 2026-09-03)
+      const tClientRate = {};
+      _KPI_MONTHS.forEach(m => { tClientRate[m] = _kpiBonbuAdvKpiRateAvg(t.bonbuName, `${_kpiYear}-${m}`, t.name); });
+      const validTRates = _KPI_MONTHS.map(m => tClientRate[m]).filter(r => r != null);
+      const totTClientRate = validTRates.length ? Math.round(validTRates.reduce((s, r) => s + r, 0) / validTRates.length) : null;
+
       const teamLabel = _escHtml(t.name);
 
       const actCell = col => {
@@ -13482,12 +13491,22 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
         const b = isQ ? qSum(prevs,col) : (prevs[col]||0);
         return `<td style="${st}">${_kpiYoyHtml(a,b)}</td>`;
       };
+      const tClientRateCell = col => {
+        const isQ = col.startsWith('Q'); const st = isQ ? tdQC : tdC;
+        if (isQ ? isFutureQ(col) : col > curM) return `<td style="${st}">${nd}</td>`;
+        if (isQ) {
+          const rs = _KPI_QTR_MAP[col].map(m => tClientRate[m]).filter(r => r != null);
+          return `<td style="${st}">${_kpiRateNumHtml(rs.length ? Math.round(rs.reduce((s,r)=>s+r,0)/rs.length) : null)}</td>`;
+        }
+        return `<td style="${st}">${_kpiRateNumHtml(tClientRate[col])}</td>`;
+      };
       // 전년도 매출·YoY 행은 일단 숨김 처리 — 계산 로직(totPrev/prevCell/yoyCell)은 그대로
       // 두고 렌더링에서만 뺐다(2026-08-28, 나중에 다시 보여줄 수도 있어 삭제하지 않음).
       const rows = [
         { label:'매출',       total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,          cells: cols.map(actCell).join('') },
         { label:'매출 KPI',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
         { label:'달성률',          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts)).join('') },
+        { label:'광고주별 KPI 달성률(평균)', total:`<td style="${tdAC}">${_kpiRateNumHtml(totTClientRate)}</td>`, cells: cols.map(tClientRateCell).join('') },
       ];
       const TOTAL_ROWS = rows.length;
 
