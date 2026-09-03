@@ -13125,6 +13125,17 @@ function renderKpiGrandTable() {
     return `<td style="${st}">${avg == null ? nd : avg + '%'}</td>`;
   };
   const totalAdvAvg = avgOf(_KPI_MONTHS.flatMap(m => advRatesByMonth[m] || []));
+  // "KPI 달성률" — 매출 실적÷매출KPI 목표 비율. 본부·팀별 상세의 "KPI 달성률"/"달성률"과 같은 계산
+  // (예전엔 이 자리에 아래 "광고주별 KPI 달성률(평균)"이 라벨만 다르게 잘못 들어가 있었음, 2026-09-03).
+  const rateCell = (col) => {
+    const isQ = col.startsWith('Q');
+    const st = isQ ? tdQC : tdC;
+    const future = isQ ? isFutureQ(col) : col > curM;
+    if (future) return `<td style="${st}">${nd}</td>`;
+    const a = isQ ? qSum(act, col) : (act[col] || 0);
+    const b = isQ ? qSum(tgt, col) : (tgt[col] || 0);
+    return `<td style="${st}">${_kpiRateHtml(a, b)}</td>`;
+  };
 
   el.innerHTML = `<div style="overflow-x:auto;"><table class="kpi-tbl" style="width:max-content;">
     <thead>
@@ -13137,7 +13148,8 @@ function renderKpiGrandTable() {
     <tbody>
       <tr><td style="${tdL}">매출</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(actCell).join('')}</tr>
       <tr><td style="${tdL}">매출 KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
-      <tr><td style="${tdL}">KPI 달성률(평균)</td><td style="${tdAC}">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
+      <tr><td style="${tdL}">KPI 달성률</td><td style="${tdAC}">${_kpiRateHtml(totAct, totTgt)}</td>${cols.map(rateCell).join('')}</tr>
+      <tr><td style="${tdL}">광고주별 KPI 달성률(평균)</td><td style="${tdAC}">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
       <tr><td style="${tdL}">전년도 매출</td><td style="${tdAN}">${_fmtKpi(totPrev)}</td>${cols.map(prevCell).join('')}</tr>
       <tr><td style="${tdL}">YoY</td><td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>${cols.map(c=>yoyCell(c,act,prev)).join('')}</tr>
     </tbody>
