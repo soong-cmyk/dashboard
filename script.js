@@ -13144,7 +13144,7 @@ function renderKpiGrandTable() {
     <thead>
     <tr><th colspan="${2 + cols.length}" style="padding:4px 10px;border:1px solid var(--border);background:var(--surface2);font-size:11px;font-weight:400;color:var(--text3);text-align:right;">(단위: 원/건)</th></tr>
     <tr>
-      <th style="${thC}text-align:left;min-width:110px;position:sticky;left:0;z-index:2;">구분</th>
+      <th style="${thC}text-align:left;min-width:210px;position:sticky;left:0;z-index:2;">구분</th>
       <th style="${thC}min-width:90px;background:#fff9e6;">연간합계</th>
       ${cols.map(colHdr).join('')}
     </tr></thead>
