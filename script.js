@@ -13084,7 +13084,7 @@ function renderKpiGrandTable() {
   const thQ  = 'padding:8px 10px;border:1px solid var(--border);background:#fff9e6;font-weight:700;font-size:11px;color:var(--text2);text-align:center;white-space:nowrap;';
   const tdL  = 'padding:7px 12px;border:1px solid var(--border);font-weight:600;font-size:12px;color:var(--text2);background:var(--surface2);white-space:nowrap;position:sticky;left:0;z-index:1;';
   const tdV  = 'padding:7px 10px;border:1px solid var(--border);text-align:right;font-size:12px;white-space:nowrap;';
-  const tdAN = tdV + 'background:#fff9e6;font-weight:800;';
+  const tdAN = tdV + 'background:#fff9e6;font-weight:600;';
   const tdAC = 'padding:7px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#fff9e6;font-weight:800;';
   const tdQ  = tdV + 'background:#fff9e6;font-weight:700;';
   const tdQC = 'padding:7px 10px;border:1px solid var(--border);text-align:center;font-size:12px;white-space:nowrap;background:#fff9e6;font-weight:700;';
