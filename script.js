@@ -12576,11 +12576,16 @@ function _kpiCalcActual(year, bonbu, team, month) {
 // 2단 리스트 5행과 동일 값)들의 평균. "목표 광고주 수"는 이제 입력받지 않아 관련 없음
 // (2026-08-28, 사용자 지적으로 계산식 교체). team 인자는 본부·팀별 상세의 팀 행에서 재사용
 // 하려고 추가(2026-09-03) — 생략하면 예전과 동일하게 본부 전체 기준.
+// 광고주+브랜드가 "이 본부/팀 소속"인지는 그 달(ym)이 아니라 연도 전체(ym.slice(0,4)) 캠페인
+// 등록 여부로 판단한다 — 캠페인이 없는 달에도 "광고주별 KPI 달성률"을 수기입력할 일이 있는데,
+// 월 단위로 캠페인 존재를 요구하면 담당자가 확실한데도 그 달 계산에서 빠지는 문제가 있었다
+// (2026-09-03, 사용자 지적). advKpiRate 값 자체는 여전히 정확히 그 달(ym) 문서에서만 읽는다.
 function _kpiBonbuAdvKpiRateAvg(bonbu, ym, team) {
+  const year = ym.slice(0, 4);
   const pairs = new Set();
   DATA.forEach(c => {
     if (c.status === '삭제') return;
-    if (!(c.date || '').startsWith(ym)) return;
+    if (!(c.date || '').startsWith(year)) return;
     const company = c.seller || c.adv;
     if (!company) return;
     const u = USERS.find(x => x.name === (c.ops || ''));
