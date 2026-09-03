@@ -13152,7 +13152,7 @@ function renderKpiGrandTable() {
       <tr><td style="${tdL}">매출</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(actCell).join('')}</tr>
       <tr><td style="${tdL}">매출 KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
       <tr><td style="${tdL}">KPI 달성률</td><td style="${tdAC}">${_kpiRateHtml(totAct, totTgt)}</td>${cols.map(rateCell).join('')}</tr>
-      <tr><td style="${tdL}">광고주별 KPI 달성률(평균)</td><td style="${tdAC}">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
+      <tr><td style="${tdL}">광고주별 KPI 달성률(평균)</td><td style="${tdAC}font-weight:600;">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
       <tr><td style="${tdL}">전년도 매출</td><td style="${tdAN}">${_fmtKpi(totPrev)}</td>${cols.map(prevCell).join('')}</tr>
       <tr><td style="${tdL}">YoY</td><td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>${cols.map(c=>yoyCell(c,act,prev)).join('')}</tr>
     </tbody>
