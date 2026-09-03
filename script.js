@@ -12742,8 +12742,8 @@ function renderKpiOrgSalesCards() {
   el.innerHTML = bonbus.map(name => {
     const cum = passed.reduce((s, m) => s + _kpiCalcActual(_kpiYear, name, '', m), 0);
     const sel = name === _kpiOrgSalesBonbu;
-    return `<div class="kpi-card" style="cursor:pointer;${sel ? 'border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);' : ''}" onclick="kpiOrgSalesSelectBonbu('${_escHtml(name)}')">
-      <div class="kpi-card-label">${_escHtml(name)}</div>
+    return `<div class="kpi-card" style="cursor:pointer;${sel ? 'border-width:3px;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light);' : ''}" onclick="kpiOrgSalesSelectBonbu('${_escHtml(name)}')">
+      <div class="kpi-card-label"${sel ? ' style="color:var(--text1);font-size:13px;"' : ''}>${_escHtml(name)}</div>
       <div class="kpi-card-value">${_fmtMoney(cum)}원</div>
       <div class="kpi-card-sub">${_kpiYear}년 누적 매출</div>
     </div>`;
