@@ -12804,7 +12804,7 @@ function renderKpiOrgSalesDetail() {
     const key = _kpiOrgSalesBrandKey(company, brand);
     const label = `${company} ${brand || '(브랜드 미지정)'}`;
     const checked = _kpiOrgSalesBrandFilter.keys.has(key);
-    return `<label style="display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;cursor:pointer;white-space:nowrap;">
+    return `<label data-label="${_escHtml(label.toLowerCase())}" style="display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;cursor:pointer;white-space:nowrap;">
       <input type="checkbox" data-key="${_escHtml(key)}" ${checked ? 'checked' : ''} onchange="kpiOrgSalesBrandFilterToggle(this)">
       <span>${_escHtml(label)}</span>
     </label>`;
@@ -12824,11 +12824,15 @@ function renderKpiOrgSalesDetail() {
         <div id="kpi-orgsales-brand-filter-wrap" style="position:relative;">
           <button type="button" class="btn btn-outline btn-sm" id="kpi-orgsales-brand-filter-btn" onclick="kpiOrgSalesBrandFilterOpen(event)">${_kpiOrgSalesBrandFilterLabel(advertisers.length)} ▾</button>
           <div class="combo-list" id="kpi-orgsales-brand-filter-list" style="display:none;position:absolute;left:auto;right:0;top:100%;margin-top:4px;max-height:280px;overflow-y:auto;width:max-content;min-width:220px;z-index:50;">
+            <div style="padding:6px 8px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">
+              <input type="text" id="kpi-orgsales-brand-filter-search" class="form-input" placeholder="광고주/브랜드 검색" oninput="kpiOrgSalesBrandFilterSearch(this.value)" onclick="event.stopPropagation();" style="width:100%;font-size:12px;padding:5px 8px;">
+            </div>
             <div style="padding:4px 10px;border-bottom:1px solid var(--border);display:flex;gap:10px;">
               <span class="pl-x" style="color:var(--accent);cursor:pointer;font-size:11px;" onclick="kpiOrgSalesBrandFilterSetAll(true)">전체 선택</span>
               <span class="pl-x" style="color:var(--accent);cursor:pointer;font-size:11px;" onclick="kpiOrgSalesBrandFilterSetAll(false)">전체 해제</span>
             </div>
-            ${filterItems || '<div class="form-hint" style="padding:8px 10px;">광고주가 없습니다.</div>'}
+            <div id="kpi-orgsales-brand-filter-items">${filterItems || '<div class="form-hint" style="padding:8px 10px;">광고주가 없습니다.</div>'}</div>
+            <div id="kpi-orgsales-brand-filter-noresult" class="form-hint" style="display:none;padding:8px 10px;">검색 결과가 없습니다.</div>
           </div>
         </div>
       </div>
@@ -12846,7 +12850,13 @@ function _kpiOrgSalesBrandFilterLabel(total) {
 function kpiOrgSalesBrandFilterOpen(e) {
   e.stopPropagation();
   const panel = document.getElementById('kpi-orgsales-brand-filter-list');
-  if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? 'block' : 'none';
+  if (opening) {
+    const search = document.getElementById('kpi-orgsales-brand-filter-search');
+    if (search) { search.value = ''; kpiOrgSalesBrandFilterSearch(''); search.focus(); }
+  }
 }
 // 드롭다운 바깥을 누르면 닫힘 — 안쪽(체크박스 클릭 포함)은 그대로 열려있게 유지.
 document.addEventListener('mousedown', e => {
@@ -12863,6 +12873,21 @@ function kpiOrgSalesBrandFilterToggle(el) {
   const btn = document.getElementById('kpi-orgsales-brand-filter-btn');
   if (btn) btn.textContent = _kpiOrgSalesBrandFilterLabel(advertisers.length) + ' ▾';
   renderKpiOrgSalesStep2List();
+}
+
+// 체크박스 목록이 길어질 수 있어 검색으로 좁혀볼 수 있게 함 — 체크 상태 자체는 안 건드리고
+// label의 display만 토글(2026-09-04). "전체 선택/해제"는 검색과 무관하게 항상 전체 대상.
+function kpiOrgSalesBrandFilterSearch(q) {
+  const query = (q || '').trim().toLowerCase();
+  const labels = document.querySelectorAll('#kpi-orgsales-brand-filter-items label');
+  let visibleCnt = 0;
+  labels.forEach(lb => {
+    const match = !query || (lb.dataset.label || '').includes(query);
+    lb.style.display = match ? '' : 'none';
+    if (match) visibleCnt++;
+  });
+  const noResult = document.getElementById('kpi-orgsales-brand-filter-noresult');
+  if (noResult) noResult.style.display = (labels.length && visibleCnt === 0) ? '' : 'none';
 }
 
 function kpiOrgSalesBrandFilterSetAll(checkAll) {
