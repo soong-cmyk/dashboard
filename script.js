@@ -12804,7 +12804,7 @@ function renderKpiOrgSalesDetail() {
     const key = _kpiOrgSalesBrandKey(company, brand);
     const label = `${company} ${brand || '(브랜드 미지정)'}`;
     const checked = _kpiOrgSalesBrandFilter.keys.has(key);
-    return `<label data-label="${_escHtml(label.toLowerCase())}" style="display:flex;align-items:flex-start;gap:6px;padding:5px 10px;font-size:12px;cursor:pointer;">
+    return `<label data-label="${_escHtml(label.toLowerCase())}" style="display:flex;align-items:flex-start;gap:6px;padding:5px 10px;font-size:12px;cursor:pointer;width:100%;box-sizing:border-box;">
       <input type="checkbox" data-key="${_escHtml(key)}" ${checked ? 'checked' : ''} onchange="kpiOrgSalesBrandFilterToggle(this)" style="flex-shrink:0;margin-top:2px;">
       <span style="word-break:break-all;">${_escHtml(label)}</span>
     </label>`;
@@ -12831,7 +12831,7 @@ function renderKpiOrgSalesDetail() {
               <span class="pl-x" style="color:var(--accent);cursor:pointer;font-size:11px;" onclick="kpiOrgSalesBrandFilterSetAll(true)">전체 선택</span>
               <span class="pl-x" style="color:var(--accent);cursor:pointer;font-size:11px;" onclick="kpiOrgSalesBrandFilterSetAll(false)">전체 해제</span>
             </div>
-            <div id="kpi-orgsales-brand-filter-items">${filterItems || '<div class="form-hint" style="padding:8px 10px;">광고주가 없습니다.</div>'}</div>
+            <div id="kpi-orgsales-brand-filter-items" style="display:flex;flex-direction:column;">${filterItems || '<div class="form-hint" style="padding:8px 10px;">광고주가 없습니다.</div>'}</div>
             <div id="kpi-orgsales-brand-filter-noresult" class="form-hint" style="display:none;padding:8px 10px;">검색 결과가 없습니다.</div>
           </div>
         </div>
