@@ -12804,9 +12804,9 @@ function renderKpiOrgSalesDetail() {
     const key = _kpiOrgSalesBrandKey(company, brand);
     const label = `${company} ${brand || '(브랜드 미지정)'}`;
     const checked = _kpiOrgSalesBrandFilter.keys.has(key);
-    return `<label data-label="${_escHtml(label.toLowerCase())}" style="display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;cursor:pointer;white-space:nowrap;">
-      <input type="checkbox" data-key="${_escHtml(key)}" ${checked ? 'checked' : ''} onchange="kpiOrgSalesBrandFilterToggle(this)">
-      <span>${_escHtml(label)}</span>
+    return `<label data-label="${_escHtml(label.toLowerCase())}" style="display:flex;align-items:flex-start;gap:6px;padding:5px 10px;font-size:12px;cursor:pointer;">
+      <input type="checkbox" data-key="${_escHtml(key)}" ${checked ? 'checked' : ''} onchange="kpiOrgSalesBrandFilterToggle(this)" style="flex-shrink:0;margin-top:2px;">
+      <span style="word-break:break-all;">${_escHtml(label)}</span>
     </label>`;
   }).join('');
 
@@ -12823,7 +12823,7 @@ function renderKpiOrgSalesDetail() {
         <span class="card-title">${_escHtml(bonbu)} 담당 광고주 · ${_kpiYear}년 월별 목표</span>
         <div id="kpi-orgsales-brand-filter-wrap" style="position:relative;">
           <button type="button" class="btn btn-outline btn-sm" id="kpi-orgsales-brand-filter-btn" onclick="kpiOrgSalesBrandFilterOpen(event)">${_kpiOrgSalesBrandFilterLabel(advertisers.length)} ▾</button>
-          <div class="combo-list" id="kpi-orgsales-brand-filter-list" style="display:none;position:absolute;left:auto;right:0;top:100%;margin-top:4px;max-height:280px;overflow-y:auto;width:max-content;min-width:220px;z-index:50;">
+          <div class="combo-list" id="kpi-orgsales-brand-filter-list" style="display:none;position:absolute;left:auto;right:0;top:100%;margin-top:4px;max-height:280px;overflow-y:auto;width:260px;z-index:50;">
             <div style="padding:6px 8px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">
               <input type="text" id="kpi-orgsales-brand-filter-search" class="form-input" placeholder="광고주/브랜드 검색" oninput="kpiOrgSalesBrandFilterSearch(this.value)" onclick="event.stopPropagation();" style="width:100%;font-size:12px;padding:5px 8px;">
             </div>
