@@ -7735,7 +7735,7 @@ function _stlAmt(c) {
     const mediaComm  = c.cpsMediaComm  || 0;
     const bcProfit   = c.profitFixed ?? (totalComm - mediaComm);
     const prfRate    = finalSales > 0 ? (bcProfit / finalSales * 100) : 0;
-    return { actual: 0, qty: 0, eu: 0, adc: finalSales, amt: totalComm, adcVat: 0, buyAmt: mediaComm, buyVat: Math.round(mediaComm * 0.1), stlRate: 0, agFee: 0, prf: bcProfit, prfRate };
+    return { actual: 0, qty: 0, eu: 0, adc: finalSales, amt: totalComm, adcVat: Math.round(totalComm * 0.1), buyAmt: mediaComm, buyVat: Math.round(mediaComm * 0.1), stlRate: 0, agFee: 0, prf: bcProfit, prfRate };
   }
   // CPA 캠페인: 실발송수량(actual) 기준, 미입력 시 정산수량(qty) 기준으로 폴백
   if (c.product === 'CPA') {
