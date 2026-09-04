@@ -12890,10 +12890,19 @@ function kpiOrgSalesBrandFilterSearch(q) {
   if (noResult) noResult.style.display = (labels.length && visibleCnt === 0) ? '' : 'none';
 }
 
+// 검색 중이면(라벨이 display:none으로 숨겨진 게 있으면) "전체 선택/해제"도 검색 결과에만
+// 적용 — 검색으로 안 보이는 항목의 체크 상태는 건드리지 않는다(2026-09-04, 사용자 지적).
+// 검색 전(전부 보이는 상태)에는 기존과 동일하게 전체에 적용됨.
 function kpiOrgSalesBrandFilterSetAll(checkAll) {
+  document.querySelectorAll('#kpi-orgsales-brand-filter-items label').forEach(lb => {
+    if (lb.style.display === 'none') return;
+    const chk = lb.querySelector('input[type="checkbox"]');
+    if (!chk) return;
+    chk.checked = checkAll;
+    if (checkAll) _kpiOrgSalesBrandFilter.keys.add(chk.dataset.key);
+    else _kpiOrgSalesBrandFilter.keys.delete(chk.dataset.key);
+  });
   const advertisers = _kpiOrgSalesAdvertisers(_kpiOrgSalesBonbu);
-  _kpiOrgSalesBrandFilter.keys = checkAll ? new Set(advertisers.map(a => _kpiOrgSalesBrandKey(a.company, a.brand))) : new Set();
-  document.querySelectorAll('#kpi-orgsales-brand-filter-list input[type="checkbox"]').forEach(chk => { chk.checked = checkAll; });
   const btn = document.getElementById('kpi-orgsales-brand-filter-btn');
   if (btn) btn.textContent = _kpiOrgSalesBrandFilterLabel(advertisers.length) + ' ▾';
   renderKpiOrgSalesStep2List();
