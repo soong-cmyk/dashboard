@@ -809,7 +809,7 @@ function _updateUserUI() {
   const navUsage = document.getElementById('nav-usage');
   if (navUsage) navUsage.style.display = currentUser.isAdmin ? '' : 'none';
   const navKpi = document.getElementById('nav-kpi');
-  if (navKpi) navKpi.style.display = ['yeonju', 'dongguk'].includes(currentUser.id) ? 'none' : '';
+  if (navKpi) navKpi.style.display = '';
 }
 // ══════════════════════════════════════════
 // AVATAR POPOVER & PASSWORD CHANGE
@@ -5108,7 +5108,7 @@ const _BEP_COLS = [
 
 function _bepCanEdit() { return _kpiCanEdit(); }
 // 열람은 실장/팀장까지 허용(레벨 5 이하), 편집권한(_bepCanEdit)은 기존과 동일하게 유지
-function _bepCanView() { return !!(currentUser?.isAdmin || RANK_LEVEL[currentUser?.rank || '일반'] <= 5); }
+function _bepCanView() { return !!(currentUser?.isAdmin || RANK_LEVEL[currentUser?.rank || '일반'] <= 3); }
 
 function _bepDerive(turnover, cogs, sga) {
   const t = turnover || 0, c = cogs || 0, s = sga || 0;
