@@ -10008,38 +10008,45 @@ function _taxJumpToGroup(gid) {
   if (!gid) return;
   const onScreen = document.getElementById('screen-tax')?.classList.contains('active');
   if (!onScreen) goScreen('tax', true);
-  // 세발/입금 퀵필터뿐 아니라 연도(기본값=올해)·월·담당자·광고주 필터까지 걸려있으면 대상
-  // 카드가 리스트에서 아예 안 그려져서 폴링이 못 찾는다 — 그 건의 실제 연도로 연도 필터를
-  // 맞추고 나머지(월/담당자/광고주/퀵필터)는 전부 해제한다(2026-09-08, 다른 해에 등록된
-  // 건으로 Slack 바로가기를 눌러도 스크롤이 안 되던 문제 — 연도 필터가 원인이었음).
-  const rep = TAX_DATA.find(t => _taxGroupId(t) === gid || _taxGroupId(t) === +gid);
-  const yearMatch = (rep?.month || '').match(/(\d{4})년/);
-  const yearSel = document.getElementById('tax-year');
-  if (yearMatch && yearSel) yearSel.value = yearMatch[1];
-  const monthSel = document.getElementById('tax-month'); if (monthSel) monthSel.value = '';
-  const mgrSel = document.getElementById('tax-fManager'); if (mgrSel) mgrSel.value = '';
-  const compInp = document.getElementById('tax-fCompany'); if (compInp) compInp.value = '';
-  _taxQuickFilter = null;
-  // 리스트는 페이지 단위로 잘려서 그려지기 때문에(TAX_PAGE_SIZE), 필터를 다 풀어도 대상
-  // 그룹이 다른 페이지에 있으면 카드가 DOM에 없어 폴링이 못 찾는다 — renderTaxList와 동일한
-  // 필터(연도만 남음)·정렬(gid 내림차순) 기준으로 대상의 인덱스를 미리 계산해 그 페이지로
-  // 이동시킨다(2026-09-08, 연도 필터를 맞춰도 스크롤이 안 되던 문제의 진짜 원인).
-  const yearVal = yearMatch ? yearMatch[1] : '';
-  const groupMap = new Map();
-  TAX_DATA.forEach(t => {
-    const g = _taxGroupId(t);
-    if (!groupMap.has(g)) groupMap.set(g, []);
-    groupMap.get(g).push(t);
-  });
-  const sortedGids = [...groupMap.entries()]
-    .filter(([, items]) => !yearVal || (items[0].month || '').includes(yearVal + '년'))
-    .map(([g]) => g)
-    .sort((a, b) => b - a);
-  const idx = sortedGids.findIndex(g => g === gid || g === +gid);
-  if (idx >= 0) _taxPage = Math.floor(idx / TAX_PAGE_SIZE) + 1;
-  renderTaxList();
+  // TAX_DATA는 스크립트 로드 시점에 구독을 걸어두는 Firestore 리스너(_fbWatchTax)가
+  // 비동기로 채운다 — Slack 링크로 앱을 콜드 오픈하면 이 함수가 실행되는 시점에 아직
+  // TAX_DATA가 비어있을 수 있다. 그래서 필터/페이지 계산과 렌더링을 한 번만 하지 않고
+  // 매 폴링 tick마다 TAX_DATA에서 대상을 다시 찾아서 매번 다시 맞춘다(2026-09-08, 콜드
+  // 오픈 시 "해당 건을 찾을 수 없습니다" 토스트가 뜨던 원인 — 최초 1회 계산 시점에
+  // TAX_DATA가 비어 있어 연도/페이지가 끝내 안 맞았음).
   let tries = 0;
   const tryScroll = () => {
+    const rep = TAX_DATA.find(t => _taxGroupId(t) === gid || _taxGroupId(t) === +gid);
+    if (rep) {
+      // 세발/입금 퀵필터뿐 아니라 연도(기본값=올해)·월·담당자·광고주 필터까지 걸려있으면
+      // 대상 카드가 리스트에서 아예 안 그려진다 — 그 건의 실제 연도로 연도 필터를 맞추고
+      // 나머지(월/담당자/광고주/퀵필터)는 전부 해제한다.
+      const yearMatch = (rep.month || '').match(/(\d{4})년/);
+      const yearSel = document.getElementById('tax-year');
+      if (yearMatch && yearSel) yearSel.value = yearMatch[1];
+      const monthSel = document.getElementById('tax-month'); if (monthSel) monthSel.value = '';
+      const mgrSel = document.getElementById('tax-fManager'); if (mgrSel) mgrSel.value = '';
+      const compInp = document.getElementById('tax-fCompany'); if (compInp) compInp.value = '';
+      _taxQuickFilter = null;
+      // 리스트는 페이지 단위로 잘려서 그려지기 때문에(TAX_PAGE_SIZE), 필터를 다 풀어도
+      // 대상 그룹이 다른 페이지에 있으면 카드가 DOM에 없다 — renderTaxList와 동일한
+      // 필터(연도만 남음)·정렬(gid 내림차순) 기준으로 대상의 인덱스를 계산해 그 페이지로
+      // 이동시킨다.
+      const yearVal = yearMatch ? yearMatch[1] : '';
+      const groupMap = new Map();
+      TAX_DATA.forEach(t => {
+        const g = _taxGroupId(t);
+        if (!groupMap.has(g)) groupMap.set(g, []);
+        groupMap.get(g).push(t);
+      });
+      const sortedGids = [...groupMap.entries()]
+        .filter(([, items]) => !yearVal || (items[0].month || '').includes(yearVal + '년'))
+        .map(([g]) => g)
+        .sort((a, b) => b - a);
+      const idx = sortedGids.findIndex(g => g === gid || g === +gid);
+      if (idx >= 0) _taxPage = Math.floor(idx / TAX_PAGE_SIZE) + 1;
+      renderTaxList();
+    }
     if (document.querySelector(`.tax-card[data-gid="${gid}"]`)) { _taxScrollToGroup(gid); return; }
     if (tries++ < 20) setTimeout(tryScroll, 200);
     else toast('해당 건을 찾을 수 없습니다.', 'warn');
