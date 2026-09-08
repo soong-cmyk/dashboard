@@ -10008,6 +10008,11 @@ function _taxJumpToGroup(gid) {
   if (!gid) return;
   const onScreen = document.getElementById('screen-tax')?.classList.contains('active');
   if (!onScreen) goScreen('tax', true);
+  // 세발/입금 퀵필터("세발 미완료" 등)가 걸려있으면 대상 카드가 리스트에서 아예 안 그려져서
+  // 아래 폴링(document.querySelector)이 영영 못 찾고 실패했었다 — _taxScrollToGroup 안에도
+  // 같은 해제 로직이 있지만 그건 카드를 "찾은 뒤"에나 실행되니 순서가 늦다. 폴링 시작 전에
+  // 여기서 먼저 풀어야 한다(2026-09-08, Slack 바로가기에서 세발 미완료 필터 걸려있을 때 재현).
+  if (_taxQuickFilter !== null) { _taxQuickFilter = null; renderTaxList(); }
   let tries = 0;
   const tryScroll = () => {
     if (document.querySelector(`.tax-card[data-gid="${gid}"]`)) { _taxScrollToGroup(gid); return; }
