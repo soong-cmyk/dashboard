@@ -905,10 +905,11 @@ function _renderUserMgmtList() {
       <td id="urank-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.rank || '일반'}</span></td>
       <td id="ubonbu-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.bonbu || '—'}</span></td>
       <td id="udept-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.dept || '—'}</span></td>
+      <td id="uslack-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">—</span></td>
       <td style="white-space:nowrap;" id="uact-${u.id}">
         <button class="btn btn-outline btn-sm" onclick="enterUserEdit('${u.id}')">수정</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--text3);">등록된 사용자가 없습니다.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text3);">등록된 사용자가 없습니다.</td></tr>';
 }
 function enterUserEdit(uid) {
   const u = USERS.find(x => x.id === uid);
@@ -926,23 +927,14 @@ function enterUserEdit(uid) {
     `<option value="${r}" ${(u.rank||'일반') === r ? 'selected' : ''}>${r}</option>`).join('');
   document.getElementById(`urank-cell-${uid}`).innerHTML =
     `<select class="form-input" id="uedit-rank-${uid}" style="width:70px;">${rankOpts}</select>`;
+  // Slack ID 셀 → 텍스트 입력. 평소 목록엔 "—"만 보이고(2026-09-08, 목록에서 노출 안 함),
+  // 수정 버튼을 눌러 편집할 때만 실제 값을 채워서 보여준다.
+  document.getElementById(`uslack-cell-${uid}`).innerHTML =
+    `<input class="form-input" id="uedit-slack-${uid}" style="width:110px;" value="${_escHtml(u.slackId || '')}" placeholder="U0123ABC456">`;
   // 버튼 셀 교체
   document.getElementById(`uact-${uid}`).innerHTML =
     `<button class="btn btn-outline btn-sm" onclick="openResetPwModal('${uid}')">비밀번호 초기화</button>
-     <button class="btn btn-outline btn-sm" style="margin-left:6px;" onclick="setUserSlackId('${uid}')">Slack ID 설정</button>
      <button class="btn btn-primary btn-sm" style="margin-left:6px;" onclick="saveUserEdit('${uid}')">저장</button>`;
-}
-// Slack ID는 비밀번호처럼 목록/수정 화면 어디에도 저장된 값을 보여주지 않고, 새 값을
-// 입력해서 덮어쓰기만 가능한 write-only 필드로 둔다(2026-09-08, 사용자 요청 — 목록에
-// 노출하지 않되 입력은 계속 가능하게).
-function setUserSlackId(uid) {
-  const u = USERS.find(x => x.id === uid);
-  if (!u) return;
-  const val = prompt(`${u.name}님의 Slack 멤버 ID를 입력하세요 (U로 시작, 비우면 연동 해제)`, '');
-  if (val === null) return; // 취소
-  u.slackId = val.trim() || null;
-  _fbSaveUser(u);
-  toast(u.slackId ? '✓ Slack ID가 저장되었습니다' : '✓ Slack 연동이 해제되었습니다', 'ok');
 }
 function _deptOptsHtml(bonbu, selectedDept) {
   const org = ORG_STRUCTURE.find(o => o.bonbu === bonbu);
@@ -961,6 +953,8 @@ function saveUserEdit(uid) {
   u.bonbu = document.getElementById(`uedit-bonbu-${uid}`)?.value.trim() ?? u.bonbu;
   u.dept  = document.getElementById(`uedit-dept-${uid}`)?.value.trim() ?? u.dept;
   u.rank  = document.getElementById(`uedit-rank-${uid}`)?.value ?? u.rank;
+  const slackVal = document.getElementById(`uedit-slack-${uid}`)?.value.trim();
+  u.slackId = slackVal || null;
   if (currentUser && currentUser.id === uid) { currentUser.bonbu = u.bonbu; currentUser.dept = u.dept; currentUser.rank = u.rank; _updateUserUI(); }
   _fbSaveUser(u);
   _renderUserMgmtList();
