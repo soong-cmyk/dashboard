@@ -894,10 +894,11 @@ function _renderUserMgmtList() {
       <td id="urank-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.rank || '일반'}</span></td>
       <td id="ubonbu-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.bonbu || '—'}</span></td>
       <td id="udept-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.dept || '—'}</span></td>
+      <td id="uslack-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${_escHtml(u.slackId || '—')}</span></td>
       <td style="white-space:nowrap;" id="uact-${u.id}">
         <button class="btn btn-outline btn-sm" onclick="enterUserEdit('${u.id}')">수정</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--text3);">등록된 사용자가 없습니다.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text3);">등록된 사용자가 없습니다.</td></tr>';
 }
 function enterUserEdit(uid) {
   const u = USERS.find(x => x.id === uid);
@@ -915,6 +916,9 @@ function enterUserEdit(uid) {
     `<option value="${r}" ${(u.rank||'일반') === r ? 'selected' : ''}>${r}</option>`).join('');
   document.getElementById(`urank-cell-${uid}`).innerHTML =
     `<select class="form-input" id="uedit-rank-${uid}" style="width:70px;">${rankOpts}</select>`;
+  // Slack ID 셀 → 텍스트 입력 (Slack DM 알림 연동용, 선택입력 — 비워두면 인앱 알림만 감)
+  document.getElementById(`uslack-cell-${uid}`).innerHTML =
+    `<input class="form-input" id="uedit-slack-${uid}" style="width:110px;" value="${_escHtml(u.slackId || '')}" placeholder="U0123ABC456">`;
   // 버튼 셀 교체
   document.getElementById(`uact-${uid}`).innerHTML =
     `<button class="btn btn-outline btn-sm" onclick="openResetPwModal('${uid}')">비밀번호 초기화</button>
@@ -937,6 +941,8 @@ function saveUserEdit(uid) {
   u.bonbu = document.getElementById(`uedit-bonbu-${uid}`)?.value.trim() ?? u.bonbu;
   u.dept  = document.getElementById(`uedit-dept-${uid}`)?.value.trim() ?? u.dept;
   u.rank  = document.getElementById(`uedit-rank-${uid}`)?.value ?? u.rank;
+  const slackVal = document.getElementById(`uedit-slack-${uid}`)?.value.trim();
+  u.slackId = slackVal || null;
   if (currentUser && currentUser.id === uid) { currentUser.bonbu = u.bonbu; currentUser.dept = u.dept; currentUser.rank = u.rank; _updateUserUI(); }
   _fbSaveUser(u);
   _renderUserMgmtList();
@@ -964,7 +970,7 @@ function togglePerm(uid, perm, val) {
   _fbSaveUser(u);
 }
 function openUserRegModal() {
-  ['ureg-name','ureg-id','ureg-pw'].forEach(id => {
+  ['ureg-name','ureg-id','ureg-pw','ureg-slack'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   // 본부/직급 select 초기화
@@ -986,9 +992,10 @@ function submitUserReg() {
   const bonbu = document.getElementById('ureg-bonbu')?.value.trim() || '';
   const dept  = document.getElementById('ureg-dept')?.value.trim() || '';
   const rank  = document.getElementById('ureg-rank')?.value || '일반';
+  const slackId = document.getElementById('ureg-slack')?.value.trim() || null;
   if (!name || !id || !pw) { toast('⚠ 이름, 아이디, 비밀번호는 필수입니다', 'warn'); return; }
   if (USERS.find(u => u.id === id)) { toast('⚠ 이미 사용 중인 아이디입니다', 'warn'); return; }
-  const newUser = { id, pw, name, bonbu, dept, rank, isAdmin: false, perms: { ops: true } };
+  const newUser = { id, pw, name, bonbu, dept, rank, slackId, isAdmin: false, perms: { ops: true } };
   USERS.push(newUser);
   _fbSaveUser(newUser);
   _renderUserMgmtList();
