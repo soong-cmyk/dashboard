@@ -889,6 +889,10 @@ function openUserMgmt() {
 function _renderUserMgmtList() {
   const tb = document.getElementById('users-tbody');
   if (!tb) return;
+  // Slack ID 열은 평소엔 통째로 숨겨두고, enterUserEdit이 그 행+헤더만 잠깐 보여준다 —
+  // 재렌더링(저장 후 등)될 때마다 여기서 다시 숨김 상태로 되돌린다(2026-09-08).
+  const slackTh = document.getElementById('uslack-th');
+  if (slackTh) slackTh.style.display = 'none';
   const list = USERS.filter(u => !u.isAdmin && u.id !== 'user').sort((a, b) => {
     if (a.id === 'wonjoon') return -1;
     if (b.id === 'wonjoon') return 1;
@@ -905,7 +909,7 @@ function _renderUserMgmtList() {
       <td id="urank-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.rank || '일반'}</span></td>
       <td id="ubonbu-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.bonbu || '—'}</span></td>
       <td id="udept-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.dept || '—'}</span></td>
-      <td id="uslack-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">—</span></td>
+      <td id="uslack-cell-${u.id}" style="display:none;"><span style="color:var(--text2);font-size:12px;">—</span></td>
       <td style="white-space:nowrap;" id="uact-${u.id}">
         <button class="btn btn-outline btn-sm" onclick="enterUserEdit('${u.id}')">수정</button>
       </td>
@@ -927,9 +931,15 @@ function enterUserEdit(uid) {
     `<option value="${r}" ${(u.rank||'일반') === r ? 'selected' : ''}>${r}</option>`).join('');
   document.getElementById(`urank-cell-${uid}`).innerHTML =
     `<select class="form-input" id="uedit-rank-${uid}" style="width:70px;">${rankOpts}</select>`;
-  // Slack ID 셀 → 텍스트 입력. 평소 목록엔 "—"만 보이고(2026-09-08, 목록에서 노출 안 함),
-  // 수정 버튼을 눌러 편집할 때만 실제 값을 채워서 보여준다.
-  document.getElementById(`uslack-cell-${uid}`).innerHTML =
+  // Slack ID 열 → 평소엔 헤더+셀 다 display:none으로 숨겨뒀다가(2026-09-08, 목록에서
+  // 노출 안 함), 수정 버튼을 눌러 편집할 때만 열 자체를 보여주고 실제 값을 채운다.
+  // 편집 중인 행의 셀만 보이면 그 행만 열이 하나 더 생겨서 다른 행과 컬럼이 어긋나므로,
+  // 헤더와 모든 행의 셀을 같이 보여준다(다른 행은 그대로 "—" 표시).
+  const slackTh = document.getElementById('uslack-th');
+  if (slackTh) slackTh.style.display = '';
+  document.querySelectorAll('[id^="uslack-cell-"]').forEach(el => { el.style.display = ''; });
+  const slackCell = document.getElementById(`uslack-cell-${uid}`);
+  slackCell.innerHTML =
     `<input class="form-input" id="uedit-slack-${uid}" style="width:110px;" value="${_escHtml(u.slackId || '')}" placeholder="U0123ABC456">`;
   // 버튼 셀 교체
   document.getElementById(`uact-${uid}`).innerHTML =
