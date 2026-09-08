@@ -324,11 +324,19 @@ async function login() {
       }, 2000);
     }
   }
-  // 로그인 전에 detail URL로 접근했던 경우 복원
+  // 로그인 전에 detail/pljump/taxjump URL로 접근했던 경우 복원
   const afterHash = sessionStorage.getItem('_afterLoginHash');
   if (afterHash) {
     sessionStorage.removeItem('_afterLoginHash');
     const id = afterHash.split('/')[1];
+    if (id && afterHash.startsWith('pljump/')) {
+      if (typeof plJumpToLog === 'function') plJumpToLog(id);
+      return;
+    }
+    if (id && afterHash.startsWith('taxjump/')) {
+      _taxJumpToGroup(id);
+      return;
+    }
     if (id) {
       const idx = DATA.findIndex(c => c.id === id);
       if (idx !== -1) { openDetail(idx); return; }
@@ -7642,9 +7650,10 @@ let _campFullyWatching = false;
 
 (async function initRoute() {
   if (!checkAuth()) {
-    // 비로그인 상태에서 detail URL 접근 시 → 로그인 후 복원을 위해 저장
+    // 비로그인 상태에서 detail/pljump/taxjump URL 접근 시 → 로그인 후 복원을 위해 저장
+    // (Slack "바로가기" 링크를 로그아웃 상태에서 클릭한 경우도 이 경로를 탄다)
     const h = location.hash.slice(1);
-    if (h.startsWith('detail/')) sessionStorage.setItem('_afterLoginHash', h);
+    if (h.startsWith('detail/') || h.startsWith('pljump/') || h.startsWith('taxjump/')) sessionStorage.setItem('_afterLoginHash', h);
     goScreen('login', true);
     return;
   }
@@ -7667,6 +7676,13 @@ let _campFullyWatching = false;
     document.getElementById('screen-detail').classList.add('active');
     document.querySelector('.topbar').style.display = 'none';
     history.replaceState({ screen: 'detail', id: parts[1] }, '', '#detail/' + parts[1]);
+  } else if (screenName === 'pljump' && parts[1]) {
+    // Slack 프로젝트일지 알림의 "바로가기" — plJumpToLog는 projectlog.js에 정의돼 있는데,
+    // 그 파일은 script.js보다 뒤에 로드되지만 위의 await 때문에 이 시점엔 이미 로드 완료돼있다.
+    if (typeof plJumpToLog === 'function') plJumpToLog(parts[1]);
+  } else if (screenName === 'taxjump' && parts[1]) {
+    // Slack 세금계산서 알림의 "바로가기"
+    _taxJumpToGroup(parts[1]);
   } else if (screenName && document.getElementById('screen-' + screenName)) {
     goScreen(screenName, true);
     // 새로고침 시 필터 초기화
@@ -7688,6 +7704,10 @@ window.addEventListener('hashchange', () => {
     const idx = DATA.findIndex(c => c.id === parts[1]);
     if (idx !== -1) openDetail(idx, true);
     else { window._pendingDetailId = parts[1]; }
+  } else if (screenName === 'pljump' && parts[1]) {
+    if (typeof plJumpToLog === 'function') plJumpToLog(parts[1]);
+  } else if (screenName === 'taxjump' && parts[1]) {
+    _taxJumpToGroup(parts[1]);
   } else if (screenName && document.getElementById('screen-' + screenName)) {
     goScreen(screenName, true);
   }
@@ -8205,7 +8225,7 @@ async function _applyTaxPaid(gid, on, date) {
   if (toUser && toUser.id !== currentUser?.id) {
     const type = on ? 'tax_payment' : 'tax_payment_cancel';
     const body = _notifBody(type, rep.company || '', '', undefined, gid);
-    _fbSaveNotification(toUser.id, type, body);
+    _fbSaveNotification(toUser.id, type, body, { gid });
   }
   renderTaxList();
 }
@@ -9968,6 +9988,20 @@ function taxToggleCollapse(gid) {
   renderTaxList();
 }
 
+// Slack "바로가기" 링크(#taxjump/<gid>) 진입점 — 세금계산서 화면이 아닌 곳에 있거나, 화면
+// 전환 직후라 TAX_DATA/카드가 아직 렌더 안 됐을 수 있어 plJumpToLog와 같은 재시도 패턴을 쓴다.
+function _taxJumpToGroup(gid) {
+  if (!gid) return;
+  const onScreen = document.getElementById('screen-tax')?.classList.contains('active');
+  if (!onScreen) goScreen('tax', true);
+  let tries = 0;
+  const tryScroll = () => {
+    if (document.querySelector(`.tax-card[data-gid="${gid}"]`)) { _taxScrollToGroup(gid); return; }
+    if (tries++ < 20) setTimeout(tryScroll, 200);
+    else toast('해당 건을 찾을 수 없습니다.', 'warn');
+  };
+  tryScroll();
+}
 // 원본↔수정발행 "바로가기" — 퀵필터 때문에 대상 카드가 안 보일 수 있어 필터부터 해제 후 스크롤
 function _taxScrollToGroup(gid) {
   if (_taxQuickFilter !== null) { _taxQuickFilter = null; renderTaxList(); }
@@ -10158,7 +10192,7 @@ async function taxGroupToggleStatus(gid) {
   if (toUser1 && toUser1.id !== currentUser?.id) {
     const type = isDone ? 'tax_issue_cancel' : 'tax_issue';
     const body = _notifBody(type, rep1.company || '', '', undefined, gid);
-    _fbSaveNotification(toUser1.id, type, body);
+    _fbSaveNotification(toUser1.id, type, body, { gid });
   }
   renderTaxList();
 }
@@ -10641,7 +10675,7 @@ async function saveTaxReg() {
   });
   if (isNew && currentUser?.id !== 'wonjoon') {
     const body = _notifBody('tax_new', company, '', saved.length, groupId);
-    _fbSaveNotification('wonjoon', 'tax_new', body);
+    _fbSaveNotification('wonjoon', 'tax_new', body, { gid: groupId, actorName: currentUser?.name });
   }
   closeModal('modalTaxReg');
   const _taxM = document.getElementById('tax-month');
@@ -11467,7 +11501,7 @@ async function confirmTaxAutoGen() {
     const companyStr = companies.length === 1 ? companies[0] : (companies[0] || '');
     const firstGid = _savedItems[0]?.groupId;
     const body = _notifBody('tax_new', companyStr, '', _savedItems.length, firstGid);
-    if (body) _fbSaveNotification('wonjoon', 'tax_new', body);
+    if (body) _fbSaveNotification('wonjoon', 'tax_new', body, { gid: firstGid, actorName: currentUser?.name });
   }
   closeModal('modalTaxAutoGen');
   if (_regBtn) { _regBtn.disabled = false; _regBtn.textContent = '등록'; }

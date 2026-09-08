@@ -1869,9 +1869,9 @@ async function _plSaveNewResponse() {
     if (orig.writerId && orig.writerId !== currentUser?.id) {
       const subject = _plNotifySubject(orig);
       if (mode === 'resolve') {
-        _fbSaveNotification(orig.writerId, 'pl_resolved', `${currentUser?.name || ''}님이 "${subject}" ${orig.logType} 일지를 완료 처리했습니다.`, { logId: orig.id });
+        _fbSaveNotification(orig.writerId, 'pl_resolved', `${currentUser?.name || ''}님이 "${subject}" ${orig.logType} 일지를 완료 처리했습니다.`, { logId: orig.id, actorName: currentUser?.name });
       } else {
-        _fbSaveNotification(orig.writerId, 'pl_response', `${currentUser?.name || ''}님이 "${subject}" 이슈에 대응을 기록했습니다: ${newDoc.summary.slice(0, 40)}`, { logId: orig.id });
+        _fbSaveNotification(orig.writerId, 'pl_response', `${currentUser?.name || ''}님이 "${subject}" 이슈에 대응을 기록했습니다: ${newDoc.summary.slice(0, 40)}`, { logId: orig.id, actorName: currentUser?.name });
       }
     }
     closeModal('pl-modal-edit');
@@ -2012,13 +2012,13 @@ async function plAddComment(logId) {
     // 알림 ① 댓글 — 로그 작성자 본인 댓글이 아닐 때만
     if (log && log.writerId && !notified.has(log.writerId)) {
       const subject = _plNotifySubject(log);
-      _fbSaveNotification(log.writerId, 'pl_comment', `${currentUser?.name || ''}님이 "${subject}" 일지에 댓글을 남겼습니다: ${content.slice(0, 40)}`, { logId });
+      _fbSaveNotification(log.writerId, 'pl_comment', `${currentUser?.name || ''}님이 "${subject}" 일지에 댓글을 남겼습니다: ${content.slice(0, 40)}`, { logId, actorName: currentUser?.name });
       notified.add(log.writerId);
     }
     // 알림 ⑤ 멘션 — 댓글 알림을 이미 받은 사람(작성자·본인)에게는 중복 발송하지 않음
     mentions.filter(m => !notified.has(m.id)).forEach(m => {
       const subject = log ? _plNotifySubject(log) : '';
-      _fbSaveNotification(m.id, 'pl_mention', `${currentUser?.name || ''}님이 "${subject}" 일지 댓글에서 회원님을 멘션했습니다: ${content.slice(0, 40)}`, { logId });
+      _fbSaveNotification(m.id, 'pl_mention', `${currentUser?.name || ''}님이 "${subject}" 일지 댓글에서 회원님을 멘션했습니다: ${content.slice(0, 40)}`, { logId, actorName: currentUser?.name });
       notified.add(m.id);
     });
   } catch (e) {
@@ -4333,9 +4333,9 @@ async function plSaveEdit() {
     if (orig.writerId && orig.writerId !== currentUser?.id) {
       const subject = _plNotifySubject(updated);
       if (orig.state === '진행중' && updated.state === '완료') {
-        _fbSaveNotification(orig.writerId, 'pl_resolved', `${currentUser?.name || ''}님이 "${subject}" ${updated.logType} 일지를 완료 처리했습니다.`, { logId: d.id });
+        _fbSaveNotification(orig.writerId, 'pl_resolved', `${currentUser?.name || ''}님이 "${subject}" ${updated.logType} 일지를 완료 처리했습니다.`, { logId: d.id, actorName: currentUser?.name });
       } else if (changes.length) {
-        _fbSaveNotification(orig.writerId, 'pl_edit', `${currentUser?.name || ''}님이 "${subject}" 일지를 수정했습니다.`, { logId: d.id });
+        _fbSaveNotification(orig.writerId, 'pl_edit', `${currentUser?.name || ''}님이 "${subject}" 일지를 수정했습니다.`, { logId: d.id, actorName: currentUser?.name });
       }
     }
     // "+ 항목 추가"로 만든 것들 — 수정한 로그와 같은 대상(scope/seller/content/campaignId/media/product)으로
@@ -4422,7 +4422,7 @@ async function _plQuickAddSave(logId, ctx) {
       await _plDb('projectLogHistory').add({ logId, changedBy: currentUser?.name || '', changedAt: new Date().toISOString(), changes });
     }
     if (orig.writerId && orig.writerId !== currentUser?.id && changes.length) {
-      _fbSaveNotification(orig.writerId, 'pl_edit', `${currentUser?.name || ''}님이 "${_plNotifySubject(updated)}" 일지를 수정했습니다.`, { logId });
+      _fbSaveNotification(orig.writerId, 'pl_edit', `${currentUser?.name || ''}님이 "${_plNotifySubject(updated)}" 일지를 수정했습니다.`, { logId, actorName: currentUser?.name });
     }
     _plQuickAdd = null;
     _plRerenderByCtx(ctx);
