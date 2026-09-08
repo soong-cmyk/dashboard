@@ -275,7 +275,10 @@ async function _checkDeployVersion() {
       if (prevTag && prevTag !== tag) changed = true;
     }
     if (changed) {
-      history.replaceState(null, '', '#dashboard');
+      // 예전엔 여기서 해시를 무조건 #dashboard로 덮어썼는데, 그러면 배포 직후(자주 있는 일)
+      // #pljump/#taxjump/#detail 같은 딥링크로 들어온 경우 새로고침과 동시에 그 목적지 정보가
+      // 사라져서 그냥 홈으로 열려버렸다(Slack 바로가기 링크가 안 먹던 원인, 2026-09-08).
+      // 지금 해시를 그대로 둔 채 새로고침하면 initRoute()가 재실행되며 알아서 복원한다.
       location.reload(true);
       return true;
     }
