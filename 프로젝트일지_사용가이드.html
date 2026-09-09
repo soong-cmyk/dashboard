@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>프로젝트일지 사용 가이드</title>
+<style>
+  :root{
+    --paper:#F3F4F0;
+    --paper2:#EAEBE4;
+    --card:#FCFCFA;
+    --ink:#1E2230;
+    --ink2:#565C6B;
+    --ink3:#8A8F9C;
+    --line:#DBDCD4;
+    --line-soft:#E7E8E1;
+    --accent:#33527A;
+    --accent-soft:#E4EAF1;
+    --accent-ink:#20395A;
+    --red:#c92a2a; --red-bg:#fff5f5;
+    --orange:#d9480f; --orange-bg:#fff4e6;
+    --green:#2b8a3e; --green-bg:#ebfbee;
+    --purple:#9c36b5; --purple-bg:#f8f0fc;
+    --indigo:#5f3dc4; --indigo-bg:#f3f0ff;
+    --teal:#0ca678; --teal-bg:#e6fcf5;
+    --yellow:#997404; --yellow-bg:#fff9db;
+    --cyan:#0b7285; --cyan-bg:#e3fafc;
+    --blue:#1864ab; --blue-bg:#e7f5ff;
+    --grey:#495057; --grey-bg:#eceef0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#14161B; --paper2:#1A1D24; --card:#1D2029;
+      --ink:#E8E9ED; --ink2:#AAAEBA; --ink3:#70747F;
+      --line:#2B2E38; --line-soft:#23262F;
+      --accent:#7EA3D6; --accent-soft:#212B3B; --accent-ink:#BFD4EE;
+      --red-bg:#3A1F1F; --orange-bg:#3A2A1A; --green-bg:#1B2E20; --purple-bg:#2C1F33;
+      --indigo-bg:#241F3A; --teal-bg:#123329; --yellow-bg:#332B0F; --cyan-bg:#12292E; --blue-bg:#182838; --grey-bg:#22252C;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#14161B; --paper2:#1A1D24; --card:#1D2029;
+    --ink:#E8E9ED; --ink2:#AAAEBA; --ink3:#70747F;
+    --line:#2B2E38; --line-soft:#23262F;
+    --accent:#7EA3D6; --accent-soft:#212B3B; --accent-ink:#BFD4EE;
+    --red-bg:#3A1F1F; --orange-bg:#3A2A1A; --green-bg:#1B2E20; --purple-bg:#2C1F33;
+    --indigo-bg:#241F3A; --teal-bg:#123329; --yellow-bg:#332B0F; --cyan-bg:#12292E; --blue-bg:#182838; --grey-bg:#22252C;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Segoe UI",sans-serif;
+    font-size:15px;
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;}
+  ::selection{background:var(--accent-soft);}
+
+  .layout{display:flex; max-width:1180px; margin:0 auto;}
+
+  /* ── 좌측 고정 목차 ── */
+  .rail{
+    width:248px; flex-shrink:0;
+    position:sticky; top:0; align-self:flex-start;
+    height:100vh; overflow-y:auto;
+    padding:32px 18px 40px 28px;
+  }
+  .rail-kicker{
+    font-family:ui-monospace,monospace; font-size:10.5px; letter-spacing:.09em;
+    color:var(--ink3); text-transform:uppercase; margin-bottom:6px;
+  }
+  .rail-title{font-size:17px; font-weight:800; letter-spacing:-.01em; margin-bottom:24px; text-wrap:balance;}
+  .rail nav{display:flex; flex-direction:column; gap:1px;}
+  .rail nav a{
+    display:flex; align-items:baseline; gap:9px;
+    padding:7px 10px; border-radius:6px;
+    font-size:13px; color:var(--ink2); text-decoration:none;
+    border-left:2px solid transparent;
+  }
+  .rail nav a:hover{background:var(--card); color:var(--ink);}
+  .rail nav a .rn{font-family:ui-monospace,monospace; font-size:11px; color:var(--ink3); flex-shrink:0;}
+  .rail-foot{margin-top:28px; padding-top:16px; border-top:1px solid var(--line); font-size:11px; color:var(--ink3); font-family:ui-monospace,monospace;}
+
+  /* ── 본문 ── */
+  .main{flex:1; min-width:0; padding:52px 40px 140px 40px; border-left:1px solid var(--line);}
+  .hero h1{font-size:29px; font-weight:800; letter-spacing:-.01em; margin:0 0 8px; text-wrap:balance;}
+  .hero .sub{font-size:14.5px; color:var(--ink2); margin:0 0 4px; max-width:64ch;}
+  .hero .tags{display:flex; gap:6px; margin-top:16px; flex-wrap:wrap;}
+  .hero .tag{
+    font-size:11px; font-weight:600; color:var(--ink2); background:var(--card);
+    border:1px solid var(--line); padding:3px 9px; border-radius:20px;
+  }
+
+  .guide-sec{margin:56px 0 0; scroll-margin-top:24px;}
+  .guide-sec:first-of-type{margin-top:44px;}
+  .gs-head{display:flex; align-items:baseline; gap:12px; margin-bottom:6px;}
+  .gs-num{font-family:ui-monospace,monospace; font-size:13px; color:var(--accent); font-weight:700;}
+  .gs-head h2{font-size:20px; margin:0; font-weight:800; letter-spacing:-.01em;}
+  .gs-lede{font-size:13.5px; color:var(--ink2); margin:0 0 22px; max-width:64ch;}
+
+  p{margin:0 0 12px; max-width:66ch;}
+  strong{color:var(--ink); font-weight:700;}
+  ul.plain, ol.plain{margin:0 0 14px; padding-left:1.3em; max-width:64ch;}
+  ul.plain li, ol.plain li{margin-bottom:6px;}
+
+  /* STEP 카드 */
+  .steps{display:flex; flex-direction:column; gap:0; margin:20px 0 24px; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--card);}
+  .step{display:flex; gap:16px; padding:16px 18px; border-bottom:1px solid var(--line-soft);}
+  .step:last-child{border-bottom:none;}
+  .step-n{
+    flex-shrink:0; width:26px; height:26px; border-radius:50%;
+    background:var(--accent-soft); color:var(--accent-ink);
+    display:flex; align-items:center; justify-content:center;
+    font-family:ui-monospace,monospace; font-size:12px; font-weight:700;
+  }
+  .step-b{min-width:0;}
+  .step-t{font-weight:700; font-size:14px; margin-bottom:3px;}
+  .step-d{font-size:13.3px; color:var(--ink2);}
+  .step-d code.inline{
+    font-family:ui-monospace,monospace; font-size:12px;
+    background:var(--paper2); padding:1px 5px; border-radius:3px; color:var(--accent-ink);
+  }
+
+  .note{
+    font-size:13px; color:var(--ink2);
+    background:var(--paper2); border-left:3px solid var(--accent);
+    padding:10px 14px; border-radius:0 4px 4px 0; margin:14px 0; max-width:64ch;
+  }
+  .warn{
+    font-size:13px; color:var(--ink2);
+    background:var(--orange-bg); border-left:3px solid var(--orange);
+    padding:10px 14px; border-radius:0 4px 4px 0; margin:14px 0; max-width:64ch;
+  }
+
+  .badge{
+    display:inline-block; font-size:11px; font-weight:700; padding:2px 8px;
+    border-radius:3px; white-space:nowrap;
+  }
+  .b-운영{background:var(--grey-bg); color:var(--grey);}
+  .b-요청{background:var(--cyan-bg); color:var(--cyan);}
+  .b-제안{background:var(--blue-bg); color:var(--blue);}
+  .b-이슈{background:var(--red-bg); color:var(--red);}
+  .b-대응{background:var(--orange-bg); color:var(--orange);}
+  .b-결과{background:var(--green-bg); color:var(--green);}
+  .b-피드백{background:var(--purple-bg); color:var(--purple);}
+  .b-회고{background:var(--indigo-bg); color:var(--indigo);}
+  .b-자료{background:var(--teal-bg); color:var(--teal);}
+  .b-시스템제약{background:var(--yellow-bg); color:var(--yellow);}
+
+  .taggrid{display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 22px;}
+  .tagpill{
+    display:flex; align-items:center; gap:8px;
+    border:1px solid var(--line); background:var(--card); border-radius:20px;
+    padding:6px 12px 6px 8px; font-size:12.5px; color:var(--ink2);
+  }
+
+  .tbl-wrap{overflow-x:auto; margin:16px 0 22px; border:1px solid var(--line); border-radius:8px;}
+  table{width:100%; border-collapse:collapse; font-size:13px; background:var(--card);}
+  th{
+    text-align:left; font-size:11px; letter-spacing:.03em; color:var(--ink3);
+    font-weight:600; padding:9px 12px; border-bottom:1px solid var(--line);
+    background:var(--paper2); white-space:nowrap;
+  }
+  td{padding:10px 12px; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--ink2);}
+  tr:last-child td{border-bottom:none;}
+  td.strong{color:var(--ink); font-weight:600;}
+  .perm-yes{color:var(--green); font-weight:700;}
+  .perm-no{color:var(--ink3);}
+
+  /* FAQ */
+  .faq{border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--card);}
+  .faq details{border-bottom:1px solid var(--line-soft);}
+  .faq details:last-child{border-bottom:none;}
+  .faq summary{
+    list-style:none; cursor:pointer; padding:14px 18px;
+    font-size:13.8px; font-weight:700; display:flex; align-items:center; gap:10px;
+  }
+  .faq summary::-webkit-details-marker{display:none;}
+  .faq summary::before{content:"Q"; font-family:ui-monospace,monospace; color:var(--accent); font-weight:700; flex-shrink:0;}
+  .faq .a{padding:0 18px 16px 40px; font-size:13.3px; color:var(--ink2); max-width:60ch;}
+
+  code.inline{
+    font-family:ui-monospace,monospace; font-size:12px;
+    background:var(--paper2); padding:1px 5px; border-radius:3px; color:var(--accent-ink);
+  }
+
+  @media (max-width:860px){
+    .layout{flex-direction:column;}
+    .rail{position:static; width:auto; height:auto; padding:24px 20px 8px;}
+    .main{padding:20px 20px 100px; border-left:none; border-top:1px solid var(--line);}
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <aside class="rail">
+    <div class="rail-kicker">Getting Started</div>
+    <div class="rail-title">프로젝트일지<br>사용 가이드</div>
+    <nav>
+      <a href="#what"><span class="rn">01</span> 프로젝트일지란?</a>
+      <a href="#write"><span class="rn">02</span> 일지 작성하기</a>
+      <a href="#issue"><span class="rn">03</span> 이슈 등록·대응하기</a>
+      <a href="#comment"><span class="rn">04</span> 댓글·멘션하기</a>
+      <a href="#alert"><span class="rn">05</span> 알림 받기</a>
+      <a href="#mine"><span class="rn">06</span> 내 미완료 일지 확인</a>
+      <a href="#perm"><span class="rn">07</span> 직급별 권한 차이</a>
+      <a href="#faq"><span class="rn">08</span> 자주 묻는 질문</a>
+    </nav>
+    <div class="rail-foot">v1.0 · 2026-09-09</div>
+  </aside>
+
+  <main class="main">
+
+    <div class="hero">
+      <h1>프로젝트일지, 이렇게 씁니다</h1>
+      <p class="sub">광고주·매체와 있었던 일을 기록으로 남기고, 이슈를 놓치지 않고, 팀과 공유하는 방법을 순서대로 안내합니다.</p>
+      <div class="tags">
+        <span class="tag">신규 입사자용</span>
+        <span class="tag">실무 워크플로우 중심</span>
+        <span class="tag">화면별 상세는 기능 설명서 참고</span>
+      </div>
+    </div>
+
+    <section class="guide-sec" id="what">
+      <div class="gs-head"><span class="gs-num">01</span><h2>프로젝트일지란?</h2></div>
+      <p class="gs-lede">메신저·메일·머릿속에만 있던 광고주·매체와의 기록을, 나중에 누구나 찾아볼 수 있는 형태로 남기는 메뉴입니다.</p>
+      <ul class="plain">
+        <li>광고주·매체와 통화나 메신저로 뭔가를 <strong>합의했을 때</strong></li>
+        <li>캠페인 진행 중 <strong>문제가 생겼을 때</strong> — 아직 안 풀렸어도 일단</li>
+        <li>다음 캠페인을 위해 <strong>이번에 배운 게</strong> 있을 때</li>
+        <li><strong>담당자가 바뀌기 직전</strong>, 인수인계 자료로</li>
+      </ul>
+      <p class="note">캠페인 결과 보고서와는 다릅니다 — 숫자보다 "무슨 일이 있었고, 어떻게 판단했는지"를 남기는 곳입니다.</p>
+    </section>
+
+    <section class="guide-sec" id="write">
+      <div class="gs-head"><span class="gs-num">02</span><h2>일지 작성하기</h2></div>
+      <p class="gs-lede">화면 상단 <strong>+ 일지 작성</strong>을 누르면 시작됩니다. 아래 순서대로 채우면 됩니다.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-n">1</div>
+          <div class="step-b">
+            <div class="step-t">대상 지정</div>
+            <div class="step-d"><strong>＋ 블록 추가</strong>로 광고주 · 프로젝트 · 매체 · 내부 업무 중 하나를 고릅니다. 이미 등록된 캠페인이면 캠페인으로, 아직 협의 단계면 프로젝트(브랜드)로, 광고주 전체 이야기면 광고주 전반으로 잡으면 됩니다. 검색해서 안 나오면(신규 광고주·매체) 그 자리에서 바로 등록할 수 있습니다.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n">2</div>
+          <div class="step-b">
+            <div class="step-t">분류 고르기</div>
+            <div class="step-d">아래 10종 중 하나를 선택합니다. 분류에 따라 입력 항목이 자동으로 바뀝니다(예: 이슈는 상황·원인·영향).</div>
+            <div class="taggrid">
+              <span class="tagpill"><span class="badge b-운영">운영</span>정기 진행 공유</span>
+              <span class="tagpill"><span class="badge b-요청">요청</span>상대측 요청</span>
+              <span class="tagpill"><span class="badge b-제안">제안</span>우리가 먼저 제시</span>
+              <span class="tagpill"><span class="badge b-이슈">이슈</span>문제 상황</span>
+              <span class="tagpill"><span class="badge b-대응">대응</span>조치·의사결정</span>
+              <span class="tagpill"><span class="badge b-결과">결과</span>집행 결과·지표</span>
+              <span class="tagpill"><span class="badge b-피드백">피드백</span>상대측 평가</span>
+              <span class="tagpill"><span class="badge b-회고">회고</span>잘된 점·문제점</span>
+              <span class="tagpill"><span class="badge b-자료">자료</span>참고 자료 위치</span>
+              <span class="tagpill"><span class="badge b-시스템제약">시스템제약</span>매체 구조적 제약</span>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n">3</div>
+          <div class="step-b">
+            <div class="step-t">내용·진척률 입력</div>
+            <div class="step-d">내용을 쓰고, <strong>진척률(0~100%)</strong>을 입력합니다 — 필수 항목입니다. 이 값이 나중에 "미완료 일지" 판단 기준이 됩니다. 중요한 건이면 <strong>중요</strong> 표시를 켜두면 '일지' 탭 상단 필터로 모아볼 수 있습니다.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n">4</div>
+          <div class="step-b">
+            <div class="step-t">저장</div>
+            <div class="step-d">항목이 여러 개면 한 번에 여러 건으로 나뉘어 저장됩니다(하단 안내 문구에 몇 건인지 표시). 관련자를 등록해두면 그 사람에게도 알림이 갑니다.</div>
+          </div>
+        </div>
+      </div>
+      <div class="note">과거 기록이 메모장·엑셀에 흩어져 있다면, 목록 상단 <strong>📥 엑셀 업로드</strong>로 정해진 양식에 맞춰 한 번에 옮겨올 수 있습니다.</div>
+    </section>
+
+    <section class="guide-sec" id="issue">
+      <div class="gs-head"><span class="gs-num">03</span><h2>이슈 등록하고 대응 기록하기</h2></div>
+      <p class="gs-lede">'이슈'로 남긴 일지는 해결 전까지 자동으로 <strong>진행중</strong> 상태가 되어 목록에서 계속 눈에 띕니다.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-n">1</div>
+          <div class="step-b"><div class="step-t">이슈로 작성</div><div class="step-d">분류를 <span class="badge b-이슈">이슈</span>로 선택 — 저장 즉시 상태가 <code class="inline">진행중</code>으로 붙습니다.</div></div>
+        </div>
+        <div class="step">
+          <div class="step-n">2</div>
+          <div class="step-b"><div class="step-t">놓치지 않고 확인</div><div class="step-d">'일지' 탭 상단 <strong>🔴 진행중</strong> 필터, 또는 작성 모달의 <strong>나의 미완료 일지</strong> 패널에서 계속 보입니다.</div></div>
+        </div>
+        <div class="step">
+          <div class="step-n">3</div>
+          <div class="step-b"><div class="step-t">완료 처리</div><div class="step-d">해결되면 <strong>✓ 완료 처리</strong>를 누르고 해결 내용을 새 기록으로 남깁니다. 원본 이슈는 고쳐 쓰지 않고 그대로 두어, "처음에 뭐라고 판단했었는지"도 함께 남습니다.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="guide-sec" id="comment">
+      <div class="gs-head"><span class="gs-num">04</span><h2>댓글 달기·멘션하기</h2></div>
+      <p class="gs-lede">일지 하나를 두고 실시간으로 의견을 주고받을 수 있습니다.</p>
+      <ul class="plain">
+        <li>일지를 펼치면 하단에 댓글 입력창이 있습니다. 작성하면 목록의 댓글 수 배지가 바로 갱신됩니다.</li>
+        <li><code class="inline">@이름</code>을 입력하면 자동완성 목록이 뜹니다 — 방향키로 고르고 Enter로 확정. 멘션된 사람에게는 알림이 갑니다.</li>
+        <li>직접 작성하지 않았어도 그 업무에 참여한 사람은 <strong>관련자</strong>로 등록해두면(회의 참석자 추가하듯) 함께 알림을 받습니다.</li>
+      </ul>
+    </section>
+
+    <section class="guide-sec" id="alert">
+      <div class="gs-head"><span class="gs-num">05</span><h2>알림 받기</h2></div>
+      <p class="gs-lede">내가 쓴 일지에 댓글이 달리거나, 수정되거나, 이슈가 완료 처리되거나, 관련자·멘션으로 등록되면 알림이 옵니다.</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th style="width:140px;">받는 방법</th><th>내용</th></tr></thead>
+          <tbody>
+            <tr><td class="strong">상단 🔔</td><td>대시보드 안에서 항상 확인 가능. <strong>"일지 보기 →"</strong> 버튼을 누르면 어느 화면에 있었든 그 일지가 자동으로 펼쳐지고 스크롤됩니다.</td></tr>
+            <tr><td class="strong">Slack DM</td><td>사용자관리에 본인 Slack ID를 등록해두면 같은 알림이 Slack으로도 옵니다. 메시지 끝 <code class="inline">[바로가기]</code>를 누르면 대시보드가 열리면서 해당 위치로 바로 이동합니다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">Slack DM이 안 온다면 사용자관리 화면에서 본인 Slack ID가 등록돼 있는지 먼저 확인해보세요(등록은 관리자가 해줍니다).</div>
+    </section>
+
+    <section class="guide-sec" id="mine">
+      <div class="gs-head"><span class="gs-num">06</span><h2>내 미완료 일지 확인하기</h2></div>
+      <p class="gs-lede">"어제 하다 만 일"을 다시 찾아 헤매지 않도록, 세 군데에서 확인할 수 있습니다.</p>
+      <ul class="plain">
+        <li><strong>일지 작성 모달 오른쪽 패널</strong> — 새 일지를 쓸 때마다 최근 2주 · 진척률 100% 미만인 내 일지가 자동으로 뜹니다. 이슈면 <strong>💬 대응 작성하기</strong>, 그 외엔 <strong>↩ 이어쓰기</strong> 버튼으로 바로 이어 쓸 수 있습니다.</li>
+        <li><strong>'일지' 탭 · 📊 미완료 낮은순</strong> — 같은 기준(진짜 미완료만, 진척률 낮은 순)으로 목록 상단에 모아 정렬합니다.</li>
+        <li><strong>'나의 일지' 탭</strong> — 내가 작성했거나 관련자·멘션으로 얽힌 일지를 전부 모아 자체 검색까지 지원합니다.</li>
+      </ul>
+    </section>
+
+    <section class="guide-sec" id="perm">
+      <div class="gs-head"><span class="gs-num">07</span><h2>직급별로 보이는 게 다른 점</h2></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>행위</th><th>일반 직원</th><th>실장급 이상</th><th>관리자</th></tr></thead>
+          <tbody>
+            <tr><td class="strong">일지 작성·조회</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td></tr>
+            <tr><td class="strong">본인 일지 수정·삭제</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td></tr>
+            <tr><td class="strong">타인 일지 수정·삭제</td><td class="perm-no">보기만</td><td class="perm-no">보기만</td><td class="perm-yes">가능</td></tr>
+            <tr><td class="strong">광고주 목표 설정</td><td class="perm-no">불가</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="guide-sec" id="faq">
+      <div class="gs-head"><span class="gs-num">08</span><h2>자주 묻는 질문</h2></div>
+      <div class="faq">
+        <details>
+          <summary>대상을 뭘로 잡아야 할지 헷갈려요</summary>
+          <div class="a">캠페인이 이미 등록돼 있으면 <strong>캠페인</strong>, 아직 협의 단계면 <strong>프로젝트(브랜드)</strong>, 광고주 전체에 걸친 이야기면 <strong>광고주 전반</strong>입니다. 매체와의 조건 협의는 <strong>매체 전반</strong>, 그 외 사내 논의는 <strong>내부업무</strong>로 남기면 됩니다.</div>
+        </details>
+        <details>
+          <summary>신규 광고주·매체가 목록에 없어요</summary>
+          <div class="a">대상 검색창에 찾는 이름이 안 나오면, 그 자리에서 바로 등록하고 이어서 일지를 쓸 수 있습니다.</div>
+        </details>
+        <details>
+          <summary>과거에 쌓인 메모·엑셀 기록도 옮길 수 있나요</summary>
+          <div class="a">'일지' 탭 상단 <strong>📥 엑셀 업로드</strong>로 정해진 양식에 맞춰 일괄로 가져올 수 있습니다.</div>
+        </details>
+        <details>
+          <summary>캠페인 상세 화면에서도 일지를 볼 수 있나요</summary>
+          <div class="a">네. 캠페인 상세 화면 상단 <code class="inline">✎ 일지</code> 버튼으로 그 캠페인에 달린 일지를 바로 조회할 수 있습니다.</div>
+        </details>
+        <details>
+          <summary>이슈를 완료 처리하면 원본 내용이 사라지나요</summary>
+          <div class="a">아니요. 원본은 그대로 남고, 완료 처리 시 남기는 해결 내용이 별도 기록으로 붙으면서 원본과 서로 링크로 연결됩니다.</div>
+        </details>
+        <details>
+          <summary>매체 담당자가 바뀌면 예전에 확인했던 제약사항을 또 찾아야 하나요</summary>
+          <div class="a">아니요. '매체' 탭에서 해당 매체를 클릭하면 그 매체에 남겨진 <strong>시스템제약</strong>·<strong>매체 회신</strong> 기록만 상세 화면 맨 위에 자동으로 모아 보여줍니다.</div>
+        </details>
+      </div>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>
