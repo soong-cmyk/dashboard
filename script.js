@@ -4912,13 +4912,27 @@ function renderDayView() {
 // ══════════════════════════════════════════
 // MODAL HELPERS
 // ══════════════════════════════════════════
+// 모달이 하나라도 열려있으면 뒤에 깔린 .content(실제 스크롤 컨테이너 — body 자체는 데스크톱에서
+// 항상 overflow:hidden이라 잠글 필요 없음)를 잠근다. 안 그러면 모달 안쪽(예: 자동 줄바꿈 textarea처럼
+// 자기 안에 스크롤할 내용이 없는 요소) 위에서 휠을 굴렸을 때, 브라우저가 스크롤 체이닝으로 그 자리
+// 조상 중 실제로 넘치는(overflow) 컨테이너를 찾다가 모달 안에서 못 찾으면 그대로 .content까지
+// 타고 올라가 배경이 스크롤돼버린다(2026-09-09, 사용자 리포트 — 일지 작성 모달 textarea에 커서를
+// 두고 휠을 굴리면 뒤 배경이 스크롤됨). body.modal-lock 클래스는 모바일(body 자체가 스크롤 컨테이너인
+// 화면폭)까지 함께 막기 위한 것 — style.css에 .modal-lock .content{overflow:hidden} 규칙 추가 필요.
+function _updateBodyScrollLock() {
+  document.body.classList.toggle('modal-lock', document.querySelectorAll('.modal-overlay.open').length > 0);
+}
 function openModal(id) {
   const overlay = document.getElementById(id);
   overlay.classList.add('open');
   const modal = overlay.querySelector('.modal');
   if (modal) modal.scrollTop = 0;
+  _updateBodyScrollLock();
 }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  _updateBodyScrollLock();
+}
 
 // ESC로 모든 모달 닫기 (배경 클릭으로는 닫히지 않음)
 document.addEventListener('keydown', e => {
@@ -4939,6 +4953,7 @@ document.addEventListener('keydown', e => {
   // 캠페인 수정 화면이 활성 중이면 ESC 무시
   if (document.getElementById('screen-edit')?.classList.contains('active')) return;
   document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  _updateBodyScrollLock();
 });
 
 // ══════════════════════════════════════════
