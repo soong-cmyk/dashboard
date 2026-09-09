@@ -4033,9 +4033,14 @@ function _plEditMetaHtml() {
   const stateOpts = ['', '진행중', '완료'].map(s => `<option value="${s}" ${((d.state || '') === s) ? 'selected' : ''}>${s || '없음'}</option>`).join('');
   const impActive = d.important ? ' pl-toggle-on' : '';
   const shrActive = d.shared ? ' pl-toggle-on' : '';
+  // "대응 기록/완료 처리"(d.newFor) 모드에서는 이 로그 자체의 state가 항상 null로 저장되고(_plSaveNewResponse),
+  // 원본 이슈를 완료로 넘기는 진짜 스위치는 모달 하단의 "이 기록으로 이슈 완료 처리" 체크박스다. 그런데 이
+  // 상태 드롭다운이 같이 보이면 여기서 "완료"를 골라도 아무 효과가 없어 사용자가 그걸로 착각하고 체크박스는
+  // 안 눌러서 원본이 계속 진행중으로 남는 문제가 있었음 — 이 모드에서는 아예 숨긴다(2026-09-09, 사용자 실사례).
+  const stateFieldHtml = d.newFor ? '' : `<div class="fg"><label class="form-label">상태</label><select class="form-sel" onchange="_plEditField('state',this.value||null)">${stateOpts}</select></div>`;
   return `<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:12px;">
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
-      <div class="fg"><label class="form-label">상태</label><select class="form-sel" onchange="_plEditField('state',this.value||null)">${stateOpts}</select></div>
+    <div style="display:grid;grid-template-columns:${d.newFor ? '1fr 1fr' : '1fr 1fr 1fr'};gap:14px;">
+      ${stateFieldHtml}
       <div class="fg"><label class="form-label">표시</label>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-ghost btn-sm${impActive}" onclick="_plEditToggleFlag('important')">★ 중요</button>
