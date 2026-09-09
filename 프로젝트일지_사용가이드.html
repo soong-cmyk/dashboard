@@ -86,7 +86,7 @@
   /* ── 본문 ── */
   .main{flex:1; min-width:0; padding:52px 40px 140px 40px; border-left:1px solid var(--line);}
   .hero h1{font-size:29px; font-weight:800; letter-spacing:-.01em; margin:0 0 8px; text-wrap:balance;}
-  .hero .sub{font-size:14.5px; color:var(--ink2); margin:0 0 4px; max-width:64ch;}
+  .hero .sub{font-size:14.5px; color:var(--ink2); margin:0 0 4px; }
   .hero .tags{display:flex; gap:6px; margin-top:16px; flex-wrap:wrap;}
   .hero .tag{
     font-size:11px; font-weight:600; color:var(--ink2); background:var(--card);
@@ -98,11 +98,11 @@
   .gs-head{display:flex; align-items:baseline; gap:12px; margin-bottom:6px;}
   .gs-num{font-family:ui-monospace,monospace; font-size:13px; color:var(--accent); font-weight:700;}
   .gs-head h2{font-size:20px; margin:0; font-weight:800; letter-spacing:-.01em;}
-  .gs-lede{font-size:13.5px; color:var(--ink2); margin:0 0 22px; max-width:64ch;}
+  .gs-lede{font-size:13.5px; color:var(--ink2); margin:0 0 22px; }
 
-  p{margin:0 0 12px; max-width:66ch;}
+  p{margin:0 0 12px; }
   strong{color:var(--ink); font-weight:700;}
-  ul.plain, ol.plain{margin:0 0 14px; padding-left:1.3em; max-width:64ch;}
+  ul.plain, ol.plain{margin:0 0 14px; padding-left:1.3em; }
   ul.plain li, ol.plain li{margin-bottom:6px;}
 
   /* STEP 카드 */
@@ -126,12 +126,12 @@
   .note{
     font-size:13px; color:var(--ink2);
     background:var(--paper2); border-left:3px solid var(--accent);
-    padding:10px 14px; border-radius:0 4px 4px 0; margin:14px 0; max-width:64ch;
+    padding:10px 14px; border-radius:0 4px 4px 0; margin:14px 0;
   }
   .warn{
     font-size:13px; color:var(--ink2);
     background:var(--orange-bg); border-left:3px solid var(--orange);
-    padding:10px 14px; border-radius:0 4px 4px 0; margin:14px 0; max-width:64ch;
+    padding:10px 14px; border-radius:0 4px 4px 0; margin:14px 0; 
   }
 
   .badge{
@@ -179,7 +179,7 @@
   }
   .faq summary::-webkit-details-marker{display:none;}
   .faq summary::before{content:"Q"; font-family:ui-monospace,monospace; color:var(--accent); font-weight:700; flex-shrink:0;}
-  .faq .a{padding:0 18px 16px 40px; font-size:13.3px; color:var(--ink2); max-width:60ch;}
+  .faq .a{padding:0 18px 16px 40px; font-size:13.3px; color:var(--ink2);}
 
   code.inline{
     font-family:ui-monospace,monospace; font-size:12px;
@@ -191,6 +191,24 @@
     .rail{position:static; width:auto; height:auto; padding:24px 20px 8px;}
     .main{padding:20px 20px 100px; border-left:none; border-top:1px solid var(--line);}
   }
+
+  /* ── 섹션별 스크린샷 붙여넣기 ── */
+  .shot-zone{margin-top:18px; border:1px dashed var(--line); border-radius:8px; padding:12px 14px; outline:none;}
+  .shot-zone:focus{border-color:var(--accent);}
+  .shot-zone.drag-over{border-color:var(--accent); background:var(--accent-soft);}
+  .shot-hint{font-size:11.5px; color:var(--ink3); margin-bottom:8px;}
+  .shot-hint .mono{font-family:ui-monospace,monospace;}
+  .shot-grid{display:flex; flex-wrap:wrap; gap:10px;}
+  .shot-empty{font-size:11.5px; color:var(--ink3);}
+  .shot-item{width:150px;}
+  .shot-item img{width:100%; height:96px; object-fit:cover; border-radius:6px; border:1px solid var(--line); cursor:zoom-in; display:block; background:var(--paper2);}
+  .shot-cap-row{display:flex; align-items:center; gap:4px; margin-top:4px;}
+  .shot-cap{flex:1; min-width:0; font-size:11px; border:1px solid transparent; background:transparent; color:var(--ink2); padding:2px 3px; border-radius:3px; font-family:inherit;}
+  .shot-cap:hover, .shot-cap:focus{border-color:var(--line); background:var(--card);}
+  .shot-del{flex-shrink:0; border:none; background:none; color:var(--ink3); cursor:pointer; font-size:13px; padding:2px 4px; border-radius:3px;}
+  .shot-del:hover{color:var(--red); background:var(--red-bg);}
+  .shot-lightbox{position:fixed; inset:0; background:rgba(0,0,0,.72); display:flex; align-items:center; justify-content:center; z-index:1000; padding:40px; cursor:zoom-out;}
+  .shot-lightbox img{max-width:100%; max-height:100%; border-radius:8px; box-shadow:0 20px 60px rgba(0,0,0,.4);}
 </style>
 </head>
 <body>
@@ -209,19 +227,14 @@
       <a href="#perm"><span class="rn">07</span> 직급별 권한 차이</a>
       <a href="#faq"><span class="rn">08</span> 자주 묻는 질문</a>
     </nav>
-    <div class="rail-foot">v1.0 · 2026-09-09</div>
+    <div class="rail-foot">v1.1 · 2026-09-09</div>
   </aside>
 
   <main class="main">
 
     <div class="hero">
-      <h1>프로젝트일지, 이렇게 씁니다</h1>
-      <p class="sub">광고주·매체와 있었던 일을 기록으로 남기고, 이슈를 놓치지 않고, 팀과 공유하는 방법을 순서대로 안내합니다.</p>
-      <div class="tags">
-        <span class="tag">신규 입사자용</span>
-        <span class="tag">실무 워크플로우 중심</span>
-        <span class="tag">화면별 상세는 기능 설명서 참고</span>
-      </div>
+      <h1>프로젝트일지 사용 가이드</h1>
+
     </div>
 
     <section class="guide-sec" id="what">
@@ -234,6 +247,10 @@
         <li><strong>담당자가 바뀌기 직전</strong>, 인수인계 자료로</li>
       </ul>
       <p class="note">캠페인 결과 보고서와는 다릅니다 — 숫자보다 "무슨 일이 있었고, 어떻게 판단했는지"를 남기는 곳입니다.</p>
+      <div class="shot-zone" tabindex="0" onpaste="_plgPaste(event,'what')" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="_plgDrop(event,'what')">
+        <div class="shot-hint">📎 스크린샷 — 여기를 클릭한 뒤 <span class="mono">Ctrl+V</span>로 붙여넣거나, 이미지 파일을 끌어다 놓으세요</div>
+        <div class="shot-grid" id="shots-what"><span class="shot-empty">아직 추가된 스크린샷이 없습니다</span></div>
+      </div>
     </section>
 
     <section class="guide-sec" id="write">
@@ -281,7 +298,10 @@
           </div>
         </div>
       </div>
-      <div class="note">과거 기록이 메모장·엑셀에 흩어져 있다면, 목록 상단 <strong>📥 엑셀 업로드</strong>로 정해진 양식에 맞춰 한 번에 옮겨올 수 있습니다.</div>
+      <div class="shot-zone" tabindex="0" onpaste="_plgPaste(event,'write')" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="_plgDrop(event,'write')">
+        <div class="shot-hint">📎 스크린샷 — 여기를 클릭한 뒤 <span class="mono">Ctrl+V</span>로 붙여넣거나, 이미지 파일을 끌어다 놓으세요</div>
+        <div class="shot-grid" id="shots-write"><span class="shot-empty">아직 추가된 스크린샷이 없습니다</span></div>
+      </div>
     </section>
 
     <section class="guide-sec" id="issue">
@@ -301,16 +321,25 @@
           <div class="step-b"><div class="step-t">완료 처리</div><div class="step-d">해결되면 <strong>✓ 완료 처리</strong>를 누르고 해결 내용을 새 기록으로 남깁니다. 원본 이슈는 고쳐 쓰지 않고 그대로 두어, "처음에 뭐라고 판단했었는지"도 함께 남습니다.</div></div>
         </div>
       </div>
+      <div class="shot-zone" tabindex="0" onpaste="_plgPaste(event,'issue')" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="_plgDrop(event,'issue')">
+        <div class="shot-hint">📎 스크린샷 — 여기를 클릭한 뒤 <span class="mono">Ctrl+V</span>로 붙여넣거나, 이미지 파일을 끌어다 놓으세요</div>
+        <div class="shot-grid" id="shots-issue"><span class="shot-empty">아직 추가된 스크린샷이 없습니다</span></div>
+      </div>
     </section>
 
     <section class="guide-sec" id="comment">
       <div class="gs-head"><span class="gs-num">04</span><h2>댓글 달기·멘션하기</h2></div>
       <p class="gs-lede">일지 하나를 두고 실시간으로 의견을 주고받을 수 있습니다.</p>
-      <ul class="plain">
-        <li>일지를 펼치면 하단에 댓글 입력창이 있습니다. 작성하면 목록의 댓글 수 배지가 바로 갱신됩니다.</li>
-        <li><code class="inline">@이름</code>을 입력하면 자동완성 목록이 뜹니다 — 방향키로 고르고 Enter로 확정. 멘션된 사람에게는 알림이 갑니다.</li>
-        <li>직접 작성하지 않았어도 그 업무에 참여한 사람은 <strong>관련자</strong>로 등록해두면(회의 참석자 추가하듯) 함께 알림을 받습니다.</li>
-      </ul>
+    <ul class="">
+      <li><strong>댓글</strong> — 일지 하나에 실시간으로 의견을 주고받을 수 있습니다. 목록에서 댓글 수 배지가 즉시 갱신됩니다. <span class="mono">@이름</span>을 입력하면 이름 자동완성 목록이 뜨고(방향키로 고르고 Enter로 확정 가능), 멘션된 이름은 댓글에 굵게 강조 표시되며 해당 사람에게 알림이 갑니다.</li>
+      <li><strong>관련자</strong> — 회의 참석자를 추가하듯, 일지 작성·수정 화면에서 이름을 검색해 여러 명을 관련자로 등록할 수 있습니다. 직접 작성하지 않았어도 그 업무에 참여한 사람을 명시적으로 남겨두기 위한 용도입니다. 등록되면 본인에게 알림이 가고, 목록에는 👤N 배지로 몇 명인지 바로 보입니다.</li>
+      <li><strong>알림</strong> — 내가 쓴 일지에 댓글이 달리거나, 수정되거나, 이슈가 완료 처리되거나, 관련자로 등록되거나, 댓글에서 멘션되면 상단 🔔 알림으로 전달됩니다. 일지 관련 알림에는 <strong>"일지 보기 →"</strong> 버튼이 붙어, 클릭 한 번으로 어느 화면에 있었든 그 일지가 있는 '일지' 탭으로 이동해 자동으로 펼쳐지고 스크롤됩니다.</li>
+      <li><strong>수정 이력</strong> — 모든 수정은 자동으로 이력이 남고, 일지 상세에서 "무엇이 언제 누구에 의해 어떻게 바뀌었는지" 그대로 열람할 수 있습니다.</li>
+    </ul>
+      <div class="shot-zone" tabindex="0" onpaste="_plgPaste(event,'comment')" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="_plgDrop(event,'comment')">
+        <div class="shot-hint">📎 스크린샷 — 여기를 클릭한 뒤 <span class="mono">Ctrl+V</span>로 붙여넣거나, 이미지 파일을 끌어다 놓으세요</div>
+        <div class="shot-grid" id="shots-comment"><span class="shot-empty">아직 추가된 스크린샷이 없습니다</span></div>
+      </div>
     </section>
 
     <section class="guide-sec" id="alert">
@@ -320,70 +349,188 @@
         <table>
           <thead><tr><th style="width:140px;">받는 방법</th><th>내용</th></tr></thead>
           <tbody>
-            <tr><td class="strong">상단 🔔</td><td>대시보드 안에서 항상 확인 가능. <strong>"일지 보기 →"</strong> 버튼을 누르면 어느 화면에 있었든 그 일지가 자동으로 펼쳐지고 스크롤됩니다.</td></tr>
-            <tr><td class="strong">Slack DM</td><td>사용자관리에 본인 Slack ID를 등록해두면 같은 알림이 Slack으로도 옵니다. 메시지 끝 <code class="inline">[바로가기]</code>를 누르면 대시보드가 열리면서 해당 위치로 바로 이동합니다.</td></tr>
+            <tr><td class="strong">이름 옆 🔔</td><td>대시보드 안에서 항상 확인 가능. <strong>"일지 보기 →"</strong> 버튼을 누르면 어느 화면에 있었든 그 일지가 자동으로 펼쳐지고 스크롤됩니다.</td></tr>
+            <tr><td class="strong">Slack DM(예정)</td><td> 슬랙 메시지의 끝 <code class="inline">[바로가기]</code>를 누르면 대시보드가 열리면서 해당 위치로 바로 이동합니다.</td></tr>
           </tbody>
         </table>
       </div>
-      <div class="note">Slack DM이 안 온다면 사용자관리 화면에서 본인 Slack ID가 등록돼 있는지 먼저 확인해보세요(등록은 관리자가 해줍니다).</div>
+      <div class="shot-zone" tabindex="0" onpaste="_plgPaste(event,'alert')" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="_plgDrop(event,'alert')">
+        <div class="shot-hint">📎 스크린샷 — 여기를 클릭한 뒤 <span class="mono">Ctrl+V</span>로 붙여넣거나, 이미지 파일을 끌어다 놓으세요</div>
+        <div class="shot-grid" id="shots-alert"><span class="shot-empty">아직 추가된 스크린샷이 없습니다</span></div>
+      </div>
     </section>
 
     <section class="guide-sec" id="mine">
       <div class="gs-head"><span class="gs-num">06</span><h2>내 미완료 일지 확인하기</h2></div>
       <p class="gs-lede">"어제 하다 만 일"을 다시 찾아 헤매지 않도록, 세 군데에서 확인할 수 있습니다.</p>
-      <ul class="plain">
+      <ul class="">
         <li><strong>일지 작성 모달 오른쪽 패널</strong> — 새 일지를 쓸 때마다 최근 2주 · 진척률 100% 미만인 내 일지가 자동으로 뜹니다. 이슈면 <strong>💬 대응 작성하기</strong>, 그 외엔 <strong>↩ 이어쓰기</strong> 버튼으로 바로 이어 쓸 수 있습니다.</li>
         <li><strong>'일지' 탭 · 📊 미완료 낮은순</strong> — 같은 기준(진짜 미완료만, 진척률 낮은 순)으로 목록 상단에 모아 정렬합니다.</li>
         <li><strong>'나의 일지' 탭</strong> — 내가 작성했거나 관련자·멘션으로 얽힌 일지를 전부 모아 자체 검색까지 지원합니다.</li>
       </ul>
-    </section>
-
-    <section class="guide-sec" id="perm">
-      <div class="gs-head"><span class="gs-num">07</span><h2>직급별로 보이는 게 다른 점</h2></div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr><th>행위</th><th>일반 직원</th><th>실장급 이상</th><th>관리자</th></tr></thead>
-          <tbody>
-            <tr><td class="strong">일지 작성·조회</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td></tr>
-            <tr><td class="strong">본인 일지 수정·삭제</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td></tr>
-            <tr><td class="strong">타인 일지 수정·삭제</td><td class="perm-no">보기만</td><td class="perm-no">보기만</td><td class="perm-yes">가능</td></tr>
-            <tr><td class="strong">광고주 목표 설정</td><td class="perm-no">불가</td><td class="perm-yes">가능</td><td class="perm-yes">가능</td></tr>
-          </tbody>
-        </table>
+      <div class="shot-zone" tabindex="0" onpaste="_plgPaste(event,'mine')" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="_plgDrop(event,'mine')">
+        <div class="shot-hint">📎 스크린샷 — 여기를 클릭한 뒤 <span class="mono">Ctrl+V</span>로 붙여넣거나, 이미지 파일을 끌어다 놓으세요</div>
+        <div class="shot-grid" id="shots-mine"><span class="shot-empty">아직 추가된 스크린샷이 없습니다</span></div>
       </div>
     </section>
 
     <section class="guide-sec" id="faq">
-      <div class="gs-head"><span class="gs-num">08</span><h2>자주 묻는 질문</h2></div>
+      <div class="gs-head"><span class="gs-num">07</span><h2>추가 안내사항</h2></div>
       <div class="faq">
         <details>
-          <summary>대상을 뭘로 잡아야 할지 헷갈려요</summary>
-          <div class="a">캠페인이 이미 등록돼 있으면 <strong>캠페인</strong>, 아직 협의 단계면 <strong>프로젝트(브랜드)</strong>, 광고주 전체에 걸친 이야기면 <strong>광고주 전반</strong>입니다. 매체와의 조건 협의는 <strong>매체 전반</strong>, 그 외 사내 논의는 <strong>내부업무</strong>로 남기면 됩니다.</div>
+          <summary>대상을 뭘로 잡아야 할지 헷갈린다면</summary>
+          <div class="a">캠페인이 이미 등록돼 있으면 <strong>캠페인</strong>, 아직 협의 단계면 <strong>프로젝트(브랜드)</strong>, 광고주 전체에 걸친 이야기면 <strong>광고주 전반</strong>입니다. 
+            <br/>매체와의 조건 협의는 <strong>매체 전반</strong>, 그 외 사내 논의는 <strong>내부업무</strong>로 남기면 됩니다.</div>
         </details>
         <details>
-          <summary>신규 광고주·매체가 목록에 없어요</summary>
+          <summary>신규 광고주·매체가 목록에 없는 경우</summary>
           <div class="a">대상 검색창에 찾는 이름이 안 나오면, 그 자리에서 바로 등록하고 이어서 일지를 쓸 수 있습니다.</div>
         </details>
         <details>
-          <summary>과거에 쌓인 메모·엑셀 기록도 옮길 수 있나요</summary>
-          <div class="a">'일지' 탭 상단 <strong>📥 엑셀 업로드</strong>로 정해진 양식에 맞춰 일괄로 가져올 수 있습니다.</div>
-        </details>
-        <details>
-          <summary>캠페인 상세 화면에서도 일지를 볼 수 있나요</summary>
+          <summary>캠페인 상세 화면에서 일지 확인하는 방법</summary>
           <div class="a">네. 캠페인 상세 화면 상단 <code class="inline">✎ 일지</code> 버튼으로 그 캠페인에 달린 일지를 바로 조회할 수 있습니다.</div>
         </details>
         <details>
-          <summary>이슈를 완료 처리하면 원본 내용이 사라지나요</summary>
+          <summary>이슈를 완료 처리하면 원본 내용이 사라지는지</summary>
           <div class="a">아니요. 원본은 그대로 남고, 완료 처리 시 남기는 해결 내용이 별도 기록으로 붙으면서 원본과 서로 링크로 연결됩니다.</div>
         </details>
-        <details>
-          <summary>매체 담당자가 바뀌면 예전에 확인했던 제약사항을 또 찾아야 하나요</summary>
-          <div class="a">아니요. '매체' 탭에서 해당 매체를 클릭하면 그 매체에 남겨진 <strong>시스템제약</strong>·<strong>매체 회신</strong> 기록만 상세 화면 맨 위에 자동으로 모아 보여줍니다.</div>
-        </details>
+      </div>
+      <div class="shot-zone" tabindex="0" onpaste="_plgPaste(event,'faq')" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="_plgDrop(event,'faq')">
+        <div class="shot-hint">📎 스크린샷 — 여기를 클릭한 뒤 <span class="mono">Ctrl+V</span>로 붙여넣거나, 이미지 파일을 끌어다 놓으세요</div>
+        <div class="shot-grid" id="shots-faq"><span class="shot-empty">아직 추가된 스크린샷이 없습니다</span></div>
       </div>
     </section>
 
   </main>
 </div>
+
+<script>
+(function(){
+  var SECTIONS = ['what','write','issue','comment','alert','mine','faq'];
+  var art = null;
+  var images = []; // {id, sec, ext, caption, addedAt}
+  var readOnly = false;
+  var MAX_DIM = 1600;
+
+  function hideZones(){ document.querySelectorAll('.shot-zone').forEach(function(z){ z.style.display = 'none'; }); }
+
+  async function init(){
+    if (!(window.claude && typeof window.claude.use === 'function')) { hideZones(); return; }
+    try { art = await window.claude.use('artifact'); } catch (e) { art = null; }
+    if (!art) { hideZones(); return; }
+    try {
+      var res = await fetch('data/images.json', { cache: 'no-store' });
+      if (res.ok) images = await res.json();
+    } catch (e) { images = []; }
+    renderAll();
+  }
+
+  function renderAll(){
+    SECTIONS.forEach(function(sec){
+      var grid = document.getElementById('shots-' + sec);
+      if (!grid) return;
+      var list = images.filter(function(im){ return im.sec === sec; });
+      if (!list.length) { grid.innerHTML = '<span class="shot-empty">아직 추가된 스크린샷이 없습니다</span>'; return; }
+      grid.innerHTML = list.map(itemHtml).join('');
+    });
+  }
+
+  function escapeAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+  function itemHtml(im){
+    var src = im._localUrl || ('data/images/' + im.id + '.' + im.ext);
+    return '<div class="shot-item" data-id="' + im.id + '">'
+      + '<img src="' + src + '" alt="' + escapeAttr(im.caption || '') + '" onclick="_plgOpen(\'' + src + '\')">'
+      + '<div class="shot-cap-row">'
+      + '<input class="shot-cap" placeholder="설명(선택)" value="' + escapeAttr(im.caption || '') + '" onchange="_plgCaption(\'' + im.id + '\', this.value)"' + (readOnly ? ' disabled' : '') + '>'
+      + (readOnly ? '' : '<button class="shot-del" title="삭제" onclick="_plgRemove(\'' + im.id + '\')">✕</button>')
+      + '</div></div>';
+  }
+
+  function genId(){ return 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+  function stripLocal(im){ var c = Object.assign({}, im); delete c._localUrl; return c; }
+
+  function markReadOnly(){
+    readOnly = true;
+    document.querySelectorAll('.shot-hint').forEach(function(h){ h.textContent = '읽기 전용 보기입니다 — 이미지를 추가할 수 없어요'; });
+    renderAll();
+  }
+
+  async function processBlob(blob){
+    try {
+      var bitmap = await createImageBitmap(blob);
+      var scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height));
+      var w = Math.round(bitmap.width * scale), h = Math.round(bitmap.height * scale);
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      var usePng = blob.type === 'image/png' && blob.size < 700000 && scale === 1;
+      var outBlob = await new Promise(function(r){ canvas.toBlob(r, usePng ? 'image/png' : 'image/jpeg', usePng ? undefined : 0.85); });
+      return { blob: outBlob || blob, ext: usePng ? 'png' : 'jpg' };
+    } catch (e) {
+      return { blob: blob, ext: blob.type === 'image/png' ? 'png' : 'jpg' };
+    }
+  }
+
+  async function addImage(rawBlob, sec){
+    if (!art || readOnly) return;
+    var processed = await processBlob(rawBlob);
+    var id = genId();
+    var meta = { id: id, sec: sec, ext: processed.ext, caption: '', addedAt: Date.now(), _localUrl: URL.createObjectURL(processed.blob) };
+    images.push(meta);
+    renderAll();
+    var files = {};
+    files['data/images/' + id + '.' + processed.ext] = processed.blob;
+    files['data/images.json'] = JSON.stringify(images.map(stripLocal));
+    try {
+      await art.publish(files);
+    } catch (e) {
+      if (e && (e.code === 'not_writer' || e.code === 'not_granted' || e.code === 'capability_disabled')) markReadOnly();
+      else console.error('[shot] 저장 실패', e);
+    }
+  }
+
+  window._plgPaste = function(e, sec){
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.indexOf('image/') === 0) {
+        e.preventDefault();
+        var file = items[i].getAsFile();
+        if (file) addImage(file, sec);
+        return;
+      }
+    }
+  };
+  window._plgDrop = function(e, sec){
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    var files = (e.dataTransfer && e.dataTransfer.files) || [];
+    Array.prototype.filter.call(files, function(f){ return f.type.indexOf('image/') === 0; }).forEach(function(f){ addImage(f, sec); });
+  };
+  window._plgCaption = function(id, val){
+    var im = images.find(function(x){ return x.id === id; });
+    if (!im) return;
+    im.caption = val;
+    if (!art || readOnly) return;
+    art.publish({ 'data/images.json': JSON.stringify(images.map(stripLocal)) }).catch(function(e){ console.error('[shot] 캡션 저장 실패', e); });
+  };
+  window._plgRemove = function(id){
+    images = images.filter(function(x){ return x.id !== id; });
+    renderAll();
+    if (!art || readOnly) return;
+    art.publish({ 'data/images.json': JSON.stringify(images.map(stripLocal)) }).catch(function(e){ console.error('[shot] 삭제 저장 실패', e); });
+  };
+  window._plgOpen = function(src){
+    var box = document.createElement('div');
+    box.className = 'shot-lightbox';
+    box.innerHTML = '<img src="' + src + '">';
+    box.onclick = function(){ box.remove(); };
+    document.body.appendChild(box);
+  };
+
+  init();
+})();
+</script>
 </body>
 </html>
