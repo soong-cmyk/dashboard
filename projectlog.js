@@ -3453,7 +3453,7 @@ async function plSaveLog() {
           // 직접등록으로 전환되므로(_plItemSetCamps) refCampaigns가 항상 비어있다.
           refCampaignIds: itemCamp ? [] : (it.refCampaigns || []).filter(Boolean),
           logType: it.logType || '운영',
-          state: ['이슈', '요청'].includes(it.logType) ? '진행중' : null,
+          state: _plAutoState(it.logType, progress),
           summary: it.summary.trim().slice(0, 60), detail,
           progress,
           important: false, shared: false,
@@ -3843,7 +3843,7 @@ function _plEditItemHtml() {
     <div class="pl-irow">
       <select class="pl-mini" style="font-weight:700;" onchange="_plEditTypeChange(this.value)">${typeOpts}</select>
       <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(ph)}" value="${_escHtml(d.summary || '')}" oninput="_plEditField('summary',this.value)">
-      <div class="pl-pct-wrap"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${d.progress ?? ''}" oninput="_plEditField('progress',this.value)"><span class="pl-pct-suffix">%</span></div>
+      <div class="pl-pct-wrap"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${d.progress ?? ''}" oninput="_plEditField('progress',this.value)" onblur="_plEditProgressBlur()"><span class="pl-pct-suffix">%</span></div>
       <span></span>
     </div>
     ${subHtml}
@@ -3980,6 +3980,23 @@ function _plEditAddExtraItem() {
 function _plEditRemoveExtraItem(ei) { _plEditDraft.extraItems.splice(ei, 1); _plEditRerender(); }
 
 function _plEditField(field, val) { if (_plEditDraft) _plEditDraft[field] = val; }
+// 이슈/요청 유형은 원래 등록 즉시 '진행중'으로 시작하지만, 진척률을 처음부터 100%로 입력하면
+// (이미 끝난 일을 사후에 기록하는 경우) 등록과 동시에 완료로 잡히도록 한다. 반대(100% 미만으로
+// 다시 낮추면 자동으로 진행중 재오픈)는 하지 않는다 — 완료 처리된 이슈를 조용히 되돌리는 건
+// 놀랄 만한 동작이라 그건 여전히 수정 화면의 상태 드롭다운으로 사람이 직접 하게 둔다
+// (2026-09-09, "진척률 100%인데 왜 완료 처리가 안 되냐"는 사용자 지적).
+function _plAutoState(logType, progress) {
+  if (!['이슈', '요청'].includes(logType)) return null;
+  return progress === 100 ? '완료' : '진행중';
+}
+// 수정 화면에서 진척률을 100으로 채우고 필드를 벗어나면(각 키 입력마다 다시 그리면 타이핑 중
+// 포커스가 날아가므로 blur 시점에만 확인), 이미 진행중이던 이슈/요청을 완료로 자동 전환한다.
+function _plEditProgressBlur() {
+  const d = _plEditDraft;
+  if (!d || d.newFor) return;
+  const p = (d.progress === '' || d.progress == null) ? null : Math.max(0, Math.min(100, parseInt(d.progress, 10) || 0));
+  if (p === 100 && d.state === '진행중') { d.state = '완료'; _plEditRerender(); }
+}
 function _plEditSubField(di, field, val) { const d = _plEditDraft?.detail[di]; if (d) d[field] = val; }
 function _plEditTypeChange(val) {
   _plEditDraft.logType = val;
@@ -4361,7 +4378,7 @@ async function plSaveEdit() {
           scope: updated.scope, seller: updated.seller || null, content: updated.content || null,
           campaignId: updated.campaignId || null, media: updated.media || null, product: updated.product || null,
           logType: it.logType || '운영',
-          state: ['이슈', '요청'].includes(it.logType) ? '진행중' : null,
+          state: _plAutoState(it.logType, exProgress),
           summary: it.summary.trim().slice(0, 60), detail: exDetail, progress: exProgress,
           important: false, shared: false,
           hasImages: false, imageCount: 0, links: [],
@@ -6323,7 +6340,7 @@ function _plXlsxValidateRow(row, rowNum) {
     campaignId: scope === 'campaign' ? campaignId : null,
     media: scope === 'campaign' ? (camp?.media || mediaInput || null) : (scope === 'media' ? mediaInput : mediaInput),
     product: scope === 'campaign' ? (camp?.product || null) : null,
-    logType, state: ['이슈', '요청'].includes(logType) ? '진행중' : null,
+    logType, state: _plAutoState(logType, progress),
     summary: summary.slice(0, 60), detail, progress,
     important: false, shared: false, hasImages: false, imageCount: 0, links: [],
     threadId: null,
