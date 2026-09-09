@@ -1798,7 +1798,23 @@ function _plOpenIssueView(logId) {
   const typeLabel = log.threadId ? (log.isResolution ? '해결' : '대응') : (log.logType || '이슈');
   const titleEl = document.getElementById('pl-iv-title');
   if (titleEl) titleEl.textContent = `🔍 ${typeLabel} 확인`;
-  document.getElementById('pl-iv-body').innerHTML = _plDetailBoxHtml(log, '', false, true);
+  // _plDetailBoxHtml은 목록 행(_plRenderLogRow)의 <td>에 이미 요약·하위기록이 보인다고 전제하고
+  // 그 둘을 일부러 빼고 스레드/이어쓰기 링크·첨부·댓글만 그린다 — 근데 이 "보기" 모달은 행 없이
+  // 단독으로 뜨는 화면이라, 그대로 쓰면 정작 그 기록의 내용은 하나도 안 보이고 이어쓰기 링크 같은
+  // 부가 정보만 보였다(2026-09-09, 사용자 리포트: "보기"를 눌렀는데 내용 대신 "이어서 쓴 기록"만
+  // 나옴). 여기서만 요약+하위기록(ㄴ 추가)을 직접 그려서 앞에 붙인다.
+  const ivSubLinesHtml = (log.detail || []).filter(d => (d.text || '').trim()).map(d =>
+    `<div style="font-size:12.5px;color:var(--text2);padding:2px 0;display:flex;gap:4px;">
+      <span style="flex-shrink:0;"><span style="color:var(--text3);">ㄴ</span>${d.label ? ` <b>${_escHtml(d.label)}</b>` : ''}</span>
+      <span style="white-space:pre-line;">${_escHtml(d.text)}</span>
+    </div>`
+  ).join('');
+  const ivProgHtml = log.progress != null ? ` <span class="f-mono" style="font-size:11px;color:var(--text2);">· 진척률 ${log.progress}%</span>` : '';
+  const ivContentHtml = `<div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+    <div style="font-size:13.5px;font-weight:600;margin-bottom:5px;"><span class="badge pl-lg-${log.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(log.logType || '')}</span>${log.important ? '<span class="pl-star">★</span> ' : ''}${_escHtml(log.summary || '')}${ivProgHtml}</div>
+    ${ivSubLinesHtml}
+  </div>`;
+  document.getElementById('pl-iv-body').innerHTML = ivContentHtml + _plDetailBoxHtml(log, '', false, true);
   const editBtn = document.getElementById('pl-iv-editbtn');
   if (editBtn) editBtn.onclick = () => { closeModal('pl-modal-issueview'); plOpenEdit(logId); };
   openModal('pl-modal-issueview');
