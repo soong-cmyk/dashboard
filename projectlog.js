@@ -3179,13 +3179,31 @@ function _plContinueFromLog(logId) {
   // 이 항목이 어느 로그를 이어쓴 것인지 표시 — plSaveLog에서 저장 문서의 continuedFromId로 반영되고,
   // "나의 미완료 일지"가 원본을 후보에서 빼는 기준이자, 상세 펼침의 "이전/이어서 쓴 기록" 링크의 근거가 된다.
   block.items[0].continuedFromId = log.id;
-  _plDraft.blocks.push(block);
+  // 맨 첫 블록이 아직 아무것도 안 채워진 빈 블록이면(대상 미지정 + 기본값 그대로) 그 자리를 채우고,
+  // 아니면 뒤에 새 블록으로 붙인다 — 빈 블록을 그대로 둔 채 이어쓰기 블록이 그 다음에 나오면 저장할 때
+  // 안 쓸 빈 블록까지 같이 검증에 걸리거나 헷갈리기 때문(2026-09-09, 사용자 요청).
+  const fillsFirst = _plBlockIsEmpty(_plDraft.blocks[0]);
+  if (fillsFirst) _plDraft.blocks[0] = block;
+  else _plDraft.blocks.push(block);
   _plRenderWriteModal();
   toast('이전 기록을 불러왔습니다 — 오늘 내용을 이어서 작성하세요', 'ok');
   setTimeout(() => {
     const blocks = document.querySelectorAll('#pl-w-blocks > .pl-block');
-    blocks[blocks.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    (fillsFirst ? blocks[0] : blocks[blocks.length - 1])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 0);
+}
+// 블록이 대상 미지정(scope 없음) + 항목 1개 + 그 항목이 기본값 그대로인지 — 사용자가 아직 아무것도
+// 입력 안 한 "빈 블록"인지 판단. 이어쓰기가 새 블록을 뒤에 붙이는 대신 이 자리를 채울지 결정하는 데 쓴다.
+function _plBlockIsEmpty(block) {
+  if (!block || block.scope) return false;
+  if (!block.items || block.items.length !== 1) return false;
+  const it = block.items[0];
+  return !(it.summary || '').trim()
+    && (it.progress === '' || it.progress == null)
+    && !(it.detail && it.detail.some(d => (d.text || '').trim()))
+    && !(it.links && it.links.length)
+    && !(it.images && it.images.length)
+    && !it.media && !it.campaignId;
 }
 // 로그를 펼친 자리(pl-detfoot)의 "↩ 이어쓰기" 버튼 진입점 — 작성 모달이 열려있지 않은 상태에서
 // 호출되므로, 진행중 이슈로 연결되는 경우(_plContinueOpenIssue)가 아니면 먼저 작성 모달을 새로
