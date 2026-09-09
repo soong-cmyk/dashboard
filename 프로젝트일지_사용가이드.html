@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <title>프로젝트일지 사용 가이드</title>
+  <link rel="stylesheet" href="./style.css">
+
 <style>
   :root{
     --paper:#F3F4F0;
@@ -303,6 +305,87 @@
       </div>
     </section>
 
+
+    <div class="modal" style="width:1100px;max-width:96vw;">
+      <div class="modal-head">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span class="modal-title">✎ 일지 작성</span>
+          <span class="form-hint" id="pl-w-who">황순근 · 3본부 1팀 (자동)</span>
+          <input type="date" class="form-input f-mono" id="pl-w-date" style="width:150px;font-weight:700;" onmousedown="event.preventDefault();this.focus();try{this.showPicker&amp;&amp;this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
+        </div>
+        <button class="modal-close" onclick="plCloseWrite()">✕</button>
+      </div>
+      <div style="display:flex;min-height:0;">
+        <div class="modal-body" style="background:var(--bg);max-height:70vh;overflow-y:auto;flex:1;min-width:0;">
+          <div id="pl-w-blocks"><div class="pl-block" data-bi="0">
+    <div class="pl-bhead">
+      <div class="combo-wrap" style="position:relative;">
+        <input type="text" class="pl-tgt empty" id="pl-tgt-0" value="" placeholder="광고주·프로젝트·매체·내부업무 검색" title="클릭하면 다시 검색" oninput="_plBlockSearch(0, this.value)" onfocus="_plBlockSearch(0, this.value)" onkeydown="_plComboKeyNav(event,'pl-tgt-list-0')">
+        <div class="combo-list" id="pl-tgt-list-0" style="display:none;"></div>
+      </div>
+      
+      
+      <span class="pl-x" style="margin-left:auto;" onclick="_plRemoveBlock(0)">✕ 블록 삭제</span>
+    </div>
+    <div class="pl-bbody">
+      <div class="pl-item" data-bi="0" data-ii="0">
+    <div class="pl-media-row"><div class="pl-reftags combo-wrap">
+    
+    <input type="text" id="pl-med-0-0" placeholder="🔍 매체 또는 캠페인 검색" autocomplete="off" oninput="_plItemTargetSearchInput(0,0,this)" onfocus="_plItemTargetSearchInput(0,0,this)" onkeydown="_plComboKeyNav(event,'pl-med-list-0-0')" onblur="setTimeout(()=&gt;{const l=document.getElementById('pl-med-list-0-0');if(l)l.style.display='none';},150)">
+    <div class="combo-list" id="pl-med-list-0-0" style="display:none;"></div>
+  </div></div>
+    <div class="pl-irow">
+      <select class="pl-mini" style="font-weight:700;" onchange="_plItemTypeChange(0,0,this.value)"><option value="운영">운영</option><option value="요청">요청</option><option value="제안">제안</option><option value="이슈" selected="">이슈</option><option value="대응">대응</option><option value="결과">결과</option><option value="피드백">피드백</option><option value="회고">회고</option><option value="자료">자료</option><option value="시스템제약">시스템제약</option></select>
+      <input type="text" class="pl-mini" maxlength="60" placeholder="예) 0709 캠페인 모수 부족 → 조건 확장 필요" value="" oninput="_plItemField(0,0,'summary',this.value)">
+      <div class="pl-pct-wrap"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="" oninput="_plItemField(0,0,'progress',this.value)"><span class="pl-pct-suffix">%</span></div>
+      <span class="pl-x" onclick="_plRemoveItem(0,0)">✕</span>
+    </div>
+    <div class="pl-sub"><span class="pl-m">ㄴ</span>
+    <select class="pl-mini" onchange="_plSubLabelSelect(0,0,0,this.value)"><option value="">라벨 없음</option><option value="상황" selected="">상황</option><option value="원인">원인</option><option value="영향">영향</option><option value="확장 조건">확장 조건</option><option value="제외 조건">제외 조건</option><option value="매체 회신">매체 회신</option><option value="참고">참고</option><option value="__custom__">직접 입력…</option></select>
+    <textarea class="pl-mini" rows="1" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;" oninput="_plSubField(0,0,0,'text',this.value);_plAutoGrowTextarea(this)"></textarea>
+    <span class="pl-x" onclick="_plRemoveSub(0,0,0)">✕</span>
+  </div><div class="pl-sub"><span class="pl-m">ㄴ</span>
+    <select class="pl-mini" onchange="_plSubLabelSelect(0,0,1,this.value)"><option value="">라벨 없음</option><option value="상황">상황</option><option value="원인" selected="">원인</option><option value="영향">영향</option><option value="확장 조건">확장 조건</option><option value="제외 조건">제외 조건</option><option value="매체 회신">매체 회신</option><option value="참고">참고</option><option value="__custom__">직접 입력…</option></select>
+    <textarea class="pl-mini" rows="1" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;" oninput="_plSubField(0,0,1,'text',this.value);_plAutoGrowTextarea(this)"></textarea>
+    <span class="pl-x" onclick="_plRemoveSub(0,0,1)">✕</span>
+  </div><div class="pl-sub"><span class="pl-m">ㄴ</span>
+    <select class="pl-mini" onchange="_plSubLabelSelect(0,0,2,this.value)"><option value="">라벨 없음</option><option value="상황">상황</option><option value="원인">원인</option><option value="영향" selected="">영향</option><option value="확장 조건">확장 조건</option><option value="제외 조건">제외 조건</option><option value="매체 회신">매체 회신</option><option value="참고">참고</option><option value="__custom__">직접 입력…</option></select>
+    <textarea class="pl-mini" rows="1" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;" oninput="_plSubField(0,0,2,'text',this.value);_plAutoGrowTextarea(this)"></textarea>
+    <span class="pl-x" onclick="_plRemoveSub(0,0,2)">✕</span>
+  </div>
+    <div class="pl-subadd" onclick="_plAddSub(0,0)">ㄴ 추가</div>
+    <div class="pl-opt" onclick="_plItemToggleCollapse(0,0)"><span>▸</span><b>이미지 · 링크 · 첨부경로</b><span>— 접힘 · 필요할 때만</span></div>
+  </div>
+      <div class="pl-add" onclick="_plAddItem(0)">＋ 항목 추가 (같은 매체/캠페인)</div>
+      <div class="pl-add pl-add-group" onclick="_plAddMediaGroup(0)">＋ 매체/캠페인 추가</div>
+    </div>
+  </div></div>
+          <div class="pl-add block" onclick="_plAddBlock()">＋ 블록 추가 <span class="form-hint" style="font-weight:400;">— 광고주 · 프로젝트 · 매체 · 내부 업무</span></div>
+        </div>
+        <div style="width:300px;flex-shrink:0;border-left:1px solid var(--border);background:var(--surface2);max-height:70vh;overflow-y:auto;padding:14px;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:2px;">📋 나의 미완료 일지</div>
+          <div class="form-hint" style="margin-bottom:10px;">최근 2주 · 진척률 100% 미만</div>
+          <div id="pl-w-continue-list">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:3px;">
+        <span class="f-mono" style="font-size:10.5px;color:var(--text3);">26.09.08</span>
+        <span style="font-size:11px;font-weight:700;color:var(--accent);">30%</span>
+      </div>
+      <div style="font-size:12px;font-weight:600;margin-bottom:3px;"><span class="badge pl-lg-운영" style="margin-right:4px;vertical-align:middle;">운영</span><span class="tag pl-inner">내부</span> 프로젝트1: 레퍼런스 자산화 &gt; 기능 업데이트</div>
+      <div style="font-size:11.5px;color:var(--text2);margin-bottom:6px;white-space:pre-line;">대시보드 알림 - 슬랙봇 연동 작업</div>
+      <button class="btn btn-outline btn-sm" style="width:100%;" onclick="_plContinueFromLog('PL-2026-450')">↩ 이어쓰기</button>
+    </div>
+  </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="form-hint" id="pl-w-hint">항목 0건이 개별 기록으로 저장됩니다 · 닫아도 새로고침 전까진 내용이 유지됩니다</span>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button class="btn btn-primary btn-sm" onclick="plSaveLog()">저장</button>
+        </div>
+      </div>
+    </div>
+
     <section class="guide-sec" id="issue">
       <div class="gs-head"><span class="gs-num">03</span><h2>이슈 등록하고 대응 기록하기</h2></div>
       <p class="gs-lede">'이슈'로 남긴 일지는 해결 전까지 자동으로 <strong>진행중</strong> 상태가 되어 목록에서 계속 눈에 띕니다.</p>
@@ -455,6 +538,35 @@
     renderAll();
   }
 
+  function flashSaveWarning(){
+    document.querySelectorAll('.shot-hint').forEach(function(h){
+      var prev = h.dataset.origText || h.textContent;
+      h.dataset.origText = prev;
+      h.textContent = '⚠ 저장에 실패했어요 — 잠시 후 자동으로 다시 시도합니다';
+      clearTimeout(h._warnTimer);
+      h._warnTimer = setTimeout(function(){ h.textContent = h.dataset.origText; }, 4000);
+    });
+  }
+
+  // 붙여넣기를 연속으로 하면 publish 호출이 겹쳐서 서버가 "그 사이에 다른 버전이 먼저
+  // 저장됐다"(conflict)고 거절하는 경우가 있다 — 이때는 권한 문제가 아니라 그냥 타이밍
+  // 문제라 재시도하면 대개 성공한다. 한 번에 하나씩만 publish가 나가도록 큐로 직렬화하고,
+  // conflict는 최대 3번까지 자동 재시도한다(2026-09-09, "하나 넣으면 다음부터 안 들어가진다"
+  // 는 사용자 실사례 — 여러 섹션에 빠르게 연달아 붙여넣을 때 재현됨).
+  var _publishChain = Promise.resolve();
+  function enqueuePublish(files){
+    var run = function(attempt){
+      return art.publish(files).catch(function(e){
+        if (e && e.code === 'conflict' && attempt < 3) return run(attempt + 1);
+        if (e && (e.code === 'not_writer' || e.code === 'not_granted' || e.code === 'capability_disabled')) { markReadOnly(); return; }
+        console.error('[shot] 저장 실패', e);
+        flashSaveWarning();
+      });
+    };
+    _publishChain = _publishChain.then(function(){ return run(0); }, function(){ return run(0); });
+    return _publishChain;
+  }
+
   async function processBlob(blob){
     try {
       var bitmap = await createImageBitmap(blob);
@@ -482,12 +594,7 @@
     var files = {};
     files['data/images/' + id + '.' + processed.ext] = processed.blob;
     files['data/images.json'] = JSON.stringify(images.map(stripLocal));
-    try {
-      await art.publish(files);
-    } catch (e) {
-      if (e && (e.code === 'not_writer' || e.code === 'not_granted' || e.code === 'capability_disabled')) markReadOnly();
-      else console.error('[shot] 저장 실패', e);
-    }
+    await enqueuePublish(files);
   }
 
   window._plgPaste = function(e, sec){
@@ -512,13 +619,13 @@
     if (!im) return;
     im.caption = val;
     if (!art || readOnly) return;
-    art.publish({ 'data/images.json': JSON.stringify(images.map(stripLocal)) }).catch(function(e){ console.error('[shot] 캡션 저장 실패', e); });
+    enqueuePublish({ 'data/images.json': JSON.stringify(images.map(stripLocal)) });
   };
   window._plgRemove = function(id){
     images = images.filter(function(x){ return x.id !== id; });
     renderAll();
     if (!art || readOnly) return;
-    art.publish({ 'data/images.json': JSON.stringify(images.map(stripLocal)) }).catch(function(e){ console.error('[shot] 삭제 저장 실패', e); });
+    enqueuePublish({ 'data/images.json': JSON.stringify(images.map(stripLocal)) });
   };
   window._plgOpen = function(src){
     var box = document.createElement('div');
