@@ -593,13 +593,20 @@ function _plContinuedIdSet() {
   }
   return _plContinuedIdCache;
 }
-// 이슈/요청의 "진행중" 여부를 더 이상 별도 상태값(state)으로 관리하지 않고 진척률 하나로만 판단한다 —
-// 100% 미만이면 진행중, 100%거나 이어쓰기로 다음 기록에 이미 이어졌으면(옛 진척률이 박제돼있어 못 믿음)
-// 끝난 것으로 본다(2026-09-09, 상태 드롭다운을 없애고 진척률로 통일해달라는 요청에 따라 도입).
+// "진행중" 여부를 더 이상 별도 상태값(state)으로 관리하지 않고 진척률 하나로만 판단한다 — 유형을
+// 가리지 않고(운영·결과 등도 포함) 100% 미만이면 진행중, 100%거나 이어쓰기로 다음 기록에 이미
+// 이어졌으면(옛 진척률이 박제돼있어 못 믿음) 끝난 것으로 본다(2026-09-09, 상태 드롭다운을 없애고
+// 진척률로 통일해달라는 요청 — 처음엔 이슈/요청에만 좁혀놨었는데, "운영은 안 잡히냐"는 지적에 유형
+// 제한을 없앰).
 function _plLogOpen(log) {
-  if (!log || !['이슈', '요청'].includes(log.logType)) return false;
+  if (!log) return false;
   if (log.progress == null || log.progress >= 100) return false;
   return !_plContinuedIdSet().has(log.id);
+}
+// 대응 기록/완료 처리(스레드로 원본에 묶이는 정식 대응 흐름)는 이슈·요청에서만 의미가 있다 —
+// 운영·결과 등은 "열려있어도" 이어쓰기로 계속 쓰면 되지 별도 대응 스레드가 필요 없다.
+function _plIsOpenIssue(log) {
+  return !!log && ['이슈', '요청'].includes(log.logType) && _plLogOpen(log);
 }
 function _plSortByIncompleteProgress(logs) {
   const continuedIds = _plContinuedIdSet();
@@ -749,7 +756,7 @@ function _plRenderInternalLogRow(log) {
   const dateShort = (log.logDate || '').slice(2).replace(/-/g, '.');
   const starHtml = log.important ? '<span class="pl-star">★</span> ' : '';
   const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
-  const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : (['이슈', '요청'].includes(log.logType) ? ' <span class="pl-st-done">완료</span>' : '');
+  const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : ((log.progress != null && log.progress >= 100) ? ' <span class="pl-st-done">완료</span>' : '');
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
   const attachIconsHtml = (log.hasImages ? `<span id="pl-imgcnt-${log.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '')
     + ((log.links && log.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${log.links.length}개">🔗${log.links.length}</span>` : '');
@@ -1103,7 +1110,7 @@ function _plRenderCampaignLogRow(log, isRef) {
   const dateShort = (log.logDate || '').slice(2).replace(/-/g, '.');
   const starHtml = log.important ? '<span class="pl-star">★</span> ' : '';
   const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
-  const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : (['이슈', '요청'].includes(log.logType) ? ' <span class="pl-st-done">완료</span>' : '');
+  const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : ((log.progress != null && log.progress >= 100) ? ' <span class="pl-st-done">완료</span>' : '');
   const originLabel = log.content ? `${log.seller || ''} / ${log.content}` : (log.seller || '');
   const refNoteHtml = isRef ? ` <span class="tag pl-ref" style="cursor:default;" data-tooltip="${_escHtml(originLabel)}에서 작성됨">📍 참조</span>` : '';
   const progHtml = log.progress != null
@@ -1700,7 +1707,7 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   // 목록의 삭제 버튼은 없애고 수정 모달 안의 삭제 버튼으로 통일 — 수정/삭제 모달 하나로 합쳐서 진입점을 단순화
   // 진행중 이슈는 대응 기록 버튼을 pl-detfoot 안에 보여준다 — 완료 처리는 그 모달 안 체크박스로 흡수돼서
   // (버튼 두 개였던 걸 하나로 합침) 이슈 → 대응(여러 번) → 해결이 한 세트로 남는 구조는 그대로 유지된다.
-  const responseHtml = (_plLogOpen(log) && !readOnly)
+  const responseHtml = (_plIsOpenIssue(log) && !readOnly)
     ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenResponseModal('${log.id}')">+ 대응 기록</button>`
     : '';
   // compact(일자별 뷰)는 모달을 열지 않고 그 자리에서 바로 수정 폼으로 바뀌는 인라인 수정을 쓴다.
@@ -2191,7 +2198,7 @@ function _plRenderLogRow(log, q, ctx) {
   const contentHtml = _plHighlight(log.summary, q);
   const starHtml  = log.important ? '<span class="pl-star">★</span> ' : '';
   const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
-  const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : (['이슈', '요청'].includes(log.logType) ? ' <span class="pl-st-done">완료</span>' : '');
+  const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : ((log.progress != null && log.progress >= 100) ? ' <span class="pl-st-done">완료</span>' : '');
   const isLate = !!(log.logDate && log.createdAt && Math.abs((new Date(log.createdAt) - new Date(log.logDate)) / 86400000) >= 3);
   const lateHtml = isLate ? ' <span class="pl-st-late">소급</span>' : '';
   // 내용 첫 줄 끝에 첨부/링크 여부만 아이콘으로 표시 — 펼치지 않아도 있는지 정도는 바로 보이게
@@ -3117,7 +3124,7 @@ function _plContinueCandidates() {
     if (continuedIds.has(l.id)) return false;
     if (l.threadId) {
       const issue = PL_LOGS.find(x => x.id === l.threadId);
-      if (issue && !_plLogOpen(issue)) return false; // 원본 이슈가 이미 닫혀서 더 이어갈 게 없음
+      if (issue && !_plIsOpenIssue(issue)) return false; // 원본 이슈가 이미 닫혀서 더 이어갈 게 없음
     }
     return true;
   }).slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -3126,7 +3133,7 @@ function _plContinueCandidates() {
 // 원본이 이미 완료 처리됐으면(더 이상 대응을 받지 않으므로) null.
 function _plContinueOpenIssue(log) {
   const issue = log.threadId ? PL_LOGS.find(l => l.id === log.threadId) : log;
-  return _plLogOpen(issue) ? issue : null;
+  return _plIsOpenIssue(issue) ? issue : null;
 }
 function _plRenderWriteContinuePanel() {
   const el = document.getElementById('pl-w-continue-list');
@@ -4192,7 +4199,7 @@ function _plRenderEditModal() {
   if (!d) return;
   const badgeEl = document.getElementById('pl-e-badges');
   if (badgeEl) {
-    const stateBadge = _plLogOpen(d) ? '<span class="pl-st-open">진행중</span>' : (['이슈', '요청'].includes(d.logType) ? '<span class="pl-st-done">완료</span>' : '');
+    const stateBadge = _plLogOpen(d) ? '<span class="pl-st-open">진행중</span>' : ((d.progress != null && d.progress >= 100) ? '<span class="pl-st-done">완료</span>' : '');
     const starBadge = d.important ? '<span class="pl-star">★</span>' : '';
     const sellerTag = d.seller ? `<span class="tag">${_escHtml(d.seller)}</span>` : '';
     const projTag = d.content ? `<span class="tag pl-brand">${_escHtml(d.content)}</span>` : '';
