@@ -583,8 +583,26 @@ function _plMineToggleSortByProgress() {
 // 이어쓰기로 이미 다음 기록이 만들어진 옛 기록은(진척률 값이 그때 그대로 남아있어 실제 최신
 // 진행상황을 반영 못 함) "미완료로 남은 일"에서 제외하고, 진짜 미완료(진척률<100)인 것만 골라
 // 진척률 낮은 순으로 맨 위에, 나머지(완료·진척률 없음·이미 이어진 것)는 원래 순서 그대로 뒤에 붙인다.
+// PL_LOGS가 스냅샷으로 갱신될 때마다 무효화되는 캐시 — 여러 행을 렌더링할 때마다(뱃지 등) 매번
+// 전체를 훑지 않도록 한다(2026-09-09, 상태값을 없애고 이 판정을 뱃지·필터·버튼 조건으로도 쓰게 되면서 호출이 잦아짐).
+let _plContinuedIdCache = null, _plContinuedIdCacheFor = null;
+function _plContinuedIdSet() {
+  if (_plContinuedIdCacheFor !== PL_LOGS) {
+    _plContinuedIdCache = new Set(PL_LOGS.filter(l => l.continuedFromId).map(l => l.continuedFromId));
+    _plContinuedIdCacheFor = PL_LOGS;
+  }
+  return _plContinuedIdCache;
+}
+// 이슈/요청의 "진행중" 여부를 더 이상 별도 상태값(state)으로 관리하지 않고 진척률 하나로만 판단한다 —
+// 100% 미만이면 진행중, 100%거나 이어쓰기로 다음 기록에 이미 이어졌으면(옛 진척률이 박제돼있어 못 믿음)
+// 끝난 것으로 본다(2026-09-09, 상태 드롭다운을 없애고 진척률로 통일해달라는 요청에 따라 도입).
+function _plLogOpen(log) {
+  if (!log || !['이슈', '요청'].includes(log.logType)) return false;
+  if (log.progress == null || log.progress >= 100) return false;
+  return !_plContinuedIdSet().has(log.id);
+}
 function _plSortByIncompleteProgress(logs) {
-  const continuedIds = new Set(PL_LOGS.filter(l => l.continuedFromId).map(l => l.continuedFromId));
+  const continuedIds = _plContinuedIdSet();
   const incomplete = [], rest = [];
   logs.forEach(l => {
     if (l.progress != null && l.progress < 100 && !continuedIds.has(l.id)) incomplete.push(l);
@@ -731,7 +749,7 @@ function _plRenderInternalLogRow(log) {
   const dateShort = (log.logDate || '').slice(2).replace(/-/g, '.');
   const starHtml = log.important ? '<span class="pl-star">★</span> ' : '';
   const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
-  const stateHtml = log.state === '진행중' ? ' <span class="pl-st-open">진행중</span>' : (log.state === '완료' ? ' <span class="pl-st-done">완료</span>' : '');
+  const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : (['이슈', '요청'].includes(log.logType) ? ' <span class="pl-st-done">완료</span>' : '');
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
   const attachIconsHtml = (log.hasImages ? `<span id="pl-imgcnt-${log.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '')
     + ((log.links && log.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${log.links.length}개">🔗${log.links.length}</span>` : '');
@@ -1085,7 +1103,7 @@ function _plRenderCampaignLogRow(log, isRef) {
   const dateShort = (log.logDate || '').slice(2).replace(/-/g, '.');
   const starHtml = log.important ? '<span class="pl-star">★</span> ' : '';
   const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
-  const stateHtml = log.state === '진행중' ? ' <span class="pl-st-open">진행중</span>' : (log.state === '완료' ? ' <span class="pl-st-done">완료</span>' : '');
+  const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : (['이슈', '요청'].includes(log.logType) ? ' <span class="pl-st-done">완료</span>' : '');
   const originLabel = log.content ? `${log.seller || ''} / ${log.content}` : (log.seller || '');
   const refNoteHtml = isRef ? ` <span class="tag pl-ref" style="cursor:default;" data-tooltip="${_escHtml(originLabel)}에서 작성됨">📍 참조</span>` : '';
   const progHtml = log.progress != null
@@ -1142,7 +1160,7 @@ function _plRenderCampaignLogModal(campaignId, campaignData, isDeleted, notFound
   // 각자 "참조로 걸린 일지" 섹션에 나타나는 것이지, 목록이 중복 생성되는 게 아니다.
   const refLogs = sortLogs(PL_LOGS.filter(l => (l.refCampaignIds || []).includes(campaignId)));
   const logs = [...directLogs, ...refLogs];
-  const openCnt = logs.filter(l => l.state === '진행중').length;
+  const openCnt = logs.filter(_plLogOpen).length;
   const countEl = document.getElementById('pl-cl-count');
   if (countEl) countEl.innerHTML = `이 캠페인의 일지 <b>${logs.length}</b>건${refLogs.length ? ` (참조 ${refLogs.length})` : ''}${openCnt ? ` · <span style="color:var(--red);">진행중 ${openCnt}</span>` : ''}`;
   const tbody = document.getElementById('pl-cl-tbody');
@@ -1465,7 +1483,7 @@ function _plGetFiltered() {
     if (scope   && log.scope   !== scope)   return false;
     if (_plLogWriterFilters.length && !_plLogWriterFilters.includes(log.writer)) return false;
     if (impOnly  && !log.important) return false;
-    if (openOnly && log.state !== '진행중') return false;
+    if (openOnly && !_plLogOpen(log)) return false;
     if (bonbu || team) {
       const u = USERS.find(u => u.name === log.writer);
       if (bonbu && (!u || u.bonbu !== bonbu)) return false;
@@ -1682,14 +1700,18 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   // 목록의 삭제 버튼은 없애고 수정 모달 안의 삭제 버튼으로 통일 — 수정/삭제 모달 하나로 합쳐서 진입점을 단순화
   // 진행중 이슈는 대응 기록 버튼을 pl-detfoot 안에 보여준다 — 완료 처리는 그 모달 안 체크박스로 흡수돼서
   // (버튼 두 개였던 걸 하나로 합침) 이슈 → 대응(여러 번) → 해결이 한 세트로 남는 구조는 그대로 유지된다.
-  const responseHtml = (log.state === '진행중' && !readOnly)
+  const responseHtml = (_plLogOpen(log) && !readOnly)
     ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenResponseModal('${log.id}')">+ 대응 기록</button>`
     : '';
   // compact(일자별 뷰)는 모달을 열지 않고 그 자리에서 바로 수정 폼으로 바뀌는 인라인 수정을 쓴다.
   const editBtnHtml = readOnly ? '' : `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();${compact ? `_plDateStartInlineEdit('${log.id}')` : `plOpenEdit('${log.id}')`}">수정/삭제</button>`;
+  // 이어쓰기 — 작성 모달 오른쪽 "나의 미완료 일지" 패널에서만 가능하던 걸 로그를 펼친 자리에서도
+  // 바로 할 수 있게 한다. 원본 수정 권한과 무관하게(내가 새 기록을 남기는 것뿐이라) readOnly로
+  // 막지 않는다(2026-09-09, 사용자 요청).
+  const continueBtnHtml = `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();plOpenContinueFromLog('${log.id}')">↩ 이어쓰기</button>`;
   const detfootHtml = `<div class="pl-detfoot">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${refCampHtml}${attachPathHtml}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
-      <div style="display:flex;gap:6px;">${responseHtml}${editBtnHtml}</div>
+      <div style="display:flex;gap:6px;">${responseHtml}${continueBtnHtml}${editBtnHtml}</div>
     </div>`;
   const commentsHtml = `<div data-pl-comments-for="${log.id}" onclick="event.stopPropagation();">${_plCommentsHtml(log.id)}</div>`;
   // 이 로그(주로 이슈)에 달린 대응·해결 기록을 전부 시간순으로 나열 — "+ 대응 기록"을 몇 번 남기다가
@@ -1859,11 +1881,14 @@ async function _plSaveNewResponse() {
     if (images.length) await _plSaveLogImages(newDoc.id, images);
 
     if (mode === 'resolve') {
-      const updatedOrig = Object.assign({}, orig, { state: '완료', updatedAt: now });
+      // 완료 처리는 더 이상 별도 상태값을 두지 않고 원본의 진척률을 100으로 올리는 것으로 표현한다
+      // (2026-09-09) — _plLogOpen이 진척률만으로 진행중/완료를 판단하므로 이거 하나면 충분하다.
+      const beforeProgress = orig.progress;
+      const updatedOrig = Object.assign({}, orig, { progress: 100, state: null, updatedAt: now });
       await _plDb('projectLogs').doc(orig.id).set(updatedOrig);
       await _plDb('projectLogHistory').add({
         logId: orig.id, changedBy: currentUser?.name || '', changedAt: now,
-        changes: [{ field: 'state', label: '상태', before: '진행중', after: '완료' }],
+        changes: [{ field: 'progress', label: '진척률', before: String(beforeProgress ?? ''), after: '100' }],
       });
     }
     if (orig.writerId && orig.writerId !== currentUser?.id) {
@@ -2166,7 +2191,7 @@ function _plRenderLogRow(log, q, ctx) {
   const contentHtml = _plHighlight(log.summary, q);
   const starHtml  = log.important ? '<span class="pl-star">★</span> ' : '';
   const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
-  const stateHtml = log.state === '진행중' ? ' <span class="pl-st-open">진행중</span>' : (log.state === '완료' ? ' <span class="pl-st-done">완료</span>' : '');
+  const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : (['이슈', '요청'].includes(log.logType) ? ' <span class="pl-st-done">완료</span>' : '');
   const isLate = !!(log.logDate && log.createdAt && Math.abs((new Date(log.createdAt) - new Date(log.logDate)) / 86400000) >= 3);
   const lateHtml = isLate ? ' <span class="pl-st-late">소급</span>' : '';
   // 내용 첫 줄 끝에 첨부/링크 여부만 아이콘으로 표시 — 펼치지 않아도 있는지 정도는 바로 보이게
@@ -2220,7 +2245,7 @@ function _plRenderRows() {
 
   // 퀵필터 카드 카운트 — 다른 필터와 무관하게 전체 기준(진행중/중요 총량)으로 보여줘서 "지금 몇 건 밀려있나"가 바로 보이게
   const openCntEl = document.getElementById('pl-open-cnt');
-  if (openCntEl) openCntEl.textContent = PL_LOGS.filter(l => l.state === '진행중').length;
+  if (openCntEl) openCntEl.textContent = PL_LOGS.filter(_plLogOpen).length;
   const impCntEl = document.getElementById('pl-important-cnt');
   if (impCntEl) impCntEl.textContent = PL_LOGS.filter(l => l.important).length;
 
@@ -3084,16 +3109,15 @@ function _plContinueCandidates() {
   // 이미 "이어쓰기"로 다음 기록이 만들어진 로그는 더 이상 미완료 후보가 아니다 — 그날그날의 기록을
   // 덮어쓰지 않고 각자 별개 문서로 남기는 방식이라(진척률도 옛 값 그대로), 최신 진행 상황은 그 다음
   // 기록이 대신하므로 옛 것은 여기서 빠져야 "같은 일이 두 번" 뜨지 않는다.
-  const continuedIds = new Set(PL_LOGS.filter(l => l.continuedFromId).map(l => l.continuedFromId));
+  const continuedIds = _plContinuedIdSet();
   return PL_LOGS.filter(l => {
     if (l.writerId !== currentUser?.id) return false;
-    if (l.progress == null || l.progress >= 100) return false;
+    if (l.progress == null || l.progress >= 100) return false; // 이슈·요청 자신이 이미 완료(=진척률 100)면 여기서 걸러짐
     if ((l.logDate || '') < cutoff) return false;
-    if (l.state === '완료') return false; // 이슈·요청 자신이 이미 완료 처리됨
     if (continuedIds.has(l.id)) return false;
     if (l.threadId) {
       const issue = PL_LOGS.find(x => x.id === l.threadId);
-      if (issue && issue.state !== '진행중') return false; // 원본 이슈가 이미 닫혀서 더 이어갈 게 없음
+      if (issue && !_plLogOpen(issue)) return false; // 원본 이슈가 이미 닫혀서 더 이어갈 게 없음
     }
     return true;
   }).slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -3102,7 +3126,7 @@ function _plContinueCandidates() {
 // 원본이 이미 완료 처리됐으면(더 이상 대응을 받지 않으므로) null.
 function _plContinueOpenIssue(log) {
   const issue = log.threadId ? PL_LOGS.find(l => l.id === log.threadId) : log;
-  return (issue && issue.state === '진행중') ? issue : null;
+  return _plLogOpen(issue) ? issue : null;
 }
 function _plRenderWriteContinuePanel() {
   const el = document.getElementById('pl-w-continue-list');
@@ -3162,6 +3186,15 @@ function _plContinueFromLog(logId) {
     const blocks = document.querySelectorAll('#pl-w-blocks > .pl-block');
     blocks[blocks.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 0);
+}
+// 로그를 펼친 자리(pl-detfoot)의 "↩ 이어쓰기" 버튼 진입점 — 작성 모달이 열려있지 않은 상태에서
+// 호출되므로, 진행중 이슈로 연결되는 경우(_plContinueOpenIssue)가 아니면 먼저 작성 모달을 새로
+// 띄운 뒤 _plContinueFromLog와 동일한 동작을 이어서 수행한다.
+function plOpenContinueFromLog(logId) {
+  const log = PL_LOGS.find(l => l.id === logId);
+  if (!log) { toast('일지를 찾을 수 없습니다', 'err'); return; }
+  if (!_plContinueOpenIssue(log)) plOpenWrite();
+  _plContinueFromLog(logId);
 }
 
 // ── 접힘 영역: 이미지 · 링크 (매체는 위 .pl-irow로 이동, 항목 단위) ──
@@ -3453,7 +3486,7 @@ async function plSaveLog() {
           // 직접등록으로 전환되므로(_plItemSetCamps) refCampaigns가 항상 비어있다.
           refCampaignIds: itemCamp ? [] : (it.refCampaigns || []).filter(Boolean),
           logType: it.logType || '운영',
-          state: _plAutoState(it.logType, progress),
+          state: null,
           summary: it.summary.trim().slice(0, 60), detail,
           progress,
           important: false, shared: false,
@@ -3543,7 +3576,7 @@ function _plBuildEditDraft(log) {
     attachPath: log.attachPath || '', attachName: log.attachName || '',
     images: [],
     important: !!log.important, shared: !!log.shared,
-    state: log.state || null, searchQuery: '',
+    state: null, searchQuery: '',
     extraItems: [], // "+ 항목 추가" — 같은 대상으로 별도 새 로그가 될 항목들(기본줄+하위기록만)
   };
 }
@@ -3843,7 +3876,7 @@ function _plEditItemHtml() {
     <div class="pl-irow">
       <select class="pl-mini" style="font-weight:700;" onchange="_plEditTypeChange(this.value)">${typeOpts}</select>
       <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(ph)}" value="${_escHtml(d.summary || '')}" oninput="_plEditField('summary',this.value)">
-      <div class="pl-pct-wrap"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${d.progress ?? ''}" oninput="_plEditField('progress',this.value)" onblur="_plEditProgressBlur()"><span class="pl-pct-suffix">%</span></div>
+      <div class="pl-pct-wrap"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${d.progress ?? ''}" oninput="_plEditField('progress',this.value)"><span class="pl-pct-suffix">%</span></div>
       <span></span>
     </div>
     ${subHtml}
@@ -3980,23 +4013,6 @@ function _plEditAddExtraItem() {
 function _plEditRemoveExtraItem(ei) { _plEditDraft.extraItems.splice(ei, 1); _plEditRerender(); }
 
 function _plEditField(field, val) { if (_plEditDraft) _plEditDraft[field] = val; }
-// 이슈/요청 유형은 원래 등록 즉시 '진행중'으로 시작하지만, 진척률을 처음부터 100%로 입력하면
-// (이미 끝난 일을 사후에 기록하는 경우) 등록과 동시에 완료로 잡히도록 한다. 반대(100% 미만으로
-// 다시 낮추면 자동으로 진행중 재오픈)는 하지 않는다 — 완료 처리된 이슈를 조용히 되돌리는 건
-// 놀랄 만한 동작이라 그건 여전히 수정 화면의 상태 드롭다운으로 사람이 직접 하게 둔다
-// (2026-09-09, "진척률 100%인데 왜 완료 처리가 안 되냐"는 사용자 지적).
-function _plAutoState(logType, progress) {
-  if (!['이슈', '요청'].includes(logType)) return null;
-  return progress === 100 ? '완료' : '진행중';
-}
-// 수정 화면에서 진척률을 100으로 채우고 필드를 벗어나면(각 키 입력마다 다시 그리면 타이핑 중
-// 포커스가 날아가므로 blur 시점에만 확인), 이미 진행중이던 이슈/요청을 완료로 자동 전환한다.
-function _plEditProgressBlur() {
-  const d = _plEditDraft;
-  if (!d || d.newFor) return;
-  const p = (d.progress === '' || d.progress == null) ? null : Math.max(0, Math.min(100, parseInt(d.progress, 10) || 0));
-  if (p === 100 && d.state === '진행중') { d.state = '완료'; _plEditRerender(); }
-}
 function _plEditSubField(di, field, val) { const d = _plEditDraft?.detail[di]; if (d) d[field] = val; }
 function _plEditTypeChange(val) {
   _plEditDraft.logType = val;
@@ -4047,17 +4063,14 @@ function _plEditToggleFlag(field) {
 }
 function _plEditMetaHtml() {
   const d = _plEditDraft;
-  const stateOpts = ['', '진행중', '완료'].map(s => `<option value="${s}" ${((d.state || '') === s) ? 'selected' : ''}>${s || '없음'}</option>`).join('');
   const impActive = d.important ? ' pl-toggle-on' : '';
   const shrActive = d.shared ? ' pl-toggle-on' : '';
-  // "대응 기록/완료 처리"(d.newFor) 모드에서는 이 로그 자체의 state가 항상 null로 저장되고(_plSaveNewResponse),
-  // 원본 이슈를 완료로 넘기는 진짜 스위치는 모달 하단의 "이 기록으로 이슈 완료 처리" 체크박스다. 그런데 이
-  // 상태 드롭다운이 같이 보이면 여기서 "완료"를 골라도 아무 효과가 없어 사용자가 그걸로 착각하고 체크박스는
-  // 안 눌러서 원본이 계속 진행중으로 남는 문제가 있었음 — 이 모드에서는 아예 숨긴다(2026-09-09, 사용자 실사례).
-  const stateFieldHtml = d.newFor ? '' : `<div class="fg"><label class="form-label">상태</label><select class="form-sel" onchange="_plEditField('state',this.value||null)">${stateOpts}</select></div>`;
+  // 이슈/요청의 진행중·완료는 더 이상 별도 상태값 드롭다운으로 직접 고르지 않는다 — 진척률
+  // 하나로만 판단한다(_plLogOpen): 100% 미만이면 진행중, 100%면 완료. 다시 열어야 하면(재오픈)
+  // 진척률을 100 밑으로 낮추는 걸로 표현하면 되므로 별도 컨트롤이 필요 없다(2026-09-09, 사용자 요청 —
+  // "모든 화면에서 상태값 dropbox를 없애고 진척률 기준으로 판단").
   return `<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:12px;">
-    <div style="display:grid;grid-template-columns:${d.newFor ? '1fr 1fr' : '1fr 1fr 1fr'};gap:14px;">
-      ${stateFieldHtml}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
       <div class="fg"><label class="form-label">표시</label>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-ghost btn-sm${impActive}" onclick="_plEditToggleFlag('important')">★ 중요</button>
@@ -4161,7 +4174,7 @@ function _plRenderEditModal() {
   if (!d) return;
   const badgeEl = document.getElementById('pl-e-badges');
   if (badgeEl) {
-    const stateBadge = d.state === '진행중' ? '<span class="pl-st-open">진행중</span>' : (d.state === '완료' ? '<span class="pl-st-done">완료</span>' : '');
+    const stateBadge = _plLogOpen(d) ? '<span class="pl-st-open">진행중</span>' : (['이슈', '요청'].includes(d.logType) ? '<span class="pl-st-done">완료</span>' : '');
     const starBadge = d.important ? '<span class="pl-star">★</span>' : '';
     const sellerTag = d.seller ? `<span class="tag">${_escHtml(d.seller)}</span>` : '';
     const projTag = d.content ? `<span class="tag pl-brand">${_escHtml(d.content)}</span>` : '';
@@ -4240,7 +4253,7 @@ function _plDetailToStr(detail) {
 }
 function _plDiffFields(orig, updated) {
   const changes = [];
-  const simpleFields = ['scope', 'seller', 'content', 'campaignId', 'media', 'product', 'logType', 'summary', 'progress', 'state', 'attachPath', 'attachName'];
+  const simpleFields = ['scope', 'seller', 'content', 'campaignId', 'media', 'product', 'logType', 'summary', 'progress', 'attachPath', 'attachName'];
   simpleFields.forEach(f => {
     const b = orig[f]; const a = updated[f];
     if ((b ?? '') !== (a ?? '')) {
@@ -4333,7 +4346,7 @@ async function plSaveEdit() {
       scope: d.scope, seller: d.seller || null, content: d.content || null,
       campaignId: d.campaignId || null, media: d.media || null, product: d.product || null,
       logType: d.logType, summary: d.summary.trim().slice(0, 60), detail, progress,
-      state: d.state || null, important: !!d.important, shared: !!d.shared,
+      state: null, important: !!d.important, shared: !!d.shared,
       links: (d.links || []).filter(l => (l.label || l.url || '').trim()),
       attachPath: (d.attachPath || '').trim() || null, attachName: (d.attachName || '').trim() || null,
       // 대상을 캠페인/매체/내부로 바꿨는데 참조 태그가 남아있으면(필드 자체는 이미 숨겨짐) 저장 시점에 정리
@@ -4351,10 +4364,11 @@ async function plSaveEdit() {
         logId: d.id, changedBy: currentUser?.name || '', changedAt: new Date().toISOString(), changes,
       });
     }
-    // 알림 ②③ — 본인이 아닌 다른 사람이 수정했을 때만. 진행중→완료 전환이면 그걸 우선(더 구체적인 알림)
+    // 알림 ②③ — 본인이 아닌 다른 사람이 수정했을 때만. 진척률이 100%를 넘어가 진행중→완료로
+    // 전환됐으면 그걸 우선(더 구체적인 알림) — state 필드 대신 _plLogOpen으로 판정(2026-09-09).
     if (orig.writerId && orig.writerId !== currentUser?.id) {
       const subject = _plNotifySubject(updated);
-      if (orig.state === '진행중' && updated.state === '완료') {
+      if (_plLogOpen(orig) && !_plLogOpen(updated)) {
         _fbSaveNotification(orig.writerId, 'pl_resolved', `${currentUser?.name || ''}님이 "${subject}" ${updated.logType} 일지를 완료 처리했습니다.`, { logId: d.id, actorName: currentUser?.name });
       } else if (changes.length) {
         _fbSaveNotification(orig.writerId, 'pl_edit', `${currentUser?.name || ''}님이 "${subject}" 일지를 수정했습니다.`, { logId: d.id, actorName: currentUser?.name });
@@ -4378,7 +4392,7 @@ async function plSaveEdit() {
           scope: updated.scope, seller: updated.seller || null, content: updated.content || null,
           campaignId: updated.campaignId || null, media: updated.media || null, product: updated.product || null,
           logType: it.logType || '운영',
-          state: _plAutoState(it.logType, exProgress),
+          state: null,
           summary: it.summary.trim().slice(0, 60), detail: exDetail, progress: exProgress,
           important: false, shared: false,
           hasImages: false, imageCount: 0, links: [],
@@ -5337,7 +5351,7 @@ function _plGDailyFiltered(company) {
   if (_plGState.dayType) logs = logs.filter(l => l.logType === _plGState.dayType);
   if (_plGState.dayMedia) logs = logs.filter(l => l.media === _plGState.dayMedia);
   if (_plGState.dayWriter) logs = logs.filter(l => l.writer === _plGState.dayWriter);
-  if (_plGState.dayOpenOnly) logs = logs.filter(l => l.state === '진행중');
+  if (_plGState.dayOpenOnly) logs = logs.filter(_plLogOpen);
   if (_plGState.dayProgressSort) logs = _plSortByIncompleteProgress(logs);
   return logs;
 }
@@ -6340,7 +6354,7 @@ function _plXlsxValidateRow(row, rowNum) {
     campaignId: scope === 'campaign' ? campaignId : null,
     media: scope === 'campaign' ? (camp?.media || mediaInput || null) : (scope === 'media' ? mediaInput : mediaInput),
     product: scope === 'campaign' ? (camp?.product || null) : null,
-    logType, state: _plAutoState(logType, progress),
+    logType, state: null,
     summary: summary.slice(0, 60), detail, progress,
     important: false, shared: false, hasImages: false, imageCount: 0, links: [],
     threadId: null,
