@@ -33,6 +33,13 @@ function _plDb(name) {
 // ══════════════════════════════════════════════════════════
 
 const PL_LOG_TYPES = ['운영', '요청', '제안', '이슈', '대응', '결과', '피드백', '회고', '자료', '시스템제약'];
+// 작성 모달의 유형 선택과 '일지' 탭 유형 필터는 실무에서 실제로 쓰는 3개로 좁힌다 — 나머지 유형은
+// 여전히 존재하고(기존 데이터·수정 화면·엑셀 업로드는 그대로) 여기 두 곳만 좁혀서 고르게 한다.
+// "시스템제약"은 뜻이 더 와닿는 "매체정보"로 표시만 바꾸고, 저장되는 값(logType)은 기존과 동일하게
+// "시스템제약"을 그대로 써서 매체 지식 자동 집계 등 기존 로직과 어긋나지 않게 한다(2026-09-10, 사용자 요청).
+const PL_LOG_TYPES_QUICK = ['운영', '이슈', '시스템제약'];
+const PL_LOG_TYPE_DISPLAY = { 시스템제약: '매체정보' };
+function _plTypeLabel(t) { return PL_LOG_TYPE_DISPLAY[t] || t; }
 
 const PL_TYPE_COLOR = {
   운영:   { bg: '#eceef0', fg: '#495057' },
@@ -541,7 +548,7 @@ function _plBuildMineTabSkeleton(content) {
         <div class="combo-list" id="pl-mine-user-list" style="display:none;"></div>
       </div>
       <button class="btn btn-outline btn-sm${_plMineCommentedOnly ? ' pl-toggle-on' : ''}" id="pl-mine-commented-toggle" onclick="_plMineToggleCommentedOnly()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};">💬 댓글 있는 것만</button>
-      <button class="btn btn-outline btn-sm${_plMineSortByProgress ? ' pl-toggle-on' : ''}" id="pl-mine-progress-toggle" onclick="_plMineToggleSortByProgress()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};" data-tooltip="이어쓰기로 이미 이어진 옛 기록은 제외하고, 진짜 미완료인 것만 진척률 낮은 순으로 맨 위에 모읍니다">📊 미완료 낮은순</button>
+      <button class="btn btn-outline btn-sm${_plMineSortByProgress ? ' pl-toggle-on' : ''}" id="pl-mine-progress-toggle" onclick="_plMineToggleSortByProgress()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};" onmouseenter="_plShowFixedTip(this,'이어쓰기로 이미 이어진 옛 기록은 제외하고, 진짜 미완료(=진행중)인 것만 진척률 낮은 순으로 맨 위에 모읍니다')" onmouseleave="_plHideFixedTip()">🔴 진행중</button>
       <input type="text" class="f-search" id="pl-mine-search" placeholder="검색어" style="width:160px;" oninput="_plRenderMineBody()">
     </div>
     <div class="table-card">
@@ -1283,6 +1290,10 @@ ${badgeCss}
 /* 일지/나의일지 표의 "매체" 칸(6번째 컬럼) — 참조 캠페인 여러 개라 매체명이 나열되면(예: "하나카드·신한카드")
    컬럼이 넓어지던 것을 120px로 고정. 넘치는 부분은 평소엔 말줄임표로 숨기고, 그 칸에 마우스를 올렸을 때만
    원래 폭 제한을 풀어서 옆 컬럼 위로 잠깐 드러나 보이게 한다. */
+/* '일지' 탭 광고주 컬럼(3번째) — 너비 고정 + 말줄임표, 전체 이름은 hover 시 화면에 고정된
+   말풍선(.pl-fixed-tip)으로 보여준다(2026-09-10, 사용자 요청). */
+#pl-tab-content .pl-lgt td:nth-child(3){width:150px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pl-fixed-tip{position:fixed;z-index:99999;background:#fff;color:#111;font-size:11.5px;font-weight:400;padding:5px 11px;border-radius:6px;border:1px solid #e2e8f0;box-shadow:0 4px 12px rgba(0,0,0,.15);white-space:nowrap;pointer-events:none;}
 #pl-tab-content .pl-lgt td:nth-child(6){max-width:120px;overflow:hidden;}
 #pl-tab-content .pl-lgt td:nth-child(6) .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;}
 #pl-tab-content .pl-lgt td:nth-child(6):hover{overflow:visible;}
@@ -1533,10 +1544,8 @@ function _plGetFiltered() {
   const dFrom  = document.getElementById('pl-date-from')?.value || '';
   const dTo    = document.getElementById('pl-date-to')?.value   || '';
   const seller = document.getElementById('pl-f-seller')?.value.trim()  || '';
-  const project= document.getElementById('pl-f-project')?.value.trim() || '';
   const media  = document.getElementById('pl-f-media')?.value.trim()   || '';
   const type   = document.getElementById('pl-f-type')?.value  || '';
-  const scope  = document.getElementById('pl-f-scope')?.value || '';
   const org    = document.getElementById('pl-f-org')?.value   || '';
   const impOnly  = document.getElementById('pl-f-important')?.classList.contains('pl-toggle-on');
   const openOnly = document.getElementById('pl-f-open')?.classList.contains('pl-toggle-on');
@@ -1547,10 +1556,8 @@ function _plGetFiltered() {
     if (dFrom && (log.logDate || '') < dFrom) return false;
     if (dTo   && (log.logDate || '') > dTo)   return false;
     if (seller  && log.seller  !== seller)  return false;
-    if (project && log.content !== project) return false;
     if (media   && log.media   !== media)   return false;
     if (type    && log.logType !== type)    return false;
-    if (scope   && log.scope   !== scope)   return false;
     if (_plLogWriterFilters.length && !_plLogWriterFilters.includes(log.writer)) return false;
     if (impOnly  && !log.important) return false;
     if (openOnly && !_plLogOpen(log)) return false;
@@ -1563,6 +1570,27 @@ function _plGetFiltered() {
   });
 }
 
+// 화면 어디든 안 잘리는 말풍선 — 공용 [data-tooltip](style.css)는 ::after가 부모 기준
+// position:absolute라, 조상에 overflow:hidden/auto가 있으면 잘리거나(overflow-x:auto가 걸린
+// .filter-bar처럼 overflow-y도 강제로 auto가 돼버리는 CSS 스펙 규칙 때문에) 안 보이는 상태로도
+// 스크롤 영역에 잡혀 원치 않는 세로 스크롤바가 생기는 문제가 있었다(2026-09-10, 나의 일지 필터바
+// 리포트로 발견). body에 직접 붙는 고정 위치 말풍선으로 대체 — 어떤 조상의 overflow와도 무관하다.
+let _plFixedTip = null;
+function _plShowFixedTip(el, text) {
+  _plHideFixedTip();
+  if (!text) return;
+  const tip = document.createElement('div');
+  tip.className = 'pl-fixed-tip';
+  tip.textContent = text;
+  document.body.appendChild(tip);
+  const r = el.getBoundingClientRect();
+  tip.style.left = Math.round(r.left) + 'px';
+  tip.style.top = Math.round(r.bottom + 6) + 'px';
+  _plFixedTip = tip;
+}
+function _plHideFixedTip() {
+  if (_plFixedTip) { _plFixedTip.remove(); _plFixedTip = null; }
+}
 function _plHighlight(text, rawQuery) {
   const esc = _escHtml(text || '');
   // 필터(_plTokenMatchNormalized)가 공백으로 끊은 토큰을 AND로 매칭하므로, 하이라이트도 전체 문자열을 통째로
@@ -1616,12 +1644,11 @@ function _plToggleBtn(id) {
 function _plGoPage(p) { _plPage = p; _plRenderRows(); }
 
 function plResetLogFilter() {
-  ['pl-search', 'pl-date-from', 'pl-date-to', 'pl-f-seller', 'pl-f-project', 'pl-f-media', 'pl-f-writer'].forEach(id => {
+  ['pl-search', 'pl-date-from', 'pl-date-to', 'pl-f-seller', 'pl-f-media', 'pl-f-writer'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
   const typeEl = document.getElementById('pl-f-type'); if (typeEl) typeEl.value = '';
-  const scopeEl = document.getElementById('pl-f-scope'); if (scopeEl) scopeEl.value = '';
   const orgEl  = document.getElementById('pl-f-org');  if (orgEl)  orgEl.value  = '';
   document.getElementById('pl-f-important')?.classList.remove('pl-toggle-on');
   document.getElementById('pl-f-open')?.classList.remove('pl-toggle-on');
@@ -2333,7 +2360,7 @@ function _plRenderLogRow(log, q, ctx) {
   const rowHtml = `<tr id="pl-row-${log.id}" class="pl-lg-head" onclick="_plToggleRowGuarded(event,'${log.id}','${ctx}')" style="cursor:pointer;">
     <td class="pl-lg-arrow">${arrow}</td>
     <td class="f-mono td-num">${dateShort}</td>
-    <td>${sellerCell}</td>
+    <td${log.seller ? ` onmouseenter="_plShowFixedTip(this,'${_escHtml(log.seller).replace(/'/g, '&#39;')}')" onmouseleave="_plHideFixedTip()"` : ''}>${sellerCell}</td>
     <td>${projCell}</td>
     <td>${campCell}</td>
     <td>${mediaCell}</td>
@@ -2398,28 +2425,16 @@ function _plBuildLogTabSkeleton(container) {
       <input type="date" class="f-date" id="pl-date-from" onchange="_plPage=1;_plRenderRows();" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       <span class="form-hint">~</span>
       <input type="date" class="f-date" id="pl-date-to" onchange="_plPage=1;_plRenderRows();" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
-      <input type="text" class="f-search" id="pl-search" placeholder="검색어" style="width:160px;" oninput="_plPage=1;_plRenderRows();">
       <div class="combo-wrap" style="width:120px;">
         <input type="text" class="f-search" id="pl-f-seller" placeholder="🔍 광고주" style="width:120px;">
         <div class="combo-list" id="pl-f-seller-list" style="display:none;"></div>
-      </div>
-      <div class="combo-wrap" style="width:110px;">
-        <input type="text" class="f-search" id="pl-f-project" placeholder="🔍 프로젝트" style="width:110px;">
-        <div class="combo-list" id="pl-f-project-list" style="display:none;"></div>
       </div>
       <div class="combo-wrap" style="width:100px;">
         <input type="text" class="f-search" id="pl-f-media" placeholder="🔍 매체" style="width:100px;">
         <div class="combo-list" id="pl-f-media-list" style="display:none;"></div>
       </div>
+      <input type="text" class="f-search" id="pl-search" placeholder="검색어" style="width:160px;" oninput="_plPage=1;_plRenderRows();">
       <select class="f-sel" id="pl-f-type" onchange="_plPage=1;_plRenderRows();"><option value="">유형 전체</option></select>
-      <select class="f-sel" id="pl-f-scope" onchange="_plPage=1;_plRenderRows();">
-        <option value="">대상 전체</option>
-        <option value="advertiser">광고주</option>
-        <option value="project">프로젝트</option>
-        <option value="campaign">캠페인</option>
-        <option value="media">매체</option>
-        <option value="internal">내부업무</option>
-      </select>
       <select class="f-sel" id="pl-f-org" onchange="_plPage=1;_plRenderRows();"><option value="">본부/팀 전체</option></select>
       <div class="combo-wrap" id="pl-f-writer-wrap" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
         <div id="pl-f-writer-chips" style="display:inline-flex;gap:3px;flex-wrap:wrap;"></div>
@@ -2459,7 +2474,6 @@ function _plBuildLogTabSkeleton(container) {
 
   const _plLogFilterChange = () => { _plPage = 1; _plRenderRows(); };
   _plComboSetup('pl-f-seller',  'pl-f-seller-list',  _plSellerNamesRecent,  _plLogFilterChange);
-  _plComboSetup('pl-f-project', 'pl-f-project-list', _plProjectNamesRecent, _plLogFilterChange);
   _plComboSetup('pl-f-media',   'pl-f-media-list',   _plMediaNamesRecent,   _plLogFilterChange);
   // 작성자는 다중 선택(칩)이라 값 하나만 다루는 _plComboSetup 대신 전용 핸들러(_plLogWriter*)를 씀.
   // 새로고침·메뉴 재진입 시 리셋되도록 의도적으로 이 배열을 여기서 비우지 않는다(모듈 전역 상태 그대로 유지)
@@ -2467,7 +2481,7 @@ function _plBuildLogTabSkeleton(container) {
   _plLogRenderWriterChips();
 
   const typeSel = document.getElementById('pl-f-type');
-  if (typeSel) typeSel.innerHTML = '<option value="">유형 전체</option>' + PL_LOG_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
+  if (typeSel) typeSel.innerHTML = '<option value="">유형 전체</option>' + PL_LOG_TYPES_QUICK.map(t => `<option value="${t}">${_plTypeLabel(t)}</option>`).join('');
   const orgSel = document.getElementById('pl-f-org');
   if (orgSel) orgSel.innerHTML = '<option value="">본부/팀 전체</option>' + _buildOrgSelectHTML();
 }
@@ -2985,7 +2999,7 @@ function _plItemTargetRemoveCamp(bi, ii, ci) {
 
 // ── 항목 / ㄴ 하위줄 ──
 function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
-  const typeOpts = PL_LOG_TYPES.map(t => `<option value="${t}" ${it.logType === t ? 'selected' : ''}>${t}</option>`).join('');
+  const typeOpts = PL_LOG_TYPES_QUICK.map(t => `<option value="${t}" ${it.logType === t ? 'selected' : ''}>${_plTypeLabel(t)}</option>`).join('');
   const ph = PL_SUMMARY_PH[it.logType] || '';
   const subHtml = (it.detail || []).map((d, di) => _plRenderSubHtml(bi, ii, di, d, it.logType)).join('');
   // 새 그룹이 시작되는 항목(showMediaRow)은 "+ 항목 추가"로 이어붙인 항목과 구분되게 위쪽 경계를 다르게
@@ -3022,28 +3036,13 @@ function _plRefLogCardHtml(refLog) {
     <div class="pl-ref-text">${_escHtml(refLog.summary || '')}</div>
   </div>`;
 }
+// 라벨(카테고리) 선택 UI는 작성 화면에서 제거 — 하위 기록은 그냥 자유 텍스트 메모로만 남긴다
+// (2026-09-10, 사용자 요청). d.label은 항상 빈 문자열로 저장되고, 이미 라벨이 붙어 저장된 과거
+// 기록은 수정 화면(_plEditSubHtml, 안 건드림)에서는 여전히 보이고 고칠 수 있다.
 function _plRenderSubHtml(bi, ii, di, d, logType) {
-  const preset = PL_LABEL_PRESET[logType] || { opts: [] };
-  const isCustom = !!d.customMode || (!!d.label && !preset.opts.includes(d.label));
-  let labelControl;
-  if (isCustom) {
-    labelControl = `<div class="combo-wrap" style="position:relative;">
-      <input type="text" class="pl-mini" id="pl-lbl-${bi}-${ii}-${di}" placeholder="라벨 직접 입력" value="${_escHtml(d.label || '')}"
-        oninput="_plSubLabelCustomInput(${bi},${ii},${di},this.value)" onfocus="_plSubLabelCustomInput(${bi},${ii},${di},this.value)"
-        onkeydown="_plComboKeyNav(event,'pl-lbl-list-${bi}-${ii}-${di}')">
-      <div class="combo-list" id="pl-lbl-list-${bi}-${ii}-${di}" style="display:none;"></div>
-    </div>`;
-  } else {
-    const opts = ['라벨 없음', ...preset.opts, '직접 입력…'];
-    const selHtml = opts.map(o => {
-      const val = o === '라벨 없음' ? '' : (o === '직접 입력…' ? '__custom__' : o);
-      const selected = o === '직접 입력…' ? false : val === (d.label || '');
-      return `<option value="${val}" ${selected ? 'selected' : ''}>${o}</option>`;
-    }).join('');
-    labelControl = `<select class="pl-mini" onchange="_plSubLabelSelect(${bi},${ii},${di},this.value)">${selHtml}</select>`;
-  }
-  return `<div class="pl-sub"><span class="pl-m">ㄴ</span>
-    ${labelControl}
+  // .pl-sub 공용 클래스는 수정 화면 쪽(라벨 select 포함, 4열)과 그리드 컬럼 수가 다르므로 인라인
+  // style로 이 3열(마커·textarea·삭제)짜리 레이아웃만 여기서 덮어쓴다.
+  return `<div class="pl-sub" style="grid-template-columns:22px 1fr 24px;"><span class="pl-m">ㄴ</span>
     <textarea class="pl-mini" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;"
       oninput="_plSubField(${bi},${ii},${di},'text',this.value);_plAutoGrowTextarea(this)">${_escHtml(d.text || '')}</textarea>
     <span class="pl-x" onclick="_plRemoveSub(${bi},${ii},${di})">✕</span>
@@ -3054,38 +3053,6 @@ function _plExistingLabels() {
   const freq = {};
   PL_LOGS.forEach(l => (l.detail || []).forEach(d => { if (d.label) freq[d.label] = (freq[d.label] || 0) + 1; }));
   return Object.entries(freq).sort((a, b) => b[1] - a[1]).map(([label]) => label);
-}
-function _plSubLabelSelect(bi, ii, di, val) {
-  const d = _plDraft.blocks[bi]?.items[ii]?.detail[di];
-  if (!d) return;
-  if (val === '__custom__') { d.customMode = true; d.label = ''; }
-  else { d.label = val; d.customMode = false; }
-  _plRenderWriteModal();
-}
-function _plSubLabelCustomInput(bi, ii, di, val) {
-  const d = _plDraft.blocks[bi]?.items[ii]?.detail[di];
-  if (!d) return;
-  d.label = val; d.customMode = true;
-  const list = document.getElementById(`pl-lbl-list-${bi}-${ii}-${di}`);
-  if (!list) return;
-  _plComboNavIndex[`pl-lbl-list-${bi}-${ii}-${di}`] = -1;
-  const q = val.trim().toLowerCase();
-  const existing = _plExistingLabels();
-  const matched = q ? existing.filter(l => l.toLowerCase().includes(q)) : existing;
-  let html = matched.slice(0, 10).map(l => `<div class="combo-item" onmousedown="_plSubLabelPickCustom(${bi},${ii},${di},'${_escHtml(l)}')">${_escHtml(l)}</div>`).join('');
-  const trimmed = val.trim();
-  if (trimmed && !existing.some(l => l.toLowerCase() === trimmed.toLowerCase())) {
-    html += `<div class="combo-add" onmousedown="_plSubLabelPickCustom(${bi},${ii},${di},'${_escHtml(trimmed)}')">＋ "${_escHtml(trimmed)}" 새 라벨로 추가</div>`;
-  }
-  if (!html) { list.style.display = 'none'; return; }
-  list.innerHTML = html;
-  list.style.display = 'block';
-}
-function _plSubLabelPickCustom(bi, ii, di, val) {
-  const d = _plDraft.blocks[bi]?.items[ii]?.detail[di];
-  if (!d) return;
-  d.label = val; d.customMode = true;
-  _plRenderWriteModal();
 }
 
 // ── 필드 갱신 (구조 변경 없음 → 리렌더 없이 값만 갱신) ──
