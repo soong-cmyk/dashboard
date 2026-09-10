@@ -759,7 +759,10 @@ function _plRenderInternalLogRow(log) {
   const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : ((log.progress != null && log.progress >= 100) ? ' <span class="pl-st-done">완료</span>' : '');
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
   const attachIconsHtml = (log.hasImages ? `<span id="pl-imgcnt-${log.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '')
-    + ((log.links && log.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${log.links.length}개">🔗${log.links.length}</span>` : '');
+    + ((log.links && log.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${log.links.length}개">🔗${log.links.length}</span>` : '')
+    // 공유폴더 경로(attachPath)만 입력하고 이미지는 없는 경우, 접힌 목록 줄에는 표시가 하나도 안 남아
+    // "첨부를 입력했는데 어디에도 안 보인다"는 리포트로 이어졌다(2026-09-10) — 별도 아이콘으로 존재만 표시.
+    + ((log.attachPath || log.attachName) ? `<span style="font-size:11px;margin-left:4px;" title="첨부 경로: ${_escHtml(log.attachPath || log.attachName || '')}">📎</span>` : '');
   const progHtml = log.progress != null
     ? `<span class="prog-wrap" style="width:46px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}%</span>`
     : '<span class="td-dim">—</span>';
@@ -2220,7 +2223,10 @@ function _plRenderLogRow(log, q, ctx) {
   // 내용 첫 줄 끝에 첨부/링크 여부만 아이콘으로 표시 — 펼치지 않아도 있는지 정도는 바로 보이게
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
   const attachIconsHtml = (log.hasImages ? `<span id="pl-imgcnt-${log.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '')
-    + ((log.links && log.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${log.links.length}개">🔗${log.links.length}</span>` : '');
+    + ((log.links && log.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${log.links.length}개">🔗${log.links.length}</span>` : '')
+    // 공유폴더 경로(attachPath)만 입력하고 이미지는 없는 경우, 접힌 목록 줄에는 표시가 하나도 안 남아
+    // "첨부를 입력했는데 어디에도 안 보인다"는 리포트로 이어졌다(2026-09-10) — 별도 아이콘으로 존재만 표시.
+    + ((log.attachPath || log.attachName) ? `<span style="font-size:11px;margin-left:4px;" title="첨부 경로: ${_escHtml(log.attachPath || log.attachName || '')}">📎</span>` : '');
   // 하위 기록(ㄴ)도 접힌 상태에서 같이 보이게 — 펼쳐야만 보이던 걸 목록에서 바로 확인 가능하도록
   const subLinesHtml = (log.detail || []).filter(d => (d.text || '').trim()).map(d =>
     // "ㄴ+라벨"과 본문을 flex 아이템 둘로 나눠야, 본문이 여러 줄일 때 2번째 줄부터도 컨테이너
@@ -6074,6 +6080,7 @@ function _plDateItemHtml(l, hideMediaTag) {
   if (l.hasImages && l.imageCount == null) _plEnsureImageCountBadge(l.id);
   const attachIconsHtml = (l.hasImages ? `<span id="pl-imgcnt-${l.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;vertical-align:middle;" onclick="event.stopPropagation();_plOpenLogImages('${l.id}')" title="첨부 이미지 — 클릭하여 보기">📁${l.imageCount || ''}</span>` : '')
     + ((l.links && l.links.length) ? `<span style="font-size:11px;margin-left:4px;vertical-align:middle;" title="링크 ${l.links.length}개">🔗${l.links.length}</span>` : '')
+    + ((l.attachPath || l.attachName) ? `<span style="font-size:11px;margin-left:4px;vertical-align:middle;" title="첨부 경로: ${_escHtml(l.attachPath || l.attachName || '')}">📎</span>` : '')
     + `<span id="pl-cmt-badge-${l.id}" style="vertical-align:middle;">${_plCommentBadgeHtml(l.id)}</span>`;
   return `<div style="padding:4px 0;">
     <div style="display:flex;align-items:flex-start;gap:4px;cursor:pointer;" onclick="_plToggleRowGuarded(event,'${l.id}','date')">
