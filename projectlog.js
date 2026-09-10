@@ -1273,7 +1273,7 @@ function _plInjectStyles() {
   const css = `
 ${badgeCss}
 .pg-btn.disabled{opacity:.35;cursor:default;pointer-events:none;}
-#pl-f-open.pl-toggle-on,#pl-f-important.pl-toggle-on{outline:2px solid var(--accent);background:var(--accent-light);}
+#pl-f-open.pl-toggle-on{outline:2px solid var(--accent);background:var(--accent-light);}
 /* 보기 전용 모달 — ㄴ추가/✕삭제/파일첨부/링크추가 등 조작 버튼은 아예 안 보이게(눌러도 반응 없는 게 더 헷갈림) */
 #pl-e-block.pl-readonly .pl-subadd,
 #pl-e-block.pl-readonly .pl-x,
@@ -1550,7 +1550,6 @@ function _plGetFiltered() {
   const media  = document.getElementById('pl-f-media')?.value.trim()   || '';
   const type   = document.getElementById('pl-f-type')?.value  || '';
   const org    = document.getElementById('pl-f-org')?.value   || '';
-  const impOnly  = document.getElementById('pl-f-important')?.classList.contains('pl-toggle-on');
   const openOnly = document.getElementById('pl-f-open')?.classList.contains('pl-toggle-on');
   const { bonbu, team } = _parseOrgFilter(org);
 
@@ -1562,7 +1561,6 @@ function _plGetFiltered() {
     if (media   && log.media   !== media)   return false;
     if (type    && log.logType !== type)    return false;
     if (_plLogWriterFilters.length && !_plLogWriterFilters.includes(log.writer)) return false;
-    if (impOnly  && !log.important) return false;
     if (openOnly && !_plLogOpen(log)) return false;
     if (bonbu || team) {
       const u = USERS.find(u => u.name === log.writer);
@@ -1653,7 +1651,6 @@ function plResetLogFilter() {
   });
   const typeEl = document.getElementById('pl-f-type'); if (typeEl) typeEl.value = '';
   const orgEl  = document.getElementById('pl-f-org');  if (orgEl)  orgEl.value  = '';
-  document.getElementById('pl-f-important')?.classList.remove('pl-toggle-on');
   document.getElementById('pl-f-open')?.classList.remove('pl-toggle-on');
   _plLogWriterFilters = [];
   _plLogRenderWriterChips();
@@ -1981,6 +1978,9 @@ function _plOpenResponseDraft(parentId) {
     important: false, shared: false, state: null, searchQuery: '',
     resolveChecked: false,
     newFor: { parentId },
+    // 이어쓰기(_plContinueFromLog)와 같은 규칙 — 무엇에 대응하는지 잊지 않도록 원본 이슈를
+    // 읽기전용 참조 카드로 보여준다(2026-09-10, 사용자 지적 — 대응 기록에도 똑같이 있어야 했음).
+    refLog: { logDate: orig.logDate, logType: orig.logType, progress: orig.progress, summary: orig.summary, writer: orig.writer },
   };
   if (!document.getElementById('pl-modal-edit')) _plBuildEditModalShell();
   _plRenderEditModal();
@@ -2390,11 +2390,9 @@ function _plRenderRows() {
   const filtered = _plGetFiltered();
   const q = (document.getElementById('pl-search')?.value || '').trim();
 
-  // 퀵필터 카드 카운트 — 다른 필터와 무관하게 전체 기준(진행중/중요 총량)으로 보여줘서 "지금 몇 건 밀려있나"가 바로 보이게
+  // 퀵필터 카드 카운트 — 다른 필터와 무관하게 전체 기준(진행중 총량)으로 보여줘서 "지금 몇 건 밀려있나"가 바로 보이게
   const openCntEl = document.getElementById('pl-open-cnt');
   if (openCntEl) openCntEl.textContent = PL_LOGS.filter(_plLogOpen).length;
-  const impCntEl = document.getElementById('pl-important-cnt');
-  if (impCntEl) impCntEl.textContent = PL_LOGS.filter(l => l.important).length;
 
   const typeCounts = {};
   filtered.forEach(l => { typeCounts[l.logType] = (typeCounts[l.logType] || 0) + 1; });
@@ -2422,7 +2420,6 @@ function _plBuildLogTabSkeleton(container) {
   container.innerHTML = `
     <div style="display:flex;gap:8px;margin-bottom:12px;">
       <button class="btn btn-outline btn-sm" id="pl-f-open" onclick="_plToggleBtn('pl-f-open')" style="background:#fff;border-color:#ffc9c9;color:var(--red);">🔴 진행중 <b id="pl-open-cnt">—</b>건</button>
-      <button class="btn btn-outline btn-sm" id="pl-f-important" onclick="_plToggleBtn('pl-f-important')" style="background:#fff;border-color:#ffec99;color:#f08c00;">★ 중요 <b id="pl-important-cnt">—</b>건</button>
     </div>
     <div class="filter-bar" style="margin-bottom:12px;overflow:visible;">
       <input type="date" class="f-date" id="pl-date-from" onchange="_plPage=1;_plRenderRows();" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
@@ -3993,6 +3990,7 @@ function _plEditItemHtml() {
   const ph = PL_SUMMARY_PH[d.logType] || '';
   const subHtml = (d.detail || []).map((det, di) => _plEditSubHtml(di, det)).join('');
   return `<div class="pl-item">
+    ${d.refLog ? _plRefLogCardHtml(d.refLog) : ''}
     ${_plEditRefCampEligible() ? _plEditRefCampFieldHtml() : ''}
     <div class="pl-irow">
       <select class="pl-mini" style="font-weight:700;" onchange="_plEditTypeChange(this.value)">${typeOpts}</select>
@@ -4184,24 +4182,16 @@ function _plEditToggleFlag(field) {
 }
 function _plEditMetaHtml() {
   const d = _plEditDraft;
-  const impActive = d.important ? ' pl-toggle-on' : '';
-  const shrActive = d.shared ? ' pl-toggle-on' : '';
   // 이슈/요청의 진행중·완료는 더 이상 별도 상태값 드롭다운으로 직접 고르지 않는다 — 진척률
   // 하나로만 판단한다(_plLogOpen): 100% 미만이면 진행중, 100%면 완료. 다시 열어야 하면(재오픈)
   // 진척률을 100 밑으로 낮추는 걸로 표현하면 되므로 별도 컨트롤이 필요 없다(2026-09-09, 사용자 요청 —
   // "모든 화면에서 상태값 dropbox를 없애고 진척률 기준으로 판단").
+  // "표시"(★중요/🔗공유) 토글은 작성 화면엔 아예 없어서 등록 시엔 못 켜고 수정할 때만 켤 수
+  // 있던 비대칭이 있었고, 그 자체도 잘 안 쓰여서 통째로 제거했다(2026-09-10, 사용자 요청).
   return `<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:12px;">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-      <div class="fg"><label class="form-label">표시</label>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-ghost btn-sm${impActive}" onclick="_plEditToggleFlag('important')">★ 중요</button>
-          <button class="btn btn-ghost btn-sm${shrActive}" onclick="_plEditToggleFlag('shared')">🔗 공유</button>
-        </div>
-      </div>
-      <div class="fg"><label class="form-label">작성 정보</label>
-        <div class="form-hint" style="padding-top:8px;">${_escHtml(d.writer || '')} · ${_escHtml(d.bonbu || '')} ${_escHtml(d.dept || '')} · <span class="f-mono">${_escHtml(d.logDate || '')}${d.createdAt ? ' ' + _plFmtHHMM(d.createdAt) : ''}</span>
-          ${d.newFor ? '' : `<span class="pl-x" style="margin-left:6px;" onclick="plOpenHistoryModal('${d.id}')">이력 보기</span>`}
-        </div>
+    <div class="fg"><label class="form-label">작성 정보</label>
+      <div class="form-hint" style="padding-top:8px;">${_escHtml(d.writer || '')} · ${_escHtml(d.bonbu || '')} ${_escHtml(d.dept || '')} · <span class="f-mono">${_escHtml(d.logDate || '')}${d.createdAt ? ' ' + _plFmtHHMM(d.createdAt) : ''}</span>
+        ${d.newFor ? '' : `<span class="pl-x" style="margin-left:6px;" onclick="plOpenHistoryModal('${d.id}')">이력 보기</span>`}
       </div>
     </div>
     ${_plEditAttachHtml()}
