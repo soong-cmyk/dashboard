@@ -1843,11 +1843,22 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
 }
 // 이슈 스레드 노드 목록 — 이 로그가 이슈면 그 이슈 자신 + 달린 대응/해결 전부, 대응/해결이면
 // threadId로 원본 이슈를 찾아 같은 방식으로 구성한다. 혼자뿐이면(연결된 게 없으면) 안 보여준다.
+// 대응/해결 기록을 다시 "이어쓰기"한 기록(continuedFromId 체인)은 threadId가 없어서 원본 이슈
+// 쪽에서는 존재 자체를 알 수 없었는데, 이슈/대응 각각의 이어쓰기 체인도 같이 따라가 합쳐서
+// 보여준다(2026-09-10, 미리보기로 확정).
 function _plIssueThreadNodes(log) {
   const origin = log.threadId ? PL_LOGS.find(l => l.id === log.threadId) : log;
   if (!origin) return [];
   const children = PL_LOGS.filter(l => l.threadId === origin.id).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
-  const nodes = [origin, ...children];
+  const base = [origin, ...children];
+  const nodeIds = new Set(base.map(n => n.id));
+  const extra = [];
+  base.forEach(n => {
+    _plContinueChainNodes(n).forEach(c => {
+      if (!nodeIds.has(c.id)) { nodeIds.add(c.id); extra.push(c); }
+    });
+  });
+  const nodes = [...base, ...extra].sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
   return nodes.length > 1 ? nodes : [];
 }
 // 이어쓰기 체인 노드 목록 — continuedFromId를 따라 맨 처음 기록까지 거슬러 올라간 뒤, 거기서부터
@@ -2003,7 +2014,10 @@ async function _plSaveNewResponse() {
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중…'; }
   try {
     const detail = (d.detail || []).filter(x => (x.text || '').trim()).map(x => ({ label: x.label || '', text: x.text.trim() }));
-    const progress = (d.progress === '' || d.progress == null) ? null : Math.max(0, Math.min(100, parseInt(d.progress, 10) || 0));
+    // 완료 처리(resolve) 체크 시 원본 이슈뿐 아니라 이 응답 기록 자신의 진척률도 100으로 맞춘다 —
+    // 안 그러면 이슈는 완료인데 이걸로 완료시킨 응답 기록 자신은 입력값(예: 80%)에 남아 타임라인에서
+    // 미완료처럼(빈 회색 점) 보인다(2026-09-10, 미리보기로 확정).
+    const progress = mode === 'resolve' ? 100 : ((d.progress === '' || d.progress == null) ? null : Math.max(0, Math.min(100, parseInt(d.progress, 10) || 0)));
     const images = (d.images || []).filter(Boolean);
     const now = new Date().toISOString();
     const newDoc = {
