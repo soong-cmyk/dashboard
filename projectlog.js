@@ -1299,6 +1299,31 @@ ${badgeCss}
 .pl-toggle-on{background:var(--accent-light)!important;border-color:var(--accent)!important;color:var(--accent)!important;}
 .pl-mark{background:var(--yellow-bg);padding:0 2px;border-radius:2px;}
 .pl-thumb{width:34px;height:24px;border-radius:4px;background:linear-gradient(135deg,#dde3f0,#c6cfe0);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#6b7590;font-weight:700;}
+/* 이슈 스레드·이어쓰기 흐름 타임라인 — 점+세로선, 줄 구분(카드 없음) */
+.tl{position:relative;padding-left:24px;}
+.tl::before{content:"";position:absolute;left:8px;top:4px;bottom:4px;width:2px;background:var(--border2);}
+.tl-node{position:relative;padding-bottom:12px;}
+.tl-node:last-child{padding-bottom:0;}
+.tl-dot{position:absolute;left:-24px;top:2px;width:18px;height:18px;border-radius:50%;background:var(--surface);border:2.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--text3);z-index:1;}
+.tl-node.is-open .tl-dot{border-color:var(--accent);background:var(--accent);color:#fff;}
+.tl-node.is-done .tl-dot{border-color:var(--green);background:var(--green);color:#fff;}
+.tl-node.is-self .tl-dot{border-color:var(--accent2);color:var(--accent2);background:var(--accent-light);font-weight:800;}
+.tl-card{padding:2px 0 10px;border-bottom:1px solid var(--border);}
+.tl-node:last-child .tl-card{border-bottom:none;padding-bottom:0;}
+.tl-node.is-self .tl-card{background:var(--accent-light);border-radius:6px;padding:6px 8px 10px;margin-top:-2px;}
+.tl-top{display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;}
+.tl-date{font-family:ui-monospace,monospace;font-size:10px;color:var(--text3);}
+.tl-prog{margin-left:auto;font-family:ui-monospace,monospace;font-size:10.5px;font-weight:700;color:var(--text2);}
+.tl-writer{font-size:10.5px;color:var(--text3);}
+.tl-text{font-size:12.3px;color:var(--text);}
+.tl-sub{font-size:11px;color:var(--text2);padding:1px 0 1px 2px;display:flex;gap:4px;}
+.tl-sub-l{flex-shrink:0;color:var(--text3);}
+/* 이어쓰기 항목의 "이전 기록" 읽기전용 참조 카드 */
+.pl-ref-card{background:var(--surface2);border:1px dashed var(--border2);border-radius:8px;padding:9px 12px;margin-bottom:8px;}
+.pl-ref-label{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px;}
+.pl-ref-top{display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;font-size:11px;color:var(--text3);}
+.pl-ref-prog{margin-left:auto;font-family:ui-monospace,monospace;font-size:11px;font-weight:700;color:var(--text2);}
+.pl-ref-text{font-size:12.5px;color:var(--text2);}
 #screen-projectlog .combo-list,#pl-modal-write .combo-list,#pl-modal-edit .combo-list,#pl-modal-camplog .combo-list{z-index:99999;}
 .combo-item.pl-combo-active{background:var(--accent-light);}
 .pl-jump-flash{animation:plJumpFlash 1.5s ease;}
@@ -1757,65 +1782,93 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
       <div style="display:flex;gap:6px;">${responseHtml}${continueBtnHtml}${editBtnHtml}</div>
     </div>`;
   const commentsHtml = `<div data-pl-comments-for="${log.id}" onclick="event.stopPropagation();">${_plCommentsHtml(log.id)}</div>`;
-  // 이 로그(주로 이슈)에 달린 대응·해결 기록을 전부 시간순으로 나열 — "+ 대응 기록"을 몇 번 남기다가
-  // 마지막에 "완료 처리"로 마무리해도, 전부 threadId로 같은 이슈를 가리키므로(체인이 아니라 방사형)
-  // 한 세트로 묶어 보여줄 수 있다. 반대로 이 로그 자체가 대응/해결 기록이면(threadId 보유) 원본 이슈로
-  // 가는 역링크를 보여준다. 날짜를 앞에 두고 화살표를 이동 대상 텍스트 바로 뒤에 붙여야 "무엇을 누르면
-  // 어디로 가는지"가 헷갈리지 않는다. compact(일자별 뷰)에서도 보여야 해서 조기 return 이전에 계산한다.
-  const _plLinkLine = (dateStr, label, text, targetId, action) => {
-    const d = _escHtml((dateStr || '').slice(2).replace(/-/g, '.'));
-    return `<div class="pl-resolve-link" style="font-size:12px;color:var(--text2);margin-bottom:6px;padding:6px 8px;background:var(--surface2);border-radius:6px;cursor:pointer;" onclick="event.stopPropagation();${action || 'plOpenEdit'}('${targetId}')"><span class="f-mono">${d}</span> · ${label}: ${_escHtml(text || '')} <span style="color:var(--accent);font-weight:600;">보기 →</span></div>`;
-  };
-  const threadChildren = PL_LOGS.filter(l => l.threadId === log.id)
-    .slice().sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
-  let threadChildrenHtml = '';
-  if (threadChildren.length) {
-    threadChildrenHtml = `<div style="margin-bottom:6px;">
-      <div class="form-hint" style="font-weight:700;margin-bottom:4px;">🔗 관련 기록 (${threadChildren.length})</div>
-      ${threadChildren.map(c => _plLinkLine(c.logDate, c.isResolution ? '해결' : '대응', c.summary, c.id, '_plOpenIssueView')).join('')}
-    </div>`;
-  }
-  let threadHtml = '';
-  if (log.threadId) {
-    const origIssue = PL_LOGS.find(l => l.id === log.threadId);
-    if (origIssue) threadHtml = _plLinkLine(origIssue.logDate, '이슈', origIssue.summary, origIssue.id, '_plOpenIssueView');
-  }
-  // "이어쓰기" 체인 — threadId(이슈-대응-해결, 방사형)와 별개로, continuedFromId는 진척 상황을 그날그날
-  // 새 문서로 이어가는 선형 체인이다. 이전 기록(내가 이어쓴 원본)과 이어서 쓴 기록(이 로그를 원본 삼아
-  // 또 이어쓴 것들, 실수로 두 번 이어쓰면 여러 개일 수 있어 threadChildren처럼 목록으로 보여준다) 둘 다
-  // 계산해서, 위치에 따라 한쪽만 또는 양쪽 다 보여준다.
-  let continuePrevHtml = '';
-  if (log.continuedFromId) {
-    const prevLog = PL_LOGS.find(l => l.id === log.continuedFromId);
-    if (prevLog) continuePrevHtml = _plLinkLine(prevLog.logDate, '이전 기록', `${prevLog.summary || ''} (${prevLog.progress != null ? prevLog.progress + '%' : '—'})`, prevLog.id, '_plOpenIssueView');
-  }
-  const continueNext = PL_LOGS.filter(l => l.continuedFromId === log.id)
-    .slice().sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
-  let continueNextHtml = '';
-  if (continueNext.length) {
-    continueNextHtml = `<div style="margin-bottom:6px;">
-      <div class="form-hint" style="font-weight:700;margin-bottom:4px;">↩ 이어서 쓴 기록 (${continueNext.length})</div>
-      ${continueNext.map(c => _plLinkLine(c.logDate, '이어씀', `${c.summary || ''} (${c.progress != null ? c.progress + '%' : '—'})`, c.id, '_plOpenIssueView')).join('')}
-    </div>`;
-  }
+  // 이슈 스레드(threadId, 방사형)와 이어쓰기 체인(continuedFromId, 선형)을 점+줄 타임라인으로 각각
+  // 보여준다 — 서로 다른 관계라 하나로 섞지 않고 섹션을 분리한다(2026-09-10, 미리보기로 비교 후 확정).
+  const issueNodes = _plIssueThreadNodes(log);
+  const issueThreadHtml = issueNodes.length ? `<div style="margin-bottom:12px;">
+      <div class="form-hint" style="font-weight:700;margin-bottom:6px;">🔗 관련 기록</div>
+      <div class="tl">${issueNodes.map(n => _plThreadNodeHtml(n, log.id)).join('')}</div>
+    </div>` : '';
+  const chainNodes = _plContinueChainNodes(log);
+  const continueChainHtml = chainNodes.length ? `<div style="margin-bottom:12px;">
+      <div class="form-hint" style="font-weight:700;margin-bottom:6px;">↩ 이어쓰기 흐름</div>
+      <div class="tl">${chainNodes.map(n => _plThreadNodeHtml(n, log.id)).join('')}</div>
+    </div>` : '';
   if (compact) {
     // 일자별 뷰는 작성자를 카드 어디에도 안 보여주는 유일한 화면이라(수정 모달에서만 확인 가능했음),
     // 펼쳤을 때 이 한 줄로 누가·언제 썼는지 + 수정 모달과 같은 이력 보기를 바로 확인할 수 있게 한다.
     const metaHtml = `<div class="form-hint" style="margin-bottom:8px;">${_escHtml(log.writer || '')} · ${_escHtml(log.bonbu || '')} ${_escHtml(log.dept || '')} · <span class="f-mono">${_escHtml(log.logDate || '')}${log.createdAt ? ' ' + _plFmtHHMM(log.createdAt) : ''}</span>
       <span class="pl-x" style="margin-left:6px;" onclick="event.stopPropagation();plOpenHistoryModal('${log.id}')">이력 보기</span>
     </div>`;
-    return `<div class="pl-detbox" style="border-left-color:${color};">${metaHtml}${threadHtml}${continuePrevHtml}${threadChildrenHtml}${continueNextHtml}${detfootHtml}${commentsHtml}</div>`;
+    return `<div class="pl-detbox" style="border-left-color:${color};">${metaHtml}${issueThreadHtml}${continueChainHtml}${detfootHtml}${commentsHtml}</div>`;
   }
   // 요약(summary)·하위기록(subRows)은 목록 행(_plRenderLogRow)의 <td>에 이미 그대로 보이므로
   // (접힌 상태에서도 다 보이게 만든 subLinesHtml), 펼침 상세박스에서는 반복해서 보여주지 않는다
   // — 여기서만 볼 수 있는 것(스레드/이어쓰기 링크·첨부·댓글)만 남긴다(2026-08-28, 사용자 지적).
   return `<div class="pl-detbox" style="border-left-color:${color};">
-    ${threadHtml}
-    ${continuePrevHtml}
-    ${threadChildrenHtml}
-    ${continueNextHtml}
+    ${issueThreadHtml}
+    ${continueChainHtml}
     ${detfootHtml}
     ${commentsHtml}
+  </div>`;
+}
+// 이슈 스레드 노드 목록 — 이 로그가 이슈면 그 이슈 자신 + 달린 대응/해결 전부, 대응/해결이면
+// threadId로 원본 이슈를 찾아 같은 방식으로 구성한다. 혼자뿐이면(연결된 게 없으면) 안 보여준다.
+function _plIssueThreadNodes(log) {
+  const origin = log.threadId ? PL_LOGS.find(l => l.id === log.threadId) : log;
+  if (!origin) return [];
+  const children = PL_LOGS.filter(l => l.threadId === origin.id).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  const nodes = [origin, ...children];
+  return nodes.length > 1 ? nodes : [];
+}
+// 이어쓰기 체인 노드 목록 — continuedFromId를 따라 맨 처음 기록까지 거슬러 올라간 뒤, 거기서부터
+// 이어진 모든 기록을 시간순으로 모은다(예전엔 앞뒤 한 칸씩만 보여줬는데, 전체 흐름을 한 번에 보여주도록
+// 확장). 실수로 같은 기록에서 두 번 이어쓴 경우(가지가 갈라짐)도 전부 포함한다.
+function _plContinueChainNodes(log) {
+  let head = log;
+  const seen = new Set();
+  while (head.continuedFromId && !seen.has(head.id)) {
+    seen.add(head.id);
+    const prev = PL_LOGS.find(l => l.id === head.continuedFromId);
+    if (!prev) break;
+    head = prev;
+  }
+  const chain = [head];
+  const chainIds = new Set([head.id]);
+  let frontier = [head];
+  while (frontier.length) {
+    const nextFrontier = [];
+    frontier.forEach(node => {
+      PL_LOGS.filter(l => l.continuedFromId === node.id).forEach(n => {
+        if (!chainIds.has(n.id)) { chainIds.add(n.id); chain.push(n); nextFrontier.push(n); }
+      });
+    });
+    frontier = nextFrontier;
+  }
+  chain.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  return chain.length > 1 ? chain : [];
+}
+// 스레드/체인 공용 노드 렌더러 — 체크(✓)는 "이 기록"(펼친 카드 자신) 전용, 그 외는 색으로만
+// 구분한다(파란 채움=최신/진행중, 초록 채움=완료, 빈 회색=지나간 단계). 자기 자신이 아닌 노드는
+// 클릭하면 _plOpenIssueView로 그 기록의 내용을 바로 확인할 수 있다(2026-09-10, 미리보기로 확정).
+function _plThreadNodeHtml(n, selfId) {
+  const self = n.id === selfId;
+  const cls = ['tl-node'];
+  if (self) cls.push('is-self');
+  if (_plLogOpen(n)) cls.push('is-open');
+  if (n.progress != null && n.progress >= 100) cls.push('is-done');
+  const dateShort = _escHtml((n.logDate || '').slice(2).replace(/-/g, '.'));
+  const progHtml = n.progress != null ? `<span class="tl-prog">${n.progress}%</span>` : '';
+  const subHtml = (n.detail || []).filter(d => (d.text || '').trim()).map(d =>
+    `<div class="tl-sub"><span class="tl-sub-l">ㄴ${d.label ? ' ' + _escHtml(d.label) : ''}</span><span>${_escHtml(d.text)}</span></div>`
+  ).join('');
+  const clickAttr = self ? '' : ` style="cursor:pointer;" onclick="event.stopPropagation();_plOpenIssueView('${n.id}')"`;
+  return `<div class="${cls.join(' ')}">
+    <div class="tl-dot">${self ? '✓' : ''}</div>
+    <div class="tl-card"${clickAttr}>
+      <div class="tl-top"><span class="tl-date">${dateShort}</span><span class="badge pl-lg-${n.logType}">${_escHtml(n.logType)}</span>${progHtml}<span class="tl-writer">${_escHtml(n.writer || '')}</span></div>
+      <div class="tl-text">${_escHtml(n.summary || '')}</div>${subHtml}
+    </div>
   </div>`;
 }
 function _plRenderDetailRow(log, colspan, q) {
@@ -1823,7 +1876,7 @@ function _plRenderDetailRow(log, colspan, q) {
   return `<tr class="pl-lg-det"><td colspan="${colspan}">${_plDetailBoxHtml(log, q)}</td></tr>`;
 }
 // 대응/해결 기록에서 원본 이슈를 "확인"만 하고 싶을 때 수정 모달(작성 폼)을 여는 대신 쓰는 읽기 전용
-// 요약 모달 — 이슈 원문 + 그 이슈에 달린 모든 대응/해결 타임라인(_plDetailBoxHtml의 threadChildrenHtml)을
+// 요약 모달 — 이슈 원문 + 그 이슈에 달린 모든 대응/해결 타임라인(_plDetailBoxHtml의 🔗 관련 기록 섹션)을
 // 한 화면에서 보여준다. 실제로 손대야 하면 하단 "이슈 수정" 버튼으로 수정 모달로 넘어간다.
 // 이슈 자신뿐 아니라 그 밑에 달린 대응/해결 기록을 "확인"만 할 때도 재사용 — 로그 종류에 따라
 // 제목만 다르게 표시하고(이슈/대응/해결), 나머지(읽기 전용 상세박스+수정 버튼)는 동일하게 동작한다.
@@ -2940,6 +2993,7 @@ function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
   // 무관하게 항상 보여준다 — showMediaRow는 위쪽 구분선(isNewGroup) 표시에만 쓰인다.
   return `<div class="pl-item${isNewGroup ? ' pl-newgroup' : ''}" data-bi="${bi}" data-ii="${ii}">
     <div class="pl-media-row">${_plItemTargetField(block, bi, ii, it)}</div>
+    ${_plRefLogCardHtml(it.refLog)}
     <div class="pl-irow">
       <select class="pl-mini" style="font-weight:700;" onchange="_plItemTypeChange(${bi},${ii},this.value)">${typeOpts}</select>
       <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(ph)}" value="${_escHtml(it.summary || '')}"
@@ -2954,6 +3008,18 @@ function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
   </div>`;
 }
 
+// 이어쓰기로 만들어진 항목(it.refLog)에만 보이는, 이전 기록의 읽기전용 참조 카드 — 새 항목은
+// 이제 빈 칸에서 시작하므로, "무엇을 이어쓰는지" 잊지 않도록 위에 고정으로 띄워둔다.
+function _plRefLogCardHtml(refLog) {
+  if (!refLog) return '';
+  const dateShort = _escHtml((refLog.logDate || '').slice(2).replace(/-/g, '.'));
+  const progHtml = refLog.progress != null ? `<span class="pl-ref-prog">${refLog.progress}%</span>` : '';
+  return `<div class="pl-ref-card">
+    <div class="pl-ref-label">🔒 이전 기록 · 참고용, 수정 불가</div>
+    <div class="pl-ref-top"><span class="f-mono">${dateShort}</span><span class="badge pl-lg-${refLog.logType}">${_escHtml(refLog.logType || '')}</span>${progHtml}</div>
+    <div class="pl-ref-text">${_escHtml(refLog.summary || '')}</div>
+  </div>`;
+}
 function _plRenderSubHtml(bi, ii, di, d, logType) {
   const preset = PL_LABEL_PRESET[logType] || { opts: [] };
   const isCustom = !!d.customMode || (!!d.label && !preset.opts.includes(d.label));
@@ -3233,11 +3299,10 @@ function _plContinueFromLog(logId) {
     media: log.scope === 'media' ? (log.media || null) : null,
   });
   block.items[0].logType = log.logType || '운영';
-  block.items[0].progress = log.progress != null ? String(log.progress) : '';
-  // 원본 내용도 그대로 불러와서, 매번 처음부터 다시 타이핑하지 않고 그 자리에서 고쳐 쓸 수 있게 한다
-  // (예: 진척률만 30%→50%로 바뀐 거면 요약은 거의 그대로 두고 숫자만 손보면 됨).
-  block.items[0].summary = log.summary || '';
-  block.items[0].detail = (log.detail || []).map(d => ({ label: d.label || '', text: d.text || '' }));
+  // 예전엔 이전 내용(요약·하위기록·진척률)을 그대로 입력창에 불러와서 그 위에 고쳐 쓰게 했는데,
+  // 이전/새 내용이 같은 입력창에 섞여 헷갈린다는 지적으로 방식을 바꿨다 — 이전 기록은 읽기전용
+  // 참조(refLog)로만 보여주고, 새 항목은 완전히 빈 칸에서 시작한다(2026-09-10, 미리보기로 확정).
+  block.items[0].refLog = { logDate: log.logDate, logType: log.logType, progress: log.progress, summary: log.summary, writer: log.writer };
   if (log.scope !== 'media') block.items[0].media = log.media || null;
   // 원본이 참조 캠페인 여러 개에 걸려있었으면 그것도 그대로 이어받는다 — 안 그러면 이어쓰기할 때마다
   // 조용히 빠져서, 원본이 참조로 걸려있던 캠페인 상세에는 최신 진행상황이 안 보이게 된다.
