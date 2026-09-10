@@ -461,14 +461,38 @@ function _plUpdateTabButtons() {
   });
 }
 function plRenderActiveTab() {
-  if (PL_STATE.tab === 'advertiser') return plRenderAdvertiserTab();
-  if (PL_STATE.tab === 'campaign') return plRenderCampaignTab();
-  if (PL_STATE.tab === 'media') return plRenderMediaTab();
-  if (PL_STATE.tab === 'date') return plRenderDateTab();
-  if (PL_STATE.tab === 'mine') return plRenderMineTab();
-  if (PL_STATE.tab === 'internal') return plRenderInternalTab();
-  return plRenderLogTab();
+  if (PL_STATE.tab === 'advertiser') plRenderAdvertiserTab();
+  else if (PL_STATE.tab === 'campaign') plRenderCampaignTab();
+  else if (PL_STATE.tab === 'media') plRenderMediaTab();
+  else if (PL_STATE.tab === 'date') plRenderDateTab();
+  else if (PL_STATE.tab === 'mine') plRenderMineTab();
+  else if (PL_STATE.tab === 'internal') plRenderInternalTab();
+  else plRenderLogTab();
+  // 표가 좁은 화면/확대 배율에서 컬럼이 잘려 보이는 대신, 정산·KPI 화면과 같은 방식(플로팅
+  // 가로스크롤바)으로 화면 하단에 스크롤바를 띄운다 — 탭이 뭐든 렌더 직후 한 번씩 동기화
+  // (2026-09-10, 사용자 요청).
+  setTimeout(_plSyncFakeScroll, 0);
 }
+/** 프로젝트일지 표 플로팅 가로스크롤바 동기화 (정산의 _stlSyncFakeScroll과 동일 패턴) */
+function _plSyncFakeScroll() {
+  const fake  = document.getElementById('pl-fake-scroll');
+  const inner = document.getElementById('pl-fake-inner');
+  if (!fake || !inner) return;
+  const wrap = document.querySelector('#pl-tab-content .table-wrap');
+  if (!wrap || !document.getElementById('screen-projectlog')?.classList.contains('active')) { fake.style.display = 'none'; return; }
+  // 스크롤할 게 없으면(표가 화면 폭 안에 다 들어오면) 굳이 안 보여준다.
+  if (wrap.scrollWidth <= wrap.clientWidth + 1) { fake.style.display = 'none'; return; }
+  // display:none 상태에선 clientWidth=0이므로 먼저 표시 후 너비 계산
+  fake.style.display = '';
+  // fake는 .main 전체 너비, wrap은 .content 패딩 안쪽 너비 → 차이만큼 inner 너비 보정
+  const widthDiff = fake.clientWidth - wrap.clientWidth;
+  inner.style.width = (wrap.scrollWidth + widthDiff) + 'px';
+  fake.onscroll = () => { wrap.scrollLeft = fake.scrollLeft; };
+  wrap.onscroll = () => { fake.scrollLeft = wrap.scrollLeft; };
+}
+window.addEventListener('resize', () => {
+  if (document.getElementById('screen-projectlog')?.classList.contains('active')) _plSyncFakeScroll();
+});
 
 // ══════════════════════════════════════════════════════════
 // C-2. 나의 일지 — 작성한 일지 + 댓글에서 멘션된 일지, 두 섹션으로 분리

@@ -1277,6 +1277,10 @@ function goScreen(name, skipPush) {
     const kfs = document.getElementById('kpi-fake-scroll');
     if (kfs) kfs.style.display = 'none';
   }
+  if (name !== 'projectlog') {
+    const pfs = document.getElementById('pl-fake-scroll');
+    if (pfs) pfs.style.display = 'none';
+  }
   window.scrollTo({ top: 0, behavior: 'instant' });
   const contentEl = document.querySelector('.content');
   if (contentEl) contentEl.scrollTop = 0;
