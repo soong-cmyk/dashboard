@@ -2444,7 +2444,7 @@ function _plEmptyBlock(extra) {
 
 // ── 진입점 — 프리필(특정 대상 지정)이면 항상 새 블록으로 시작하고, 아니면 모달을 닫아도 메모리에
 // 남아있는 이전 draft를 이어서 보여준다(새로고침하면 사라짐 — 페이지 벗어나도 유지되는 영구저장은 아님).
-function plOpenWrite(prefill) {
+function plOpenWrite(prefill, skipFocus) {
   if (prefill) {
     _plDraft = { blocks: [_plEmptyBlock(prefill)] };
   } else if (!_plDraft.blocks.length) {
@@ -2462,7 +2462,11 @@ function plOpenWrite(prefill) {
   _plRenderWriteContinuePanel();
   openModal('pl-modal-write');
 
-  // 대상이 이미 정해진 프리필(캠페인/광고주 상세발)이면 바로 내용 입력칸에, 아니면 대상 검색창에 포커스
+  // 대상이 이미 정해진 프리필(캠페인/광고주 상세발)이면 바로 내용 입력칸에, 아니면 대상 검색창에 포커스.
+  // skipFocus는 이어쓰기 진입(plOpenContinueFromLog)처럼 이후 코드가 대상을 자동으로 채울 때 쓴다 —
+  // 대상 검색창에 포커스가 가면 onfocus로 콤보 제안 목록이 뜨는데, 어차피 곧바로 채워질 값이라
+  // 그 목록이 잠깐 떴다 사라지는 게 불필요하고 거슬린다(2026-09-10, 사용자 리포트).
+  if (skipFocus) return;
   setTimeout(() => {
     if (prefill) {
       document.querySelector('#pl-w-blocks .pl-irow input.pl-mini:not(.pl-pct)')?.focus();
@@ -3264,7 +3268,7 @@ function _plBlockIsEmpty(block) {
 function plOpenContinueFromLog(logId) {
   const log = PL_LOGS.find(l => l.id === logId);
   if (!log) { toast('일지를 찾을 수 없습니다', 'err'); return; }
-  if (!_plContinueOpenIssue(log)) plOpenWrite();
+  if (!_plContinueOpenIssue(log)) plOpenWrite(null, true);
   _plContinueFromLog(logId);
 }
 
