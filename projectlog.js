@@ -452,15 +452,16 @@ function _plRenderShell() {
   // 엑셀 업로드는 대량 쓰기라 관리자·지정 사용자만 노출
   const xlsxBtn = document.getElementById('pl-btn-xlsx');
   if (xlsxBtn) xlsxBtn.style.display = (currentUser?.isAdmin || currentUser?.id === 'soongeun') ? '' : 'none';
-  // '일자별' 탭은 younghyun 전용 — 그 외 사용자는 탭 버튼을 아예 숨기고, 기본 진입 탭이었던
-  // 'date'였으면(PL_STATE 기본값) '일지' 탭으로 대신 진입시킨다(2026-09-10, 사용자 요청).
+  // '일자별' 탭은 younghyun 전용(관리자는 항상 예외 — pl-btn-xlsx와 동일한 관례) — 그 외
+  // 사용자는 탭 버튼을 아예 숨기고, 기본 진입 탭이었던 'date'였으면(PL_STATE 기본값) '일지'
+  // 탭으로 대신 진입시킨다(2026-09-10, 사용자 요청).
   const dateBtn = document.getElementById('pl-vt-date');
   if (dateBtn) dateBtn.style.display = _plCanViewDateTab() ? '' : 'none';
   if (PL_STATE.tab === 'date' && !_plCanViewDateTab()) PL_STATE.tab = 'log';
   _plUpdateTabButtons();
   plRenderActiveTab();
 }
-function _plCanViewDateTab() { return currentUser?.id === 'younghyun'; }
+function _plCanViewDateTab() { return !!currentUser?.isAdmin || currentUser?.id === 'younghyun'; }
 function _plUpdateTabButtons() {
   ['advertiser', 'campaign', 'log', 'media', 'date', 'mine', 'internal'].forEach(t => {
     document.getElementById(`pl-vt-${t}`)?.classList.toggle('active', PL_STATE.tab === t);
