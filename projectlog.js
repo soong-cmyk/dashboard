@@ -38,6 +38,9 @@ const PL_LOG_TYPES = ['운영', '요청', '제안', '이슈', '대응', '결과'
 // "시스템제약"은 뜻이 더 와닿는 "매체정보"로 표시만 바꾸고, 저장되는 값(logType)은 기존과 동일하게
 // "시스템제약"을 그대로 써서 매체 지식 자동 집계 등 기존 로직과 어긋나지 않게 한다(2026-09-10, 사용자 요청).
 const PL_LOG_TYPES_QUICK = ['운영', '이슈', '시스템제약'];
+// '일지' 탭 유형 필터는 검색 용도라 작성 화면보다 조금 더 넓게 — 요청/제안/대응/결과까지 포함한
+// 7개(2026-09-10, 사용자 요청).
+const PL_LOG_TYPES_FILTER = ['운영', '요청', '제안', '이슈', '대응', '결과', '시스템제약'];
 const PL_LOG_TYPE_DISPLAY = { 시스템제약: '매체정보' };
 function _plTypeLabel(t) { return PL_LOG_TYPE_DISPLAY[t] || t; }
 
@@ -819,7 +822,7 @@ function _plRenderInternalLogRow(log) {
     <td class="pl-lg-arrow">${arrow}</td>
     <td class="f-mono td-num">${dateShort}</td>
     <td>${log.content ? _escHtml(log.content) : '<span class="td-dim">—</span>'}</td>
-    <td><span class="badge pl-lg-${log.logType}">${_escHtml(log.logType)}</span></td>
+    <td><span class="badge pl-lg-${log.logType}">${_escHtml(_plTypeLabel(log.logType))}</span></td>
     <td><div>${starHtml}${_escHtml(log.summary || '')}${attachIconsHtml}${stateHtml}${cmtBadgeHtml}</div>${subLinesHtml}</td>
     <td class="td-c">${progHtml}</td>
     <td>${_escHtml(log.writer || '—')}</td>
@@ -1162,7 +1165,7 @@ function _plRenderCampaignLogRow(log, isRef) {
   const rowHtml = `<tr class="pl-lg-head" onclick="_plToggleRowGuarded(event,'${log.id}','camp')" style="cursor:pointer;">
     <td class="pl-lg-arrow">${arrow}</td>
     <td class="f-mono td-num">${dateShort}</td>
-    <td><span class="badge pl-lg-${log.logType}">${_escHtml(log.logType)}</span></td>
+    <td><span class="badge pl-lg-${log.logType}">${_escHtml(_plTypeLabel(log.logType))}</span></td>
     <td>${starHtml}${_escHtml(log.summary || '')}${refNoteHtml}${stateHtml}${cmtBadgeHtml}</td>
     <td class="td-c">${progHtml}</td>
     <td>${_escHtml(log.writer || '—')}</td>
@@ -1895,7 +1898,7 @@ function _plThreadNodeHtml(n, selfId) {
   return `<div class="${cls.join(' ')}">
     <div class="tl-dot">${self ? '✓' : ''}</div>
     <div class="tl-card"${clickAttr}>
-      <div class="tl-top"><span class="tl-date">${dateShort}</span><span class="badge pl-lg-${n.logType}">${_escHtml(n.logType)}</span>${progHtml}<span class="tl-writer">${_escHtml(n.writer || '')}</span></div>
+      <div class="tl-top"><span class="tl-date">${dateShort}</span><span class="badge pl-lg-${n.logType}">${_escHtml(_plTypeLabel(n.logType))}</span>${progHtml}<span class="tl-writer">${_escHtml(n.writer || '')}</span></div>
       <div class="tl-text">${_escHtml(n.summary || '')}</div>${subHtml}
     </div>
   </div>`;
@@ -2364,7 +2367,7 @@ function _plRenderLogRow(log, q, ctx) {
     <td>${projCell}</td>
     <td>${campCell}</td>
     <td>${mediaCell}</td>
-    <td><span class="badge pl-lg-${log.logType}">${_escHtml(log.logType)}</span></td>
+    <td><span class="badge pl-lg-${log.logType}">${_escHtml(_plTypeLabel(log.logType))}</span></td>
     <td><div>${starHtml}${contentHtml}${_plContinueChainBadgeHtml(log)}${attachIconsHtml}${stateHtml}${lateHtml}${cmtBadgeHtml}</div>${subLinesHtml}</td>
     <td class="td-c" style="vertical-align:middle;">${progHtml}</td>
     <td>${_escHtml(log.writer || '—')}</td>
@@ -2396,7 +2399,7 @@ function _plRenderRows() {
   const typeCounts = {};
   filtered.forEach(l => { typeCounts[l.logType] = (typeCounts[l.logType] || 0) + 1; });
   const topTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 4)
-    .map(([t, n]) => `${t} ${n}`).join(' · ');
+    .map(([t, n]) => `${_plTypeLabel(t)} ${n}`).join(' · ');
   const cntEl = document.getElementById('pl-log-count');
   if (cntEl) cntEl.innerHTML = `<b>${filtered.length}</b>건${topTypes ? ' · ' + _escHtml(topTypes) : ''}`;
 
@@ -2481,7 +2484,7 @@ function _plBuildLogTabSkeleton(container) {
   _plLogRenderWriterChips();
 
   const typeSel = document.getElementById('pl-f-type');
-  if (typeSel) typeSel.innerHTML = '<option value="">유형 전체</option>' + PL_LOG_TYPES_QUICK.map(t => `<option value="${t}">${_plTypeLabel(t)}</option>`).join('');
+  if (typeSel) typeSel.innerHTML = '<option value="">유형 전체</option>' + PL_LOG_TYPES_FILTER.map(t => `<option value="${t}">${_plTypeLabel(t)}</option>`).join('');
   const orgSel = document.getElementById('pl-f-org');
   if (orgSel) orgSel.innerHTML = '<option value="">본부/팀 전체</option>' + _buildOrgSelectHTML();
 }
@@ -3032,7 +3035,7 @@ function _plRefLogCardHtml(refLog) {
   const progHtml = refLog.progress != null ? `<span class="pl-ref-prog">${refLog.progress}%</span>` : '';
   return `<div class="pl-ref-card">
     <div class="pl-ref-label">🔒 이전 기록 · 참고용, 수정 불가</div>
-    <div class="pl-ref-top"><span class="f-mono">${dateShort}</span><span class="badge pl-lg-${refLog.logType}">${_escHtml(refLog.logType || '')}</span>${progHtml}</div>
+    <div class="pl-ref-top"><span class="f-mono">${dateShort}</span><span class="badge pl-lg-${refLog.logType}">${_escHtml(_plTypeLabel(refLog.logType || ''))}</span>${progHtml}</div>
     <div class="pl-ref-text">${_escHtml(refLog.summary || '')}</div>
   </div>`;
 }
@@ -3242,7 +3245,7 @@ function _plRenderWriteContinuePanel() {
         <span class="f-mono" style="font-size:10.5px;color:var(--text3);">${_escHtml((l.logDate || '').slice(2).replace(/-/g, '.'))}</span>
         <span style="font-size:11px;font-weight:700;color:var(--accent);">${l.progress}%</span>
       </div>
-      <div style="font-size:12px;font-weight:600;margin-bottom:3px;"><span class="badge pl-lg-${l.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(l.logType)}</span>${_plDateBlockLabel({ scope: l.scope, seller: l.seller, content: l.content, campaignId: l.campaignId, media: l.media })}</div>
+      <div style="font-size:12px;font-weight:600;margin-bottom:3px;"><span class="badge pl-lg-${l.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(_plTypeLabel(l.logType))}</span>${_plDateBlockLabel({ scope: l.scope, seller: l.seller, content: l.content, campaignId: l.campaignId, media: l.media })}</div>
       <div style="font-size:11.5px;color:var(--text2);margin-bottom:6px;white-space:pre-line;">${_escHtml(l.summary || '')}</div>
       <button class="btn btn-outline btn-sm" style="width:100%;" onclick="_plContinueFromLog('${l.id}')">${contBtnLabel}</button>
     </div>
@@ -4299,7 +4302,7 @@ function _plRenderEditModal() {
     const camp = d.campaignId ? DATA.find(c => c.id === d.campaignId) : null;
     const campTag = d.campaignId ? `<span class="tag f-mono">${_escHtml(d.campaignId)}${camp ? ' · ' + _escHtml((camp.date || '').slice(5, 10).replace('-', '.')) : ''}</span>` : '';
     const mediaTag = d.media ? `<span class="tag pl-media">${_escHtml(d.media)}</span>` : '';
-    badgeEl.innerHTML = `<span class="badge pl-lg-${d.logType}">${_escHtml(d.logType)}</span>${stateBadge}${starBadge}${sellerTag}${projTag}${campTag}${mediaTag}`;
+    badgeEl.innerHTML = `<span class="badge pl-lg-${d.logType}">${_escHtml(_plTypeLabel(d.logType))}</span>${stateBadge}${starBadge}${sellerTag}${projTag}${campTag}${mediaTag}`;
   }
   const blockEl = document.getElementById('pl-e-block');
   if (blockEl) {
@@ -6157,7 +6160,7 @@ function _plDateItemHtml(l, hideMediaTag) {
     <div style="display:flex;align-items:flex-start;gap:4px;cursor:pointer;" onclick="_plToggleRowGuarded(event,'${l.id}','date')">
       <span style="flex-shrink:0;font-size:10px;color:var(--text3);width:12px;">${arrow}</span>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;">${starHtml}<span class="badge pl-lg-${l.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(l.logType)}</span>${mediaHtml}${_escHtml(l.summary || '')}${_plContinueChainBadgeHtml(l)}${progText}${attachIconsHtml}</div>
+        <div style="font-size:13px;">${starHtml}<span class="badge pl-lg-${l.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(_plTypeLabel(l.logType))}</span>${mediaHtml}${_escHtml(l.summary || '')}${_plContinueChainBadgeHtml(l)}${progText}${attachIconsHtml}</div>
         ${subHtml}
       </div>
     </div>
