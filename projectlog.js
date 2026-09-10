@@ -758,7 +758,7 @@ function _plRenderInternalLogRow(log) {
   const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
   const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : ((log.progress != null && log.progress >= 100) ? ' <span class="pl-st-done">완료</span>' : '');
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
-  const attachIconsHtml = (log.hasImages ? `<span id="pl-imgcnt-${log.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '')
+  const attachIconsHtml = (log.hasImages ? `<span id="pl-imgcnt-${log.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">🖼️${log.imageCount || ''}</span>` : '')
     + ((log.links && log.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${log.links.length}개">🔗${log.links.length}</span>` : '')
     // 공유폴더 경로(attachPath)만 입력하고 이미지는 없는 경우, 접힌 목록 줄에는 표시가 하나도 안 남아
     // "첨부를 입력했는데 어디에도 안 보인다"는 리포트로 이어졌다(2026-09-10) — 별도 아이콘으로 존재만 표시.
@@ -1683,7 +1683,7 @@ function _plEnsureImageCountBadge(logId) {
     if (log) log.imageCount = images.length;
     ['pl-imgcnt-', 'pl-detimgcnt-'].forEach(prefix => {
       const el = document.getElementById(`${prefix}${logId}`);
-      if (el) el.textContent = `📁${images.length || ''}`;
+      if (el) el.textContent = `🖼️${images.length || ''}`;
     });
   });
 }
@@ -1694,7 +1694,7 @@ function _plEnsureImageCountBadge(logId) {
 function _plDetailBoxHtml(log, q, compact, readOnly) {
   const links = (log.links || []).map((l, li) => `<span class="tag" style="cursor:pointer;" onclick="event.stopPropagation();_plOpenDetailLink('${log.id}',${li})" title="새 탭에서 열기">🔗 ${_escHtml(l.label || l.url || '')}</span>`).join(' ');
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
-  const imgNote = log.hasImages ? `<span id="pl-detimgcnt-${log.id}" class="pl-thumb" style="cursor:zoom-in;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '';
+  const imgNote = log.hasImages ? `<span id="pl-detimgcnt-${log.id}" class="pl-thumb" style="cursor:zoom-in;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">🖼️${log.imageCount || ''}</span>` : '';
   // hover 없이도 어떤 캠페인인지 바로 알 수 있게 "c-2026-0000(매체명 상품명)" 형태로 풀어서 표기.
   const refCampHtml = (log.refCampaignIds || []).map(cid => {
     const c = DATA.find(x => x.id === cid);
@@ -2222,7 +2222,7 @@ function _plRenderLogRow(log, q, ctx) {
   const lateHtml = isLate ? ' <span class="pl-st-late">소급</span>' : '';
   // 내용 첫 줄 끝에 첨부/링크 여부만 아이콘으로 표시 — 펼치지 않아도 있는지 정도는 바로 보이게
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
-  const attachIconsHtml = (log.hasImages ? `<span id="pl-imgcnt-${log.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">📁${log.imageCount || ''}</span>` : '')
+  const attachIconsHtml = (log.hasImages ? `<span id="pl-imgcnt-${log.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">🖼️${log.imageCount || ''}</span>` : '')
     + ((log.links && log.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${log.links.length}개">🔗${log.links.length}</span>` : '')
     // 공유폴더 경로(attachPath)만 입력하고 이미지는 없는 경우, 접힌 목록 줄에는 표시가 하나도 안 남아
     // "첨부를 입력했는데 어디에도 안 보인다"는 리포트로 이어졌다(2026-09-10) — 별도 아이콘으로 존재만 표시.
@@ -3397,7 +3397,7 @@ function _plRenderItemAttachSection(bi, ii, it) {
     inner = `<div style="padding:8px 4px 2px;display:flex;flex-direction:column;gap:8px;">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <span class="form-hint" style="width:36px;">이미지</span>${imgsHtml}
-        <label class="tag" style="cursor:pointer;border-style:dashed;color:var(--text3);">📁 첨부<input type="file" accept="image/*" multiple style="display:none;" onchange="_plItemImgFileSelect(${bi},${ii},this)"></label>
+        <label class="tag" style="cursor:pointer;border-style:dashed;color:var(--text3);">🖼️ 첨부<input type="file" accept="image/*" multiple style="display:none;" onchange="_plItemImgFileSelect(${bi},${ii},this)"></label>
         <span class="pl-paste-zone" tabindex="0" style="border:1px dashed var(--border2);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--text3);cursor:text;outline:none;" onfocus="_plLastFocusedItem={bi:${bi},ii:${ii}}" onclick="this.focus()">여기 클릭 후 Ctrl+V</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span class="form-hint" style="width:36px;">링크</span>${linksHtml}<span class="tag" style="cursor:pointer;border-style:dashed;color:var(--text3);" onclick="_plAddLink(${bi},${ii})">＋ 링크</span></div>
@@ -4157,7 +4157,7 @@ function _plEditAttachHtml() {
     <div style="display:flex;align-items:center;gap:8px;"><label class="form-label" style="width:70px;">매체</label>${mediaField}</div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <label class="form-label" style="width:70px;">이미지</label>${imgsHtml}
-      <label class="tag pl-edit-addbtn" style="cursor:pointer;border-style:dashed;color:var(--text3);">📁 첨부<input type="file" accept="image/*" multiple style="display:none;" onchange="_plEditImgFileSelect(this)"></label>
+      <label class="tag pl-edit-addbtn" style="cursor:pointer;border-style:dashed;color:var(--text3);">🖼️ 첨부<input type="file" accept="image/*" multiple style="display:none;" onchange="_plEditImgFileSelect(this)"></label>
       <span class="pl-paste-zone" tabindex="0" style="border:1px dashed var(--border2);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--text3);cursor:text;outline:none;" onclick="this.focus()">여기 클릭 후 Ctrl+V</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><label class="form-label" style="width:70px;">링크</label>${linksHtml}<span class="tag pl-edit-addbtn" style="cursor:pointer;border-style:dashed;color:var(--text3);" onclick="_plEditAddLink()">＋ 링크</span></div>
@@ -6046,7 +6046,7 @@ function _plDateBlockLabel(b) {
 }
 // "일지" 탭 테이블 행과 동일한 상호작용으로 통일 — 클릭하면 펼쳐지고, 펼친 내용(_plDetailBoxHtml)에
 // 링크·댓글·수정 버튼이 다 들어있다. 링크/댓글 아이콘은 "몇 개 있는지" 힌트만 주고(탭 테이블 행과 동일하게
-// 클릭 불가), 이미지만 라이트박스로 바로 열리는 지름길을 유지한다(탭 테이블 행의 📁과 동일한 예외).
+// 클릭 불가), 이미지만 라이트박스로 바로 열리는 지름길을 유지한다(탭 테이블 행의 🖼️와 동일한 예외).
 function _plDateItemHtml(l, hideMediaTag) {
   // 인라인 수정 중인 항목은 원본 요약 줄(더미)을 아예 그리지 않는다 — 수정 폼 자체에 이미 같은
   // 내용이 입력값으로 남아있어서, 위에 원본을 또 보여주면 같은 정보가 두 번 겹쳐 보이기만 함.
@@ -6078,7 +6078,7 @@ function _plDateItemHtml(l, hideMediaTag) {
     </div>`
   ).join('') + _plQuickAddTailHtml(l.id, 'date');
   if (l.hasImages && l.imageCount == null) _plEnsureImageCountBadge(l.id);
-  const attachIconsHtml = (l.hasImages ? `<span id="pl-imgcnt-${l.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;vertical-align:middle;" onclick="event.stopPropagation();_plOpenLogImages('${l.id}')" title="첨부 이미지 — 클릭하여 보기">📁${l.imageCount || ''}</span>` : '')
+  const attachIconsHtml = (l.hasImages ? `<span id="pl-imgcnt-${l.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;vertical-align:middle;" onclick="event.stopPropagation();_plOpenLogImages('${l.id}')" title="첨부 이미지 — 클릭하여 보기">🖼️${l.imageCount || ''}</span>` : '')
     + ((l.links && l.links.length) ? `<span style="font-size:11px;margin-left:4px;vertical-align:middle;" title="링크 ${l.links.length}개">🔗${l.links.length}</span>` : '')
     + ((l.attachPath || l.attachName) ? `<span style="font-size:11px;margin-left:4px;vertical-align:middle;" title="첨부 경로: ${_escHtml(l.attachPath || l.attachName || '')}">📎</span>` : '')
     + `<span id="pl-cmt-badge-${l.id}" style="vertical-align:middle;">${_plCommentBadgeHtml(l.id)}</span>`;
