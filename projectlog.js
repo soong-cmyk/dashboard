@@ -452,9 +452,15 @@ function _plRenderShell() {
   // 엑셀 업로드는 대량 쓰기라 관리자·지정 사용자만 노출
   const xlsxBtn = document.getElementById('pl-btn-xlsx');
   if (xlsxBtn) xlsxBtn.style.display = (currentUser?.isAdmin || currentUser?.id === 'soongeun') ? '' : 'none';
+  // '일자별' 탭은 younghyun 전용 — 그 외 사용자는 탭 버튼을 아예 숨기고, 기본 진입 탭이었던
+  // 'date'였으면(PL_STATE 기본값) '일지' 탭으로 대신 진입시킨다(2026-09-10, 사용자 요청).
+  const dateBtn = document.getElementById('pl-vt-date');
+  if (dateBtn) dateBtn.style.display = _plCanViewDateTab() ? '' : 'none';
+  if (PL_STATE.tab === 'date' && !_plCanViewDateTab()) PL_STATE.tab = 'log';
   _plUpdateTabButtons();
   plRenderActiveTab();
 }
+function _plCanViewDateTab() { return currentUser?.id === 'younghyun'; }
 function _plUpdateTabButtons() {
   ['advertiser', 'campaign', 'log', 'media', 'date', 'mine', 'internal'].forEach(t => {
     document.getElementById(`pl-vt-${t}`)?.classList.toggle('active', PL_STATE.tab === t);
@@ -1406,6 +1412,8 @@ function _plProjectNamesRecent() { return _plSortByRecentLog(_plProjectNames(), 
 function _plMediaNamesRecent()   { return _plSortByRecentLog(_plMediaNames(),   l => l.media); }
 
 function plSwitchTab(name) {
+  // 히스토리 복원(#projectlog, plTab:'date')이나 직접 호출로 우회 진입하는 것도 막는다.
+  if (name === 'date' && !_plCanViewDateTab()) name = 'log';
   PL_STATE.tab = name;
   // 탭 버튼을 누르면(지금 그 탭의 상세화면을 보고 있던 중이어도) 항상 그 탭의 목록 초기화면으로
   // 돌아간다 — 광고주/매체/내부업무 전부 동일하게. 상세화면 진입은 plOpenAdvertiserDetail 등
