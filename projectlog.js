@@ -3072,10 +3072,9 @@ function _plItemTypeChange(bi, ii, val) {
   const it = _plDraft.blocks[bi]?.items[ii];
   if (!it) return;
   it.logType = val;
-  const preset = PL_LABEL_PRESET[val];
-  if (preset && preset.auto.length && (!it.detail || it.detail.length === 0)) {
-    it.detail = preset.auto.map(label => ({ label, text: '' }));
-  }
+  // 이슈/회고를 고르면 "상황/원인/영향" 등 3개짜리 ㄴ 추가 줄을 자동으로 만들어주던 동작을
+  // 없앴다 — 작성 화면엔 라벨 선택 UI 자체가 없어져서(2026-09-10) 왜 빈 칸 3개가 갑자기
+  // 생기는지 알 수 없었고, 필요하면 "ㄴ 추가"로 직접 만들면 된다(2026-09-10, 사용자 요청).
   _plRenderWriteModal();
 }
 // 항목/매체·캠페인/블록 추가 버튼을 눌렀을 때 새로 생긴 게 뭔지 눈에 잘 안 띈다는 피드백 —
