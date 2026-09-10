@@ -408,8 +408,10 @@ function plInit() {
   _plWatchComments();
   _plWatchGoals();
   _plWatchInternalTasks();
-  // 사이드바 메뉴로 진입할 때는 항상 일자별 탭부터. 내부에서 특정 탭 지정 시(_plPendingTab)에만 그 탭으로.
-  PL_STATE.tab = _plPendingTab || 'date';
+  // 사이드바 메뉴로 진입할 때는 일자별 탭부터 — 단, 관리자는 '일지' 탭이 기본(2026-09-10, 사용자
+  // 요청). 일자별 탭 자체는 여전히 볼 수 있고(_plCanViewDateTab), 처음 들어왔을 때 보이는 탭만 다름.
+  // 내부에서 특정 탭 지정 시(_plPendingTab)에는 그 탭이 항상 우선.
+  PL_STATE.tab = _plPendingTab || (currentUser?.isAdmin ? 'log' : 'date');
   PL_STATE.advDetailCompany = null;
   _plPendingTab = null;
   // 메뉴에 다시 들어올 때마다 일자별 탭이 지난번에 보던 날짜·필터에 머물러 있지 않고 항상 오늘부터
