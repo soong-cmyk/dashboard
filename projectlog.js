@@ -4109,10 +4109,6 @@ function _plEditExtraTypeChange(ei, val) {
   const it = _plEditDraft?.extraItems[ei];
   if (!it) return;
   it.logType = val;
-  const preset = PL_LABEL_PRESET[val];
-  if (preset && preset.auto.length && (!it.detail || it.detail.length === 0)) {
-    it.detail = preset.auto.map(label => ({ label, text: '' }));
-  }
   _plEditRerender();
 }
 function _plEditExtraAddSub(ei) {
@@ -4134,10 +4130,6 @@ function _plEditField(field, val) { if (_plEditDraft) _plEditDraft[field] = val;
 function _plEditSubField(di, field, val) { const d = _plEditDraft?.detail[di]; if (d) d[field] = val; }
 function _plEditTypeChange(val) {
   _plEditDraft.logType = val;
-  const preset = PL_LABEL_PRESET[val];
-  if (preset && preset.auto.length && (!_plEditDraft.detail || _plEditDraft.detail.length === 0)) {
-    _plEditDraft.detail = preset.auto.map(label => ({ label, text: '' }));
-  }
   _plEditRerender();
 }
 function _plEditAddSub() {
