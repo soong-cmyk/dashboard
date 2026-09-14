@@ -257,6 +257,15 @@ function checkAuth() {
 // script.js만 보면 projectlog.js/report.js/index.html/style.css만 바뀐 배포는 감지를 못 하므로
 // 실제 배포되는 정적 파일을 전부 감시한다.
 const _DEPLOY_WATCH_FILES = ['index.html', 'script.js', 'report.js', 'projectlog.js', 'style.css'];
+// 새로고침 직전 console.log는 개발자도구 "Preserve log"가 꺼져있으면(기본값) 새로고침과 동시에
+// 지워져버려서 못 본다 — localStorage에도 같이 남기고, 다음 로드 때 한 번 콘솔에 다시 찍어준다
+// (2026-09-14, 사용자 요청 — 배포감지 새로고침 기록을 나중에도 확인하고 싶다는 요청).
+(function _plReportPastDeployReload() {
+  const raw = localStorage.getItem('_deployReloadLog');
+  if (!raw) return;
+  localStorage.removeItem('_deployReloadLog');
+  try { console.log('[deploy] 직전 로드에서 파일 변경 감지로 새로고침됨', JSON.parse(raw)); } catch (e) {}
+})();
 async function _checkDeployVersion() {
   // file:// 로 직접 열어서 로컬 테스트할 땐 fetch가 CORS로 무조건 막혀서(브라우저가 콘솔에
   // 에러를 대량으로 찍음) 이 체크 자체가 의미 없다 — 실제 배포(http/https)에서만 동작하면 된다.
@@ -266,15 +275,22 @@ async function _checkDeployVersion() {
       const res = await fetch(file, { method: 'HEAD', cache: 'no-store' });
       return { file, tag: res.headers.get('etag') || res.headers.get('last-modified') };
     }));
-    let changed = false;
+    const changedFiles = [];
     for (const { file, tag } of results) {
       if (!tag) continue; // 식별자를 못 얻은 파일은 스킵(안전하게 새로고침 생략)
       const key = '_deployTag_' + file;
       const prevTag = localStorage.getItem(key);
       localStorage.setItem(key, tag);
-      if (prevTag && prevTag !== tag) changed = true;
+      if (prevTag && prevTag !== tag) changedFiles.push({ file, prevTag, tag });
     }
-    if (changed) {
+    if (changedFiles.length) {
+      // 어떤 파일이 왜 새로고침을 유발했는지 나중에 찾아볼 수 있게 콘솔에 남긴다(2026-09-14,
+      // 사용자 요청 — 새로고침이 배포 감지 때문인지 확인할 방법이 없었음). 이 로그 직후 바로
+      // reload()가 실행되므로, "Preserve log" 꺼져있으면 사라진다 — localStorage에도 남겨서
+      // 새로고침 직후 로드 시(_plReportPastDeployReload) 다시 한번 콘솔에 찍히게 한다.
+      const logEntry = { time: new Date().toISOString(), changedFiles };
+      console.log('[deploy] 파일 변경 감지 → 새로고침', logEntry);
+      localStorage.setItem('_deployReloadLog', JSON.stringify(logEntry));
       // 예전엔 여기서 해시를 무조건 #dashboard로 덮어썼는데, 그러면 배포 직후(자주 있는 일)
       // #pljump/#taxjump/#detail 같은 딥링크로 들어온 경우 새로고침과 동시에 그 목적지 정보가
       // 사라져서 그냥 홈으로 열려버렸다(Slack 바로가기 링크가 안 먹던 원인, 2026-09-08).
@@ -300,7 +316,12 @@ async function login() {
       if (doc.exists) { const u = doc.data(); if (u.pw === pw) user = u; }
     } catch(e) {}
   }
-  if (!user) { if (errEl) errEl.style.display = ''; return; }
+  if (!user) { if (errEl) { errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.'; errEl.style.display = ''; } return; }
+  // 퇴사 처리된 계정은 로그인 자체를 막는다(2026-09-11, 사용자관리 퇴사자 처리 기능 추가).
+  if (user.isActive === false) {
+    if (errEl) { errEl.textContent = '퇴사 처리된 계정입니다. 관리자에게 문의해주세요.'; errEl.style.display = ''; }
+    return;
+  }
   if (errEl) errEl.style.display = 'none';
   currentUser = user;
   localStorage.setItem('cu', JSON.stringify(user));
@@ -894,6 +915,9 @@ function _renderUserMgmtList() {
   const slackTh = document.getElementById('uslack-th');
   if (slackTh) slackTh.style.display = 'none';
   const list = USERS.filter(u => !u.isAdmin && u.id !== 'user').sort((a, b) => {
+    // 퇴사자는 맨 끝으로(2026-09-11, 사용자 요청) — 그 외 정렬 기준은 기존과 동일.
+    const activeIdx = u => u.isActive === false ? 1 : 0;
+    if (activeIdx(a) !== activeIdx(b)) return activeIdx(a) - activeIdx(b);
     if (a.id === 'wonjoon') return -1;
     if (b.id === 'wonjoon') return 1;
     const bonbuIdx = u => { const i = ORG_STRUCTURE.findIndex(o => o.bonbu === u.bonbu); return i < 0 ? 99 : i; };
@@ -902,18 +926,24 @@ function _renderUserMgmtList() {
     const rankIdx = u => { const i = RANK_ORDER.indexOf(u.rank || '일반'); return i < 0 ? 99 : i; };
     return rankIdx(a) - rankIdx(b) || bonbuIdx(a) - bonbuIdx(b) || deptIdx(a) - deptIdx(b) || a.name.localeCompare(b.name, 'ko');
   });
-  tb.innerHTML = list.map((u, i) => `
-    <tr id="urow-${u.id}">
+  tb.innerHTML = list.map((u, i) => {
+    const isActive = u.isActive !== false;
+    const nameCell = isActive ? `<span style="font-weight:500;">${u.name}</span>`
+      : `<span style="font-weight:500;color:var(--text3);text-decoration:line-through;">${u.name}</span> <span style="font-size:10.5px;font-weight:700;color:var(--red);background:var(--red-bg);padding:1px 6px;border-radius:10px;">퇴사</span>`;
+    return `
+    <tr id="urow-${u.id}"${isActive ? '' : ' style="opacity:.55;"'}>
       <td class="td-dim">${i + 1}</td>
-      <td><span style="font-size:11px;color:var(--text3);display:block;">${u.id}</span><span style="font-weight:500;">${u.name}</span></td>
+      <td><span style="font-size:11px;color:var(--text3);display:block;">${u.id}</span>${nameCell}</td>
       <td id="urank-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.rank || '일반'}</span></td>
       <td id="ubonbu-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.bonbu || '—'}</span></td>
       <td id="udept-cell-${u.id}"><span style="color:var(--text2);font-size:12px;">${u.dept || '—'}</span></td>
       <td id="uslack-cell-${u.id}" style="display:none;"><span style="color:var(--text2);font-size:12px;">—</span></td>
       <td style="white-space:nowrap;" id="uact-${u.id}">
         <button class="btn btn-outline btn-sm" onclick="enterUserEdit('${u.id}')">수정</button>
+        <button class="btn btn-outline btn-sm" style="margin-left:6px;${isActive ? '' : 'color:var(--accent);'}" onclick="toggleUserActive('${u.id}')">${isActive ? '퇴사 처리' : '재직 복귀'}</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text3);">등록된 사용자가 없습니다.</td></tr>';
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--text3);">등록된 사용자가 없습니다.</td></tr>';
 }
 function enterUserEdit(uid) {
   const u = USERS.find(x => x.id === uid);
@@ -983,6 +1013,21 @@ function confirmResetPw() {
   if (u) { u.pw = '1234'; _fbSaveUser(u); toast(`✓ ${u.name} 비밀번호가 1234로 초기화되었습니다`, 'ok'); }
   _pendingResetUid = null;
   closeModal('modalResetPw');
+}
+// 퇴사 처리 — 계정을 지우지 않고 isActive만 끈다. 캠페인 담당자·프로젝트일지 작성자·세금계산서
+// 담당자 등 과거 기록 곳곳에 이름이 그대로 남아 있어서(대부분 id가 아니라 name 문자열로 저장),
+// 완전 삭제하면 과거 기록의 담당자 표시가 깨진다 — 로그인만 막고, 새 담당자 배정 드롭다운·멘션
+// 목록에서만 제외한다(2026-09-11, 사용자 요청).
+function toggleUserActive(uid) {
+  const u = USERS.find(x => x.id === uid);
+  if (!u) return;
+  const wasActive = u.isActive !== false;
+  if (wasActive && !confirm(`${u.name}님을 퇴사 처리하시겠습니까?\n로그인이 막히고, 새 담당자 배정 목록·멘션 목록에서 빠집니다.\n(과거 기록의 담당자 표시는 그대로 남습니다)`)) return;
+  u.isActive = wasActive ? false : true;
+  _fbSaveUser(u);
+  _renderUserMgmtList();
+  if (typeof _populateSalesSelects === 'function') _populateSalesSelects();
+  toast(`✓ ${u.name}님 ${wasActive ? '퇴사' : '재직'} 처리되었습니다`, 'ok');
 }
 function togglePerm(uid, perm, val) {
   const u = USERS.find(x => x.id === uid);
@@ -1235,6 +1280,29 @@ function toggleCampaignFilter() {
   if (btn) btn.textContent = open ? '필터 ▲' : '필터 ▼';
 }
 
+// 캠페인목록·정산 필터바 줄바꿈 — 실제 내용이 한 줄에 다 안 들어갈 때만 광고주/대행사 앞
+// (.filter-break)에서 줄바꿈한다. 뷰포트 폭 기준 미디어쿼리(max-width:1400px)로 켰었는데,
+// 필터바의 실제 가용폭은 뷰포트가 아니라 '뷰포트 − 사이드바(228px) − 본문 패딩'이고 담당자·
+// 상품 드롭다운은 실제 운영 데이터(긴 이름 목록)로 폭이 달라져서, 고정 브레이크포인트로는
+// 화면이 좁아져도 줄바꿈 대신 가로 스크롤이 먼저 생기는 경우가 있었다(2026-09-14, 사용자
+// 리포트). 폭 숫자를 추측하는 대신 nowrap 상태에서 실제 내용 폭(scrollWidth)과 필터바
+// 가용폭(clientWidth)을 직접 재서, 넘칠 때만 .fb-wrap 클래스를 붙이는 방식으로 교체.
+function _fbSyncWrap(barId) {
+  const bar = document.getElementById(barId);
+  if (!bar || bar.offsetParent === null) return;
+  bar.classList.remove('fb-wrap');
+  if (bar.scrollWidth > bar.clientWidth + 1) bar.classList.add('fb-wrap');
+}
+function _fbSyncFilterWrap() {
+  _fbSyncWrap('campaigns-filter-bar');
+  _fbSyncWrap('stl-filter-bar');
+}
+let _fbWrapT = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_fbWrapT);
+  _fbWrapT = setTimeout(_fbSyncFilterWrap, 100);
+});
+
 function toggleSidebar() {
   document.querySelector('.sidebar').classList.toggle('open');
   document.getElementById('sidebar-overlay').classList.toggle('show');
@@ -1387,6 +1455,8 @@ function goScreen(name, skipPush) {
       resetTaxFilter();
     }
   }
+
+  if (['campaigns', 'settlement'].includes(name)) _fbSyncFilterWrap();
 
   if (!skipPush) {
     history.pushState({ screen: name }, '', '#' + name);
@@ -1865,7 +1935,7 @@ function renderTable(data) {
       <td onclick="event.stopPropagation()"><input type="checkbox"></td>
       <td class="td-dim">${_getCat(c)}</td>
       <td class="td-num">${_formatDateRange(c)}</td>
-      <td class="td-bold">${c.content||_cCompany(c)}<span style="color:var(--text2);font-weight:400;">_${c.media}</span></td>
+      <td class="td-bold"><span style="font-size:10.5px;font-weight:400;color:var(--text3);">(${c.id})</span> ${c.content||_cCompany(c)}<span style="color:var(--text2);font-weight:400;">_${c.media}</span></td>
       <td class="td-dim">${c.product}</td>
       <td class="td-dim">${c.ops || '—'}</td>
       <td class="td-num td-r">${(c.qty||0).toLocaleString()}</td>
@@ -4956,7 +5026,11 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   // 캠페인 수정 화면이 활성 중이면 ESC 무시
   if (document.getElementById('screen-edit')?.classList.contains('active')) return;
-  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  // 프로젝트일지 작성/수정/이어쓰기·대응기록 모달(pl-modal-write/pl-modal-edit)은 닫으면 입력 중이던
+  // 내용이 사라지는데, ESC는 실수로 누르기 쉬워서 이 둘만 ESC로는 안 닫히게 예외 처리한다
+  // (2026-09-10, 사용자 요청 — X버튼/저장으로만 닫도록).
+  const _plEscExempt = ['pl-modal-write', 'pl-modal-edit'];
+  document.querySelectorAll('.modal-overlay.open').forEach(m => { if (!_plEscExempt.includes(m.id)) m.classList.remove('open'); });
   _updateBodyScrollLock();
 });
 
@@ -7915,6 +7989,7 @@ function _stlPopulateDynFilters() {
     stlOrgEl.innerHTML = '<option value="">본부/팀 전체</option>' + _buildOrgSelectHTML();
     stlOrgEl.dataset.init = '1';
   }
+  _fbSyncFilterWrap();
 }
 function _stlOrgOpsFilterChange() { _stlPopulateDynFilters(); renderSettlement(); }
 
@@ -9638,6 +9713,15 @@ function _taxMonthLabel(c) {
   if (!c.date) return '';
   return `${c.date.slice(0,4)}년${parseInt(c.date.slice(5,7))}월`;
 }
+// 해당 월(1~12)의 마지막 날짜 문자열 — new Date(year, month, 0)로 28/29/30/31일을 자동 판정한 뒤
+// getFullYear/getMonth/getDate로 로컬 값을 직접 읽는다. toISOString().slice(0,10)로 자르면 한국
+// (UTC+9)에서 하루 당겨져서(예: 8/31 자정 → UTC로는 8/30) 매번 말일보다 하루 이른 날짜가 나왔었다
+// (2026-09-10, "발행일자 기본값이 매월 30일 같다"는 리포트로 발견 — 실제로는 항상 실제 말일보다
+// 하루 이른 날짜였던 UTC 변환 버그).
+function _taxMonthEndStr(year, month1) {
+  const d = new Date(year, month1, 0);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function _taxContentAuto(c) {
   const m = c.date ? parseInt(c.date.slice(5,7)) + '월' : '';
   return [m, c.adv||'', c.media||'', c.product||'', '광고비'].filter(Boolean).join('_');
@@ -10936,9 +11020,9 @@ function taxGenNext() {
   });
 
   const now = new Date();
-  const todayStr = now.toISOString().slice(0,10);
-  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-  const prevMonthEndStr = prevMonthEnd.toISOString().slice(0,10);
+  // toISOString().slice(0,10)은 한국(UTC+9)에서 자정~오전9시 사이엔 하루 당겨진 날짜를 준다 — 로컬
+  // getter로 직접 조립한다(2026-09-10, 발행일자 기본값 버그와 같은 원인이라 같이 정리).
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const container = document.getElementById('tax-gen-step2-container');
   if (container) {
@@ -10960,6 +11044,9 @@ function taxGenNext() {
       const _rn = new Date();
       const repYear = repMonth ? (parseInt((repMonth.match(/(\d{4})년/)||[])[1]) || _rn.getFullYear()) : _rn.getFullYear();
       const repMon  = repMonth ? (parseInt((repMonth.match(/(\d+)월/)  ||[])[1]) || _rn.getMonth()+1) : _rn.getMonth()+1;
+      // 발행일자 기본값 — "오늘 기준 전월 말일"이 아니라 이 그룹이 실제로 다루는 캠페인 월(repYear/repMon)의
+      // 말일로 맞춘다(2026-09-10, 사용자 요청 — 배치 처리 시점과 실제 청구월이 다를 수 있어서).
+      const groupIssDefault = _taxMonthEndStr(repYear, repMon);
       const _curY = _rn.getFullYear();
       const _yearOpts = [_curY-2,_curY-1,_curY,_curY+1].map(y=>`<option value="${y}" ${y===repYear?'selected':''}>${y}년</option>`).join('');
       const _monOpts  = Array.from({length:12},(_,i)=>{const m=i+1;return `<option value="${m}" ${m===repMon?'selected':''}>${m}월</option>`;}).join('');
@@ -10990,7 +11077,7 @@ function taxGenNext() {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
             <div>
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">발행일자</label>
-              <input type="date" class="form-input tax-gen-iss" style="font-size:12px;padding:4px 6px;width:100%;" value="${prevMonthEndStr}">
+              <input type="date" class="form-input tax-gen-iss" style="font-size:12px;padding:4px 6px;width:100%;" value="${groupIssDefault}">
             </div>
             <div class="tax-gen-paydue-wrap">
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">입금예정일</label>
@@ -11260,7 +11347,9 @@ function taxEditGroup(gid) {
     </tr>`;
   }).join('');
 
-  const prevMonthEndStr = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0,10);
+  // 발행일자 기본값(rep.issueDate가 비어있을 때만 쓰이는 폴백) — 오늘 기준이 아니라 이 그룹이 실제
+  // 다루는 캠페인 월(repYear/repMon)의 말일로(2026-09-10, 생성 화면과 동일 원칙).
+  const prevMonthEndStr = _taxMonthEndStr(repYear, repMon);
   const container = document.getElementById('tax-gen-step2-container');
   if (!container) return;
 
@@ -11672,7 +11761,7 @@ function _renderNotifList() {
         <div style="width:8px;height:8px;border-radius:50%;background:${n.read ? 'var(--border)' : 'var(--primary)'};"></div>
       </div>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;color:var(--text1);line-height:1.5;">${_escHtml(n.body)}</div>
+        <div class="pl-notif-body" style="font-size:13px;color:var(--text1);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;" title="${_escHtml(n.body)}">${_escHtml(n.body)}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:3px;">${timeStr}</div>
       </div>
       ${jumpBtn}
@@ -11799,6 +11888,7 @@ async function openDeletedListModal() {
       <thead>
         <tr style="background:var(--surface2);position:sticky;top:0;">
           <th style="padding:8px 12px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);">삭제일시</th>
+          <th style="padding:8px 12px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);">캠페인ID</th>
           <th style="padding:8px 12px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);">캠페인명</th>
           <th style="padding:8px 12px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);">매출처</th>
           <th style="padding:8px 12px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);">삭제자</th>
@@ -11809,6 +11899,7 @@ async function openDeletedListModal() {
         ${list.map(c => `
         <tr style="border-bottom:1px solid var(--border);" id="del-row-${c._docId}">
           <td style="padding:8px 12px;color:var(--text3);">${c.deletedAt || '—'}</td>
+          <td style="padding:8px 12px;color:var(--text3);font-family:ui-monospace,monospace;">${_escHtml(c.id || '—')}</td>
           <td style="padding:8px 12px;font-weight:600;">${_escHtml(_cName(c))}</td>
           <td style="padding:8px 12px;">${_escHtml(c.seller || c.adv || '—')}</td>
           <td style="padding:8px 12px;">${_escHtml(c.deletedBy || '—')}</td>
@@ -12164,36 +12255,46 @@ function _populateMediaSelects() {
 
 function _populateSalesSelects() {
   const RANK_ORDER = ['이사','본부장','실장','팀장','일반'];
-  const salesUsers = USERS
-    .filter(u => !u.isAdmin && u.id !== 'user')
-    .sort((a, b) => {
-      const ri = u => { const i = RANK_ORDER.indexOf(u.rank||'일반'); return i<0?99:i; };
-      return ri(a) - ri(b) || (a.name||'').localeCompare(b.name||'', 'ko');
-    });
-  const nameOpts = salesUsers.map(u => `<option value="${u.name}">${u.name}</option>`).join('');
-  // 담당 선택 (폼용, 빈 옵션 없음)
+  // 퇴사자는(포함되는 목록 한정) 맨 끝으로 밀어낸다(2026-09-11, 사용자 요청).
+  const sortUsers = list => list.sort((a, b) => {
+    const activeIdx = u => u.isActive === false ? 1 : 0;
+    if (activeIdx(a) !== activeIdx(b)) return activeIdx(a) - activeIdx(b);
+    const ri = u => { const i = RANK_ORDER.indexOf(u.rank||'일반'); return i<0?99:i; };
+    return ri(a) - ri(b) || (a.name||'').localeCompare(b.name||'', 'ko');
+  });
+  const base = USERS.filter(u => !u.isAdmin && u.id !== 'user');
+  // 새로 담당자를 배정하는 곳(캠페인 등록/수정, 세금계산서 등록)은 퇴사자를 뺀다 — 이미 지나간
+  // 과거 기록의 담당자 표시는 그 기록 자체(name 문자열)에 남아있어 영향 없다. 반대로 "필터"는
+  // 과거 기록을 찾아보는 용도라 퇴사자도 그대로 포함한다(2026-09-11, 퇴사자 처리 기능 추가).
+  const activeUsers = sortUsers(base.filter(u => u.isActive !== false));
+  const allUsers = sortUsers(base.slice());
+  const optLabel = u => u.isActive === false ? `${u.name}(퇴사자)` : u.name;
+  const activeOpts = activeUsers.map(u => `<option value="${u.name}">${optLabel(u)}</option>`).join('');
+  const allOpts = allUsers.map(u => `<option value="${u.name}">${optLabel(u)}</option>`).join('');
+  // 담당 선택 (폼용, 빈 옵션 없음) — 배정용이라 퇴사자 제외
   ['r_ops','e_ops'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value;
-    el.innerHTML = nameOpts;
+    el.innerHTML = activeOpts;
     if (cur) el.value = cur;
   });
-  // 세금계산서 수동등록 담당자 (빈 옵션 포함)
+  // 세금계산서 수동등록 담당자 (빈 옵션 포함) — 배정용이라 퇴사자 제외
   const taxMgr = document.getElementById('tax-r-manager');
   if (taxMgr) {
     const cur = taxMgr.value;
-    taxMgr.innerHTML = '<option value="">담당자 선택</option>' + nameOpts;
+    taxMgr.innerHTML = '<option value="">담당자 선택</option>' + activeOpts;
     if (cur) taxMgr.value = cur;
   }
-  // 필터용 (빈 옵션 포함)
+  // 필터용 (빈 옵션 포함) — 과거 기록 조회용이라 퇴사자도 포함
   ['fMgr', 'calFilterMgr'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value;
-    el.innerHTML = '<option value="">담당자</option>' + nameOpts;
+    el.innerHTML = '<option value="">담당자</option>' + allOpts;
     if (cur) el.value = cur;
   });
+  _fbSyncFilterWrap();
 }
 
 // Firestore 실시간 구독 — 매체사
@@ -13466,6 +13567,12 @@ function renderKpiClientListTable() {
 
 // targetId/orgFilterOverride는 "본부별 매출 현황" 탭에서 이 표를 본부 하나만 걸러
 // 재사용하기 위한 매개변수 — 인자 없이 부르면 기존과 완전히 동일(전사 KPI/매출현황 탭용).
+// "KPI 달성률"(매출÷매출KPI 자동 계산)과 "광고주별 KPI 달성률(평균)"(프로젝트일지에서 수기
+// 입력한 값의 평균)이 바로 붙어있어 같은 방식으로 계산되는 것처럼 보인다는 지적으로, 라벨에
+// hover 설명을 단다(2026-09-11). projectlog.js의 _plShowFixedTip을 그대로 재사용.
+function _kpiTipLabel(text, label) {
+  return `<span onmouseenter="_plShowFixedTip(this,'${_escHtml(text).replace(/'/g, "&#39;")}')" onmouseleave="_plHideFixedTip()">${label}</span>`;
+}
 function renderKpiOrgTable(targetId, orgFilterOverride) {
   targetId = targetId || 'kpi-org-table';
   const isMain = targetId === 'kpi-org-table';
@@ -13599,8 +13706,8 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       const sumRows = [
         { label:'매출',                  total:`<td style="${tdSVY}">${_fmtKpi(totBAct)}</td>`,               cells: cols.map(sActCell).join('') },
         { label:'매출 KPI',                   total:`<td style="${tdSVY}">${_fmtKpi(totBTgt)}</td>`,               cells: cols.map(sTgtCell).join('') },
-        { label:'KPI 달성률',                 total:`<td style="${tdSCY}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
-        { label:'광고주별 KPI 달성률(평균)',  total:`<td style="${tdSCY}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
+        { label:_kpiTipLabel('매출 ÷ 매출 KPI로 자동 계산됩니다', '매출 KPI 달성률'),                 total:`<td style="${tdSCY}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
+        { label:_kpiTipLabel('각 브랜드에서 수기 입력된 광고주 월 KPI 달성률의 평균입니다 — 매출과는 무관', '광고주별 KPI 달성률(평균)'),  total:`<td style="${tdSCY}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
       ];
       const collapseKey = `${targetId}::${g.bonbuName}`;
       const isCollapsed = !_kpiOrgExpandedBonbus.has(collapseKey);
@@ -13681,8 +13788,8 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       const rows = [
         { label:'매출',       total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,          cells: cols.map(actCell).join('') },
         { label:'매출 KPI',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
-        { label:'달성률',          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts)).join('') },
-        { label:'광고주별 KPI 달성률(평균)', total:`<td style="${tdAC}">${_kpiRateNumHtml(totTClientRate)}</td>`, cells: cols.map(tClientRateCell).join('') },
+        { label:_kpiTipLabel('매출 ÷ 매출 KPI로 자동 계산됩니다', '매출 KPI 달성률'),          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts)).join('') },
+        { label:_kpiTipLabel('각 브랜드에서 수기 입력된 광고주 월 KPI 달성률의 평균입니다 — 매출과는 무관', '광고주별 KPI 달성률(평균)'), total:`<td style="${tdAC}">${_kpiRateNumHtml(totTClientRate)}</td>`, cells: cols.map(tClientRateCell).join('') },
       ];
       const TOTAL_ROWS = rows.length;
 
@@ -14824,12 +14931,18 @@ function renderPerfHistory() {
 // DATE RANGE PICKER (drp)
 // ══════════════════════════════════════════
 (function() {
+  // 캠페인 목록 화면 전용으로 만들어졌던 걸, 다른 화면(프로젝트일지)에서도 같은 위젯을 쓸 수
+  // 있게 대상 필드(from/to 값을 쓸 hidden input, 라벨, 트리거, 적용 시 호출할 함수)를 열 때마다
+  // 바꿔 끼울 수 있게 일반화했다 — 팝업/배경(#drp-popup, #drp-backdrop)은 전역에 하나뿐이라
+  // 여러 화면에서 트리거만 다르게 두고 공유해도 문제없다(한 번에 하나만 열리므로)
+  // (2026-09-14, 사용자 요청 — 프로젝트일지 데이트피커를 캠페인 목록과 동일한 것으로 교체).
   const DRP = {
     start: null, end: null,
     hover: null,
     picking: 'from',
     viewYear: 0, viewMonth: 0,
     activePreset: null,
+    fromId: 'fFrom', toId: 'fTo', labelId: 'drp-label', onApply: 'applyFilter',
   };
 
   function _ymd(d) {
@@ -14878,7 +14991,7 @@ function renderPerfHistory() {
     const ct = document.getElementById('drp-chip-to');
     if (cf) { cf.textContent = _fmt(DRP.start); cf.classList.toggle('active', DRP.picking==='from'); }
     if (ct) { ct.textContent = _fmt(DRP.end);   ct.classList.toggle('active', DRP.picking==='to'); }
-    const lbl = document.getElementById('drp-label');
+    const lbl = document.getElementById(DRP.labelId);
     if (lbl) {
       if (DRP.start && DRP.end) lbl.textContent = _fmt(DRP.start)+' ~ '+_fmt(DRP.end);
       else if (DRP.start) lbl.textContent = _fmt(DRP.start)+' ~ —';
@@ -14946,12 +15059,18 @@ function renderPerfHistory() {
     return html;
   }
 
-  window.drpOpen = function() {
+  window.drpOpen = function(cfg) {
+    cfg = cfg || {};
+    const triggerId = cfg.trigger || 'drp-trigger';
+    DRP.fromId  = cfg.from  || 'fFrom';
+    DRP.toId    = cfg.to    || 'fTo';
+    DRP.labelId = cfg.label || 'drp-label';
+    DRP.onApply = cfg.onApply || 'applyFilter';
     const popup = document.getElementById('drp-popup');
-    const trigger = document.getElementById('drp-trigger');
+    const trigger = document.getElementById(triggerId);
     if (!popup || !trigger) return;
-    const fv = document.getElementById('fFrom') ? document.getElementById('fFrom').value : '';
-    const tv = document.getElementById('fTo')   ? document.getElementById('fTo').value   : '';
+    const fv = document.getElementById(DRP.fromId) ? document.getElementById(DRP.fromId).value : '';
+    const tv = document.getElementById(DRP.toId)   ? document.getElementById(DRP.toId).value   : '';
     DRP.start = fv ? _parse(fv) : null;
     DRP.end   = tv ? _parse(tv) : null;
     DRP.hover = null;
@@ -14964,11 +15083,25 @@ function renderPerfHistory() {
     const backdrop = document.getElementById('drp-backdrop');
     if (backdrop) backdrop.style.display = 'block';
     popup.style.display = 'block';
-    popup.style.top  = (rect.bottom + window.scrollY + 6)+'px';
-    popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 690)+'px';
     _updateChips();
     _renderCals();
     document.querySelectorAll('.drp-preset').forEach(function(b){ b.classList.remove('active'); });
+    // 화면 배율이 높아 뷰포트(브라우저 표시 영역)가 CSS px 기준으로 작아지면, 아래로 펼친 팝업이
+    // 화면 밑으로 넘쳐서 닫기(×)/확인 버튼이 있는 하단이 통째로 안 보이는 문제가 있었다 —
+    // 실제 크기를 잰 뒤 아래쪽에 안 들어가면 트리거 위쪽으로 뒤집어 열고, 위쪽마저 모자라면
+    // 화면 안에 들어오도록 위치를 눌러준다(2026-09-14, 사용자 리포트 — 표준 팝오버 flip 패턴).
+    const margin = 6;
+    const popupH = popup.offsetHeight;
+    let top = rect.bottom + window.scrollY + margin;
+    const overflowsBelow = rect.bottom + popupH + margin > window.innerHeight;
+    if (overflowsBelow) {
+      const aboveTop = rect.top + window.scrollY - popupH - margin;
+      top = aboveTop >= window.scrollY + margin
+        ? aboveTop
+        : Math.max(window.scrollY + margin, window.scrollY + window.innerHeight - popupH - margin);
+    }
+    popup.style.top  = top + 'px';
+    popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 690)+'px';
   };
 
   window.drpClose = function() {
@@ -14982,13 +15115,13 @@ function renderPerfHistory() {
   window.drpConfirm = function() {
     const s = DRP.start ? _ymd(DRP.start) : '';
     const e = DRP.end   ? _ymd(DRP.end)   : s;
-    const fFrom = document.getElementById('fFrom');
-    const fTo   = document.getElementById('fTo');
+    const fFrom = document.getElementById(DRP.fromId);
+    const fTo   = document.getElementById(DRP.toId);
     if (fFrom) fFrom.value = s;
     if (fTo)   fTo.value   = e;
     _updateChips();
     drpClose();
-    if (typeof applyFilter === 'function') applyFilter();
+    if (typeof window[DRP.onApply] === 'function') window[DRP.onApply]();
   };
 
   window.drpChipClick = function(which) {
@@ -15036,5 +15169,14 @@ function renderPerfHistory() {
     btn.classList.add('active');
     _updateChips();
     _renderCals();
+  });
+
+  // ESC로 닫기 — × 버튼이 화면 밖으로 밀려도(배율 높을 때) 최소한 이걸로는 닫을 수 있게 하는
+  // 안전망. 배경(drp-backdrop) 클릭도 같은 이유로 drpCancel을 호출하도록 index.html에서 연결
+  // 해뒀다(2026-09-14, 사용자 리포트).
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    const popup = document.getElementById('drp-popup');
+    if (popup && popup.style.display === 'block') drpCancel();
   });
 })();

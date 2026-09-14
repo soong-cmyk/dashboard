@@ -29,7 +29,12 @@ body{font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystem
 .logo-mark{width:34px;height:34px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:17px;}
 .logo-name{font-size:16px;font-weight:700;letter-spacing:-.3px;}
 .logo-name span{color:var(--accent);}
-.nav{padding:12px 10px;flex:1;display:flex;flex-direction:column;}
+/* min-height:0이 없으면 flex 자식(.nav)이 내용물 크기만큼 계속 커지려고만 해서 overflow-y:auto가
+   무의미해진다 — 세로 창 높이가 줄어들면(가로폭 기준 768px 이하가 아니라, 세로만 짧아지는 경우도
+   포함) 메뉴 목록이 사이드바 밖으로 그냥 넘쳐서 맨 아래 사용자명·알림 버튼이 화면 밖으로 밀려
+   잘려 보였다 — 메뉴 목록만 내부 스크롤되게 하고 사용자 영역은 항상 고정해서 보이게 한다
+   (2026-09-14, 사용자 요청). */
+.nav{padding:12px 10px;flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;}
 .nav-sec{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;padding:10px 10px 6px;}
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);cursor:pointer;font-size:13.5px;font-weight:500;color:var(--text2);transition:.15s;margin-bottom:2px;user-select:none;}
 .nav-item:hover{background:var(--surface2);color:var(--text);}
@@ -138,12 +143,19 @@ tfoot td{padding:12px 14px;white-space:nowrap;border-top:1px solid var(--border)
 .f-reset:hover{color:var(--red);background:var(--red-bg);}
 .f-div{width:1px;height:20px;background:var(--border);margin:0 2px;}
 
-/* 정산탭 필터바 줄바꿈 브레이크 — 기본: 숨김, 좁은 화면에서 활성 */
-.stl-filter-break { display:none; width:100%; height:0; }
-@media (max-width:1300px) {
-  .stl-filter-break { display:block; }
-  #stl-filter-bar { overflow-x:visible; }
-}
+/* 캠페인 목록·정산 필터바 줄바꿈 브레이크 — width:100%짜리 투명 div를 원하는 지점(광고주/대행사
+   바로 앞)에 심어두고, 그 지점에서 줄바꿈이 필요할 때만 display:block으로 켜는 "강제 줄바꿈
+   지점" 방식. width:100% 아이템 옆엔 아무것도 못 붙으니 그 뒤 항목들이 전부 새 줄로 밀려난다.
+   처음엔 뷰포트 너비 기준 미디어쿼리(예: max-width:1400px)로 켰었는데, 필터바의 실제 가용폭은
+   뷰포트가 아니라 '뷰포트 − 사이드바(228px) − 본문 패딩'이고, 여기에 담당자·상품 드롭다운처럼
+   실제 운영 데이터(긴 이름 목록)로 폭이 달라지는 요소가 섞여 있어서 고정 브레이크포인트로는
+   안 맞는 경우(가로 스크롤 발생)가 있었다(2026-09-14, 사용자 리포트) — 그래서 폭 숫자를
+   추측하는 대신, JS가 실제 줄 안 항목들의 총 너비(scrollWidth)가 필터바 가용폭(clientWidth)을
+   넘는지 직접 재서(_fbSyncFilterWrap, script.js) 넘칠 때만 .fb-wrap 클래스를 붙이는 방식으로
+   바꿨다. */
+.filter-break { display:none; width:100%; height:0; }
+.filter-bar.fb-wrap { flex-wrap:wrap; row-gap:8px; overflow-x:visible; }
+.filter-bar.fb-wrap .filter-break { display:block; }
 
 /* ── CHK ── */
 .chk{width:20px;height:20px;border:1.5px solid var(--border2);border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;background:var(--surface2);font-size:11px;color:transparent;margin:0 auto;}
