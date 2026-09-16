@@ -32,17 +32,27 @@ function _plDb(name) {
 // 상수
 // ══════════════════════════════════════════════════════════
 
-const PL_LOG_TYPES = ['운영', '요청', '제안', '이슈', '대응', '결과', '피드백', '회고', '자료', '시스템제약'];
-// 작성 모달의 유형 선택은 실무에서 새로 시작할 때 실제로 쓰는 5개로 좁힌다 — 나머지 유형은
-// 여전히 존재하고(기존 데이터·수정 화면·엑셀 업로드는 그대로) 여기만 좁혀서 고르게 한다.
+const PL_LOG_TYPES = ['운영', '요청', '제안', '이슈', '대응', '결과', '계약', '보상', '피드백', '회고', '자료', '시스템제약'];
+// 작성 모달 유형 선택 — 예전엔 "새로 시작할 때 실제로 쓰는 5개"로 좁혔었는데(대응/결과는 이어쓰기
+// 때만 보임), 이어쓰기가 아니어도 대응/결과부터 바로 쓰고 싶다는 요청으로 이어쓰기 전용 목록을
+// 없애고 작성 화면 처음부터 전부 보여준다(2026-09-15, 사용자 요청 — 계약/보상 신규 추가도 같이).
 // "시스템제약"은 뜻이 더 와닿는 "매체정보"로 표시만 바꾸고, 저장되는 값(logType)은 기존과 동일하게
 // "시스템제약"을 그대로 써서 매체 지식 자동 집계 등 기존 로직과 어긋나지 않게 한다(2026-09-10, 사용자 요청).
-const PL_LOG_TYPES_QUICK = ['운영', '이슈', '요청', '제안', '시스템제약'];
-// '일지' 탭 유형 필터는 검색 용도라 작성 화면보다 조금 더 넓게 — 요청/제안/대응/결과까지 포함한
-// 7개(2026-09-10, 사용자 요청).
-const PL_LOG_TYPES_FILTER = ['운영', '요청', '제안', '이슈', '대응', '결과', '시스템제약'];
+// 피드백/회고/자료는 여전히 존재하는 값이지만(기존 데이터·엑셀 업로드는 그대로) 실무에서 새로
+// 고르는 용도로는 안 쓰여서 이 목록엔 안 넣는다.
+const PL_LOG_TYPES_FILTER = ['운영', '요청', '제안', '이슈', '대응', '결과', '계약', '보상', '시스템제약'];
 const PL_LOG_TYPE_DISPLAY = { 시스템제약: '매체정보' };
 function _plTypeLabel(t) { return PL_LOG_TYPE_DISPLAY[t] || t; }
+// 유형 select용 <option> 목록 — 고정 유형(PL_LOG_TYPES_FILTER)에, 지금 값이 그 목록에 없으면
+// (예: 엑셀 업로드 등으로 들어온 레거시 유형) 그 값도 끼워넣어 선택이 조용히 다른 값으로
+// 바뀌지 않게 한다.
+function _plTypeSelectOptions(currentType) {
+  let opts = PL_LOG_TYPES_FILTER.map(t => `<option value="${t}" ${currentType === t ? 'selected' : ''}>${_plTypeLabel(t)}</option>`).join('');
+  if (currentType && !PL_LOG_TYPES_FILTER.includes(currentType)) {
+    opts += `<option value="${_escHtml(currentType)}" selected>${_escHtml(currentType)}</option>`;
+  }
+  return opts;
+}
 
 const PL_TYPE_COLOR = {
   운영:   { bg: '#eceef0', fg: '#495057' },
@@ -51,6 +61,8 @@ const PL_TYPE_COLOR = {
   이슈:   { bg: '#fff5f5', fg: '#c92a2a' },
   대응:   { bg: '#fff4e6', fg: '#d9480f' },
   결과:   { bg: '#ebfbee', fg: '#2b8a3e' },
+  계약:   { bg: '#fff0f6', fg: '#a61e4d' },
+  보상:   { bg: '#f4fce3', fg: '#5c940d' },
   피드백: { bg: '#f8f0fc', fg: '#9c36b5' },
   회고:   { bg: '#f3f0ff', fg: '#5f3dc4' },
   자료:   { bg: '#e6fcf5', fg: '#0ca678' },
@@ -64,6 +76,8 @@ const PL_SUMMARY_PH = {
   이슈:   '예) 0709 캠페인 모수 부족 → 조건 확장 필요',
   대응:   '예) 발송시간 14시→11시 변경 협의 완료',
   결과:   '예) 발송 49,800 / CTR 1.8%',
+  계약:   '예) 8월 계약서 서명 완료, 단가 50만원 확정',
+  보상:   '예) 발송 미달분 20만건 보상 다음달 이월 합의',
   피드백: '예) CTR 개선은 인정, 발송량 미달 보완 요청',
   회고:   '예) 부킹 전 모수 확인 누락 → D-14 사전조회 원칙',
   자료:   '예) 공용드라이브 : 업무폴더 D:\\단비교육',
@@ -552,6 +566,10 @@ function _plBuildMineTabSkeleton(content) {
         <input type="text" class="f-search" id="pl-mine-f-seller" placeholder="🔍 광고주" style="width:120px;">
         <div class="combo-list" id="pl-mine-f-seller-list" style="display:none;"></div>
       </div>
+      <div class="combo-wrap" style="width:120px;">
+        <input type="text" class="f-search" id="pl-mine-f-project" placeholder="🔍 프로젝트" style="width:120px;">
+        <div class="combo-list" id="pl-mine-f-project-list" style="display:none;"></div>
+      </div>
       <div class="combo-wrap" style="width:100px;">
         <input type="text" class="f-search" id="pl-mine-f-media" placeholder="🔍 매체" style="width:100px;">
         <div class="combo-list" id="pl-mine-f-media-list" style="display:none;"></div>
@@ -567,8 +585,9 @@ function _plBuildMineTabSkeleton(content) {
       </table></div>
     </div>
   `;
-  _plComboSetup('pl-mine-f-seller', 'pl-mine-f-seller-list', _plSellerNamesRecent, _plRenderMineBody);
-  _plComboSetup('pl-mine-f-media',  'pl-mine-f-media-list',  _plMediaNamesRecent,  _plRenderMineBody);
+  _plComboSetup('pl-mine-f-seller',  'pl-mine-f-seller-list',  _plSellerNamesRecent,  _plRenderMineBody);
+  _plComboSetup('pl-mine-f-project', 'pl-mine-f-project-list', _plProjectNamesRecent, _plRenderMineBody);
+  _plComboSetup('pl-mine-f-media',   'pl-mine-f-media-list',   _plMediaNamesRecent,   _plRenderMineBody);
 }
 function _plMineSwitchSubTab(tab) {
   _plMineSubTab = tab;
@@ -639,12 +658,14 @@ function _plRenderMineBody() {
   const dFrom = document.getElementById('pl-mine-date-from')?.value || '';
   const dTo = document.getElementById('pl-mine-date-to')?.value || '';
   const fSeller = document.getElementById('pl-mine-f-seller')?.value.trim() || '';
+  const fProject = document.getElementById('pl-mine-f-project')?.value.trim() || '';
   const fMedia = document.getElementById('pl-mine-f-media')?.value.trim() || '';
   const matchesQ = l => {
     if (!_plTokenMatchNormalized(_plNormalizeSearch(l.searchText || ''), q)) return false;
     if (dFrom && (l.logDate || '') < dFrom) return false;
     if (dTo && (l.logDate || '') > dTo) return false;
     if (fSeller && l.seller !== fSeller) return false;
+    if (fProject && l.content !== fProject) return false;
     if (fMedia && l.media !== fMedia) return false;
     return true;
   };
@@ -1228,6 +1249,12 @@ function _plWriteFromCampLog() {
     scope: 'campaign', seller: c.seller || c.adv || null, content: c.content || null,
     campaignId: c.id, media: c.media || null, product: c.product || null,
   });
+  // 캠페인 일지 모달(pl-modal-camplog) 위에 겹쳐 떠야 하는데, 두 모달 다 같은 z-index(.modal-overlay
+  // 공통값)라 DOM 순서로 쌓인다 — write 모달 DOM이 camplog 모달보다 먼저 만들어져 있던 경우(예:
+  // 이전에 다른 경로로 먼저 열어본 적 있음) 순서상 뒤로 깔려버렸다. body 맨 끝으로 옮겨서 항상
+  // 위에 그려지게 강제한다(2026-09-15, 사용자 리포트).
+  const writeOverlay = document.getElementById('pl-modal-write');
+  if (writeOverlay) document.body.appendChild(writeOverlay);
 }
 function _plGoToLogTabFromCamp() {
   closeModal('pl-modal-camplog');
@@ -1959,112 +1986,6 @@ function _plBuildIssueViewModalShell() {
   document.body.appendChild(overlay);
 }
 
-// ── 이슈 대응 기록 / 완료 처리 — 원본 이슈 state를 조용히 덮어쓰는 대신, 대응·해결 내용을 별도
-// 로그(threadId로 원본 연결)로 남겨서 "이슈 → 대응 → 대응 → 해결"이 추적 가능한 한 세트로 남게 한다.
-// threadId는 기존 스키마에 있던 미사용 필드를 재활용. 체인이 아니라 방사형 — 대응이 몇 개든 전부
-// threadId가 원본 이슈 하나를 가리키므로 조회가 단순하다(PL_LOGS.filter(l=>l.threadId===이슈ID)).
-// 대응·해결도 이미지/링크 첨부가 필요할 수 있어서, 단순 textarea 모달 대신 수정 모달(pl-modal-edit)
-// 을 그대로 재사용한다 — _plEditDraft.newFor에 {parentId}를 넣어두면 plSaveEdit()이 "기존 로그 수정" 대신
-// "새 로그 생성"으로 분기한다. 대응/완료는 예전엔 버튼 두 개(모드가 열 때 고정)였는데, 저장 시점에 체크박스
-// (resolveChecked)로 결정하도록 합쳐서 버튼 하나("+ 대응 기록")로도 완료 처리까지 가능하게 했다.
-function plOpenResponseModal(logId) { _plOpenResponseDraft(logId); }
-function _plOpenResponseDraft(parentId) {
-  const orig = PL_LOGS.find(l => l.id === parentId);
-  if (!orig) { toast('일지를 찾을 수 없습니다', 'err'); return; }
-  _plEditDraft = {
-    id: null, logDate: _plTodayStr(), writer: currentUser?.name || '', writerId: currentUser?.id || '',
-    bonbu: currentUser?.bonbu || '', dept: currentUser?.dept || '', createdAt: null,
-    scope: orig.scope, seller: orig.seller, content: orig.content,
-    campaignId: orig.campaignId, media: orig.media, product: orig.product,
-    logType: '대응', summary: '', progress: null,
-    detail: [], links: [], images: [],
-    important: false, shared: false, state: null, searchQuery: '',
-    resolveChecked: false,
-    newFor: { parentId },
-    // 이어쓰기(_plContinueFromLog)와 같은 규칙 — 무엇에 대응하는지 잊지 않도록 원본 이슈를
-    // 읽기전용 참조 카드로 보여준다(2026-09-10, 사용자 지적 — 대응 기록에도 똑같이 있어야 했음).
-    refLog: { logDate: orig.logDate, logType: orig.logType, progress: orig.progress, summary: orig.summary, writer: orig.writer, detail: orig.detail },
-  };
-  if (!document.getElementById('pl-modal-edit')) _plBuildEditModalShell();
-  _plRenderEditModal();
-  openModal('pl-modal-edit');
-}
-async function _plSaveNewResponse() {
-  const d = _plEditDraft;
-  const { parentId } = d.newFor;
-  const mode = d.resolveChecked ? 'resolve' : 'response';
-  const orig = PL_LOGS.find(l => l.id === parentId);
-  if (!orig) { toast('원본을 찾을 수 없습니다', 'err'); return; }
-  if (!(d.summary || '').trim()) { alert('내용을 입력해주세요.'); return; }
-  if ((d.summary || '').length > 60) { alert('내용은 60자 이하로 입력해주세요.'); return; }
-  if (d.progress === '' || d.progress == null) { alert('진척률을 입력해주세요.'); return; }
-  {
-    const p = Number(d.progress);
-    if (isNaN(p) || p < 0 || p > 100) { alert('진척률은 0~100 사이여야 합니다.'); return; }
-  }
-  const saveBtn = document.querySelector('#pl-modal-edit .btn-primary');
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중…'; }
-  try {
-    const detail = (d.detail || []).filter(x => (x.text || '').trim()).map(x => ({ label: x.label || '', text: x.text.trim() }));
-    // 완료 처리(resolve) 체크 시 원본 이슈뿐 아니라 이 응답 기록 자신의 진척률도 100으로 맞춘다 —
-    // 안 그러면 이슈는 완료인데 이걸로 완료시킨 응답 기록 자신은 입력값(예: 80%)에 남아 타임라인에서
-    // 미완료처럼(빈 회색 점) 보인다(2026-09-10, 미리보기로 확정).
-    const progress = mode === 'resolve' ? 100 : ((d.progress === '' || d.progress == null) ? null : Math.max(0, Math.min(100, parseInt(d.progress, 10) || 0)));
-    const images = (d.images || []).filter(Boolean);
-    const now = new Date().toISOString();
-    const newDoc = {
-      id: _plNextLogIdSeq()(),
-      logDate: _plTodayStr(), writer: currentUser?.name || '', writerId: currentUser?.id || '',
-      bonbu: currentUser?.bonbu || '', dept: currentUser?.dept || '',
-      scope: d.scope, seller: d.seller || null, content: d.content || null,
-      campaignId: d.campaignId || null, media: d.media || null, product: d.product || null,
-      logType: d.logType || '대응', state: null, isResolution: mode === 'resolve',
-      summary: d.summary.trim().slice(0, 60), detail, progress,
-      important: !!d.important, shared: !!d.shared,
-      hasImages: images.length > 0, imageCount: images.length,
-      links: (d.links || []).filter(l => (l.label || l.url || '').trim()),
-      threadId: parentId, createdAt: now, updatedAt: now,
-    };
-    newDoc.searchText = _plBuildSearchText(newDoc);
-    await _plDb('projectLogs').doc(newDoc.id).set(newDoc);
-    await _plLogHistoryCreate(newDoc.id);
-    if (images.length) await _plSaveLogImages(newDoc.id, images);
-
-    if (mode === 'resolve') {
-      // 완료 처리는 더 이상 별도 상태값을 두지 않고 원본의 진척률을 100으로 올리는 것으로 표현한다
-      // (2026-09-09) — _plLogOpen이 진척률만으로 진행중/완료를 판단하므로 이거 하나면 충분하다.
-      const beforeProgress = orig.progress;
-      const updatedOrig = Object.assign({}, orig, { progress: 100, state: null, updatedAt: now });
-      // searchText도 같이 재계산 — 이 갱신 자체가 검색 대상 필드를 바꾸진 않지만, orig가 예전
-      // 버전의 _plBuildSearchText로 저장돼 낡은 searchText를 갖고 있었을 경우 여기서 자연스럽게
-      // 최신화된다(2026-09-14, "완료 처리한 로그가 캠페인ID로 검색이 안 된다"는 리포트로 발견 —
-      // 이 경로만 유일하게 searchText 재계산을 안 하고 있었음).
-      updatedOrig.searchText = _plBuildSearchText(updatedOrig);
-      await _plDb('projectLogs').doc(orig.id).set(updatedOrig);
-      await _plDb('projectLogHistory').add({
-        logId: orig.id, changedBy: currentUser?.name || '', changedAt: now,
-        changes: [{ field: 'progress', label: '진척률', before: String(beforeProgress ?? ''), after: '100' }],
-      });
-    }
-    if (orig.writerId && orig.writerId !== currentUser?.id) {
-      const subject = _plNotifySubject(orig);
-      if (mode === 'resolve') {
-        _fbSaveNotification(orig.writerId, 'pl_resolved', `${currentUser?.name || ''}님이 "${subject}" ${orig.logType} 일지를 완료 처리했습니다.`, { logId: orig.id, actorName: currentUser?.name });
-      } else {
-        // 예전엔 미리보기를 40자에서 잘랐는데, 문장 중간에서 끊겨 어색했다 — 저장은 전체 다
-        // 하고 목록 화면(.pl-notif-body)에서만 CSS로 줄임 처리한다(2026-09-11, 사용자 요청).
-        _fbSaveNotification(orig.writerId, 'pl_response', `${currentUser?.name || ''}님이 "${subject}" 이슈에 대응을 기록했습니다: ${newDoc.summary}`, { logId: orig.id, actorName: currentUser?.name });
-      }
-    }
-    closeModal('pl-modal-edit');
-    toast(mode === 'resolve' ? '✓ 완료 처리되었습니다' : '✓ 대응이 기록되었습니다', 'ok');
-  } catch (e) {
-    console.error('[projectlog] 저장 실패', e);
-    toast('저장 중 오류가 발생했습니다', 'err');
-  } finally {
-    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '저장'; }
-  }
-}
 
 // ── 댓글 UI (로그 아코디언 공통 — 로그탭·G·D 전부 공유) ──
 // "@이름"으로 등장하는 부분을 강조 표시 — 긴 이름부터 매칭해야 짧은 이름이 긴 이름의 일부를 잘못 잡아채지 않는다.
@@ -2160,16 +2081,18 @@ function _plCommentsHtml(logId) {
       ${canDel ? `<span class="pl-x" onclick="_plCommentToggleEdit('${c.id}')">수정/삭제</span>` : ''}
     </div>`;
   }).join('');
-  return `<div style="border-top:1px dashed var(--border);margin-top:9px;padding-top:8px;max-width:640px;">
+  return `<div style="border-top:1px dashed var(--border);margin-top:9px;padding-top:8px;max-width:960px;">
     <div class="form-hint" style="font-weight:700;margin-bottom:4px;">💬 댓글 ${comments.length}</div>
     ${rows}
     <div style="display:flex;gap:6px;margin-top:6px;">
       <div class="combo-wrap" style="flex:1;">
-        <input type="text" class="pl-mini" id="pl-cm-in-${logId}" placeholder="댓글을 입력하세요 (@이름으로 멘션)" maxlength="500"
-          oninput="_plCommentMentionInput('${logId}',this)"
-          onkeydown="if(_plComboKeyNav(event,'pl-cm-mention-list-${logId}'))return;if(event.key==='Enter'){plAddComment('${logId}');}"
-          onblur="setTimeout(()=>{const l=document.getElementById('pl-cm-mention-list-${logId}');if(l)l.style.display='none';},150)">
+        <textarea class="pl-mini" id="pl-cm-in-${logId}" placeholder="댓글을 입력하세요 (@이름으로 멘션)" maxlength="500" rows="1"
+          style="width:100%;resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;"
+          oninput="_plCommentMentionInput('${logId}',this);_plAutoGrowTextarea(this)"
+          onkeydown="if(_plComboKeyNav(event,'pl-cm-mention-list-${logId}'))return;if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();plAddComment('${logId}');}"
+          onblur="setTimeout(()=>{const l=document.getElementById('pl-cm-mention-list-${logId}');if(l)l.style.display='none';},150)"></textarea>
         <div class="combo-list" id="pl-cm-mention-list-${logId}" style="display:none;"></div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:2px;">Enter로 등록 · <span style="color:var(--red);">Shift+Enter로 줄바꿈</span></div>
       </div>
       <button class="btn btn-outline btn-sm" style="flex-shrink:0;" onclick="plAddComment('${logId}')">등록</button>
     </div>
@@ -2203,6 +2126,7 @@ async function plAddComment(logId) {
     const ref = _plDb('projectLogComments').doc();
     await ref.set({ id: ref.id, logId, writer: currentUser?.name || '', writerId: currentUser?.id || '', content, mentions, createdAt: new Date().toISOString() });
     input.value = '';
+    input.style.height = ''; // textarea로 바뀌면서 여러 줄로 늘어나있던 높이를 초기 1줄로 되돌림
     const mentionListEl = document.getElementById(`pl-cm-mention-list-${logId}`);
     if (mentionListEl) mentionListEl.style.display = 'none';
     const log = PL_LOGS.find(l => l.id === logId);
@@ -2643,7 +2567,7 @@ function _plBuildWriteModalShell() {
         </div>
         <div style="width:300px;flex-shrink:0;border-left:1px solid var(--border);background:var(--surface2);max-height:70vh;overflow-y:auto;padding:14px;">
           <div style="font-size:12px;font-weight:700;margin-bottom:2px;">📋 나의 미완료 일지</div>
-          <div class="form-hint" style="margin-bottom:10px;">최근 2주 · 진척률 100% 미만</div>
+          <div class="form-hint" style="margin-bottom:10px;">진척률 100% 미만</div>
           <div id="pl-w-continue-list"></div>
         </div>
       </div>
@@ -3068,10 +2992,8 @@ function _plItemTargetRemoveCamp(bi, ii, ci) {
 
 // ── 항목 / ㄴ 하위줄 ──
 function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
-  // 이어쓰기(it.refLog 있음)는 실제로 대응·결과·요청 등 다양한 유형을 쓰게 되므로 전체 7종을,
-  // 처음 시작하는 새 일지는 지금처럼 3종(운영/이슈/매체정보)만 보여준다(2026-09-10, 사용자 요청).
-  const typeOpts = (it.refLog ? PL_LOG_TYPES_FILTER : PL_LOG_TYPES_QUICK).map(t => `<option value="${t}" ${it.logType === t ? 'selected' : ''}>${_plTypeLabel(t)}</option>`).join('');
   const ph = PL_SUMMARY_PH[it.logType] || '';
+  const typeFieldHtml = `<select class="pl-mini" style="font-weight:700;" onchange="_plItemTypeChange(${bi},${ii},this.value)">${_plTypeSelectOptions(it.logType)}</select>`;
   const subHtml = (it.detail || []).map((d, di) => _plRenderSubHtml(bi, ii, di, d, it.logType)).join('');
   // 새 그룹이 시작되는 항목(showMediaRow)은 "+ 항목 추가"로 이어붙인 항목과 구분되게 위쪽 경계를 다르게
   // 준다 — 첫 항목(ii===0)은 바로 위가 블록 헤더라 이미 경계가 있으니 제외.
@@ -3082,7 +3004,7 @@ function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
     <div class="pl-media-row">${_plItemTargetField(block, bi, ii, it)}</div>
     ${_plRefLogCardHtml(it.refLog)}
     <div class="pl-irow">
-      <select class="pl-mini" style="font-weight:700;" onchange="_plItemTypeChange(${bi},${ii},this.value)">${typeOpts}</select>
+      ${typeFieldHtml}
       <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(ph)}" value="${_escHtml(it.summary || '')}"
         oninput="_plItemField(${bi},${ii},'summary',this.value)">
       <div class="pl-pct-wrap${it.resolveChecked ? ' pl-pct-locked' : ''}"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${it.progress ?? ''}" ${it.resolveChecked ? 'disabled' : ''}
@@ -3292,15 +3214,15 @@ function _plRemoveBlock(bi) {
 // ── 작성 모달 오른쪽 패널: 내가 최근에 쓴 미완료(진척률 100% 미만) 일지 — 어제 하다 만 일을
 // 오늘 또 까먹고 새로 이슈화하는 대신, 보면서 바로 "이어쓰기"로 이어 쓸 수 있게 해준다.
 function _plContinueCandidates() {
-  const cutoff = _plFmtDateLocal(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000));
   // 이미 "이어쓰기"로 다음 기록이 만들어진 로그는 더 이상 미완료 후보가 아니다 — 그날그날의 기록을
   // 덮어쓰지 않고 각자 별개 문서로 남기는 방식이라(진척률도 옛 값 그대로), 최신 진행 상황은 그 다음
   // 기록이 대신하므로 옛 것은 여기서 빠져야 "같은 일이 두 번" 뜨지 않는다.
+  // 기간 제한(예전엔 최근 2주)은 두지 않는다 — 몇 달 전에 시작해놓고 잊어버린 일도 계속 눈에
+  // 띄어야 이 패널의 목적("깜빡한 미완료 일 다시 이어쓰기")에 맞는다(2026-09-14, 사용자 요청).
   const continuedIds = _plContinuedIdSet();
   return PL_LOGS.filter(l => {
     if (l.writerId !== currentUser?.id) return false;
     if (l.progress == null || l.progress >= 100) return false; // 이슈·요청 자신이 이미 완료(=진척률 100)면 여기서 걸러짐
-    if ((l.logDate || '') < cutoff) return false;
     if (continuedIds.has(l.id)) return false;
     if (l.threadId) {
       const issue = PL_LOGS.find(x => x.id === l.threadId);
@@ -3351,23 +3273,17 @@ function _plContinueTarget(log) {
 function _plContinueFromLog(logId) {
   const log = _plContinueTarget(PL_LOGS.find(l => l.id === logId));
   if (!log) return;
-  // 진행중인 이슈·요청이거나, 그 이슈에 달린 대응/해결 기록이면(threadId로 원본 추적) 새 로그를 또
-  // 만드는 대신 이슈 상세의 "+ 대응 기록"과 동일하게 원본 이슈에 threadId로 묶이는 대응 작성 모달을
-  // 띄운다. 작성 모달은 닫지 않고 그 위에 레이어링만 한다(같은 z-index라 DOM 순서로 쌓이므로,
-  // body 맨 끝으로 옮겨서 위에 그려지게 강제한다).
-  const openIssue = _plContinueOpenIssue(log);
-  if (openIssue) {
-    plOpenResponseModal(openIssue.id);
-    const editOverlay = document.getElementById('pl-modal-edit');
-    if (editOverlay) document.body.appendChild(editOverlay);
-    return;
-  }
   const block = _plEmptyBlock({
     scope: log.scope, seller: log.seller || null, content: log.content || null,
     campaignId: log.campaignId || null, product: log.product || null,
     media: log.scope === 'media' ? (log.media || null) : null,
   });
-  block.items[0].logType = log.logType || '운영';
+  // 이슈/요청을 이어쓰면 새 이슈를 또 만드는 게 아니라 그에 대한 대응이므로 기본 유형을 '대응'으로
+  // 맞춰준다 — 그 외(운영 등)는 원래 유형을 그대로 이어간다. 예전엔 이슈를 이어쓰면 threadId로 묶이는
+  // 별도의 "대응 작성하기" 모달(수정 모달 재사용)로 갔었는데, 이어쓰기 모달 하나로 통일하면서 그 모달이
+  // 하던 역할(유형 기본값, 완료 체크박스, 원본 작성자 알림)을 여기 이어쓰기 경로가 그대로 이어받는다
+  // (2026-09-14, 사용자 요청 — "모달은 이어쓰기로 통일하되, 이슈 쪽에 있던 기능은 그대로 유지").
+  block.items[0].logType = ['이슈', '요청'].includes(log.logType) ? '대응' : (log.logType || '운영');
   // 예전엔 이전 내용(요약·하위기록·진척률)을 그대로 입력창에 불러와서 그 위에 고쳐 쓰게 했는데,
   // 이전/새 내용이 같은 입력창에 섞여 헷갈린다는 지적으로 방식을 바꿨다 — 이전 기록은 읽기전용
   // 참조(refLog)로만 보여주고, 새 항목은 완전히 빈 칸에서 시작한다(2026-09-10, 미리보기로 확정).
@@ -3406,12 +3322,11 @@ function _plBlockIsEmpty(block) {
     && !it.media && !it.campaignId;
 }
 // 로그를 펼친 자리(pl-detfoot)의 "↩ 이어쓰기" 버튼 진입점 — 작성 모달이 열려있지 않은 상태에서
-// 호출되므로, 진행중 이슈로 연결되는 경우(_plContinueOpenIssue)가 아니면 먼저 작성 모달을 새로
-// 띄운 뒤 _plContinueFromLog와 동일한 동작을 이어서 수행한다.
+// 호출되므로, 먼저 작성 모달을 새로 띄운 뒤 _plContinueFromLog와 동일한 동작을 이어서 수행한다.
 function plOpenContinueFromLog(logId) {
   const log = _plContinueTarget(PL_LOGS.find(l => l.id === logId));
   if (!log) { toast('일지를 찾을 수 없습니다', 'err'); return; }
-  if (!_plContinueOpenIssue(log)) plOpenWrite(null, true);
+  plOpenWrite(null, true);
   _plContinueFromLog(log.id);
 }
 
@@ -3664,6 +3579,20 @@ async function _plOpenLogImages(logId) {
   openLightbox(0, images);
 }
 
+// 이어쓰기 체인을 continuedFromId 역방향으로 끝까지 거슬러 올라가 맨 처음 기록(=원래 이슈/작성자)을
+// 찾는다 — 알림은 체인 중 누구를 이어쓰든 항상 이 root의 작성자에게 가야 한다(예전 threadId 방식이
+// 대응이 몇 번이든 항상 원본 이슈 작성자 한 명에게 알림을 보내던 것과 동일한 동작).
+function _plChainRootLog(log) {
+  let head = log;
+  const seen = new Set();
+  while (head && head.continuedFromId && !seen.has(head.id)) {
+    seen.add(head.id);
+    const prev = PL_LOGS.find(l => l.id === head.continuedFromId);
+    if (!prev) break;
+    head = prev;
+  }
+  return head;
+}
 async function plSaveLog() {
   const errors = _plValidateDraft();
   if (errors.length) { alert(errors[0]); return; }
@@ -3728,6 +3657,24 @@ async function plSaveLog() {
       if (images.length) await _plSaveLogImages(doc.id, images);
     }
 
+    // 다른 사람이 내 기록을 이어쓰면 원본(체인 맨 처음) 작성자에게 알림 — 예전엔 이슈/대응(threadId)
+    // 전용이었는데, 대응 작성하기 모달을 없애고 이어쓰기 모달 하나로 합치면서 이어쓰기 전체로
+    // 넓혔다(2026-09-14, 사용자 요청 — "모달은 이어쓰기로 통일하되, 이슈 쪽에 있던 기능(알림)은
+    // 그대로 유지"). 진척률 100으로 이어쓰면 완료 처리로, 아니면 일반 이어쓰기로 문구를 나눈다.
+    savedDocs.forEach(({ doc }) => {
+      if (!doc.continuedFromId) return;
+      const parent = PL_LOGS.find(l => l.id === doc.continuedFromId);
+      if (!parent) return;
+      const root = _plChainRootLog(parent);
+      if (!root.writerId || root.writerId === currentUser?.id) return;
+      const subject = _plNotifySubject(root);
+      if (doc.progress != null && doc.progress >= 100) {
+        _fbSaveNotification(root.writerId, 'pl_resolved', `${currentUser?.name || ''}님이 "${subject}" ${root.logType} 일지를 완료 처리했습니다.`, { logId: root.id, actorName: currentUser?.name });
+      } else {
+        _fbSaveNotification(root.writerId, 'pl_response', `${currentUser?.name || ''}님이 "${subject}" 일지에 이어서 기록했습니다: ${doc.summary}`, { logId: root.id, actorName: currentUser?.name });
+      }
+    });
+
     localStorage.removeItem(PL_DRAFT_KEY); // 이전 버전에서 남아있을 수 있는 임시저장 정리
     _plDraft = { blocks: [] };
     closeModal('pl-modal-write');
@@ -3751,6 +3698,12 @@ async function plDeleteLog(logId) {
   // 대응 기록은 그 자체로 leaf라서, 순서대로 지우면 고아가 생길 여지가 없다).
   const children = PL_LOGS.filter(l => l.threadId === logId);
   if (children.length) { alert(`이 이슈에 대응·해결 기록이 ${children.length}건 연결되어 있어 삭제할 수 없습니다.\n먼저 하위 기록부터 삭제해주세요.`); return; }
+  // 이어쓰기 체인(continuedFromId)도 같은 이유로 막아야 한다 — 이 가드가 없으면 크래시는 안 나지만
+  // (_plContinueChainNodes가 못 찾은 지점에서 조용히 역추적을 멈춤) 그 이전 역사가 타임라인에서
+  // 통째로 안 보이게 된다(2026-09-14, 이슈/이어쓰기 통합 전 점검하다 발견 — 지금까진 이슈만
+  // threadId 가드로 보호받고 있었고 일반 이어쓰기 체인엔 이 보호가 아예 없었음).
+  const continuedBy = PL_LOGS.filter(l => l.continuedFromId === logId);
+  if (continuedBy.length) { alert(`이 기록을 이어쓴 기록이 ${continuedBy.length}건 있어 삭제할 수 없습니다.\n먼저 이어쓴 기록부터 삭제해주세요.`); return; }
   if (!confirm('이 일지를 삭제하시겠습니까?')) return;
   try {
     const archived = Object.assign({}, log, {
@@ -3794,6 +3747,9 @@ function _plBuildEditDraft(log) {
     attachPath: log.attachPath || '', attachName: log.attachName || '',
     images: [],
     important: !!log.important, shared: !!log.shared,
+    // 이어쓰기로 만들어진 로그(continuedFromId 있음)면 수정 모달에도 "완료 처리" 체크박스를
+    // 보여주기 위한 값 — 이어쓰기 작성 화면(_plItemResolveHtml)과 같은 개념.
+    continuedFromId: log.continuedFromId || null,
     state: null, searchQuery: '',
     extraItems: [], // "+ 항목 추가" — 같은 대상으로 별도 새 로그가 될 항목들(기본줄+하위기록만)
   };
@@ -4086,7 +4042,7 @@ function _plEditRefCampFieldHtml() {
 }
 function _plEditItemHtml() {
   const d = _plEditDraft;
-  const typeOpts = PL_LOG_TYPES_FILTER.map(t => `<option value="${t}" ${d.logType === t ? 'selected' : ''}>${_plTypeLabel(t)}</option>`).join('');
+  const typeOpts = _plTypeSelectOptions(d.logType);
   const ph = PL_SUMMARY_PH[d.logType] || '';
   const subHtml = (d.detail || []).map((det, di) => _plEditSubHtml(di, det)).join('');
   return `<div class="pl-item">
@@ -4119,7 +4075,7 @@ function _plEditExtraItemsHtml() {
   return (_plEditDraft.extraItems || []).map((it, ei) => _plEditExtraItemHtml(ei, it)).join('');
 }
 function _plEditExtraItemHtml(ei, it) {
-  const typeOpts = PL_LOG_TYPES_FILTER.map(t => `<option value="${t}" ${it.logType === t ? 'selected' : ''}>${_plTypeLabel(t)}</option>`).join('');
+  const typeOpts = _plTypeSelectOptions(it.logType);
   const ph = PL_SUMMARY_PH[it.logType] || '';
   const subHtml = (it.detail || []).map((det, di) => _plEditExtraSubHtml(ei, di, det)).join('');
   return `<div class="pl-item pl-newgroup">
@@ -4180,9 +4136,8 @@ function _plEditToggleFlag(field) {
   _plEditDraft[field] = !_plEditDraft[field];
   _plEditRerender();
 }
-// 완료 처리 체크 시 진척률 입력을 100으로 즉시 채우고 잠근다 — 저장 시점(_plSaveNewResponse)에
-// 어차피 100으로 덮어쓰는데 화면엔 다른 숫자가 남아있으면 "왜 입력한 값이랑 다르게 저장됐지" 하고
-// 헷갈리게 된다(2026-09-10, 통합안 반영).
+// 완료 처리 체크 시 진척률 입력을 100으로 즉시 채우고 잠근다 — 화면엔 다른 숫자가 남아있으면
+// "왜 입력한 값이랑 다르게 저장됐지" 하고 헷갈리게 된다(2026-09-10, 통합안 반영).
 function _plEditToggleResolve() {
   _plEditDraft.resolveChecked = !_plEditDraft.resolveChecked;
   if (_plEditDraft.resolveChecked) _plEditDraft.progress = 100;
@@ -4199,7 +4154,7 @@ function _plEditMetaHtml() {
   return `<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:12px;">
     <div class="fg"><label class="form-label">작성 정보</label>
       <div class="form-hint" style="padding-top:8px;">${_escHtml(d.writer || '')} · ${_escHtml(d.bonbu || '')} ${_escHtml(d.dept || '')} · <span class="f-mono">${_escHtml(d.logDate || '')}${d.createdAt ? ' ' + _plFmtHHMM(d.createdAt) : ''}</span>
-        ${d.newFor ? '' : `<span class="pl-x" style="margin-left:6px;" onclick="plOpenHistoryModal('${d.id}')">이력 보기</span>`}
+        <span class="pl-x" style="margin-left:6px;" onclick="plOpenHistoryModal('${d.id}')">이력 보기</span>
       </div>
     </div>
     ${_plEditAttachHtml()}
@@ -4318,7 +4273,7 @@ function _plRenderEditModal() {
       </div>
       <div class="pl-bbody">
         ${_plEditItemHtml()}
-        ${!d.newFor ? `${_plEditExtraItemsHtml()}<div class="pl-add" onclick="_plEditAddExtraItem()">＋ 항목 추가 <span class="form-hint" style="font-weight:400;">— 같은 대상으로 새 로그 별도 생성</span></div>` : ''}
+        ${_plEditExtraItemsHtml()}<div class="pl-add" onclick="_plEditAddExtraItem()">＋ 항목 추가 <span class="form-hint" style="font-weight:400;">— 같은 대상으로 새 로그 별도 생성</span></div>
         ${_plEditMetaHtml()}
       </div>
     </div>`;
@@ -4326,25 +4281,24 @@ function _plRenderEditModal() {
   // 수정 권한 없으면(작성자·관리자가 아니면) 조회만 가능하도록 잠금 — 저장 버튼 숨김 + 입력요소 전부 비활성화
   const canEdit = _plCanEditLog({ writerId: d.writerId });
   const footEl = document.getElementById('pl-e-footbtns');
-  const saveLabel = d.newFor ? (d.resolveChecked ? '완료 처리' : '대응 기록 저장') : '저장';
-  const resolveCheckHtml = d.newFor ? `<label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;color:${d.resolveChecked ? 'var(--red)' : 'var(--text2)'};">
+  // 완료 처리 체크박스 — 이어쓰기로 만들어진 로그(continuedFromId 있음)를 수정할 때 보여준다.
+  // 이어쓰기 체인은 원본 갱신이 필요한 threadId 관계가 없어서, 그냥 이 로그 자신의 진척률을
+  // 100으로 채우는 것만으로 충분하다(plSaveEdit이 progress를 그대로 저장).
+  const showResolveCheck = !!d.continuedFromId;
+  const saveLabel = d.resolveChecked ? '완료 처리' : '저장';
+  const resolveCheckHtml = showResolveCheck ? `<label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;color:${d.resolveChecked ? 'var(--red)' : 'var(--text2)'};">
       <input type="checkbox" ${d.resolveChecked ? 'checked' : ''} onchange="_plEditToggleResolve()"> 이 기록으로 완료 처리
     </label>` : '';
   if (footEl) footEl.innerHTML = canEdit ? `${resolveCheckHtml}<button class="btn btn-primary btn-sm" onclick="plSaveEdit()">${saveLabel}</button>` : '';
   const delHeadEl = document.getElementById('pl-e-delbtn-head');
   if (delHeadEl) {
-    // 아직 저장 전(새 대응/해결 작성 중)인 로그는 지울 게 없으니 삭제 버튼을 안 보여준다.
-    const canDel = !d.newFor && _plCanDeleteLog({ writerId: d.writerId });
+    const canDel = _plCanDeleteLog({ writerId: d.writerId });
     delHeadEl.innerHTML = canDel ? `<button class="btn btn-danger btn-sm" onclick="plDeleteLogFromEdit()">삭제</button>` : '';
   }
   const titleEl = document.getElementById('pl-e-title');
-  if (titleEl) titleEl.textContent = d.newFor
-    ? (d.resolveChecked ? '✓ 완료 처리' : '+ 대응 기록')
-    : (canEdit ? '✎ 일지 수정' : '👁 일지 보기');
+  if (titleEl) titleEl.textContent = d.resolveChecked ? '✓ 완료 처리' : (canEdit ? '✎ 일지 수정' : '👁 일지 보기');
   const hintEl = document.getElementById('pl-e-foothint');
-  if (hintEl) hintEl.textContent = d.newFor
-    ? (d.resolveChecked ? '저장하면 원본 이슈가 완료로 전환됩니다' : '이슈는 진행중 상태로 유지되고, 대응 기록만 추가됩니다')
-    : (canEdit ? '변경 이력이 자동 기록됩니다 (삭제는 작성자·관리자만 가능)' : '');
+  if (hintEl) hintEl.textContent = canEdit ? '변경 이력이 자동 기록됩니다 (삭제는 작성자·관리자만 가능)' : '';
   if (!canEdit && blockEl) {
     // "ㄴ 추가" 같은 컨트롤은 <button>이 아니라 onclick 달린 <span>/<div>라 disabled로는 안 막혀서,
     // 블록 전체를 pointer-events:none으로 눌러 어떤 요소든 클릭 자체가 안 먹히게 하고,
@@ -4433,7 +4387,6 @@ async function plOpenHistoryModal(logId) {
 async function plSaveEdit() {
   const d = _plEditDraft;
   if (!d) return;
-  if (d.newFor) { await _plSaveNewResponse(); return; }
   if (!d.scope) { alert('대상을 선택해주세요.'); return; }
   if (!(d.summary || '').trim()) { alert('내용을 입력해주세요.'); return; }
   if ((d.summary || '').length > 60) { alert('내용은 60자 이하로 입력해주세요.'); return; }
