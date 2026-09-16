@@ -74,10 +74,11 @@
       </div>
 
 
-
+<!--
       <div class="nav-item" id="nav-kpi" onclick="goScreen('kpi')">
      <span class="nav-icon">🎯</span>KPI/매출현황
       </div>
+-->
       <div class="nav-item" id="nav-projectlog" onclick="goScreen('projectlog')">
         <span class="nav-icon">✎</span>프로젝트일지
       </div>
@@ -2449,7 +2450,10 @@
           </div>
           <!-- 섹션③: 월별 광고 리스트 -->
           <div class="table-card" style="margin-bottom:16px;">
-            <div class="table-header"><span class="card-title">월별 광고 리스트</span></div>
+            <div class="table-header" style="display:flex;align-items:center;gap:8px;">
+              <span class="card-title">월별 광고 리스트</span>
+              <input type="text" class="f-search" id="kpi-clientlist-search" placeholder="🔍 광고주 검색" style="padding-left:20px;width:160px;" oninput="renderKpiClientListTable()">
+            </div>
             <div id="kpi-clientlist-table"></div>
           </div>
         </div>

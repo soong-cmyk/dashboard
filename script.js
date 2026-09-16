@@ -13246,14 +13246,16 @@ function renderKpiCards() {
   const passed = _KPI_MONTHS.filter(m => m <= curM);
 
   const cumActual = passed.reduce((s, m) => s + _kpiCalcActual(_kpiYear, '', '', m), 0);
-  const cumTarget = passed.reduce((s, m) => s + allTeamMonths.filter(x => x.month === m).reduce((ss, x) => ss + (x.target || 0), 0), 0);
   // 전년실적은 팀별이 아니라 "전사" 통짜 버킷에서 읽는다(renderKpiGrandTable과 동일 소스, 2026-09-02).
   const jeonsaMonths = ((KPI_DATA.bonbus || []).find(b => b.name === '전사')?.teams || []).find(t => t.name === '전사')?.months || [];
   const cumPrev   = passed.reduce((s, m) => s + (jeonsaMonths.find(x => x.month === m)?.prevYear || 0), 0);
 
-  const kpiPct  = cumTarget ? Math.round(cumActual / cumTarget * 100) : 0;
-  const progW   = annualTarget ? Math.min(100, Math.round(cumActual / annualTarget * 100)) : 0;
-  const progClr = progW >= 100 ? 'var(--green)' : progW >= 80 ? 'var(--accent)' : 'var(--red)';
+  // 예전엔 숫자(누적실적÷누적목표=페이스)와 막대(누적실적÷연간목표=연간진도)가 서로 다른
+  // 기준이라 "123%인데 왜 막대는 안 채워져있냐"는 혼란이 있었다 — 숫자와 막대를 같은 기준
+  // (연간 목표 대비 누적 실적)으로 통일한다(2026-09-15, 사용자 요청).
+  const annualPct = annualTarget ? Math.round(cumActual / annualTarget * 100) : 0;
+  const progW     = Math.min(100, annualPct);
+  const progClr   = progW >= 100 ? 'var(--green)' : progW >= 80 ? 'var(--accent)' : 'var(--red)';
 
   const yoyHtml = cumPrev ? _kpiYoyHtml(cumActual, cumPrev) : '';
 
@@ -13270,7 +13272,7 @@ function renderKpiCards() {
     </div>
     <div class="kpi-card">
       <div class="kpi-card-label">KPI 달성률</div>
-      <div class="kpi-card-value" style="color:${kpiPct>=100?'var(--green)':kpiPct>=80?'var(--accent)':'var(--red)'};">${kpiPct}%</div>
+      <div class="kpi-card-value" style="color:${annualPct>=100?'var(--green)':annualPct>=80?'var(--accent)':'var(--red)'};">${annualPct}%</div>
       <div class="kpi-card-prog"><div class="kpi-card-prog-bar" style="width:${progW}%;background:${progClr};"></div></div>
     </div>`;
 }
@@ -13430,6 +13432,10 @@ function renderKpiGrandTable() {
 function renderKpiClientListTable() {
   const el = document.getElementById('kpi-clientlist-table');
   if (!el) return;
+  // 광고주 검색 — 행을 걸러내진 않고(달마다 같은 광고주가 여러 칸에 흩어져 나오는 표라 필터링하면
+  // 맥락이 끊김) 이름 글자만 하이라이트한다. _plHighlight/.pl-mark는 프로젝트일지 전용으로
+  // 만들어졌지만 style.css에 전역으로 박혀있는 클래스라 그대로 재사용한다(2026-09-15, 사용자 요청).
+  const kpiAdvQ = (document.getElementById('kpi-clientlist-search')?.value || '').trim();
   const { bonbu, team } = _parseOrgFilter(_kpiOrgFilter);
 
   const teamsToShow = [];
@@ -13541,7 +13547,7 @@ function renderKpiClientListTable() {
           if (!r.active[mi]) return `<td class="kpi-adv-row-cell" style="${tdCN}">${nd}</td>`;
           const brands = r.brandsByMonth[mi];
           const full = brands.length ? `${r.name} · ${brands.join(', ')}` : r.name;
-          return `<td class="kpi-adv-cell kpi-adv-row-cell" style="${tdCN}"><span class="kpi-adv-line" data-adv="${_escHtml(full)}" onmouseenter="plShowBubble(this,this.dataset.adv)" onmouseleave="plHideBubble()" onclick="plGoToAdvertiserDetail('${_escHtml(r.name)}')">${_escHtml(r.name)}</span></td>`;
+          return `<td class="kpi-adv-cell kpi-adv-row-cell" style="${tdCN}"><span class="kpi-adv-line" data-adv="${_escHtml(full)}" onmouseenter="plShowBubble(this,this.dataset.adv)" onmouseleave="plHideBubble()" onclick="plGoToAdvertiserDetail('${_escHtml(r.name)}')">${_plHighlight(r.name, kpiAdvQ)}</span></td>`;
         }).join('');
         // 광고주 데이터 행은 어떤 행에도 kpi-bonbu-sep 클래스를 붙이지 않는다 — 그 클래스의
         // border-top:...!important 규칙이 있으면 tdCN/tdACN의 border-top:none이 무시돼서
