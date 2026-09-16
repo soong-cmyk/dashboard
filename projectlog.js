@@ -1113,7 +1113,7 @@ function _plBuildCampLogModalShell() {
   overlay.className = 'modal-overlay';
   overlay.id = 'pl-modal-camplog';
   overlay.innerHTML = `
-    <div class="modal" style="width:640px;max-width:96vw;">
+    <div class="modal" style="width:1000px;max-width:96vw;">
       <div class="modal-head">
         <div>
           <div class="modal-title">✎ 캠페인 일지</div>
