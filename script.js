@@ -1098,8 +1098,6 @@ let filtered = [...DATA];
 let activeStatus = 'all';
 let currentPage = 1;
 let PAGE_SIZE = 10;
-let pendingTestEl = null, pendingTestIdx = null;
-let pendingSendEl = null, pendingSendIdx = null;
 let currentDetailIdx = null;
 let currentDetailId = null;
 let _detailFromScreen = 'campaigns'; // 상세보기 진입 전 화면 (back-btn 귀환 대상)
@@ -1524,11 +1522,6 @@ function openDetail(idx, skipPush) {
   if (btnTgt)  btnTgt.style.display  = canEdit(c) ? '' : 'none';
   if (btnNote) btnNote.style.display = canEdit(c) ? '' : 'none';
   _updateBtn2nd(c);
-  // 진행체크 클릭 가능 여부
-  ['detailChkTest','detailChkSend'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.pointerEvents = hasPerm('ops') ? '' : 'none';
-  });
   document.getElementById('dId').textContent = c.id;
   document.getElementById('dName').textContent = _cName(c);
   document.getElementById('dCat').textContent = _getCat(c);
@@ -1607,23 +1600,21 @@ function openDetail(idx, skipPush) {
   if (dMsgSection) dMsgSection.style.display = isCPADetail ? 'none' : '';
   document.getElementById('dMsg').innerHTML      = _linkify(c.msg || '');
   document.getElementById('dMsgFinal').innerHTML = c.msgFinal ? _linkify(c.msgFinal) : '<span style="color:var(--text3);font-size:12px;">아직 검수완료된 문구가 없습니다.</span>';
-  // 탭 초기화 — 항상 검수전 탭으로 시작
-  msgTabSwitch('draft');
+  // 탭 초기화 — 검수완료 문구가 등록돼 있으면 그걸 기본으로, 없으면 검수전으로 시작
+  // (2026-09-19, 사용자 요청 — 검수완료된 게 있으면 그게 실제로 쓰이는 최종 문구라서)
+  msgTabSwitch(c.msgFinal ? 'final' : 'draft');
 
   // 특기사항
   document.getElementById('dNote').innerHTML = (c.note||'').replace(/\n/g,'<br>') || '<span style="color:var(--text3);">—</span>';
 
   // step track
-  const steps = ['부킹확정','테스트완료','성과입력대기','성과입력완료'];
+  const steps = ['부킹확정','성과입력대기','성과입력완료'];
   const ci = steps.indexOf(c.status);
   document.querySelectorAll('#stepTrack .step').forEach((el,i) => {
     el.className = 'step';
     if (i < ci) el.classList.add('done');
     else if (i === ci) el.classList.add('current');
   });
-
-  // 진행체크 동기화
-  _syncDetailChks();
 
   // 실발송수량 (2차입력 여부)
   const actualEl = document.getElementById('dActual');
@@ -1637,6 +1628,11 @@ function openDetail(idx, skipPush) {
     }
   }
 
+  // 등록/수정 저장 후 목록·대시보드를 거치지 않고 바로 상세로 돌아오는 경로가 많아서
+  // (submitReg/submitEdit 등), 여기서도 발송일시 기준 자동승격을 한 번 확인해준다 —
+  // 안 그러면 날짜를 과거로 수정해도 목록/대시보드를 따로 열기 전까진 부킹확정으로 남아있는
+  // 것처럼 보였다(2026-09-19, 사용자 리포트).
+  _autoAdvanceBookingStatus();
   // DA 캠페인이 '부킹확정' 상태면 자동으로 '성과입력대기'로 전환
   const isDAcamp  = ['DA','IPTV'].includes(c.product);
   const isPCcamp  = c.product === '퍼미션콜';
@@ -1897,7 +1893,23 @@ function openDetail(idx, skipPush) {
 // ══════════════════════════════════════════
 // CAMPAIGN LIST
 // ══════════════════════════════════════════
+// 테스트수신/발송여부를 사람이 직접 체크하던 단계를 없애면서(2026-09-18, "체크하는 단계가
+// 필요없다"는 피드백), 발송일시(c.date)가 지나면 '부킹확정' 캠페인을 자동으로 '성과입력대기'로
+// 넘겨준다. 목록/대시보드를 그릴 때마다 호출해서 숫자가 항상 실시간으로 맞게 유지한다
+// (DA/CPA/PC/CPS는 등록 시점에 이미 부킹확정을 건너뛰므로 영향 없음).
+function _autoAdvanceBookingStatus() {
+  const now = new Date();
+  const nowStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  DATA.forEach(c => {
+    // '테스트완료'는 폐지된 중간 상태 — 예전에 이미 그 상태로 저장된 캠페인도 여기서 같이 정리한다.
+    if ((c.status === '부킹확정' || c.status === '테스트완료') && c.date && c.date <= nowStr) {
+      c.status = '성과입력대기';
+      _fbSaveCampaign(c);
+    }
+  });
+}
 function updateBoardCounts() {
+  _autoAdvanceBookingStatus();
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const y  = String(now.getFullYear());
@@ -1913,7 +1925,6 @@ function updateBoardCounts() {
     return true;
   });
   document.getElementById('cnt-booking').textContent = dateFiltered.filter(c => c.status === '부킹확정').length;
-  document.getElementById('cnt-test').textContent    = dateFiltered.filter(c => c.status === '테스트완료').length;
   document.getElementById('cnt-sent').textContent    = dateFiltered.filter(c => c.status === '성과입력대기').length;
   document.getElementById('cnt-settle').textContent  = dateFiltered.filter(c => c.status === '성과입력완료').length;
 }
@@ -1972,12 +1983,6 @@ function renderTable(data) {
       <td class="td-num td-r">${c.clicks!=null?c.clicks.toLocaleString():'<span style="color:var(--text3)">—</span>'}</td>
       <td class="td-num td-r">${(()=>{ const v=c.ctr; if(v==null)return '<span style="color:var(--text3)">—</span>'; const n=typeof v==='string'?parseFloat(v):v; return isNaN(n)?'<span style="color:var(--text3)">—</span>':n.toFixed(2)+'%'; })()}</td>
       <td><span class="badge b-${c.status}">${c.status}</span></td>
-      <td onclick="event.stopPropagation()" style="text-align:center;">
-        <div class="chk ${c.testOk?'on':''}" onclick="clickTest(${i},this)">${c.testOk?'✓':''}</div>
-      </td>
-      <td onclick="event.stopPropagation()" style="text-align:center;">
-        <div class="chk ${c.sent?'on':''}" onclick="clickSend(${i},this)">${c.sent?'✓':''}</div>
-      </td>
     </tr>`;
   }).join('');
 }
@@ -2041,7 +2046,7 @@ function applyFilter() {
 
 function filterStatus(s) {
   activeStatus = s;
-  const boardIds = {all:'board-all', 부킹확정:'board-booking', 테스트완료:'board-test', 성과입력대기:'board-sent', 성과입력완료:'board-settle'};
+  const boardIds = {all:'board-all', 부킹확정:'board-booking', 성과입력대기:'board-sent', 성과입력완료:'board-settle'};
   document.querySelectorAll('#screen-campaigns .board').forEach(b => b.classList.remove('active-board'));
   const activeEl = document.getElementById(boardIds[s]);
   if (activeEl) activeEl.classList.add('active-board');
@@ -2156,63 +2161,9 @@ function toggleAll(el) {
   document.querySelectorAll('#tbody input[type=checkbox]').forEach(c => c.checked = el.checked);
 }
 
-// ══════════════════════════════════════════
-// CHECKBOXES
-// ══════════════════════════════════════════
-function clickTest(idx, el) {
-  if (DATA[idx].testOk) return;
-  pendingTestIdx = idx; pendingTestEl = el;
-  document.querySelectorAll('#clItems .cl-item').forEach(i => i.classList.remove('ticked'));
-  document.getElementById('btnTestOk').disabled = true;
-  document.getElementById('btnTestOk').style.opacity = '.4';
-  openModal('modalTest');
-}
-function tickCl(el) {
-  el.classList.toggle('ticked');
-  const all = [...document.querySelectorAll('#clItems .cl-item')].every(i => i.classList.contains('ticked'));
-  document.getElementById('btnTestOk').disabled = !all;
-  document.getElementById('btnTestOk').style.opacity = all?'1':'.4';
-}
-function confirmTest() {
-  const c = DATA[pendingTestIdx];
-  c.testOk = true;
-  _log(c.id, 'check', 'testOk', '대기 중', '완료');
-  const prevStatus = c.status;
-  if (c.status === '부킹확정') c.status = '테스트완료';
-  if (c.status !== prevStatus) _log(c.id, 'field', 'status', prevStatus, c.status);
-  if (pendingTestEl) { pendingTestEl.classList.add('on'); pendingTestEl.innerHTML='✓'; }
-  _fbSaveCampaign(c);
-  closeModal('modalTest');
-  _syncDetailChks();
-  if (pendingTestIdx === currentDetailIdx) _updateStepTrack(c.status);
-  renderTable(filtered);
-  toast('✓ 테스트 수신이 확인되었습니다','ok');
-}
-function cancelTest() { closeModal('modalTest'); }
-
-function clickSend(idx, el) {
-  if (DATA[idx].sent) return;
-  pendingSendIdx=idx; pendingSendEl=el;
-  document.getElementById('sendName').textContent = _cName(DATA[idx]);
-  openModal('modalSend');
-}
-function confirmSend() {
-  const c = DATA[pendingSendIdx];
-  c.sent = true;
-  _log(c.id, 'check', 'sent', '대기 중', '완료');
-  const prevStatus = c.status;
-  if (c.status === '부킹확정' || c.status === '테스트완료') c.status = '성과입력대기';
-  if (c.status !== prevStatus) _log(c.id, 'field', 'status', prevStatus, c.status);
-  if (pendingSendEl) { pendingSendEl.classList.add('on'); pendingSendEl.innerHTML='✓'; }
-  _fbSaveCampaign(c);
-  closeModal('modalSend');
-  _syncDetailChks();
-  if (pendingSendIdx === currentDetailIdx) { _updateStepTrack(c.status); _updateBtn2nd(c); }
-  renderTable(filtered);
-  toast('🚀 발송이 확인되었습니다','ok');
-}
-// 상세보기의 "성과 입력/수정" 버튼 활성화 여부 — openDetail()과 confirmSend() 둘 다에서 호출
-// (confirmSend로 status가 바뀌어도 openDetail을 다시 열기 전까진 버튼이 안 풀리던 버그 방지)
+// 상세보기의 "성과 입력/수정" 버튼 활성화 여부 — openDetail()에서 호출.
+// (테스트수신/발송여부 체크 단계는 폐지 — 부킹확정 캠페인은 발송일시가 지나면
+// _autoAdvanceBookingStatus()가 자동으로 성과입력대기로 넘겨준다, 2026-09-18)
 function _updateBtn2nd(c) {
   const btn2nd = document.getElementById('btn-2nd');
   if (!btn2nd) return;
@@ -2224,52 +2175,6 @@ function _updateBtn2nd(c) {
     if (can2nd) wrap2nd.removeAttribute('data-tooltip');
     else wrap2nd.setAttribute('data-tooltip', '성과입력대기 단계에서 성과 입력이 가능합니다.');
   }
-}
-function cancelSend() { closeModal('modalSend'); }
-
-function _updateStepTrack(status) {
-  const steps = ['부킹확정','테스트완료','성과입력대기','성과입력완료'];
-  const ci = steps.indexOf(status);
-  document.querySelectorAll('#stepTrack .step').forEach((el,i) => {
-    el.className = 'step';
-    if (i < ci) el.classList.add('done');
-    else if (i === ci) el.classList.add('current');
-  });
-}
-
-// 상세페이지 진행체크 동기화
-function _syncDetailChks() {
-  const c = DATA[currentDetailIdx];
-  if (!c) return;
-  _setDetailChk(document.getElementById('detailChkTest'), c.testOk);
-  _setDetailChk(document.getElementById('detailChkSend'), c.sent);
-}
-function _setDetailChk(el, done) {
-  if (!el) return;
-  const dot = el.querySelector('.s-dot');
-  const val = el.querySelector('span:last-child');
-  if (done) { dot.className='s-dot dot-ok'; val.style.color='var(--green)'; val.textContent='✓ 완료'; }
-  else      { dot.className='s-dot dot-pend'; val.style.color='var(--text3)'; val.textContent='대기 중'; }
-}
-// 상세페이지에서 진행체크 클릭
-function detailClickTest() {
-  const c = DATA[currentDetailIdx];
-  if (!c || c.testOk) return;
-  pendingTestIdx = currentDetailIdx;
-  pendingTestEl  = null; // 캠페인목록 .chk 없음
-  document.querySelectorAll('#clItems .cl-item').forEach(i => i.classList.remove('ticked'));
-  document.getElementById('btnTestOk').disabled = true;
-  document.getElementById('btnTestOk').style.opacity = '.4';
-  openModal('modalTest');
-}
-function detailClickSend() {
-  const c = DATA[currentDetailIdx];
-  if (!c || c.sent) return;
-  if (!c.testOk) { toast('⚠ 테스트 수신 확인 후 발송 처리할 수 있습니다', 'warn'); return; }
-  pendingSendIdx = currentDetailIdx;
-  pendingSendEl  = null;
-  document.getElementById('sendName').textContent = _cName(c);
-  openModal('modalSend');
 }
 
 function toggleChk(el) { el.classList.toggle('on'); el.innerHTML = el.classList.contains('on')?'✓':''; }
@@ -3376,7 +3281,6 @@ function submitReg() {
     product:  document.getElementById('r_product').value,
     clicks:   null, ctr: null,
     status:   isDA ? '성과입력대기' : (isPC ? '성과입력완료' : (isCPA ? '성과입력대기' : (isCPS ? '성과입력완료' : '부킹확정'))),
-    testOk:   false, sent: false,
     regUser:  currentUser ? currentUser.id : '',
     seller:   document.getElementById('r_seller').value,
     content:  document.getElementById('r_content').value || document.getElementById('r_content_text').value,
@@ -4335,6 +4239,7 @@ function saveEditTarget() {
   if (dtargetEl2) { const dtags2 = (c.dtarget||'').split('\n').map(t=>t.trim()).filter(Boolean); dtargetEl2.innerHTML = dtags2.length ? dtags2.map(t=>`<span class="tag">${t}</span>`).join('') : '<span style="color:var(--text3);">—</span>'; }
   document.getElementById('dMsg').innerHTML     = _linkify(c.msg || '');
   document.getElementById('dMsgFinal').innerHTML = c.msgFinal ? _linkify(c.msgFinal) : '<span style="color:var(--text3);font-size:12px;">아직 검수완료된 문구가 없습니다.</span>';
+  msgTabSwitch(c.msgFinal ? 'final' : 'draft');
   _fbSaveCampaign(c);
   closeModal('modalEditTarget');
   toast(reviewed ? '✓ 검수완료 문구가 저장되었습니다' : '✓ 타겟 & 문구가 저장되었습니다', 'ok');
@@ -5111,7 +5016,7 @@ function toast(msg, type='ok'){
 // ══════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════
-const STATUS_COLORS = {'부킹확정':'#3b5bdb','테스트완료':'#e67700','성과입력대기':'#2f9e44','성과입력완료':'#7048e8'};
+const STATUS_COLORS = {'부킹확정':'#3b5bdb','성과입력대기':'#2f9e44','성과입력완료':'#7048e8'};
 
 function _renderMiniList(campaigns, listElId) {
   const listEl = document.getElementById(listElId);
@@ -5155,7 +5060,7 @@ let activeMyCampaignFilter = '부킹확정';
 
 function filterMyList(type) {
   activeMyCampaignFilter = type;
-  const boardMap = {'부킹확정': 'mb-booking', '테스트완료': 'mb-test', '성과입력대기': 'mb-sent', '성과입력완료': 'mb-settle'};
+  const boardMap = {'부킹확정': 'mb-booking', '성과입력대기': 'mb-sent', '성과입력완료': 'mb-settle'};
   document.querySelectorAll('#my-boards .board').forEach(b => b.classList.remove('active-board'));
   const activeBoard = document.getElementById(boardMap[type]);
   if (activeBoard) activeBoard.classList.add('active-board');
@@ -5165,6 +5070,7 @@ function filterMyList(type) {
 }
 
 function renderDashboard() {
+  _autoAdvanceBookingStatus();
   const myCampaigns = currentUser?.isAdmin ? DATA : DATA.filter(c => c.ops === (currentUser?.name || ''));
 
   // ── 상단 통계 카드 ──
@@ -5183,7 +5089,9 @@ function renderDashboard() {
 
   const statData = DATA.filter(c => (c.date || '').startsWith(prefix));
   const campCnt  = statData.length;
-  const sentQty  = statData.filter(c => c.sent).reduce((s, c) => s + (c.actual || c.qty || 0), 0);
+  // 발송여부 체크(c.sent)가 폐지되면서, "부킹확정이 아니면 이미 발송된 것"으로 판단 기준을 바꿨다
+  // (2026-09-18) — DA/CPA/PC/CPS처럼 애초에 체크 없이 바로 다음 단계로 가는 상품도 이제 정확히 잡힌다.
+  const sentQty  = statData.filter(c => c.status !== '부킹확정').reduce((s, c) => s + (c.actual || c.qty || 0), 0);
   const totalQty = statData.reduce((s, c) => s + (c.qty || 0), 0);
   const statAdc  = statData.reduce((s, c) => s + _campAdcost(c), 0);
 
@@ -5207,7 +5115,7 @@ function renderDashboard() {
     : '—';
 
   // 단계별 현황 (전체 캠페인 기준) - 건수
-  ['부킹확정', '테스트완료', '성과입력대기', '성과입력완료'].forEach(s => {
+  ['부킹확정', '성과입력대기', '성과입력완료'].forEach(s => {
     const cnt = DATA.filter(c => c.status === s).length;
     const cntEl = document.getElementById('stage-cnt-' + s);
     if (cntEl) cntEl.textContent = cnt + '건';
@@ -5215,7 +5123,6 @@ function renderDashboard() {
 
   // 나의 캠페인 보드 (내 캠페인 기준)
   document.getElementById('mb-booking-cnt').textContent  = myCampaigns.filter(c => c.status === '부킹확정').length + '건';
-  document.getElementById('mb-test-cnt').textContent     = myCampaigns.filter(c => c.status === '테스트완료').length + '건';
   document.getElementById('mb-sent-cnt').textContent     = myCampaigns.filter(c => c.status === '성과입력대기').length + '건';
   document.getElementById('mb-settle-cnt').textContent   = myCampaigns.filter(c => c.status === '성과입력완료').length + '건';
 
@@ -9889,7 +9796,14 @@ function renderTaxList() {
     : _taxQuickFilter === 'unpaid'
     ? groups.filter(([gid, items]) => !_isSuperseded(gid) && items[0].paid !== '완료')
     : _taxQuickFilter === 'correction'
-    ? groups.filter(([, items]) => items[0].correctionOf != null)
+    // 수정발행건 바로 아래에 원본(대체된) 건도 같이 보여줘야 뭐가 얼마에서 얼마로 바뀌었는지
+    // 한눈에 비교되므로(2026-09-18, 사용자 요청) — 원본은 검색/기간 필터에 안 걸릴 수도 있어
+    // 필터링 전 전체 groupMap에서 가져온다(_correctionOfMap과 같은 이유).
+    ? groups.filter(([, items]) => items[0].correctionOf != null).flatMap(([gid, items]) => {
+        const origGid = items[0].correctionOf;
+        const origItems = (origGid != null) ? groupMap.get(origGid) : null;
+        return origItems ? [[gid, items], [origGid, origItems]] : [[gid, items]];
+      })
     : groups;
 
   // 요약 통계 — 대체(취소)된 원본은 제외하고, 남아있는 최종 확정 금액만 합산

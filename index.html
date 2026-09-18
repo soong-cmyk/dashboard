@@ -231,16 +231,11 @@
             <!-- button class="btn btn-ghost btn-sm" onclick="goScreen('campaigns')" style="margin-left:auto;font-size:11px;padding:4px 10px;">목록 바로가기 →</button -->
           </div>
           <div class="card-body">
-            <div id="my-boards" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">
+            <div id="my-boards" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;">
               <div class="board active-board" id="mb-booking" onclick="filterMyList('부킹확정')">
                 <div class="board-lbl lbl-부킹확정">부킹확정</div>
                 <div class="board-cnt cnt-부킹확정" id="mb-booking-cnt">—</div>
-                <div class="board-sub">테스트 대기</div>
-              </div>
-              <div class="board" id="mb-test" onclick="filterMyList('테스트완료')">
-                <div class="board-lbl lbl-테스트완료">테스트완료</div>
-                <div class="board-cnt cnt-테스트완료" id="mb-test-cnt">—</div>
-                <div class="board-sub">테스트 완료 & 발송 대기</div>
+                <div class="board-sub">발송 대기</div>
               </div>
               <div class="board" id="mb-sent" onclick="filterMyList('성과입력대기')">
                 <div class="board-lbl lbl-성과입력대기">성과입력대기</div>
@@ -271,11 +266,9 @@
           </div>
           <div class="card-body">
             <div class="dash-stage-grid"
-              style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
+              style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
               <div class="stage-row active-stage" id="stage-부킹확정" onclick="filterAllList('부킹확정')"><span
                   class="badge b-부킹확정">부킹확정</span><span class="stage-cnt" id="stage-cnt-부킹확정">—</span></div>
-              <div class="stage-row" id="stage-테스트완료" onclick="filterAllList('테스트완료')"><span
-                  class="badge b-테스트완료">테스트완료</span><span class="stage-cnt" id="stage-cnt-테스트완료">—</span></div>
               <div class="stage-row" id="stage-성과입력대기" onclick="filterAllList('성과입력대기')"><span
                   class="badge b-성과입력대기">성과입력대기</span><span class="stage-cnt" id="stage-cnt-성과입력대기">—</span></div>
               <div class="stage-row" id="stage-성과입력완료" onclick="filterAllList('성과입력완료')"><span
@@ -451,11 +444,6 @@
             <div class="board-cnt cnt-부킹확정" id="cnt-booking">—</div>
             <div class="board-sub">발송 대기</div>
           </div>
-          <div class="board" id="board-test" onclick="filterStatus('테스트완료')">
-            <div class="board-lbl lbl-테스트완료">테스트완료</div>
-            <div class="board-cnt cnt-테스트완료" id="cnt-test">—</div>
-            <div class="board-sub">발송 테스트 중</div>
-          </div>
           <div class="board" id="board-sent" onclick="filterStatus('성과입력대기')">
             <div class="board-lbl lbl-성과입력대기">성과입력대기</div>
             <div class="board-cnt cnt-성과입력대기" id="cnt-sent">—</div>
@@ -545,8 +533,6 @@
                   <th style="text-align:center;" class="td-r">클릭수</th>
                   <th style="text-align:center;" class="td-r">클릭률</th>
                   <th style="text-align:center;">단계</th>
-                  <th style="text-align:center;">테스트수신</th>
-                  <th style="text-align:center;">발송여부</th>
                 </tr>
               </thead>
               <tbody id="tbody"></tbody>
@@ -573,8 +559,7 @@
           <div style="display:flex;align-items:center;gap:10px;margin-left:auto;">
             <div class="step-track" id="stepTrack">
               <div class="step done">부킹확정</div>
-              <div class="step current">테스트완료</div>
-              <div class="step">성과입력대기</div>
+              <div class="step current">성과입력대기</div>
               <div class="step">성과입력완료</div>
             </div>
             <button class="btn btn-ghost btn-sm" onclick="openHistory()">⏱ 수정 이력</button>
@@ -864,17 +849,6 @@
             <div class="card-body">
               <div class="memo-block" id="dNote" style="border-left-color:var(--yellow);margin-bottom:14px;">발송 전 QA
                 필수<br>링크 클릭 트래킹 설정 확인 요망</div>
-              <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;">진행 체크</div>
-              <div class="input-status">
-                <div class="ist-item" id="detailChkTest" style="cursor:pointer;" onclick="detailClickTest()">
-                  <div class="s-dot dot-pend"></div><span class="s-lbl">테스트 수신 확인</span><span
-                    style="color:var(--text3);font-size:12px;">대기 중</span>
-                </div>
-                <div class="ist-item" id="detailChkSend" style="cursor:pointer;" onclick="detailClickSend()">
-                  <div class="s-dot dot-pend"></div><span class="s-lbl">실제 발송 완료</span><span
-                    style="color:var(--text3);font-size:12px;">대기 중</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -3288,55 +3262,6 @@
           id="med-del-btn">삭제</button>
         <button class="btn btn-outline" onclick="closeMediaModal()">취소</button>
         <button class="btn btn-primary" onclick="saveMedia()">저장</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 테스트 수신 확인 -->
-  <div class="modal-overlay" id="modalTest">
-    <div class="modal modal-sm">
-      <div class="modal-head"><span class="modal-title">🧪 테스트 문자 수신 확인</span><button class="modal-close"
-          onclick="cancelTest()">✕</button></div>
-      <div class="modal-body">
-        <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;">4가지 항목을 모두 확인해야 완료됩니다.</p>
-        <div id="clItems">
-          <div class="cl-item" onclick="tickCl(this)">
-            <div class="cl-box">✓</div><span class="cl-text">문자 정상 수신 확인</span>
-          </div>
-          <div class="cl-item" onclick="tickCl(this)">
-            <div class="cl-box">✓</div><span class="cl-text">오탈자 확인</span>
-          </div>
-          <div class="cl-item" onclick="tickCl(this)">
-            <div class="cl-box">✓</div><span class="cl-text">링크 정상 작동 확인</span>
-          </div>
-          <div class="cl-item" onclick="tickCl(this)">
-            <div class="cl-box">✓</div><span class="cl-text">광고주 확인</span>
-          </div>
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn btn-outline" onclick="cancelTest()">취소</button>
-        <button class="btn btn-primary" id="btnTestOk" onclick="confirmTest()" disabled style="opacity:.4;">확인</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 발송 확인 -->
-  <div class="modal-overlay" id="modalSend">
-    <div class="modal modal-sm">
-      <div class="modal-head"><span class="modal-title">🚀 발송 확인</span><button class="modal-close"
-          onclick="cancelSend()">✕</button></div>
-      <div class="modal-body">
-        <div class="confirm-info">
-          <div class="ci-lbl">발송 캠페인</div>
-          <div class="ci-val" id="sendName">—</div>
-        </div>
-        <p style="font-size:13px;color:var(--text2);line-height:1.6;">해당 캠페인 발송을 최종 확인하시겠습니까?<br><strong
-            style="color:var(--red);">이 작업은 되돌릴 수 없습니다.</strong></p>
-      </div>
-      <div class="modal-foot">
-        <button class="btn btn-outline" onclick="cancelSend()">취소</button>
-        <button class="btn btn-primary" onclick="confirmSend()">발송 확인</button>
       </div>
     </div>
   </div>
