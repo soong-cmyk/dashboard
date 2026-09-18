@@ -265,8 +265,15 @@ const _DEPLOY_WATCH_FILES = ['index.html', 'script.js', 'report.js', 'projectlog
   if (!raw) return;
   localStorage.removeItem('_deployReloadLog');
   try { console.log('[deploy] 직전 로드에서 파일 변경 감지로 새로고침됨', JSON.parse(raw)); } catch (e) {}
+  // 갑자기 화면이 새로고침되면 사용자가 당황할 수 있어 — 원인을 사후에 짧게 알려준다.
+  // #toast 요소는 이 스크립트보다 앞서 body에 있으니 바로 호출해도 안전하다(2026-09-17, 사용자 요청).
+  try { toast('서비스 업데이트 완료', 'ok'); } catch (e) {}
 })();
-async function _checkDeployVersion() {
+// source: 이 체크를 부른 곳 — 'initRoute'(새로고침/탭 재방문), 'goScreen'(메뉴 이동 시 스로틀 체크)
+// 등을 로그에 같이 남겨서, goScreen 경로로 실제 새로고침이 도는지 콘솔로 구분해 확인할 수 있게
+// 한다(2026-09-17, 사용자 요청).
+async function _checkDeployVersion(source) {
+  source = source || 'unknown';
   // file:// 로 직접 열어서 로컬 테스트할 땐 fetch가 CORS로 무조건 막혀서(브라우저가 콘솔에
   // 에러를 대량으로 찍음) 이 체크 자체가 의미 없다 — 실제 배포(http/https)에서만 동작하면 된다.
   if (location.protocol === 'file:') return false;
@@ -288,7 +295,7 @@ async function _checkDeployVersion() {
       // 사용자 요청 — 새로고침이 배포 감지 때문인지 확인할 방법이 없었음). 이 로그 직후 바로
       // reload()가 실행되므로, "Preserve log" 꺼져있으면 사라진다 — localStorage에도 남겨서
       // 새로고침 직후 로드 시(_plReportPastDeployReload) 다시 한번 콘솔에 찍히게 한다.
-      const logEntry = { time: new Date().toISOString(), changedFiles };
+      const logEntry = { time: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), source, changedFiles };
       console.log('[deploy] 파일 변경 감지 → 새로고침', logEntry);
       localStorage.setItem('_deployReloadLog', JSON.stringify(logEntry));
       // 예전엔 여기서 해시를 무조건 #dashboard로 덮어썼는데, 그러면 배포 직후(자주 있는 일)
@@ -303,6 +310,21 @@ async function _checkDeployVersion() {
     console.error('[deploy] 버전 확인 실패:', e);
     return false;
   }
+}
+// 메뉴 전환(goScreen)마다 부르는 가벼운 버전 — HEAD 요청 자체는 Firestore와 무관해 공짜지만,
+// 메뉴를 빠르게 여러 번 눌러도 매번 네트워크를 태우지 않게 최소 간격만 둔다. 일자별 뷰 인라인
+// 수정 중(_plInlineEditId)엔 아예 건너뛴다 — 인라인 수정은 모달과 달리 화면을 안 덮어서 사이드바
+// 클릭(=goScreen 실행)이 가능한 유일한 "저장 안 된 입력이 남아있을 수 있는" 상태라, 여기서
+// _checkDeployVersion을 그냥 돌리면 파일 태그가 갱신돼버려 나중에 다시 체크할 때 "이미 최신"으로
+// 오판하고 배포 감지를 영영 놓친다 — 그래서 갱신 자체를 건너뛰어 다음 기회에 다시 잡히게 한다
+// (2026-09-17, 사용자와 설계 확정).
+let _lastDeployCheckAt = 0;
+function _checkDeployVersionThrottled() {
+  if (typeof _plInlineEditId !== 'undefined' && _plInlineEditId != null) return;
+  const now = Date.now();
+  if (now - _lastDeployCheckAt < 60000) return;
+  _lastDeployCheckAt = now;
+  _checkDeployVersion('goScreen');
 }
 async function login() {
   const id = document.getElementById('login-id').value.trim();
@@ -333,8 +355,6 @@ async function login() {
       loginAt: firebase.firestore.FieldValue.serverTimestamp()
     }).catch(() => {});
   }
-  const _reloading = await _checkDeployVersion();
-  if (_reloading) return;
   _updateUserUI();
   _fbWatchNotifications();
   // admin 자동 백업 — 하루 한 번
@@ -348,7 +368,11 @@ async function login() {
       }, 2000);
     }
   }
-  // 로그인 전에 detail/pljump/taxjump URL로 접근했던 경우 복원
+  // 로그인 전에 detail/pljump/taxjump URL로 접근했던 경우 복원 — 이 세 분기는 goScreen()을
+  // 거치지 않고 바로 화면을 띄우므로, goScreen 안에 넣어둔 배포 체크가 여기선 안 걸린다.
+  // 로그인 시점에 한 번은 걸리게 별도로 호출한다(2026-09-17, 사용자 리포트 — 딥링크로
+  // 로그인하면 배포 감지가 빠지는 구멍이 있었음).
+  _checkDeployVersionThrottled();
   const afterHash = sessionStorage.getItem('_afterLoginHash');
   if (afterHash) {
     sessionStorage.removeItem('_afterLoginHash');
@@ -1316,6 +1340,11 @@ function goScreen(name, skipPush) {
   const _usagePerfStart = performance.now();
   // 세션 만료 체크 (로그인 화면 전환 시 제외)
   if (name !== 'login' && !checkAuth()) { goScreen('login', true); return; }
+  // 메뉴 이동(=goScreen 실행)마다 배포 버전을 가볍게 체크 — 로그인/새로고침 때만 확인하던 걸
+  // 확장해서, 브라우저를 오래 켜놔도 다음 메뉴 클릭 시 자연스럽게 새 배포가 반영되게 한다
+  // (2026-09-17, 사용자 요청 — "일일이 새로고침 안 해도 되게"). 로그인 화면 자체는 login()이
+  // 이미 별도로 체크하므로 중복 체크하지 않는다.
+  if (name !== 'login') _checkDeployVersionThrottled();
   // 현재 화면이 campaigns/settlement이면 필터 상태 저장 (뒤로가기 복원용)
   const _curScreen = (window.location.hash || '').replace('#', '').split('/')[0];
   if (['campaigns', 'settlement', 'tax'].includes(_curScreen)) {
@@ -4350,6 +4379,7 @@ const CAT_COLOR = {
   '뷰티': '#fcc2d7',
   '기타': '#d4c5f9',
   '병의원': '#ff8787',
+  '건기식': '#63e6be',
 };
 function _evColor(ev) {
   if (ev.idx !== null && DATA[ev.idx]) return CAT_COLOR[_getCat(DATA[ev.idx])] || '#868e96';
@@ -7294,7 +7324,7 @@ function selTypeChange() {
   document.getElementById('sel-adv-fields').style.display   = '';
 }
 
-const SELLER_BRAND_CATS = ['분양', '교육', '뷰티', '수송', '금융', '병의원', '기타'];
+const SELLER_BRAND_CATS = ['분양', '교육', '뷰티', '수송', '금융', '병의원', '건기식', '기타'];
 
 function renderSellerBrands() {
   const el = document.getElementById('sel-brand-list');
@@ -7767,7 +7797,7 @@ let _campFullyWatching = false;
   // 세션이 살아있어 로그인 화면 없이 바로 복원되는 경우(탭 재방문/새로고침)도
   // login()과 마찬가지로 배포 버전을 확인한다 — 12시간 세션 동안은 로그인 화면을
   // 거치지 않으므로 이 체크가 없으면 그 사이의 배포를 영영 못 받게 된다.
-  const _reloading = await _checkDeployVersion();
+  const _reloading = await _checkDeployVersion('initRoute');
   if (_reloading) return;
   _updateUserUI();
   // hash 기반으로 초기 스크린 결정 (새로고침 시 유지)
