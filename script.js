@@ -50,6 +50,48 @@ function _populateProductSelects() {
   });
 }
 
+// 카테고리 마스터데이터 — 이름·색상을 한 곳에서만 관리(SSOT). 예전엔 이름 목록(SELLER_BRAND_CATS)과
+// 색상(CAT_COLOR)이 따로 있었고, 거기다 index.html 안에 5곳 <select>·캘린더 범례까지 하드코딩
+// 중복이 있어서 카테고리 하나 추가할 때마다 8곳을 손으로 맞춰야 했다 — 이 배열 하나로 통합하고
+// 나머지는 전부 여기서 렌더링한다(2026-09-22, 사용자 요청).
+const CATEGORIES = [
+  { name: '분양',   color: '#8fd3a0' },
+  { name: '교육',   color: '#91c7f5' },
+  { name: '뷰티',   color: '#fcc2d7' },
+  { name: '수송',   color: '#ffc078' },
+  { name: '금융',   color: '#a9e4ef' },
+  { name: '병의원', color: '#ff8787' },
+  { name: '건기식', color: '#63e6be' },
+  { name: '기타',   color: '#d4c5f9' },
+];
+function _categoryColor(name) { return CATEGORIES.find(c => c.name === name)?.color || '#868e96'; }
+function _categoryNames() { return CATEGORIES.map(c => c.name); }
+function _populateCategorySelects() {
+  const opts = CATEGORIES.map(c => `<option>${c.name}</option>`).join('');
+  // 필터: 빈값 옵션("카테고리") 유지
+  ['fCat', 'stl-fCat', 'calFilterCat'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">카테고리</option>' + opts;
+  });
+  // 입력 폼: "선택" 옵션 유지, 현재 값 보존
+  ['sel-brand-cat', 'brand-add-cat'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="">선택</option>' + opts;
+    if (cur) el.value = cur;
+  });
+}
+function _categoryLegendHtml() {
+  return CATEGORIES.map(c =>
+    `<div style="display:flex;align-items:center;gap:5px;font-size:12px;"><span style="width:10px;height:10px;border-radius:50%;background:${c.color};display:inline-block;"></span>${c.name}</div>`
+  ).join('');
+}
+function _renderCalLegend() {
+  const el = document.getElementById('calLegendDots');
+  if (el) el.innerHTML = _categoryLegendHtml();
+}
+
 // ══════════════════════════════════════════
 // DATA
 // ══════════════════════════════════════════
@@ -2067,14 +2109,6 @@ function _saveFilterState(screen) {
       fTo:    document.getElementById('fTo')?.value    || '',
       activeStatus
     }));
-  } else if (screen === 'tax') {
-    sessionStorage.setItem('filterState_tax', JSON.stringify({
-      year:     document.getElementById('tax-year')?.value     || '',
-      month:    document.getElementById('tax-month')?.value    || '',
-      fManager: document.getElementById('tax-fManager')?.value || '',
-      fStatus:  document.getElementById('tax-fStatus')?.value  || '',
-      fCompany: document.getElementById('tax-fCompany')?.value || ''
-    }));
   } else if (screen === 'settlement') {
     sessionStorage.setItem('filterState_settlement', JSON.stringify({
       year:   document.getElementById('stl-year')?.value    || '',
@@ -2492,7 +2526,13 @@ function comboClose(name) {
 }
 
 function comboAddNew(name) {
-  _comboConfig(name).onAddNew();
+  const cfg = _comboConfig(name);
+  const typed = (document.getElementById(cfg.textId)?.value || '').trim();
+  // 입력한 이름이 이미 등록된 항목과 정확히 같으면, 신규 등록 화면을 띄우는 대신 그 항목을 그대로
+  // 선택한다 — 안 그러면 신규 등록 화면에서 실수로 저장할 경우 기존 데이터(브랜드 목록 등)가
+  // Firestore에서 같은 이름으로 덮어써져 사라진다(2026-09-21, 실사고 직전까지 갔던 문제 방지).
+  if (typed && cfg.getItems().includes(typed)) { comboSelect(name, typed); return; }
+  cfg.onAddNew();
 }
 
 // 검색 콤보 리스트 공통 키보드 네비게이션(방향키로 하이라이트 이동, Tab/Enter로 하이라이트 항목 선택).
@@ -2590,10 +2630,14 @@ function _fcConfig(name) {
     'stl-fMedia': { textId:'stl-fMedia_text', hiddenId:'stl-fMedia', listId:'combo-stl-fMedia-list', getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => renderSettlement() },
     calFilterCompany: { textId:'calFilterCompany_text', hiddenId:'calFilterCompany', listId:'combo-calFilterCompany-list', getItems:_calCompanyItems, onSelect:() => renderCalendar() },
     calFilterMedia:   { textId:'calFilterMedia_text',   hiddenId:'calFilterMedia',   listId:'combo-calFilterMedia-list',   getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => renderCalendar() },
+    calFilterBrand:   { textId:'calFilterBrand_text',   hiddenId:'calFilterBrand',   listId:'combo-calFilterBrand-list',   getItems:_calBrandItems, onSelect:() => renderCalendar() },
   }[name];
 }
+function _calBrandItems() {
+  return [...new Set(DATA.map(c => c.content).filter(Boolean))].sort();
+}
 
-const FC_NAMES = ['fAdv','fMedia','stl-fAdv','stl-fMedia','calFilterCompany','calFilterMedia'];
+const FC_NAMES = ['fAdv','fMedia','stl-fAdv','stl-fMedia','calFilterCompany','calFilterMedia','calFilterBrand'];
 const FC_ALL_LABEL = '전체';
 
 function fcCloseAll() {
@@ -4276,18 +4320,8 @@ let calDate = new Date(); // 기준 날짜
 let calY = calDate.getFullYear(), calM = calDate.getMonth() + 1;
 let calProductTab = 'sms'; // 'sms' | 'da'
 
-const CAT_COLOR = {
-  '분양': '#8fd3a0',
-  '교육': '#91c7f5',
-  '수송': '#ffc078',
-  '금융': '#a9e4ef',
-  '뷰티': '#fcc2d7',
-  '기타': '#d4c5f9',
-  '병의원': '#ff8787',
-  '건기식': '#63e6be',
-};
 function _evColor(ev) {
-  if (ev.idx !== null && DATA[ev.idx]) return CAT_COLOR[_getCat(DATA[ev.idx])] || '#868e96';
+  if (ev.idx !== null && DATA[ev.idx]) return _categoryColor(_getCat(DATA[ev.idx]));
   return ev.c || '#868e96';
 }
 
@@ -4489,16 +4523,11 @@ function openCalPreview(idx) {
 }
 
 function _populateCalFilters() {
-  const companies = _calCompanyItems();
-  const brands    = [...new Set(DATA.map(c => c.content).filter(Boolean))].sort();
+  const companies  = _calCompanyItems();
   const compHidden = document.getElementById('calFilterCompany');
-  const brandSel   = document.getElementById('calFilterBrand');
+  const brandHidden = document.getElementById('calFilterBrand');
   if (compHidden && !companies.includes(compHidden.value)) _fcClear('calFilterCompany');
-  if (brandSel) {
-    const cur = brandSel.value;
-    brandSel.innerHTML = '<option value="">브랜드</option>' +
-      brands.map(s => `<option${s===cur?' selected':''}>${s}</option>`).join('');
-  }
+  if (brandHidden && !_calBrandItems().includes(brandHidden.value)) _fcClear('calFilterBrand');
   // 본부/팀 통합 드롭다운 초기화 (최초 1회)
   const orgSel = document.getElementById('calFilterOrg');
   if (orgSel && !orgSel.dataset.init) {
@@ -4515,7 +4544,7 @@ function _populateCalFilters() {
 function resetCalFilters() {
   ['calFilterCat','calFilterMedia','calFilterCompany','calFilterBrand','calFilterOrg','calFilterMgr']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  _fcClear('calFilterMedia'); _fcClear('calFilterCompany');
+  _fcClear('calFilterMedia'); _fcClear('calFilterCompany'); _fcClear('calFilterBrand');
   renderCalendar();
 }
 
@@ -4826,7 +4855,7 @@ function _makeDABarEl(bar) {
     el.textContent = '\u00a0';
     return el;
   }
-  const color = CAT_COLOR[_getCat(bar.camp)] || '#868e96';
+  const color = _categoryColor(_getCat(bar.camp));
   const lr = bar.leftRound  ? '4px' : '0';
   const rr = bar.rightRound ? '4px' : '0';
   const ml = bar.leftRound  ? '0'   : '-9px';
@@ -5026,7 +5055,7 @@ function _renderMiniList(campaigns, listElId) {
   }
   listEl.innerHTML = campaigns.map(c => {
     const idx = DATA.indexOf(c);
-    const color = CAT_COLOR[_getCat(c)] || '#9da3bc';
+    const color = _categoryColor(_getCat(c));
     const dateStr = _formatDate(c.date);
     // 모바일용 짧은 날짜: MM-DD HH:mm
     const dateShort = (c.date || '').length >= 10
@@ -5542,7 +5571,7 @@ function campXlsxDownloadTemplate() {
     ['상품(기본형)', 'MMS, LMS, 실시간 발송, PUSH, 카톡MSG'],
     ['서비스적용(광고주/매체)', 'Y, N'],
     ['정산기준(광고주/매체)', '실발송, 예약'],
-    ['카테고리', SELLER_BRAND_CATS.join(', ') + ' 중 하나 — 매출처·브랜드가 아래 목록에 없는 신규 건일 때만 필수'],
+    ['카테고리', _categoryNames().join(', ') + ' 중 하나 — 매출처·브랜드가 아래 목록에 없는 신규 건일 때만 필수'],
     [],
   ];
   const listMaxLen = Math.max(opsNames.length, mediaNames.length, sellerBrandPairs.length);
@@ -5627,13 +5656,13 @@ function campXlsxValidateRow(row, rowNum) {
     else {
       isNewBrand = true;
       if (!catInput) errors.push(`브랜드 "${brandName}"는 신규 브랜드입니다 — 카테고리를 입력해주세요`);
-      else if (!SELLER_BRAND_CATS.includes(catInput)) errors.push(`카테고리는 ${SELLER_BRAND_CATS.join('/')} 중 하나여야 함(입력값: "${catInput}")`);
+      else if (!_categoryNames().includes(catInput)) errors.push(`카테고리는 ${_categoryNames().join('/')} 중 하나여야 함(입력값: "${catInput}")`);
       else brandCat = catInput;
     }
   } else if (isNewSeller) {
     isNewBrand = true;
     if (!catInput) errors.push(`매출처 "${sellerName}"는 신규입니다 — 브랜드 "${brandName}"의 카테고리를 입력해주세요`);
-    else if (!SELLER_BRAND_CATS.includes(catInput)) errors.push(`카테고리는 ${SELLER_BRAND_CATS.join('/')} 중 하나여야 함(입력값: "${catInput}")`);
+    else if (!_categoryNames().includes(catInput)) errors.push(`카테고리는 ${_categoryNames().join('/')} 중 하나여야 함(입력값: "${catInput}")`);
     else brandCat = catInput;
   }
 
@@ -6624,7 +6653,7 @@ function renderMonthly() {
           <div style="display:flex;justify-content:space-between;padding:5px 12px 5px 24px;font-size:13px;border-bottom:1px solid var(--border);">
             <span>${adv}</span><span style="color:var(--text2);">${qty.toLocaleString()}건</span>
           </div>`).join('');
-      const borderColor = CAT_COLOR[cat] || 'var(--border)';
+      const borderColor = CATEGORIES.find(x => x.name === cat)?.color || 'var(--border)';
       return `<div style="margin-bottom:4px;">
         <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none';this.querySelector('.mly-arrow').textContent=this.nextElementSibling.style.display===''?'▲':'▼';"
           style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface2);border-radius:6px;font-weight:600;font-size:13px;border-left:4px solid ${borderColor};">
@@ -6737,22 +6766,10 @@ function mlySelectMedia(mediaName) {
 // ══════════════════════════════════════════
 let mediaEditIdx = null; // null=신규, n=수정
 
-let mediaSortDir = null; // null | 'asc' | 'desc'
-
-function toggleMediaSort() {
-  mediaSortDir = mediaSortDir === 'asc' ? 'desc' : mediaSortDir === 'desc' ? null : 'asc';
-  const arrow = document.getElementById('media-sort-arrow');
-  if (arrow) arrow.textContent = mediaSortDir === 'asc' ? ' ▲' : mediaSortDir === 'desc' ? ' ▼' : '';
-  renderMediaList();
-}
-
 function searchMedia() { renderMediaList(); }
 
 function resetMediaSearch() {
   document.getElementById('mediaQ').value = '';
-  mediaSortDir = null;
-  const arrow = document.getElementById('media-sort-arrow');
-  if (arrow) arrow.textContent = '';
   renderMediaList();
 }
 
@@ -6771,13 +6788,6 @@ function renderMediaList() {
     if (q && ![(m.company||''),(m.contact||''),(m.tel||''),(m.invoiceTo||'')].some(s => s.toLowerCase().includes(q))) return false;
     return true;
   });
-  if (mediaSortDir) {
-    const order = {'매체사':0, '대행사':1};
-    list.sort((a, b) => {
-      const va = order[a.m.type] ?? 2, vb = order[b.m.type] ?? 2;
-      return mediaSortDir === 'asc' ? va - vb : vb - va;
-    });
-  }
   const colspan = isAdmin ? 20 : 19;
   document.getElementById('media-tbody').innerHTML = list.map(({m, realIdx}, i) => {
     const isOn = m.active !== false;
@@ -6792,15 +6802,15 @@ function renderMediaList() {
       <td style="font-weight:600;">${v(m.company)}</td>
       <td>${v(m.invoiceTo)}</td>
       <td class="td-r" style="border-right:1px solid var(--border);">${m.unit ? m.unit.toLocaleString()+'원' : nd}</td>
-      <td class="td-r">${pct(m.c1Base)}</td>
-      <td class="td-r">${pct(m.c1Req)}</td>
-      <td class="td-r" style="font-weight:600;">${pct(m.c1Adj)}</td>
-      <td>${v(m.c1Reason)}</td>
+      <td class="td-r" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pct(m.c1Base)}</td>
+      <td class="td-r" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pct(m.c1Req)}</td>
+      <td class="td-r" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;">${pct(m.c1Adj)}</td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v(m.c1Reason)}</td>
       <td style="border-right:1px solid var(--border);">${v(m.note1)}</td>
-      <td class="td-r">${pct(m.c2Base)}</td>
-      <td class="td-r">${pct(m.c2Req)}</td>
-      <td class="td-r" style="font-weight:600;">${pct(m.c2Adj)}</td>
-      <td>${v(m.c2Reason)}</td>
+      <td class="td-r" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pct(m.c2Base)}</td>
+      <td class="td-r" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pct(m.c2Req)}</td>
+      <td class="td-r" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;">${pct(m.c2Adj)}</td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v(m.c2Reason)}</td>
       <td>${v(m.note2)}</td>
       <td>${v(m.excTarget)}</td>
       <td>${v(m.excAdj)}</td>
@@ -6821,10 +6831,16 @@ function toggleMediaActive(realIdx, e) {
 // ── 매체사/대행사 상세보기 ──
 let currentMediaIdx = null;
 
-function openMediaDetail(idx) {
+function openMediaDetail(idx, skipPush) {
   currentMediaIdx = idx;
   renderMediaDetail();
-  goScreen('media-detail');
+  goScreen('media-detail', true);
+  // goScreen()의 기본 해시 이동은 history.state를 안 남겨서, 브라우저 뒤로가기(popstate)가
+  // state=null로 떨어져 항상 대시보드로 가버렸다 — payment-detail과 같은 방식으로 state를
+  // 직접 남겨서 뒤로가기 시 매체 목록으로 돌아가게 한다(2026-09-22, 사용자 리포트).
+  if (!skipPush) {
+    history.pushState({ screen: 'media-detail', idx }, '', '#media-detail');
+  }
 }
 
 function renderMediaDetail() {
@@ -6895,7 +6911,7 @@ function openMediaModalFromDetail() {
   openMediaModal(currentMediaIdx);
 }
 
-function deleteMediaFromDetail() {
+async function deleteMediaFromDetail() {
   if (currentMediaIdx == null) return;
   const m = MEDIA_DATA[currentMediaIdx];
   if (!m) return;
@@ -6908,6 +6924,7 @@ function deleteMediaFromDetail() {
   const company = m.company;
   MEDIA_DATA.splice(currentMediaIdx, 1);
   currentMediaIdx = null;
+  await _fbSaveDeletedMedia({ ...m, deletedAt: _nowStr(), deletedBy: currentUser?.name || '—', deleteReason: 'manual' });
   _fbDeleteMedia(company);
   renderMediaList();
   goScreen('media');
@@ -6931,9 +6948,15 @@ function openMediaModal(idx) {
   openModal('modalMedia');
 }
 
-function saveMedia() {
+async function saveMedia() {
   const company = document.getElementById('med-company').value.trim();
   if (!company) { toast('⚠ 매체명을 입력해주세요','warn'); return; }
+  // 신규 등록(mediaEditIdx == null)인데 이미 같은 이름의 매체가 있으면 막는다 — saveSeller와
+  // 같은 이유(Firestore 문서 키가 매체명이라 기존 데이터가 덮어써짐, 2026-09-21).
+  if (mediaEditIdx == null && MEDIA_DATA.some(m => m.company === company)) {
+    toast(`⚠ '${company}'은(는) 이미 등록된 매체입니다. 목록에서 찾아 수정해주세요.`, 'err');
+    return;
+  }
   const keys = ['company','invoiceTo','unit','contact','tel','bankHolder','bankName','bankAccount','c1Base','c1Req','c1Adj','c1Reason','note1','c2Base','c2Req','c2Adj','c2Reason','note2','excTarget','excAdj','payDay','cpsRate','naverCpsRate'];
   const obj = { type: document.getElementById('med-type').value || '매체사' };
   keys.forEach(k => {
@@ -6957,8 +6980,10 @@ function saveMedia() {
   }
   if (mediaEditIdx != null) MEDIA_DATA[mediaEditIdx] = obj;
   else { MEDIA_DATA.push(obj); currentMediaIdx = MEDIA_DATA.length - 1; }
-  // 이름이 바뀐 경우 기존 문서 삭제 + 캠페인 media 필드 일괄 업데이트
+  // 이름이 바뀐 경우 — 지우기 전에 먼저 백업(소프트 삭제)해두고 나서 기존 문서 삭제 + 캠페인
+  // media 필드 일괄 업데이트(2026-09-22, saveSeller와 같은 이유).
   if (oldObj && oldObj.company !== obj.company) {
+    await _fbSaveDeletedMedia({ ...oldObj, deletedAt: _nowStr(), deletedBy: currentUser?.name || '—', deleteReason: 'rename' });
     _fbDeleteMedia(oldObj.company);
     DATA.forEach(c => {
       if (c.media === oldObj.company) {
@@ -6998,12 +7023,13 @@ function saveMedia() {
   if (typeof _plHandlePendingNewTarget === 'function') _plHandlePendingNewTarget('media', obj.company);
 }
 
-function deleteMedia() {
+async function deleteMedia() {
   if (mediaEditIdx == null) return;
   if (!confirm(`'${MEDIA_DATA[mediaEditIdx].company}' 항목을 삭제하시겠습니까?`)) return;
-  const delCompany = MEDIA_DATA[mediaEditIdx].company;
+  const delObj = MEDIA_DATA[mediaEditIdx];
   MEDIA_DATA.splice(mediaEditIdx, 1);
-  _fbDeleteMedia(delCompany);
+  await _fbSaveDeletedMedia({ ...delObj, deletedAt: _nowStr(), deletedBy: currentUser?.name || '—', deleteReason: 'manual' });
+  _fbDeleteMedia(delObj.company);
   currentMediaIdx = null;
   closeModal('modalMedia');
   renderMediaList();
@@ -7231,8 +7257,6 @@ function selTypeChange() {
   document.getElementById('sel-adv-fields').style.display   = '';
 }
 
-const SELLER_BRAND_CATS = ['분양', '교육', '뷰티', '수송', '금융', '병의원', '건기식', '기타'];
-
 function renderSellerBrands() {
   const el = document.getElementById('sel-brand-list');
   if (!el) return;
@@ -7241,7 +7265,7 @@ function renderSellerBrands() {
     return;
   }
   el.innerHTML = sellerBrands.map((b, i) => {
-    const catOpts = `<option value="">선택</option>` + SELLER_BRAND_CATS.map(c =>
+    const catOpts = `<option value="">선택</option>` + _categoryNames().map(c =>
       `<option value="${c}" ${b.cat === c ? 'selected' : ''}>${c}</option>`).join('');
     return `<tr style="border-bottom:1px solid var(--border);">
       <td style="padding:2px;">
@@ -7293,18 +7317,30 @@ function removeSellerBrand(i) {
   renderSellerBrands();
 }
 
-function saveSeller() {
+async function saveSeller() {
   const type    = document.getElementById('sel-type').value;
   const company = document.getElementById('sel-company').value.trim();
   if (!company) { toast('⚠ 회사명을 입력해주세요', 'warn'); return; }
+  // 신규 등록(sellerEditIdx == null)인데 이미 같은 이름의 매출처가 있으면 막는다 — Firestore
+  // 문서 키가 회사명이라 그대로 저장하면 기존 브랜드 목록·대행료율이 통째로 덮어써져 사라진다
+  // (2026-09-21, 실제로 발생 직전까지 갔던 데이터 유실 사고 방지).
+  if (sellerEditIdx == null && SELLER_DATA.some(s => s.company === company)) {
+    toast(`⚠ '${company}'은(는) 이미 등록된 매출처입니다. 목록에서 찾아 수정해주세요.`, 'err');
+    return;
+  }
   const agrate  = +document.getElementById('sel-agrate').value || 0;
   const brandRenames = sellerBrands.filter(b => b._origName && b._origName !== b.name).map(b => ({ old: b._origName, new: b.name }));
   const obj = { type, company, agrate, brands: sellerBrands.map(b => ({ name: b.name, cat: b.cat, contractYm: b.contractYm || null })) };
-  const oldCompany = sellerEditIdx != null ? SELLER_DATA[sellerEditIdx]?.company : null;
+  const oldObj = sellerEditIdx != null ? Object.assign({}, SELLER_DATA[sellerEditIdx]) : null;
+  const oldCompany = oldObj?.company || null;
   if (sellerEditIdx != null) SELLER_DATA[sellerEditIdx] = obj;
   else SELLER_DATA.push(obj);
-  // 회사명이 바뀐 경우 기존 Firestore 문서 삭제 후 새 이름으로 저장
-  if (oldCompany && oldCompany !== company) _fbDeleteSeller(oldCompany);
+  // 회사명이 바뀐 경우 — 지우기 전에 먼저 백업(소프트 삭제)해두고, 그게 끝난 뒤에야 기존 문서를
+  // 지운다. 재생성(_fbSaveSeller)이 중간에 끊겨도 백업에서 복구할 여지가 남는다(2026-09-22).
+  if (oldCompany && oldCompany !== company) {
+    await _fbSaveDeletedSeller({ ...oldObj, deletedAt: _nowStr(), deletedBy: currentUser?.name || '—', deleteReason: 'rename' });
+    _fbDeleteSeller(oldCompany);
+  }
   _fbSaveSeller(obj);
 
   let campUpdateCount = 0;
@@ -7344,13 +7380,14 @@ function saveSeller() {
   if (typeof _plHandlePendingNewTarget === 'function') _plHandlePendingNewTarget('seller', obj.company);
 }
 
-function deleteSellerItem() {
+async function deleteSellerItem() {
   if (sellerEditIdx == null) return;
   const name = SELLER_DATA[sellerEditIdx]?.company;
   if (!confirm(`'${name}' 항목을 삭제하시겠습니까?`)) return;
-  const delName = SELLER_DATA[sellerEditIdx].company;
+  const delObj = SELLER_DATA[sellerEditIdx];
   SELLER_DATA.splice(sellerEditIdx, 1);
-  _fbDeleteSeller(delName);
+  await _fbSaveDeletedSeller({ ...delObj, deletedAt: _nowStr(), deletedBy: currentUser?.name || '—', deleteReason: 'manual' });
+  _fbDeleteSeller(delObj.company);
   sellerEditIdx = null;
   closeModal('modalSeller');
   renderSellerList();
@@ -7667,6 +7704,9 @@ window.addEventListener('popstate', (e) => {
   } else if (state.screen === 'payment-detail') {
     if (state.payIdx != null) openPaymentDetail(state.payIdx, true);
     else goScreen('payment', true);
+  } else if (state.screen === 'media-detail') {
+    if (state.idx != null) openMediaDetail(state.idx, true);
+    else goScreen('media', true);
   } else if (state.screen === 'projectlog-detail' || state.screen === 'projectlog') {
     // 프로젝트로그 광고주/매체/내부업무 상세 뒤로가기 → 진입 당시 탭(plSwitchTab이 replaceState로 기록)의 목록으로
     PL_STATE.advDetailCompany = null;
@@ -7971,7 +8011,9 @@ function stlSetView(v) {
 // 화면 전체 스크롤 → 바닥 도달 후 표 스크롤
 function _stlSetupWheelScroll() {
   const wrap    = document.querySelector('#screen-settlement .settle-table-wrap');
-  const content = document.getElementById('content');
+  // 스크롤 컨테이너는 id="content"가 아니라 class="content" — 오타로 항상 null이라 이 기능
+  // 전체가 무동작이었다(2026-09-22, check-refs.js로 발견).
+  const content = document.querySelector('.content');
   if (!wrap || !content) return;
   wrap.addEventListener('wheel', e => {
     const down    = e.deltaY > 0;
@@ -9057,7 +9099,7 @@ function openPipelineModal(id) {
   // 카테고리 동적 생성
   const catSel = el('pm-cat');
   catSel.innerHTML = '<option value="">선택</option>' +
-    Object.keys(CAT_COLOR).map(function(c) {
+    _categoryNames().map(function(c) {
       return '<option value="' + c + '">' + c + '</option>';
     }).join('');
 
@@ -12094,6 +12136,16 @@ async function _fbDeleteSeller(company) {
   try { await window._db.collection('sellers').doc(key).delete(); }
   catch(e) { console.error('[FB] 매출처 삭제 실패:', e); }
 }
+// 매출처 소프트 삭제(백업) — 문서 키가 회사명이라(이름=키), 이름 변경은 "삭제 후 재생성"으로
+// 처리되는데 재생성이 중간에 끊기면 원본이 영구소실된다. 삭제 전에 항상 여기 먼저 백업해두면
+// 콘솔로 복구할 여지가 남는다(2026-09-22, 실사고 직전까지 갔던 문제의 안전망).
+async function _fbSaveDeletedSeller(s) {
+  if (!window._db) return;
+  try {
+    const docKey = `del_${s.company.replace(/\//g, '_')}_${Date.now()}`;
+    await window._db.collection('deleted_sellers').doc(docKey).set(s);
+  } catch(e) { console.error('[FB] 매출처 삭제이력 저장 실패:', e); }
+}
 // Firestore 실시간 구독 — 매출처
 function _fbWatchSellers() {
   if (!window._db) return;
@@ -12206,6 +12258,15 @@ async function _fbDeleteMedia(company) {
   const key = company.replace(/\//g, '_');
   try { await window._db.collection('media').doc(key).delete(); }
   catch(e) { console.error('[FB] 매체사 삭제 실패:', e); }
+}
+// 매체 소프트 삭제(백업) — _fbSaveDeletedSeller와 같은 이유(이름=키라 이름 변경 시 삭제 후
+// 재생성 도중 끊기면 영구소실 위험, 2026-09-22).
+async function _fbSaveDeletedMedia(m) {
+  if (!window._db) return;
+  try {
+    const docKey = `del_${m.company.replace(/\//g, '_')}_${Date.now()}`;
+    await window._db.collection('deleted_media').doc(docKey).set(m);
+  } catch(e) { console.error('[FB] 매체사 삭제이력 저장 실패:', e); }
 }
 function _populateMediaSelects() {
   const companies = MEDIA_DATA.map(m => m.company);
@@ -12472,8 +12533,10 @@ function _fbWatchTax() {
   }, e => console.error('[FB] 세금계산서 구독 실패:', e));
 }
 
-// 상품 드롭다운 초기화
+// 상품·카테고리 드롭다운 초기화
 _populateProductSelects();
+_populateCategorySelects();
+_renderCalLegend();
 
 // 페이지 로드 시 Firestore 실시간 구독 시작
 _fbWatchCampaignYears();
@@ -12553,14 +12616,9 @@ function _effPopulateFilters() {
   }
 }
 
-function rptReset() {
-  ['rpt-seller','rpt-brand','rpt-from','rpt-to','rpt-campaign'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.value = ''; if (el.tagName === 'SELECT') el.disabled = (id === 'rpt-brand' || id === 'rpt-campaign'); }
-  });
-  const rptResult = document.getElementById('rpt-result');
-  if (rptResult) rptResult.innerHTML = '';
-}
+// rptReset()은 report.js에 실제로 쓰이는 버전이 따로 있다 — 여기(script.js) 것과 이름이
+// 겹쳐서 report.js가 나중에 로드되며 조용히 덮어쓰고 있었다(진짜 동작하던 건 report.js 쪽뿐,
+// 여긴 죽은 코드). 혼동 방지를 위해 삭제(2026-09-22, check-refs.js로 발견).
 
 function effReset() {
   ['eff-brand','eff-media','eff-prod'].forEach(id => {
@@ -13172,7 +13230,9 @@ function _kpiSyncFakeScroll() {
   const fake  = document.getElementById('kpi-fake-scroll');
   const inner = document.getElementById('kpi-fake-inner');
   if (!fake || !inner) return;
-  const wrap = document.getElementById('kpi-org-scroll-wrap');
+  // renderKpiOrgTable()이 실제로 만드는 id는 'kpi-org-table' + '-scroll-wrap'인데 여기서
+  // 'table'이 빠진 이름을 찾고 있어서 항상 null이었다(2026-09-22, check-refs.js로 발견).
+  const wrap = document.getElementById('kpi-org-table-scroll-wrap');
   if (!wrap || !document.getElementById('screen-kpi')?.classList.contains('active')) { fake.style.display = 'none'; return; }
   // display:none 상태에선 clientWidth=0이므로 먼저 표시 후 너비 계산
   fake.style.display = '';

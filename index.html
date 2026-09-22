@@ -309,17 +309,7 @@
           <button id="cal-filter-toggle" class="btn btn-outline" onclick="toggleCalFilter()"
             style="font-size:12px;padding:5px 10px;gap:4px;">🔍 필터</button>
           <div style="flex:1;"></div>
-          <select class="f-sel" id="calFilterCat" onchange="renderCalendar()">
-            <option value="">카테고리 </option>
-            <option>분양</option>
-            <option>교육</option>
-            <option>뷰티</option>
-            <option>금융</option>
-            <option>수송</option>
-            <option>병의원</option>
-            <option>건기식</option>
-            <option>기타</option>
-          </select>
+          <select class="f-sel" id="calFilterCat" onchange="renderCalendar()"></select>
           <div class="combo-wrap" id="calFilterMedia_wrap" style="width:120px;flex-shrink:0;">
             <input type="text" class="f-sel" id="calFilterMedia_text" placeholder="매체사" autocomplete="off" style="width:100%;padding-right:22px;"
               oninput="fcRender('calFilterMedia')" onfocus="fcOpen('calFilterMedia')" onkeydown="_comboKeyNav(event,'combo-calFilterMedia-list')" onblur="fcClose('calFilterMedia')">
@@ -334,9 +324,13 @@
             <span class="combo-clear" onmousedown="event.preventDefault();fcClearFilter('calFilterCompany')">✕</span>
             <div class="combo-list" id="combo-calFilterCompany-list"></div>
           </div>
-          <select class="f-sel" id="calFilterBrand" onchange="renderCalendar()">
-            <option value="">브랜드</option>
-          </select>
+          <div class="combo-wrap" id="calFilterBrand_wrap" style="width:120px;flex-shrink:0;">
+            <input type="text" class="f-sel" id="calFilterBrand_text" placeholder="브랜드" autocomplete="off" style="width:100%;padding-right:22px;"
+              oninput="fcRender('calFilterBrand')" onfocus="fcOpen('calFilterBrand')" onkeydown="_comboKeyNav(event,'combo-calFilterBrand-list')" onblur="fcClose('calFilterBrand')">
+            <input type="hidden" id="calFilterBrand">
+            <span class="combo-clear" onmousedown="event.preventDefault();fcClearFilter('calFilterBrand')">✕</span>
+            <div class="combo-list" id="combo-calFilterBrand-list"></div>
+          </div>
           <select class="f-sel" id="calFilterOrg" onchange="renderCalendar()" style="width:110px;">
             <option value="">본부/팀 전체</option>
           </select>
@@ -346,25 +340,10 @@
           <button class="btn btn-outline cal-reset-btn" id="calResetBtn" onclick="resetCalFilters()"
             style="display:none;">✕ 초기화</button>
         </div>
-        <!-- 카테고리 범례 + 통계 -->
+        <!-- 카테고리 범례 + 통계 — 범례 점은 script.js의 CATEGORIES에서 렌더링(_renderCalLegend) -->
         <div class="cal-legend"
           style="display:flex;align-items:center;gap:16px;padding:8px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;"><span
-              style="width:10px;height:10px;border-radius:50%;background:#8fd3a0;display:inline-block;"></span>분양</div>
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;"><span
-              style="width:10px;height:10px;border-radius:50%;background:#91c7f5;display:inline-block;"></span>교육</div>
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;"><span
-              style="width:10px;height:10px;border-radius:50%;background:#fcc2d7;display:inline-block;"></span>뷰티</div>
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;"><span
-              style="width:10px;height:10px;border-radius:50%;background:#ffc078;display:inline-block;"></span>수송</div>
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;"><span
-              style="width:10px;height:10px;border-radius:50%;background:#a9e4ef;display:inline-block;"></span>금융</div>
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;"><span
-              style="width:10px;height:10px;border-radius:50%;background:#ff8787;display:inline-block;"></span>병의원</div>
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;"><span
-              style="width:10px;height:10px;border-radius:50%;background:#63e6be;display:inline-block;"></span>건기식</div>
-          <div style="display:flex;align-items:center;gap:5px;font-size:12px;"><span
-              style="width:10px;height:10px;border-radius:50%;background:#d4c5f9;display:inline-block;"></span>기타</div>
+          <div id="calLegendDots" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;"></div>
           <div class="cal-meta" style="margin-left:auto;">총발송 <b id="calMetaQty">—</b> &nbsp;|&nbsp; 캠페인 <b id="calMetaCnt">—</b> &nbsp;|&nbsp; 광고비 <b id="calMetaAdc">—</b></div>
         </div>
         <div id="calGrid"></div>
@@ -458,17 +437,7 @@
         <div class="filter-bar" id="campaigns-filter-bar">
           <button id="mob-filter-toggle" class="btn btn-outline btn-sm" onclick="toggleCampaignFilter()">필터 ▼</button>
           <span class="f-label">필터</span>
-          <select class="f-sel" id="fCat" onchange="applyFilter()">
-            <option value="">카테고리</option>
-            <option>분양</option>
-            <option>교육</option>
-            <option>뷰티</option>
-            <option>수송</option>
-            <option>금융</option>
-            <option>병의원</option>
-            <option>건기식</option>
-            <option>기타</option>
-          </select>
+          <select class="f-sel" id="fCat" onchange="applyFilter()"></select>
           <select class="f-sel" id="fProd" onchange="applyFilter()">
             <option value="">상품</option>
           </select>
@@ -1468,17 +1437,7 @@
             <option value="all">전체 캠페인</option>
           </select>
            <div class="f-div"></div>
-          <select class="f-sel" id="stl-fCat" onchange="renderSettlement()">
-            <option value="">카테고리</option>
-            <option>분양</option>
-            <option>교육</option>
-            <option>뷰티</option>
-            <option>수송</option>
-            <option>금융</option>
-            <option>병의원</option>
-            <option>건기식</option>
-            <option>기타</option>
-          </select>
+          <select class="f-sel" id="stl-fCat" onchange="renderSettlement()"></select>
           <select class="f-sel" id="stl-fProd" onchange="renderSettlement()">
             <option value="">상품</option>
           </select>
@@ -1875,14 +1834,14 @@
                   <th>매체명</th>
                   <th style="max-width:90px;">매입처</th>
                   <th class="td-r" style="border-right:1px solid var(--border);">단가</th>
-                  <th class="td-r">기준</th>
-                  <th class="td-r">요청</th>
-                  <th class="td-r">조정</th>
-                  <th>조정사유</th>
-                  <th class="td-r">기준</th>
-                  <th class="td-r">요청</th>
-                  <th class="td-r">조정</th>
-                  <th>조정사유</th>
+                  <th class="td-r" style="max-width:150px;">기준</th>
+                  <th class="td-r" style="max-width:150px;">요청</th>
+                  <th class="td-r" style="max-width:150px;">조정</th>
+                  <th style="max-width:150px;">조정사유</th>
+                  <th class="td-r" style="max-width:150px;">기준</th>
+                  <th class="td-r" style="max-width:150px;">요청</th>
+                  <th class="td-r" style="max-width:150px;">조정</th>
+                  <th style="max-width:150px;">조정사유</th>
                   <th>대상</th>
                   <th>조정</th>
                   <th>지급일자</th>
@@ -3393,17 +3352,7 @@
             <input type="text" class="form-input" id="sel-brand-input" placeholder="브랜드명 입력"
               oninput="_sellerSyncSaveBtn()"
               onkeydown="if(event.key==='Enter'){event.preventDefault();addSellerBrand();}" style="flex:1;">
-            <select class="form-sel" id="sel-brand-cat" style="width:72px;">
-              <option value="">선택</option>
-              <option>분양</option>
-              <option>교육</option>
-              <option>뷰티</option>
-              <option>수송</option>
-              <option>금융</option>
-              <option>병의원</option>
-              <option>건기식</option>
-              <option>기타</option>
-            </select>
+            <select class="form-sel" id="sel-brand-cat" style="width:72px;"></select>
             <input type="month" class="form-input" id="sel-brand-ym" style="width:110px;" title="계약 시작 연월">
             <button class="btn btn-primary btn-sm" id="sel-brand-add-btn" onclick="addSellerBrand()">추가</button>
           </div>
@@ -3449,17 +3398,7 @@
         </div>
         <div class="fg">
           <label class="form-label">카테고리 <span class="req">*</span></label>
-          <select class="form-sel" id="brand-add-cat">
-            <option value="">선택</option>
-            <option>분양</option>
-            <option>교육</option>
-            <option>뷰티</option>
-            <option>수송</option>
-            <option>금융</option>
-            <option>병의원</option>
-            <option>건기식</option>
-            <option>기타</option>
-          </select>
+          <select class="form-sel" id="brand-add-cat"></select>
         </div>
       </div>
       <div class="modal-foot">

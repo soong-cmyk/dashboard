@@ -466,9 +466,6 @@ function _plRenderShell() {
       <div class="filter-bar" style="margin-bottom:10px;">
         <div class="view-tabs">
           <button class="view-tab" id="pl-vt-date" onclick="plSwitchTab('date')">일자별</button>
-          <!-- 'old 일지'(구 표 레이아웃) 탭 — '일지 NEW'가 정식 '일지' 탭이 되면서 아무도 못 보게 주석처리
-               (2026-09-16, 사용자 요청). 코드/렌더 함수(plRenderLogTab 등)는 그대로 남겨뒀다. -->
-          <!-- <button class="view-tab" id="pl-vt-log" onclick="plSwitchTab('log')">old 일지</button> -->
           <button class="view-tab" id="pl-vt-lognew" onclick="plSwitchTab('lognew')">일지</button>
           <button class="view-tab" id="pl-vt-advertiser" onclick="plSwitchTab('advertiser')">광고주</button>
           <button class="view-tab" id="pl-vt-media" onclick="plSwitchTab('media')">매체</button>
@@ -503,7 +500,7 @@ function _plRenderShell() {
 }
 function _plCanViewDateTab() { return !!currentUser?.isAdmin || currentUser?.id === 'younghyun'; }
 function _plUpdateTabButtons() {
-  ['advertiser', 'campaign', 'log', 'lognew', 'media', 'date', 'mine', 'internal'].forEach(t => {
+  ['advertiser', 'campaign', 'lognew', 'media', 'date', 'mine', 'internal'].forEach(t => {
     document.getElementById(`pl-vt-${t}`)?.classList.toggle('active', PL_STATE.tab === t);
   });
 }
@@ -524,7 +521,9 @@ function plRenderActiveTab() {
   else if (PL_STATE.tab === 'mine') plRenderMineTab();
   else if (PL_STATE.tab === 'internal') plRenderInternalTab();
   else if (PL_STATE.tab === 'lognew') plRenderLogNewTab();
-  else plRenderLogTab();
+  // old 일지 탭 삭제(2026-09-21) 이후의 안전망 — 과거 세션의 history.state.plTab이 'log'로
+  // 남아있다가 뒤로가기 등으로 복원돼도 지금 쓰는 탭으로 대체한다.
+  else plRenderLogNewTab();
   // 표가 좁은 화면/확대 배율에서 컬럼이 잘려 보이는 대신, 정산·KPI 화면과 같은 방식(플로팅
   // 가로스크롤바)으로 화면 하단에 스크롤바를 띄운다 — 탭이 뭐든 렌더 직후 한 번씩 동기화
   // (2026-09-10, 사용자 요청).
@@ -597,7 +596,7 @@ function _plBuildMineTabSkeleton(content) {
       </table></div>
     </div>
   `;
-  _plComboSetup('pl-mine-f-seller',  'pl-mine-f-seller-list',  _plSellerNamesRecent,  _plRenderMineBody);
+  _plComboSetup('pl-mine-f-seller',  'pl-mine-f-seller-list',  _plSellerNamesWithInternalRecent,  _plRenderMineBody);
   _plComboSetup('pl-mine-f-project', 'pl-mine-f-project-list', _plProjectNamesRecent, _plRenderMineBody);
   _plComboSetup('pl-mine-f-media',   'pl-mine-f-media-list',   _plMediaNamesRecent,   _plRenderMineBody);
 }
@@ -670,7 +669,7 @@ function _plRenderMineBody() {
   // 기간 필터는 일부러 안 둔다 — "멘션"/"댓글 단 일지"는 멘션·댓글이 달린 시점이 중요한데, 원본 일지의
   // 작성일(logDate) 기준으로 걸러버리면 옛날에 쓴 일지가 최근에 멘션돼도 안 보이는 문제가 있었다
   // (2026-09-18, 사용자 리포트). "내가 작성한 일지" 탭도 일관성을 위해 함께 뺐다.
-  const fSeller = document.getElementById('pl-mine-f-seller')?.value.trim() || '';
+  const fSeller = _plStripInternalSuffix(document.getElementById('pl-mine-f-seller')?.value.trim() || '');
   const fProject = document.getElementById('pl-mine-f-project')?.value.trim() || '';
   const fMedia = document.getElementById('pl-mine-f-media')?.value.trim() || '';
   const matchesQ = l => {
@@ -1497,7 +1496,6 @@ ${typeTxtCss}
 #pl-e-block.pl-readonly .pl-paste-zone{display:none;}
 .pl-st-open{display:inline-block;background:var(--red-bg);color:var(--red);border:1px solid #ffc9c9;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:800;}
 .pl-st-done{display:inline-block;background:var(--green-bg);color:var(--green);border:1px solid #b2f2bb;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:800;}
-.pl-st-late{display:inline-block;background:var(--surface2);color:var(--text3);border:1px solid var(--border);padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;}
 .pl-star{color:#f08c00;font-size:11px;}
 .pl-click{color:var(--accent);font-weight:700;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;cursor:pointer;}
 .tag.pl-brand{background:var(--purple-bg);border-color:#d9d2f7;color:var(--accent2);}
@@ -1595,10 +1593,9 @@ ${typeTxtCss}
 /* 유형 전용 컬럼 — 배지(알약+배경) 대신 색글자만(위 pl-lgtxt-* 규칙과 짝) — 배지 폭에 맞춰
    내용/ㄴ추가의 시작점을 조정해야 했던 문제가 컬럼 분리로 사라졌다(2026-09-16). */
 .pl-lgnew-type{font-size:12px;font-weight:800;white-space:nowrap;}
-/* 첨부·소급만 무채색 트레이로 — 이어쓰기는 원래 파란 라벨 그대로 두고 댓글 앞에 배치한다.
-   "진행중" 라벨은 아예 없앴다(2026-09-16). */
+/* 첨부만 무채색 트레이로 — 이어쓰기는 원래 파란 라벨 그대로 두고 댓글 앞에 배치한다.
+   "진행중" 라벨은 아예 없앴다(2026-09-16), 소급 표시도 폐지(2026-09-21). */
 .pl-lgnew-tray{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);}
-.pl-lgnew-tray .pl-st-late{background:none;border:none;color:var(--text3);padding:0;}
 /* 이어쓰기 항목의 "이전 기록" 읽기전용 참조 카드 */
 .pl-ref-card{background:var(--surface2);border:1px dashed var(--border2);border-radius:8px;padding:9px 12px;margin-bottom:8px;}
 .pl-ref-label{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px;}
@@ -1732,6 +1729,24 @@ function _plSellerNamesRecent()  { return _plSortByRecentLog(_plSellerNames(),  
 function _plProjectNamesRecent() { return _plSortByRecentLog(_plProjectNames(), l => l.content); }
 function _plMediaNamesRecent()   { return _plSortByRecentLog(_plMediaNames(),   l => l.media); }
 
+// 광고주 필터에서 내부업무로 등록한 프로젝트도 같이 찾을 수 있게 — 실제 값(log.seller)은
+// 그대로 두고 표시에만 "(내부)" 접미사를 붙인다(2026-09-21, 사용자 요청). 필터에 적용할 때는
+// _plStripInternalSuffix로 접미사를 떼고 원래 이름으로 비교해야 한다.
+function _plInternalClientNames() {
+  const set = new Set();
+  PL_LOGS.forEach(l => { if (l.scope === 'internal' && l.seller) set.add(l.seller); });
+  (typeof PL_INTERNAL_TASKS !== 'undefined' ? PL_INTERNAL_TASKS : []).forEach(t => { if (t.client) set.add(t.client); });
+  return [...set];
+}
+function _plSellerNamesWithInternal() {
+  const internal = _plInternalClientNames().map(n => `${n} (내부)`);
+  return [..._plSellerNames(), ...internal].sort((a, b) => a.localeCompare(b, 'ko'));
+}
+function _plSellerNamesWithInternalRecent() {
+  return _plSortByRecentLog(_plSellerNamesWithInternal(), l => (l.scope === 'internal' && l.seller) ? `${l.seller} (내부)` : l.seller);
+}
+function _plStripInternalSuffix(v) { return (v || '').replace(/\s*\(내부\)$/, ''); }
+
 function plSwitchTab(name) {
   // 히스토리 복원(#projectlog, plTab:'date')이나 직접 호출로 우회 진입하는 것도 막는다.
   if (name === 'date' && !_plCanViewDateTab()) name = 'lognew';
@@ -1804,12 +1819,9 @@ function _plLogWriterSearchInput(inputEl) {
   list.style.display = 'block';
   _plFloatCombo(inputEl, list);
 }
-// '일지'/'일지 NEW' 탭은 필터바 element id를 공유하지만(같은 시점엔 DOM에 하나만 존재) 리렌더
-// 대상 함수는 다르다 — 작성자 필터 칩처럼 콤보 목록 클릭 한 단계 건너서 호출되는 공용 핸들러는
-// 인자로 넘기기보다, 지금 어느 탭 스켈레톤이 실제로 만들어져 있는지 보고 고른다.
+// 작성자 필터 칩처럼 콤보 목록 클릭 한 단계 건너서 호출되는 공용 핸들러용 — '일지' 탭 리렌더.
 function _plRenderLogOrNew() {
-  const active = document.getElementById('pl-tab-content')?.dataset.plTab;
-  (active === 'lognew' ? _plRenderNewRows : _plRenderRows)();
+  _plRenderNewRows();
 }
 function _plLogWriterPick(name) {
   if (!_plLogWriterFilters.includes(name)) _plLogWriterFilters.push(name);
@@ -1832,7 +1844,8 @@ function _plGetFiltered() {
   const q      = document.getElementById('pl-search')?.value || '';
   const dFrom  = document.getElementById('pl-date-from')?.value || '';
   const dTo    = document.getElementById('pl-date-to')?.value   || '';
-  const seller = document.getElementById('pl-f-seller')?.value.trim()  || '';
+  const seller  = _plStripInternalSuffix(document.getElementById('pl-f-seller')?.value.trim()  || '');
+  const project = document.getElementById('pl-f-project')?.value.trim() || '';
   const media  = document.getElementById('pl-f-media')?.value.trim()   || '';
   const type   = document.getElementById('pl-f-type')?.value  || '';
   const org    = document.getElementById('pl-f-org')?.value   || '';
@@ -1849,6 +1862,7 @@ function _plGetFiltered() {
     if (dFrom && (log.logDate || '') < dFrom) return false;
     if (dTo   && (log.logDate || '') > dTo)   return false;
     if (seller  && log.seller  !== seller)  return false;
+    if (project && log.content !== project) return false;
     if (media   && log.media !== media && !(log.refMediaNames || []).includes(media)) return false;
     if (type    && log.logType !== type)    return false;
     if (_plLogWriterFilters.length && !_plLogWriterFilters.includes(log.writer)) return false;
@@ -1917,13 +1931,14 @@ function _plRerenderByCtx(ctx) {
   if (ctx === 'date') { _plRenderDateBody(); return; }
   if (ctx === 'mine' || ctx === 'minemention' || ctx === 'minecommented') { _plRenderMineBody(); return; }
   if (ctx === 'internal') { plRenderInternalTab(); return; }
-  if (ctx === 'lognew') { _plRenderNewRows(); return; }
-  _plRenderRows();
+  // old 일지 탭(ctx==='log') 삭제(2026-09-21) 이후의 안전망 — 매칭되는 ctx가 없으면 지금 쓰는
+  // '일지' 탭 렌더러로 대체한다.
+  _plRenderNewRows();
 }
 function _plExpandAll(on, renderFn) {
   if (on) PL_LOGS.forEach(l => _plExpanded.add(l.id));
   else _plExpanded.clear();
-  (renderFn || _plRenderRows)();
+  (renderFn || _plRenderNewRows)();
 }
 function _plGExpandAll(on) {
   if (on) PL_LOGS.forEach(l => _plExpanded.add(l.id));
@@ -1933,29 +1948,24 @@ function _plGExpandAll(on) {
 function _plToggleBtn(id, renderFn) {
   document.getElementById(id)?.classList.toggle('pl-toggle-on');
   _plPage = 1;
-  (renderFn || _plRenderRows)();
+  (renderFn || _plRenderNewRows)();
 }
-function _plGoPage(p) { _plPage = p; _plRenderRows(); }
 function _plGoPageNew(p) { _plPage = p; _plRenderNewRows(); }
 
-// 캠페인 목록과 같은 데이트피커(drp)의 "적용" 콜백 — 기존 pl-date-from/to onchange가 하던
-// 일(1페이지로 리셋 후 다시 그림)을 그대로 옮겨왔다(2026-09-14, 사용자 요청).
-function _plDrpApply() { _plPage = 1; _plRenderRows(); }
 function plResetLogFilter(renderFn) {
-  ['pl-search', 'pl-date-from', 'pl-date-to', 'pl-f-seller', 'pl-f-media', 'pl-f-writer'].forEach(id => {
+  ['pl-search', 'pl-date-from', 'pl-date-to', 'pl-f-seller', 'pl-f-project', 'pl-f-media', 'pl-f-writer'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
   const drpLbl = document.getElementById('pl-drp-label'); if (drpLbl) drpLbl.textContent = '기간 선택';
   const typeEl = document.getElementById('pl-f-type'); if (typeEl) typeEl.value = '';
   const orgEl  = document.getElementById('pl-f-org');  if (orgEl)  orgEl.value  = '';
-  // 구 탭은 토글 버튼(classList), '일지 NEW' 탭은 드롭다운(value)이라 둘 다 초기화한다.
   const openEl = document.getElementById('pl-f-open');
   if (openEl) { openEl.classList.remove('pl-toggle-on'); openEl.value = ''; }
   _plLogWriterFilters = [];
   _plLogRenderWriterChips();
   _plPage = 1;
-  (renderFn || _plRenderRows)();
+  (renderFn || _plRenderNewRows)();
 }
 
 // 알림의 "일지 보기 →" 지름길 — "나의 일지" 탭에서 해당 로그를 찾아 펼치고 스크롤한다. 알림을 받는
@@ -2133,7 +2143,7 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
     </div>`;
     return `<div class="pl-detbox" style="border-left-color:${color};">${metaHtml}${relatedHtml}${detfootHtml}${commentsHtml}</div>`;
   }
-  // 요약(summary)·하위기록(subRows)은 목록 행(_plRenderLogRow)의 <td>에 이미 그대로 보이므로
+  // 요약(summary)·하위기록(subRows)은 목록 행(_plRenderLogRowNew)의 <td>에 이미 그대로 보이므로
   // (접힌 상태에서도 다 보이게 만든 subLinesHtml), 펼침 상세박스에서는 반복해서 보여주지 않는다
   // — 여기서만 볼 수 있는 것(스레드/이어쓰기 링크·첨부·댓글)만 남긴다(2026-08-28, 사용자 지적).
   return `<div class="pl-detbox" style="border-left-color:${color};">
@@ -2285,7 +2295,7 @@ function _plOpenIssueView(logId) {
   const typeLabel = log.threadId ? (log.isResolution ? '해결' : '대응') : (log.logType || '이슈');
   const titleEl = document.getElementById('pl-iv-title');
   if (titleEl) titleEl.textContent = `🔍 ${typeLabel} 확인`;
-  // _plDetailBoxHtml은 목록 행(_plRenderLogRow)의 <td>에 이미 요약·하위기록이 보인다고 전제하고
+  // _plDetailBoxHtml은 목록 행(_plRenderLogRowNew)의 <td>에 이미 요약·하위기록이 보인다고 전제하고
   // 그 둘을 일부러 빼고 스레드/이어쓰기 링크·첨부·댓글만 그린다 — 근데 이 "보기" 모달은 행 없이
   // 단독으로 뜨는 화면이라, 그대로 쓰면 정작 그 기록의 내용은 하나도 안 보이고 이어쓰기 링크 같은
   // 부가 정보만 보였다(2026-09-09, 사용자 리포트: "보기"를 눌렀는데 내용 대신 "이어서 쓴 기록"만
@@ -2675,61 +2685,8 @@ function _plLogCellParts(log) {
   }
   return { sellerCell, projCell, campCell, mediaCell };
 }
-function _plRenderLogRow(log, q, ctx) {
-  ctx = ctx || 'log';
-  const isOpen = _plExpanded.has(log.id);
-  const arrow = isOpen ? '▾' : '▸';
-  const dateShort = (log.logDate || '').slice(2).replace(/-/g, '.');
-
-  const { sellerCell, projCell, campCell, mediaCell } = _plLogCellParts(log);
-
-  const contentHtml = _plHighlight(log.summary, q);
-  const starHtml  = log.important ? '<span class="pl-star">★</span> ' : '';
-  const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
-  const stateHtml = _plLogOpen(log) ? ' <span class="pl-st-open">진행중</span>' : ((log.progress != null && log.progress >= 100) ? ' <span class="pl-st-done">완료</span>' : '');
-  const isLate = !!(log.logDate && log.createdAt && Math.abs((new Date(log.createdAt) - new Date(log.logDate)) / 86400000) >= 3);
-  const lateHtml = isLate ? ' <span class="pl-st-late">소급</span>' : '';
-  // 내용 첫 줄 끝에 첨부/링크 여부만 아이콘으로 표시 — 펼치지 않아도 있는지 정도는 바로 보이게
-  if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
-  const attachIconsHtml = (log.hasImages ? `<span id="pl-imgcnt-${log.id}" style="cursor:zoom-in;font-size:11px;margin-left:4px;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">🖼️${log.imageCount || ''}</span>` : '')
-    + ((log.links && log.links.length) ? `<span style="font-size:11px;margin-left:4px;" title="링크 ${log.links.length}개">🔗️ ${log.links.length}</span>` : '')
-    // 공유폴더 경로(attachPath)만 입력하고 이미지는 없는 경우, 접힌 목록 줄에는 표시가 하나도 안 남아
-    // "첨부를 입력했는데 어디에도 안 보인다"는 리포트로 이어졌다(2026-09-10) — 별도 아이콘으로 존재만 표시.
-    + ((log.attachPath || log.attachName) ? `<span style="font-size:11px;margin-left:4px;" title="첨부 경로: ${_escHtml(log.attachPath || log.attachName || '')}">📁</span>` : '');
-  // 하위 기록(ㄴ)도 접힌 상태에서 같이 보이게 — 펼쳐야만 보이던 걸 목록에서 바로 확인 가능하도록
-  const subLinesHtml = (log.detail || []).filter(d => (d.text || '').trim()).map(d =>
-    // "ㄴ+라벨"과 본문을 flex 아이템 둘로 나눠야, 본문이 여러 줄일 때 2번째 줄부터도 컨테이너
-    // 왼쪽 끝이 아니라 1번째 줄(라벨 뒤)과 같은 위치에서 시작한다(하나의 div에 다 넣으면 줄바꿈된
-    // 줄들이 전부 왼쪽 끝으로 붙어버림).
-    `<div style="font-size:12px;color:var(--text2);padding:1px 0;display:flex;gap:4px;">
-      <span style="flex-shrink:0;"><span style="color:var(--text3);">ㄴ</span>${d.label ? ` <b>${_plHighlight(d.label, q)}</b>` : ''}</span>
-      <span style="white-space:pre-line;">${_plHighlight(d.text, q)}</span>
-    </div>`
-  ).join('') + _plQuickAddTailHtml(log.id, ctx);
-
-  const progHtml = log.progress != null
-    ? `<span class="prog-wrap" style="width:46px;display:inline-block;vertical-align:middle;"><span class="prog-fill" style="width:${Math.max(0, Math.min(100, log.progress))}%;background:var(--green);"></span></span> <span class="f-mono" style="font-size:10.5px;vertical-align:middle;">${log.progress}%</span>`
-    : '<span class="td-dim">—</span>';
-
-  const rowHtml = `<tr id="pl-row-${log.id}" class="pl-lg-head" onclick="_plToggleRowGuarded(event,'${log.id}','${ctx}')" style="cursor:pointer;">
-    <td class="pl-lg-arrow">${arrow}</td>
-    <td class="f-mono td-num">${dateShort}</td>
-    <td${log.seller ? ` onmouseenter="_plShowFixedTip(this,'${_escHtml(log.seller).replace(/'/g, '&#39;')}')" onmouseleave="_plHideFixedTip()"` : ''}>${sellerCell}</td>
-    <td${log.content ? ` onmouseenter="_plShowFixedTip(this,'${_escHtml(log.content).replace(/'/g, '&#39;')}')" onmouseleave="_plHideFixedTip()"` : ''}>${projCell}</td>
-    <td>${campCell}</td>
-    <td>${mediaCell}</td>
-    <td><span class="badge pl-lg-${log.logType}">${_escHtml(_plTypeLabel(log.logType))}</span></td>
-    <td><div style="font-size:13px;font-weight:600;white-space:pre-line;overflow-wrap:break-word;">${starHtml}${contentHtml}${_plContinueChainBadgeHtml(log)}${attachIconsHtml}${stateHtml}${lateHtml}${cmtBadgeHtml}</div>${subLinesHtml}</td>
-    <td class="td-c" style="vertical-align:middle;">${progHtml}</td>
-    <td>${_escHtml(log.writer || '—')}</td>
-  </tr>`;
-
-  return rowHtml + (isOpen ? _plRenderDetailRow(log, undefined, q) : '');
-}
-// '일지 NEW' 비교 탭 전용 행 — 광고주/프로젝트/캠페인/매체를 각자의 컬럼 대신 "내용" 칸 안에
-// "라벨: 값" 한 줄로 모으고, 유형 배지는 내용 텍스트 맨 앞으로 옮겨서 내용이 쓸 수 있는 폭을
-// 넓힌다. 칸 내용 자체(_plLogCellParts)와 나머지 로직은 _plRenderLogRow와 동일 — 표 구조만
-// 다르다(2026-09-16, 시안 비교용으로 추가 — https://claude.ai/artifact/ANhpRkm3aNSUCXBpAHh6bR 옵션B).
+// 광고주/프로젝트/캠페인/매체를 각자의 컬럼 대신 "내용" 칸 안에 "라벨: 값" 한 줄로 모으고,
+// 유형 배지는 내용 텍스트 맨 앞으로 옮겨서 내용이 쓸 수 있는 폭을 넓힌 행 렌더러(2026-09-16).
 function _plRenderLogRowNew(log, q, ctx) {
   ctx = ctx || 'lognew';
   const isOpen = _plExpanded.has(log.id);
@@ -2769,17 +2726,15 @@ function _plRenderLogRowNew(log, q, ctx) {
   const starHtml  = log.important ? '<span class="pl-star">★</span> ' : '';
   const cmtBadgeHtml = `<span id="pl-cmt-badge-${log.id}">${_plCommentBadgeHtml(log.id)}</span>`;
   // 완료 배지에 이어 "진행중" 라벨도 아예 없앴다 — 색 신호를 이 줄에서 완전히 뺀다(2026-09-16, 사용자 요청).
-  const isLate = !!(log.logDate && log.createdAt && Math.abs((new Date(log.createdAt) - new Date(log.logDate)) / 86400000) >= 3);
-  const lateHtml = isLate ? '<span class="pl-st-late">소급</span>' : '';
   if (log.hasImages && log.imageCount == null) _plEnsureImageCountBadge(log.id);
   const attachIconsHtml = (log.hasImages ? `<span id="pl-imgcnt-${log.id}" style="cursor:zoom-in;" onclick="event.stopPropagation();_plOpenLogImages('${log.id}')" title="첨부 이미지 — 클릭하여 보기">🖼️${log.imageCount || ''}</span>` : '')
     + ((log.links && log.links.length) ? `<span title="링크 ${log.links.length}개">🔗️ ${log.links.length}</span>` : '')
     + ((log.attachPath || log.attachName) ? `<span title="첨부 경로: ${_escHtml(log.attachPath || log.attachName || '')}">📁</span>` : '');
   // 이어쓰기는 원래대로 파란 라벨 유지, 댓글보다 앞에 온다(2026-09-16, 사용자 요청으로 순서 교체).
-  // 첨부·소급만 무채색 트레이로 뺀다.
+  // 소급 표시는 폐지(2026-09-21, 사용자 요청) — 첨부만 무채색 트레이로 뺀다.
   const chainHtml = _plContinueChainBadgeHtml(log);
-  const trayHtml = (attachIconsHtml || lateHtml)
-    ? `<span class="pl-lgnew-tray">${attachIconsHtml}${lateHtml}</span>` : '';
+  const trayHtml = attachIconsHtml
+    ? `<span class="pl-lgnew-tray">${attachIconsHtml}</span>` : '';
   // "+ㄴ 추가" 트리거는 텍스트 링크 대신 원형 아이콘 버튼(옵션2) — 마지막으로 작성된 줄(ㄴ 추가
   // 항목이 있으면 그 마지막 줄, 없으면 제목줄)의 오른쪽 끝에 붙는다. 다만 눌렀을 때 뜨는 입력폼은
   // 그 자리에 끼워넣지 않고 맨 아래 줄로 따로 뺀다 — 버튼 위치에 입력창이 나오면 어색하다는
@@ -2839,52 +2794,10 @@ function _plRenderLogRowNew(log, q, ctx) {
   return rowHtml + (isOpen ? _plRenderDetailRow(log, 6, q) : '');
 }
 
-function _plRenderRows() {
-  // 검색/필터가 최근 구독 범위 밖을 가리키면 그때 필요한 범위를 추가로 구독한다.
-  // - 광고주/매체 필터가 걸려있으면 그 범위만(가벼움), 자유 텍스트나 그보다 이전 날짜 필터면 범위를 특정할 수 없어 전체를 연다.
-  const searchVal = (document.getElementById('pl-search')?.value || '').trim();
-  const dateFromVal = document.getElementById('pl-date-from')?.value || '';
-  const sellerFilterVal = document.getElementById('pl-f-seller')?.value.trim() || '';
-  const mediaFilterVal = document.getElementById('pl-f-media')?.value.trim() || '';
-  if (sellerFilterVal) _plEnsureCompanyLoaded(sellerFilterVal);
-  if (mediaFilterVal) _plEnsureMediaLoaded(mediaFilterVal);
-  if (searchVal || (dateFromVal && dateFromVal < _plRecentCutoff())) _plEnsureFullyLoaded();
-
-  const filtered = _plGetFiltered();
-  const q = (document.getElementById('pl-search')?.value || '').trim();
-
-  // 퀵필터 카드 카운트 — 다른 필터와 무관하게 전체 기준(진행중 총량)으로 보여줘서 "지금 몇 건 밀려있나"가 바로 보이게
-  const openCntEl = document.getElementById('pl-open-cnt');
-  if (openCntEl) openCntEl.textContent = PL_LOGS.filter(_plLogOpen).length;
-
-  const typeCounts = {};
-  filtered.forEach(l => { typeCounts[l.logType] = (typeCounts[l.logType] || 0) + 1; });
-  const topTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 4)
-    .map(([t, n]) => `${_plTypeLabel(t)} ${n}`).join(' · ');
-  const cntEl = document.getElementById('pl-log-count');
-  if (cntEl) cntEl.innerHTML = `<b>${filtered.length}</b>건${topTypes ? ' · ' + _escHtml(topTypes) : ''}`;
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PL_PAGE_SIZE));
-  _plPage = Math.min(Math.max(1, _plPage), totalPages);
-  const pageItems = filtered.slice((_plPage - 1) * PL_PAGE_SIZE, _plPage * PL_PAGE_SIZE);
-
-  const tbody = document.getElementById('pl-log-tbody');
-  if (tbody) {
-    tbody.innerHTML = pageItems.length
-      ? pageItems.map(log => _plRenderLogRow(log, q)).join('')
-      : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text3);font-size:13px;">조건에 맞는 일지가 없습니다.</td></tr>`;
-  }
-
-  const pagEl = document.getElementById('pl-log-pagination');
-  if (pagEl) pagEl.innerHTML = _plBuildPagination(filtered.length, _plPage, totalPages);
-}
-// '일지 NEW' 비교 탭용 — _plRenderRows와 똑같은 필터·페이지네이션 상태를 쓰고(같은 element id들을
-// 스켈레톤도 그대로 재사용) 행 렌더러만 _plRenderLogRowNew로 바꾼다. 두 탭은 DOM에 동시에 존재하지
-// 않으므로(스켈레톤이 dataset.plTab에 따라 통째로 갈아끼워짐) id 충돌 걱정 없이 공유 가능하다.
 function _plRenderNewRows() {
   const searchVal = (document.getElementById('pl-search')?.value || '').trim();
   const dateFromVal = document.getElementById('pl-date-from')?.value || '';
-  const sellerFilterVal = document.getElementById('pl-f-seller')?.value.trim() || '';
+  const sellerFilterVal = _plStripInternalSuffix(document.getElementById('pl-f-seller')?.value.trim() || '');
   const mediaFilterVal = document.getElementById('pl-f-media')?.value.trim() || '';
   if (sellerFilterVal) _plEnsureCompanyLoaded(sellerFilterVal);
   if (mediaFilterVal) _plEnsureMediaLoaded(mediaFilterVal);
@@ -2892,9 +2805,6 @@ function _plRenderNewRows() {
 
   const filtered = _plGetFiltered();
   const q = (document.getElementById('pl-search')?.value || '').trim();
-
-  const openCntEl = document.getElementById('pl-open-cnt');
-  if (openCntEl) openCntEl.textContent = PL_LOGS.filter(_plLogOpen).length;
 
   const typeCounts = {};
   filtered.forEach(l => { typeCounts[l.logType] = (typeCounts[l.logType] || 0) + 1; });
@@ -2918,93 +2828,7 @@ function _plRenderNewRows() {
   if (pagEl) pagEl.innerHTML = _plBuildPagination(filtered.length, _plPage, totalPages, '_plGoPageNew');
 }
 
-function _plBuildLogTabSkeleton(container) {
-  // 캠페인 목록(resetFilter)과 동일하게, 처음 이 탭을 열면 기본값을 "이번 달"로 맞춘다
-  // (2026-09-14, 사용자 요청 — 데이트피커를 교체하면서 기본값도 같이 통일).
-  const _r = _plThisMonthRange();
-  container.innerHTML = `
-    <div class="filter-bar" style="margin-bottom:12px;overflow:visible;">
-      <div id="pl-drp-trigger" onclick="drpOpen({trigger:'pl-drp-trigger',from:'pl-date-from',to:'pl-date-to',label:'pl-drp-label',onApply:'_plDrpApply'})" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:13px;color:var(--text1);white-space:nowrap;user-select:none;">
-        <span id="pl-drp-label">${_r.label}</span>
-      </div>
-      <input type="hidden" id="pl-date-from" value="${_r.from}">
-      <input type="hidden" id="pl-date-to" value="${_r.to}">
-      <div class="combo-wrap" style="width:120px;">
-        <input type="text" class="f-search" id="pl-f-seller" placeholder="🔍 광고주" style="width:120px;">
-        <div class="combo-list" id="pl-f-seller-list" style="display:none;"></div>
-      </div>
-      <div class="combo-wrap" style="width:100px;">
-        <input type="text" class="f-search" id="pl-f-media" placeholder="🔍 매체" style="width:100px;">
-        <div class="combo-list" id="pl-f-media-list" style="display:none;"></div>
-      </div>
-      <input type="text" class="f-search" id="pl-search" placeholder="검색어" style="width:160px;" oninput="_plPage=1;_plRenderRows();">
-      <select class="f-sel" id="pl-f-type" onchange="_plPage=1;_plRenderRows();"><option value="">유형 전체</option></select>
-      <select class="f-sel" id="pl-f-org" onchange="_plPage=1;_plRenderRows();"><option value="">본부/팀 전체</option></select>
-      <div class="combo-wrap" id="pl-f-writer-wrap" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
-        <div id="pl-f-writer-chips" style="display:inline-flex;gap:3px;flex-wrap:wrap;"></div>
-        <input type="text" class="f-search" id="pl-f-writer" placeholder="🔍 작성자 추가" style="width:100px;"
-          oninput="_plLogWriterSearchInput(this)" onfocus="_plLogWriterSearchInput(this)"
-          onkeydown="_plComboKeyNav(event,'pl-f-writer-list')"
-          onblur="setTimeout(()=>{const l=document.getElementById('pl-f-writer-list');if(l)l.style.display='none';},150)">
-        <div class="combo-list" id="pl-f-writer-list" style="display:none;"></div>
-      </div>
-      <span class="f-reset" onclick="plResetLogFilter()">초기화</span>
-    </div>
-
-    <div class="table-card">
-      <div class="table-header">
-        <span class="card-title">일지</span>
-        <span class="table-count" id="pl-log-count">0건</span>
-        <button class="btn btn-outline btn-sm pl-progress-btn" id="pl-f-open" onclick="_plToggleBtn('pl-f-open')">🔴 진행중 <b id="pl-open-cnt">—</b>건</button>
-        <div class="pl-expand-bar">
-          <button class="btn btn-outline btn-sm" onclick="_plExpandAll(true)">전체 펼침</button>
-          <button class="btn btn-ghost btn-sm" onclick="_plExpandAll(false)">요약만</button>
-        </div>
-      </div>
-      <div class="table-wrap"><table class="pl-lgt" style="width:100%;">
-        <thead><tr>
-          <th style="width:22px;"></th><th style="width:78px;">작성일</th><th style="width:120px;">광고주</th>
-          <th style="width:150px;">프로젝트</th><th style="width:90px;">캠페인</th><th style="width:120px;">매체</th><th style="width:60px;">유형</th>
-          <th>내용</th><th style="width:56px;">진척률</th><th style="width:70px;">작성자</th>
-        </tr></thead>
-        <tbody id="pl-log-tbody"></tbody>
-      </table></div>
-      <div class="pagination" id="pl-log-pagination"></div>
-    </div>
-  `;
-
-  container.querySelectorAll('.view-tab.off').forEach(btn => {
-    btn.onclick = () => plSwitchTab('__off__');
-  });
-
-  const _plLogFilterChange = () => { _plPage = 1; _plRenderRows(); };
-  _plComboSetup('pl-f-seller',  'pl-f-seller-list',  _plSellerNamesRecent,  _plLogFilterChange);
-  _plComboSetup('pl-f-media',   'pl-f-media-list',   _plMediaNamesRecent,   _plLogFilterChange);
-  // 작성자는 다중 선택(칩)이라 값 하나만 다루는 _plComboSetup 대신 전용 핸들러(_plLogWriter*)를 씀.
-  // 새로고침·메뉴 재진입 시 리셋되도록 의도적으로 이 배열을 여기서 비우지 않는다(모듈 전역 상태 그대로 유지)
-  // — 탭을 넘나들며 스켈레톤이 다시 그려질 때마다 초기화되면 안 되고, 페이지 자체가 새로 열릴 때만 리셋되면 됨.
-  _plLogRenderWriterChips();
-
-  const typeSel = document.getElementById('pl-f-type');
-  if (typeSel) typeSel.innerHTML = '<option value="">유형 전체</option>' + PL_LOG_TYPES_FILTER.map(t => `<option value="${t}">${_plTypeLabel(t)}</option>`).join('');
-  const orgSel = document.getElementById('pl-f-org');
-  if (orgSel) orgSel.innerHTML = '<option value="">본부/팀 전체</option>' + _buildOrgSelectHTML();
-}
-
-function plRenderLogTab() {
-  const content = document.getElementById('pl-tab-content');
-  if (!content) return;
-  if (content.dataset.plTab !== 'log') {
-    _plBuildLogTabSkeleton(content);
-    content.dataset.plTab = 'log';
-  }
-  _plRenderRows();
-}
-
-// '일지 NEW' — 컬럼 레이아웃 비교용 시안 탭. 필터바·상태(검색어/기간/광고주/매체/유형/작성자)는
-// '일지' 탭과 완전히 동일한 element id를 그대로 쓴다 — 두 탭의 스켈레톤은 dataset.plTab이 다를
-// 때만 서로를 밀어내며 만들어지므로(같은 시점엔 DOM에 하나만 존재) id가 겹쳐도 문제없다. 다른 건
-// 표 헤더(5칸)와 행 렌더러(_plRenderLogRowNew)뿐이다(2026-09-16, 사용자 요청 — 시안 비교용).
+// '일지' 탭 스켈레톤 — 필터바(검색어/기간/광고주/매체/유형/작성자) + 6컬럼 표.
 function _plBuildLogNewTabSkeleton(container) {
   const _r = _plThisMonthRange();
   container.innerHTML = `
@@ -3017,6 +2841,10 @@ function _plBuildLogNewTabSkeleton(container) {
       <div class="combo-wrap" style="width:120px;">
         <input type="text" class="f-search" id="pl-f-seller" placeholder="🔍 광고주" style="width:120px;">
         <div class="combo-list" id="pl-f-seller-list" style="display:none;"></div>
+      </div>
+      <div class="combo-wrap" style="width:110px;">
+        <input type="text" class="f-search" id="pl-f-project" placeholder="🔍 브랜드" style="width:110px;">
+        <div class="combo-list" id="pl-f-project-list" style="display:none;"></div>
       </div>
       <div class="combo-wrap" style="width:100px;">
         <input type="text" class="f-search" id="pl-f-media" placeholder="🔍 매체" style="width:100px;">
@@ -3038,7 +2866,7 @@ function _plBuildLogNewTabSkeleton(container) {
 
     <div class="table-card">
       <div class="table-header">
-        <span class="card-title">일지 NEW</span>
+        <span class="card-title">일지</span>
         <span class="table-count" id="pl-log-count">0건</span>
         <select class="f-sel" id="pl-f-open" onchange="_plPage=1;_plRenderNewRows();">
           <option value="">전체보기</option>
@@ -3062,7 +2890,8 @@ function _plBuildLogNewTabSkeleton(container) {
   `;
 
   const _plLogFilterChange = () => { _plPage = 1; _plRenderNewRows(); };
-  _plComboSetup('pl-f-seller',  'pl-f-seller-list',  _plSellerNamesRecent,  _plLogFilterChange);
+  _plComboSetup('pl-f-seller',  'pl-f-seller-list',  _plSellerNamesWithInternalRecent,  _plLogFilterChange);
+  _plComboSetup('pl-f-project', 'pl-f-project-list', _plProjectNamesRecent, _plLogFilterChange);
   _plComboSetup('pl-f-media',   'pl-f-media-list',   _plMediaNamesRecent,   _plLogFilterChange);
   _plLogRenderWriterChips();
 
@@ -3328,6 +3157,15 @@ function _plBlockPickNewSeller(bi) {
   if (!q) return;
   const list = document.getElementById(`pl-tgt-list-${bi}`);
   if (list) list.style.display = 'none';
+  // 입력한 이름이 이미 등록된 광고주와 정확히 같으면, 신규 등록 화면을 띄우는 대신 그 광고주를
+  // 그대로 골라준다 — 안 그러면 빈 등록화면에서 실수로 저장할 경우 기존 브랜드 목록이 같은
+  // 이름으로 덮어써져 사라진다(2026-09-21, 실사고 직전까지 갔던 문제 방지).
+  if (block && SELLER_DATA.some(s => s.company === q)) {
+    block.scope = 'advertiser'; block.seller = q; block.content = null;
+    block.campaignId = null; block.media = null; block.product = null;
+    _plRenderWriteModal();
+    return;
+  }
   _plPendingNewTarget = { bi, kind: 'seller' };
   openSellerModal(null, '광고주');
   const companyEl = document.getElementById('sel-company');
@@ -3339,6 +3177,12 @@ function _plBlockPickNewMedia(bi) {
   if (!q) return;
   const list = document.getElementById(`pl-tgt-list-${bi}`);
   if (list) list.style.display = 'none';
+  if (block && MEDIA_DATA.some(m => m.company === q)) {
+    block.scope = 'media'; block.seller = null; block.content = null;
+    block.campaignId = null; block.media = q; block.product = null;
+    _plRenderWriteModal();
+    return;
+  }
   _plPendingNewTarget = { bi, kind: 'media' };
   openMediaModal(null);
   const companyEl = document.getElementById('med-company');
@@ -5247,7 +5091,7 @@ async function plSaveEdit() {
 // 저장 버튼만 그 자리에서 보여준다. 한 번에 하나만 열 수 있어(logId 하나만 기억) id 충돌 걱정이 없다.
 // detail만 바뀐 문서를 plSaveEdit과 동일한 방식(_plDiffFields)으로 저장·이력기록하므로 이력에도 남는다.
 let _plQuickAdd = null; // 지금 미니폼이 열려있는 log id
-// 일지/나의일지 표(_plRenderLogRow)와 일자별 뷰(_plDateItemHtml)가 공유하는, ㄴ내용 목록 맨 아래 붙는
+// 일지/나의일지 표(_plRenderLogRowNew)와 일자별 뷰(_plDateItemHtml)가 공유하는, ㄴ내용 목록 맨 아래 붙는
 // 꼬리 — 평소엔 "+ ㄴ 추가" 글씨 링크, 그 로그의 미니폼이 열려있으면 입력창+저장 버튼으로 바뀐다.
 function _plQuickAddTailHtml(logId, ctx) {
   if (_plQuickAdd === logId) {
