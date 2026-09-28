@@ -5599,6 +5599,9 @@ function _campXlsxDateTimeStr(v) {
   // 등록 모달과 동일한 형식(YYYY-MM-DD HH:MM). 엑셀 자체 날짜서식으로 입력해도(cellDates:true) Date로
   // 들어오므로 같이 받아준다.
   if (v instanceof Date) {
+    // 엑셀 날짜 serial의 소수점 오차로 10:00이 09:59:59.999로 들어오는 경우가 있어서(수식·복사값 등),
+    // 분을 잘라내지 말고 가장 가까운 분으로 반올림한다 — 안 그러면 09:59로 저장되고 중복 검사도 빗나간다.
+    v = new Date(Math.round(v.getTime() / 60000) * 60000);
     const p2 = n => String(n).padStart(2, '0');
     return `${v.getFullYear()}-${p2(v.getMonth() + 1)}-${p2(v.getDate())} ${p2(v.getHours())}:${p2(v.getMinutes())}`;
   }
