@@ -2470,13 +2470,95 @@ function comboCloseAll() {
   });
 }
 
+// ── 한/영 무관 검색 ──
+// 한/영 키를 안 누르고 영문 상태로 친 것(znvkd → 쿠팡)과 초성(ㅋㅍ → 쿠팡)으로도 콤보 목록을 찾게 한다.
+// 비교는 음절이 아니라 "키 입력 단위 자모"로 한다 — 그래야 입력 도중(znv → 쿺)에도 쿠팡이 계속 걸리고,
+// 한글로 치는 중 조합 상태(쿺)가 잠깐 들어와도 목록이 끊기지 않는다.
+const _KO_KEY = { q:'ㅂ',w:'ㅈ',e:'ㄷ',r:'ㄱ',t:'ㅅ',y:'ㅛ',u:'ㅕ',i:'ㅑ',o:'ㅐ',p:'ㅔ',a:'ㅁ',s:'ㄴ',d:'ㅇ',f:'ㄹ',g:'ㅎ',h:'ㅗ',j:'ㅓ',k:'ㅏ',l:'ㅣ',
+  z:'ㅋ',x:'ㅌ',c:'ㅊ',v:'ㅍ',b:'ㅠ',n:'ㅜ',m:'ㅡ',Q:'ㅃ',W:'ㅉ',E:'ㄸ',R:'ㄲ',T:'ㅆ',O:'ㅒ',P:'ㅖ' };
+const _KO_CHO  = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+const _KO_JUNG = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅗㅏ','ㅗㅐ','ㅗㅣ','ㅛ','ㅜ','ㅜㅓ','ㅜㅔ','ㅜㅣ','ㅠ','ㅡ','ㅡㅣ','ㅣ'];
+const _KO_JONG = ['','ㄱ','ㄲ','ㄱㅅ','ㄴ','ㄴㅈ','ㄴㅎ','ㄷ','ㄹ','ㄹㄱ','ㄹㅁ','ㄹㅂ','ㄹㅅ','ㄹㅌ','ㄹㅍ','ㄹㅎ','ㅁ','ㅂ','ㅂㅅ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+// 겹모음·겹받침 낱자(ㅘ, ㄳ 등)를 직접 친 경우도 키 단위로 편다
+const _KO_COMPAT_SPLIT = { 'ㅘ':'ㅗㅏ','ㅙ':'ㅗㅐ','ㅚ':'ㅗㅣ','ㅝ':'ㅜㅓ','ㅞ':'ㅜㅔ','ㅟ':'ㅜㅣ','ㅢ':'ㅡㅣ',
+  'ㄳ':'ㄱㅅ','ㄵ':'ㄴㅈ','ㄶ':'ㄴㅎ','ㄺ':'ㄹㄱ','ㄻ':'ㄹㅁ','ㄼ':'ㄹㅂ','ㄽ':'ㄹㅅ','ㄾ':'ㄹㅌ','ㄿ':'ㄹㅍ','ㅀ':'ㄹㅎ','ㅄ':'ㅂㅅ' };
+const _koJamoCache = new Map();
+
+// 문자열 → { seq: 키 단위 자모열, starts: 음절 첫 자음 위치 Set, cho: 초성열 }. 한글 외 문자는 소문자로 그대로 둔다.
+function _koJamo(text) {
+  let hit = _koJamoCache.get(text);
+  if (hit) return hit;
+  let seq = '', cho = '';
+  const starts = new Set();
+  for (const ch of String(text || '')) {
+    const code = ch.charCodeAt(0) - 0xAC00;
+    if (code >= 0 && code < 11172) {
+      starts.add(seq.length);
+      const c = _KO_CHO[Math.floor(code / 588)];
+      seq += c + _KO_JUNG[Math.floor((code % 588) / 28)] + _KO_JONG[code % 28];
+      cho += c;
+    } else {
+      seq += _KO_COMPAT_SPLIT[ch] || ch.toLowerCase();
+      cho += ch.toLowerCase();
+    }
+  }
+  hit = { seq, starts, cho };
+  if (_koJamoCache.size > 5000) _koJamoCache.clear();
+  _koJamoCache.set(text, hit);
+  return hit;
+}
+
+// 검색어 → 키 단위 자모열. 영문은 두벌식 자판 위치로 자모로 바꾼다(대문자는 쌍자음·ㅒㅖ, 나머지 대문자는 소문자 키로).
+function _koQueryJamo(raw) {
+  let out = '';
+  for (const ch of raw) {
+    if (/[a-zA-Z]/.test(ch)) out += _KO_KEY[ch] || _KO_KEY[ch.toLowerCase()];
+    else out += _koJamo(ch).seq;
+  }
+  return out;
+}
+
+// text가 검색어 raw에 걸리는지. 0 = 그대로 포함(일반 검색), 1 = 한/영 변환·초성·조합중 매칭(이름 맨 앞부터),
+// 2 = 같은 매칭이지만 이름 중간부터, -1 = 불일치.
+// 변환 매칭은 음절 첫 자음 위치에서 시작할 때만 인정한다 — 안 그러면 'kt'(ㅏㅅ)가 '다솜'에 걸리는 식의 잡음이 생긴다.
+function _koMatch(text, raw) {
+  const q = String(raw || '').trim();
+  if (!q) return 0;
+  const t = String(text || '');
+  if (t.toLowerCase().includes(q.toLowerCase())) return 0;
+  const tj = _koJamo(t);
+  if (/^[ㄱ-ㅎ]+$/.test(q)) {
+    const at = tj.cho.indexOf(q);
+    if (at >= 0) return at === 0 ? 1 : 2;
+  }
+  const qj = _koQueryJamo(q);
+  if (!qj || !/[ㄱ-ㅎ]/.test(qj[0])) return -1;
+  let best = -1;
+  for (const s of tj.starts) if (tj.seq.startsWith(qj, s)) { if (s === 0) return 1; best = 2; }
+  return best;
+}
+
+// 목록 필터 — 일반 검색으로 걸린 항목 → 변환 매칭(이름 맨 앞부터) → 변환 매칭(중간)·추가 조건 순으로 둔다.
+// matchFn(it, raw)은 항목 이름 외 다른 문자열(브랜드명 등)로도 찾게 할 때 쓰는 추가 조건.
+function _koFilter(items, raw, matchFn) {
+  if (!String(raw || '').trim()) return items;
+  const exact = [], head = [], rest = [];
+  items.forEach(it => {
+    const r = _koMatch(it, raw);
+    if (r === 0) exact.push(it);
+    else if (r === 1) head.push(it);
+    else if (r === 2 || (matchFn && matchFn(it, raw))) rest.push(it);
+  });
+  return [...exact, ...head, ...rest];
+}
+
 function comboRender(name) {
   comboCloseAll();
   const cfg = _comboConfig(name);
   delete _comboNavIdx[cfg.listId];
-  const q = (document.getElementById(cfg.textId).value || '').trim().toLowerCase();
+  const q = (document.getElementById(cfg.textId).value || '').trim();
   const items = cfg.getItems();
-  const filtered = q ? items.filter(it => it.toLowerCase().includes(q)) : items;
+  const filtered = _koFilter(items, q);
   const listEl = document.getElementById(cfg.listId);
 
   // innerHTML 대신 DOM 직접 생성 → 인라인 이벤트 핸들러의 따옴표 충돌 방지
@@ -2615,17 +2697,13 @@ function _fcConfig(name) {
     // 지금처럼 회사 단위로 필터링된다(브랜드 단위 필터는 아님).
     fAdv:   { textId:'fAdv_text',   hiddenId:'fAdv',   listId:'combo-fAdv-list',   getItems:_fAdvItems, onSelect:() => applyFilter(),
       matchFn: (company, q) => {
-        if (company.toLowerCase().includes(q)) return true;
         const s = SELLER_DATA.find(s => s.company === company);
-        return !!(s && (s.brands || []).some(b => String(b.name || b || '').toLowerCase().includes(q)));
+        return !!(s && (s.brands || []).some(b => _koMatch(String(b.name || b || ''), q) >= 0));
       } },
     // 매체명뿐 아니라 그 매체로 캠페인을 진행했던 매출처(광고주/대행사) 이름으로도 찾을 수 있게 —
     // 매체명은 기억 안 나는데 어느 매출처 캠페인이었는지는 기억날 때를 위함.
     fMedia: { textId:'fMedia_text', hiddenId:'fMedia', listId:'combo-fMedia-list', getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => applyFilter(),
-      matchFn: (media, q) => {
-        if (media.toLowerCase().includes(q)) return true;
-        return DATA.some(c => c.media === media && (c.seller || c.adv || '').toLowerCase().includes(q));
-      } },
+      matchFn: (media, q) => DATA.some(c => c.media === media && _koMatch(c.seller || c.adv || '', q) >= 0) },
     'stl-fAdv':   { textId:'stl-fAdv_text',   hiddenId:'stl-fAdv',   listId:'combo-stl-fAdv-list',   getItems:_stlAdvItems, onSelect:() => renderSettlement() },
     'stl-fMedia': { textId:'stl-fMedia_text', hiddenId:'stl-fMedia', listId:'combo-stl-fMedia-list', getItems:() => MEDIA_DATA.map(m => m.company), onSelect:() => renderSettlement() },
     calFilterCompany: { textId:'calFilterCompany_text', hiddenId:'calFilterCompany', listId:'combo-calFilterCompany-list', getItems:_calCompanyItems, onSelect:() => renderCalendar() },
@@ -2661,7 +2739,7 @@ function fcOpen(name) {
 
 function fcRender(name) {
   const textEl = document.getElementById(_fcConfig(name).textId);
-  const q = (textEl?.value || '').trim().toLowerCase();
+  const q = (textEl?.value || '').trim();
   _fcRenderList(name, q);
 }
 
@@ -2673,7 +2751,7 @@ function _fcRenderList(name, q) {
   if (!textEl || !listEl) return;
   delete _comboNavIdx[cfg.listId];
   const items = cfg.getItems();
-  const filtered = q ? items.filter(it => cfg.matchFn ? cfg.matchFn(it, q) : it.toLowerCase().includes(q)) : items;
+  const filtered = _koFilter(items, q, cfg.matchFn);
 
   listEl.innerHTML = '';
   const allDiv = document.createElement('div');
