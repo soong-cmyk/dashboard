@@ -7380,9 +7380,31 @@ async function saveSeller() {
   if (typeof _plHandlePendingNewTarget === 'function') _plHandlePendingNewTarget('seller', obj.company);
 }
 
+// 매출처명을 참조하는 데이터 집계 — 참조가 남아 있으면 삭제를 막는다.
+// 캠페인·일지 등은 매출처를 이름 문자열로 들고 있어서, 원본이 사라지면 카테고리 조회·대행료율 자동입력이 어긋난다.
+function _sellerRefs(name) {
+  const camps = DATA.filter(c => c.status !== '삭제' && (c.seller === name || c.adv === name));
+  const refs = [
+    { label: '캠페인',       count: camps.length },
+    { label: '세금계산서',   count: TAX_DATA.filter(t => t.taxType !== 'media' && t.company === name).length },
+    { label: '영업파이프라인', count: PIPELINE_DATA.filter(p => p.seller === name).length },
+    { label: '프로젝트일지', count: typeof PL_LOGS  !== 'undefined' ? PL_LOGS.filter(l => l.seller === name).length : 0 },
+    { label: '일지 목표',    count: typeof PL_GOALS !== 'undefined' ? PL_GOALS.filter(g => g.seller === name).length : 0 },
+  ].filter(r => r.count > 0);
+  return { refs, camps };
+}
+
 async function deleteSellerItem() {
   if (sellerEditIdx == null) return;
   const name = SELLER_DATA[sellerEditIdx]?.company;
+  const { refs, camps } = _sellerRefs(name);
+  if (refs.length) {
+    const summary = refs.map(r => `${r.label} ${r.count}건`).join(', ');
+    const recent = [...camps].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 3)
+      .map(c => `  · ${(c.date || '').slice(0, 10)} ${c.content || ''}`).join('\n');
+    alert(`'${name}' 매출처는 삭제할 수 없습니다.\n연결된 데이터: ${summary}` + (recent ? `\n\n최근 캠페인:\n${recent}` : ''));
+    return;
+  }
   if (!confirm(`'${name}' 항목을 삭제하시겠습니까?`)) return;
   const delObj = SELLER_DATA[sellerEditIdx];
   SELLER_DATA.splice(sellerEditIdx, 1);
