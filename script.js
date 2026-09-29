@@ -4542,6 +4542,12 @@ let calView = 'month';
 let calDate = new Date(); // 기준 날짜
 let calY = calDate.getFullYear(), calM = calDate.getMonth() + 1;
 let calProductTab = 'sms'; // 'sms' | 'da'
+// 캘린더 탭별 상품 — 기간형 탭(cpt-da)은 시작~종료 막대로 그리는 DA·IPTV·CPA, 문자 탭은 발송일 1건짜리 문자류만.
+// CPS·퍼미션콜은 날짜가 월초(-01 00:00)로 저장되는 월 정산 데이터라 캘린더에 넣지 않는다 — CPS가 문자 탭
+// 매달 1일 칸에 몰려 보이던 문제(2026-09-29). 정산탭의 CPS·퍼미션콜 보기에서 확인.
+const CAL_PERIOD_PRODUCTS = ['DA', 'IPTV', 'CPA'];
+const CAL_HIDDEN_PRODUCTS = ['CPS', '퍼미션콜'];
+const _calInSmsTab = prod => !CAL_PERIOD_PRODUCTS.includes(prod) && !CAL_HIDDEN_PRODUCTS.includes(prod);
 
 function _evColor(ev) {
   if (ev.idx !== null && DATA[ev.idx]) return _categoryColor(_getCat(DATA[ev.idx]));
@@ -4573,14 +4579,14 @@ function _getFilteredEvents(key) {
       if (!c) return false;
       const prod = c.product || '';
       if (isDA) {
-        // DA 탭: DA 상품만, 날짜 범위 내 포함 여부
-        if (!['DA','IPTV'].includes(prod)) return false;
+        // 기간형 탭: DA·IPTV·CPA, 날짜 범위 내 포함 여부
+        if (!CAL_PERIOD_PRODUCTS.includes(prod)) return false;
         const startKey = (c.date || '').slice(0, 10);
         const endKey   = (c.dateEnd || startKey).slice(0, 10);
         return key >= startKey && key <= endKey;
       } else {
-        // 문자광고 탭: 퍼미션콜·CPA·DA 제외, 시작일 기준
-        if (prod === '퍼미션콜' || prod === 'CPA' || ['DA','IPTV'].includes(prod)) return false;
+        // 문자광고 탭: 기간형·월정산 상품 제외, 시작일 기준
+        if (!_calInSmsTab(prod)) return false;
         return (c.date || '').startsWith(key);
       }
     });
@@ -4825,12 +4831,12 @@ function _updateCalMeta() {
   const visible = DATA.filter(c => {
     const prod = c.product || '';
     if (isDATab) {
-      if (!['DA','IPTV'].includes(prod)) return false;
+      if (!CAL_PERIOD_PRODUCTS.includes(prod)) return false;
       const startKey = (c.date    || '').slice(0, 10);
       const endKey   = (c.dateEnd || startKey).slice(0, 10);
       if (endKey < monthStart || startKey > monthEnd) return false;
     } else {
-      if (prod === '퍼미션콜' || prod === 'CPA' || ['DA','IPTV'].includes(prod)) return false;
+      if (!_calInSmsTab(prod)) return false;
       if (!(c.date || '').startsWith(prefix)) return false;
     }
     if (catF     && _getCat(c)      !== catF)     return false;
@@ -4976,7 +4982,7 @@ function _computeDABars(cells, dim, todayIdx = -1) {
 
   // 필터 적용 + 이번 달 겹치는 DA 캠페인 수집
   const daCamps = DATA.filter(c => {
-    if (!['DA','IPTV'].includes(c.product || '')) return false;
+    if (!CAL_PERIOD_PRODUCTS.includes(c.product || '')) return false;
     const s = (c.date    || '').slice(0, 10);
     const e = (c.dateEnd || s  ).slice(0, 10);
     if (e < monthStart || s > monthEnd) return false;
