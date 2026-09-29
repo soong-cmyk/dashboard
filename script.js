@@ -1633,8 +1633,9 @@ function openDetail(idx, skipPush) {
   const cpaBillQty = c.db || c.qty || 0;
   const svcApplyAdv   = c.svcApplyAdv   ?? true;
   const svcApplyMedia = c.svcApplyMedia ?? (buyBillBase === 'actual');
-  const adcBill  = isCPADetail ? cpaBillQty : Math.max(0, (sellBillBase === 'sched' ? qty : (actual || qty)) - (svcApplyAdv   ? svc : 0));
-  const buyBill  = isCPADetail ? cpaBillQty : Math.max(0, (buyBillBase  === 'sched' ? qty : (actual || qty)) - (svcApplyMedia  ? svc : 0));
+  const hasActual = c.actual != null && c.actual !== ''; // 0건도 입력값 — _stlAmt와 같은 기준
+  const adcBill  = isCPADetail ? cpaBillQty : Math.max(0, (sellBillBase === 'sched' || !hasActual ? qty : actual) - (svcApplyAdv   ? svc : 0));
+  const buyBill  = isCPADetail ? cpaBillQty : Math.max(0, (buyBillBase  === 'sched' || !hasActual ? qty : actual) - (svcApplyMedia  ? svc : 0));
   const bill     = isCPADetail ? (cpaBillQty || null) : (actual ? actual - svc : null);
   // 광고비/실청구/매입액/대행료/이익: 정산탭(_stlAmt)과 동일한 계산 결과를 그대로 사용 (단일 소스)
   const stl  = _stlAmt(c);
@@ -8066,8 +8067,11 @@ function _stlAmt(c) {
   const buyBillBase  = c.buyBillBase  || c.billBase || 'actual';
   const svcApplyAdvS   = c.svcApplyAdv   ?? true;
   const svcApplyMediaS = c.svcApplyMedia ?? (buyBillBase === 'actual');
-  const sellQty = Math.max(0, (sellBillBase === 'sched' ? qty : (actual || qty)) - (svcApplyAdvS   ? svc : 0));
-  const buyQty  = Math.max(0, (buyBillBase  === 'sched' ? qty : (actual || qty)) - (svcApplyMediaS ? svc : 0));
+  // 실발송 기준: 실발송수량이 입력돼 있으면(0 포함) 그 값, 비어 있을 때만 예약수량으로 대신 계산.
+  // 예전엔 (actual || qty)라 실발송 0건이 예약수량으로 청구됐다(2026-09-29, 성과입력 규칙 '0=실제 0건').
+  const hasActual = c.actual != null && c.actual !== '';
+  const sellQty = Math.max(0, (sellBillBase === 'sched' || !hasActual ? qty : actual) - (svcApplyAdvS   ? svc : 0));
+  const buyQty  = Math.max(0, (buyBillBase  === 'sched' || !hasActual ? qty : actual) - (svcApplyMediaS ? svc : 0));
   const disc    = c.disc || 0;
   const eu      = disc > 0 ? disc : unit;             // 실적용단가
   const adc     = c.adcostFixed  ?? sellQty * unit;   // 광고비 (매출단가 기준)
