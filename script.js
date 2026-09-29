@@ -4213,18 +4213,21 @@ function open2ndModal() {
 }
 
 // ── 성과입력 단계 규칙 (2026-09-29 확정) ──
-// 완료 여부는 상품별 "핵심 성과값"이 입력됐는지로만 판정한다: 문자류=실발송수량, CPA=DB등록수, DA/IPTV=노출수.
+// 완료 여부는 상품별 "핵심 성과값"이 입력됐는지로만 판정한다: 문자류=실발송수량, CPA=DB등록수 — 둘 다 정산 수량이라
+// 이 값 없이 완료되면 CPA는 정산탭에서 빠지고 문자류는 예약수량 기준으로 조용히 청구된다.
+// DA/IPTV는 정산이 광고비(daAdcost) 고정이라 노출·클릭·전환·매출 중 아무거나 하나라도 입력되면 완료.
 // 빈 값(null) = 미입력, 0 = 실제 0건(입력으로 인정). 핵심값 없이 저장하면 나머지 값만 저장하고 단계는
 // 대기로 유지하며, 핵심값을 지우고 저장하면 완료 → 대기로 되돌린다. 2차 성과입력·수정 모달 공용.
 // 퍼미션콜·CPS는 등록 시 금액 자체가 성과라 등록 즉시 완료 — 이 규칙에서 제외.
 function _perfKeyLabel(c) {
   if (c.product === 'CPA') return 'DB등록수';
-  if (['DA','IPTV'].includes(c.product)) return '노출수';
+  if (['DA','IPTV'].includes(c.product)) return '성과(노출·클릭·전환·매출)';
   return '실발송수량';
 }
 function _perfKeyEntered(c) {
-  const v = c.product === 'CPA' ? c.db : ['DA','IPTV'].includes(c.product) ? c.daImp : c.actual;
-  return v != null && v !== '';
+  const has = v => v != null && v !== '';
+  if (['DA','IPTV'].includes(c.product)) return [c.daImp, c.daClick, c.daConv, c.daRev].some(has);
+  return has(c.product === 'CPA' ? c.db : c.actual);
 }
 function _applyPerfStatus(c) {
   if (c.product === '퍼미션콜' || c.product === 'CPS') return;
@@ -4256,7 +4259,7 @@ function submit2nd()  {
     _fbSaveCampaign(c);
     closeModal('modal2nd');
     openDetail(currentDetailIdx, true);
-    toast(_perfKeyEntered(c) ? '✓ DA 성과가 저장되었습니다' : '✓ 저장했습니다 (노출수 미입력 — 성과입력대기 유지)', 'ok');
+    toast(_perfKeyEntered(c) ? '✓ DA 성과가 저장되었습니다' : '✓ 저장했습니다 (성과 미입력 — 성과입력대기 유지)', 'ok');
     return;
   }
 
