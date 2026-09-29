@@ -690,9 +690,9 @@
               <div class="field" id="dCpaFeeYnField" style="display:none;"><span class="f-label">대행수수료</span><span class="f-val" id="dCpaFeeYn">—</span></div>
 
               <!-- 매출 | 매입 2컬럼 -->
-              <div id="dQtySplit" style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border);margin-top:8px;">
+              <div id="dQtySplit" class="qty-split">
                 <!-- 매출 -->
-                <div style="padding:10px 10px 8px 0;border-right:1px solid var(--border);">
+                <div class="qty-split-sell">
                   <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;">매출</div>
                   <div class="amount-flow">
                     <div class="a-row"><span class="a-lbl">정산기준</span><span class="a-val" id="dSellBillBaseVal">—</span></div>
@@ -704,7 +704,7 @@
                   </div>
                 </div>
                 <!-- 매입 -->
-                <div style="padding:10px 0 8px 10px;">
+                <div class="qty-split-buy">
                   <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.04em;">매입</div>
                   <div class="amount-flow">
                     <div class="a-row"><span class="a-lbl">정산기준</span><span class="a-val" id="dBuyBillBaseVal">—</span></div>

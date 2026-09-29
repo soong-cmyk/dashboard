@@ -232,6 +232,17 @@ tfoot td{padding:12px 14px;white-space:nowrap;border-top:1px solid var(--border)
 .detail-top-title .detail-name{min-width:0;word-break:keep-all;overflow-wrap:anywhere;}
 .detail-top-side{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px;margin-left:auto;}
 .detail-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px;}
+/* 캠페인 상세 수량/금액 카드의 매출|매입 2컬럼 — 카드 자체 폭 기준으로(화면 폭이 넓어도 카드가 2열 그리드의
+   한 칸이라 좁을 수 있음) 좁아지면 매출 위, 매입 아래로 쌓는다(2026-09-29). */
+#dCardQty{container-type:inline-size;}
+.qty-split{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border);margin-top:8px;}
+.qty-split-sell{padding:10px 10px 8px 0;border-right:1px solid var(--border);}
+.qty-split-buy{padding:10px 0 8px 10px;}
+@container (max-width: 440px){
+  .qty-split{grid-template-columns:1fr;}
+  .qty-split-sell{padding:10px 0 8px;border-right:none;border-bottom:1px solid var(--border);}
+  .qty-split-buy{padding:10px 0 8px;}
+}
 .step-track{display:flex;align-items:center;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 6px;}
 .step{padding:5px 12px;border-radius:16px;font-size:11px;font-weight:700;color:var(--text3);cursor:pointer;transition:.15s;white-space:nowrap;}
 .step.done{color:var(--green);}.step.current{background:var(--accent);color:#fff;}
