@@ -4584,13 +4584,17 @@ function _getFilteredEvents(key) {
         const endKey   = (c.dateEnd || startKey).slice(0, 10);
         return key >= startKey && key <= endKey;
       } else {
-        // 문자광고 탭: 기간형·월정산 상품 제외, 시작일 기준
+        // 문자광고 탭: 기간형 상품(DA·IPTV·CPA) 제외, 시작일 기준 — CPS·퍼미션콜은 매달 1일에 표시
         if (!_calInSmsTab(prod)) return false;
         return (c.date || '').startsWith(key);
       }
     });
 
+  // 칸 안 순서: CPS → 퍼미션콜 → 나머지(문자광고), 같은 그룹 안에서는 발송일시순(사용자 요청 2026-09-29)
+  const _calProdRank = prod => prod === 'CPS' ? 0 : prod === '퍼미션콜' ? 1 : 2;
   const sortEvts = arr => arr.slice().sort((a, b) => {
+    const ra = _calProdRank(DATA[a.idx]?.product), rb = _calProdRank(DATA[b.idx]?.product);
+    if (ra !== rb) return ra - rb;
     const da = DATA[a.idx]?.date || '';
     const db = DATA[b.idx]?.date || '';
     return da < db ? -1 : da > db ? 1 : 0;
