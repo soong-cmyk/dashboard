@@ -3893,7 +3893,7 @@ function openEdit() {
     if (eDAEMonth && endParts[1]) eDAEMonth.value = endParts[1];
     if (eDAEDay   && endParts[2]) eDAEDay.value   = endParts[2].padStart(2,'0');
     const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
-    setEl('e_cpa_qty',      c.qty       || '');
+    setEl('e_cpa_qty',      c.db != null && c.db !== '' ? c.db : (c.qty || '')); // CPA 정산수량 = DB등록수 복사본(0도 표시)
     setEl('e_cpa_unit',     c.sellUnit  || '');
     setEl('e_cpa_billbase', c.billBase  || '신청수');
     setEl('e_cpa_fee_yn',   c.cpaFeeYn  || '포함');
@@ -4189,13 +4189,18 @@ function submitEdit() {
       c.daConv  = _epNum('ep_conv');
       c.daRev   = _epNum('ep_da_rev');
     } else {
+      const prevDb = c.db;
       c.actual = _epNum('ep_actual');
       c.clicks = _epNum('ep_click');
       c.ctr    = _epFlt('ep_ctr');   // "2.34%" → 2.34 (parseFloat이 % 무시)
       c.db     = _epNum('ep_db');
       c.dbr    = _epFlt('ep_dbr');
-      // CPA: DB등록수 = 정산수량 자동 동기화
-      if (c.product === 'CPA' && c.db != null) c.qty = c.db;
+      // CPA: DB등록수 = 정산수량 자동 동기화. DB등록수가 있었다가 지워진 경우엔 정산수량도 비운다
+      // (DB등록수 없이 정산수량만 있는 옛 데이터는 건드리지 않음)
+      if (c.product === 'CPA') {
+        if (c.db != null) c.qty = c.db;
+        else if (prevDb != null && prevDb !== '') c.qty = 0;
+      }
     }
     _applyPerfStatus(c);
   }
@@ -4323,6 +4328,7 @@ function submit2nd()  {
   const dbr    = document.getElementById('p_dbr').value;
   // DATA 업데이트 (변경된 필드만 이력 기록)
   if (c) {
+    const prevDb    = c.db;
     const newActual = actual !== '' ? Number(actual) : null;
     const newClicks = click  !== '' ? Number(click)  : null;
     const newCtr    = ctr    !== '' ? parseFloat(ctr): null;
@@ -4336,6 +4342,8 @@ function submit2nd()  {
     if (newDbr    !== c.dbr)    { _log(c.id,'perf','dbr', String(c.dbr??'미입력'), newDbr!=null?newDbr+'%':'미입력'); c.dbr = newDbr; }
     // CPA: DB등록수 = 정산수량 자동 동기화
     if (c.product === 'CPA' && c.db != null) { const prevQty = c.qty; c.qty = c.db; if (prevQty !== c.qty) _log(c.id,'field','qty', String(prevQty??''), String(c.qty)); }
+    // DB등록수를 지운 경우 정산수량도 비움 — CPA 정산수량은 DB등록수 복사본이라 따로 남으면 정산탭에 옛 수량으로 계속 잡힌다
+    else if (c.product === 'CPA' && prevDb != null && prevDb !== '' && c.qty) { _log(c.id,'field','qty', String(c.qty), '0'); c.qty = 0; }
     const prevStatus = c.status;
     _applyPerfStatus(c);
     if (c.status !== prevStatus) _log(c.id,'field','status', prevStatus, c.status);
@@ -4347,6 +4355,18 @@ function submit2nd()  {
   toast(_perfKeyEntered(c) ? '✓ 성과 데이터가 저장되었습니다' : `✓ 저장했습니다 (${_perfKeyLabel(c)} 미입력 — 성과입력대기 유지)`, 'ok');
 }
 // ── 수정화면 성과 자동계산 ──────────────────────────
+// CPA: DB등록수(#ep_db)를 입력하는 즉시 정산수량(#e_cpa_qty)에 반영하고 광고비·매입액·이익 자동계산을 다시 돌린다.
+// 예전엔 저장해야만 맞춰져서 수정 화면의 금액이 옛 정산수량 기준으로 보였다(2026-09-29).
+// DB등록수를 비우면 — 원래 DB등록수가 없던 옛 데이터는 저장된 정산수량을 그대로 보여준다(저장 시에도 유지되므로).
+function epSyncCpaQty() {
+  if (document.getElementById('e_product')?.value !== 'CPA') return;
+  const qtyEl = document.getElementById('e_cpa_qty');
+  if (!qtyEl) return;
+  const v = document.getElementById('ep_db')?.value ?? '';
+  const c = DATA[currentDetailIdx] || {};
+  qtyEl.value = v !== '' ? v : ((c.db == null || c.db === '') ? (c.qty || '') : '');
+  calcCPAEdit();
+}
 function epCalcCTR() {
   const actual = parseFloat(document.getElementById('ep_actual')?.value) || 0;
   const click  = parseFloat(document.getElementById('ep_click')?.value)  || 0;
