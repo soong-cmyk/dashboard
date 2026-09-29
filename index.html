@@ -1023,7 +1023,7 @@
                   </select>
                 </div>
                 <div class="fg"><label class="form-label">수수료율 (%)</label>
-                  <input type="number" class="form-input" id="e_da_comm" placeholder="0" oninput="calcDAEdit()">
+                  <input type="number" class="form-input" id="e_da_comm" oninput="calcDAEdit()">
                 </div>
                 <div class="fg"><label class="form-label">매입단가 (원)</label>
                   <input type="number" step="0.1" class="form-input" id="e_da_buyUnit" placeholder="자동계산" oninput="calcDAEdit()">
@@ -1034,7 +1034,7 @@
                   <span class="form-hint">광고비 × 수수료율</span>
                 </div>
                 <div class="fg"><label class="form-label">대행 (%)</label>
-                  <input type="number" class="form-input" id="e_da_agrate" placeholder="0" oninput="calcDAEdit()">
+                  <input type="number" class="form-input" id="e_da_agrate" oninput="calcDAEdit()">
                 </div>
                 <div class="fg full"><label class="form-label">이익</label>
                   <input class="form-input auto" id="e_da_profit" readonly placeholder="자동계산">
@@ -1049,12 +1049,12 @@
             <div class="card-head"><span class="card-icon">📞</span><span class="card-title">퍼미션콜 단가 / 성과</span></div>
             <div class="card-body">
               <div class="form-grid">
-                <div class="fg"><label class="form-label">광고주단가 (원/동의건)</label><input type="number" class="form-input" id="e_pc_adv_unit" placeholder="0" oninput="calcPC('e')"></div>
-                <div class="fg"><label class="form-label">매체유입 수 (신청자)</label><input type="number" class="form-input" id="e_pc_inflow" placeholder="0" oninput="calcPC('e')"></div>
-                <div class="fg"><label class="form-label">동의건 수</label><input type="number" class="form-input" id="e_pc_agree" placeholder="0" oninput="calcPC('e')"></div>
+                <div class="fg"><label class="form-label">광고주단가 (원/동의건)</label><input type="number" class="form-input" id="e_pc_adv_unit" oninput="calcPC('e')"></div>
+                <div class="fg"><label class="form-label">매체유입 수 (신청자)</label><input type="number" class="form-input" id="e_pc_inflow" oninput="calcPC('e')"></div>
+                <div class="fg"><label class="form-label">동의건 수</label><input type="number" class="form-input" id="e_pc_agree" oninput="calcPC('e')"></div>
                 <div class="fg"><label class="form-label">전환율</label><input class="form-input auto" id="e_pc_cvr" readonly placeholder="자동계산"></div>
                 <div class="fg"><label class="form-label">광고비</label><input class="form-input auto" id="e_pc_adc" readonly placeholder="자동계산"><span class="form-hint">동의건 × 광고주단가</span></div>
-                <div class="fg"><label class="form-label">OHC 비용</label><input type="number" class="form-input" id="e_pc_ohc_cost" placeholder="0" oninput="calcPC('e')"><span class="form-hint">직접 입력</span></div>
+                <div class="fg"><label class="form-label">OHC 비용</label><input type="number" class="form-input" id="e_pc_ohc_cost" oninput="calcPC('e')"><span class="form-hint">직접 입력</span></div>
                 <div class="fg"><label class="form-label">DNU 비용</label><input class="form-input auto" id="e_pc_dnu_cost" readonly placeholder="자동계산"><span class="form-hint">동의건 × 5,500원</span></div>
                 <div class="fg"><label class="form-label">수익</label><input class="form-input auto" id="e_pc_profit" readonly placeholder="자동계산"></div>
                 <div class="fg"><label class="form-label">수익률</label><input class="form-input auto" id="e_pc_prf_rate" readonly placeholder="자동계산"></div>
@@ -1080,7 +1080,7 @@
                   </select>
                 </div>
                 <div class="fg"><label class="form-label">정산단가 (원) <span class="req">*</span></label>
-                  <input type="number" class="form-input" id="e_cpa_unit" placeholder="0" oninput="calcCPAEdit()">
+                  <input type="number" class="form-input" id="e_cpa_unit" oninput="calcCPAEdit()">
                 </div>
                 <div class="fg"><label class="form-label">대행수수료여부</label>
                   <select class="form-sel" id="e_cpa_fee_yn">
@@ -1096,7 +1096,7 @@
                   <input class="form-input auto" id="e_cpa_bill" readonly placeholder="자동계산">
                 </div>
                 <div class="fg"><label class="form-label">수수료율 (%)</label>
-                  <input type="number" class="form-input" id="e_cpa_comm" placeholder="0" oninput="calcCPAEdit()">
+                  <input type="number" class="form-input" id="e_cpa_comm" oninput="calcCPAEdit()">
                 </div>
                 <div class="fg"><label class="form-label">매입단가 (원)</label>
                   <input type="number" class="form-input auto" id="e_cpa_buyUnit" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPAEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPAEdit();}">
@@ -1111,7 +1111,7 @@
                   <span class="form-hint">광고비 × 수수료율 (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">대행 (%)</label>
-                  <input type="number" class="form-input" id="e_cpa_agrate" placeholder="0" oninput="calcCPAEdit()">
+                  <input type="number" class="form-input" id="e_cpa_agrate" oninput="calcCPAEdit()">
                 </div>
                 <div class="fg full"><label class="form-label">이익</label>
                   <input type="number" class="form-input auto" id="e_cpa_profit" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPAEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPAEdit();}">
@@ -1127,9 +1127,9 @@
               <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
                 <div class="form-section-lbl" style="grid-column:1/-1;">광고주 × 브레인큐브</div>
                 <div class="fg"><label class="form-label"><span id="e_cps_final_sales_lbl">최종정산매출</span> (원) <span class="req">*</span></label>
-                  <input type="number" class="form-input" id="e_cps_final_sales" placeholder="0" oninput="calcCPSEdit(true)"></div>
+                  <input type="number" class="form-input" id="e_cps_final_sales" oninput="calcCPSEdit(true)"></div>
                 <div class="fg"><label class="form-label">총CPS수수료 (원)</label>
-                  <input type="number" class="form-input" id="e_cps_total_comm" placeholder="0" oninput="this.dataset.manual='1';calcCPSEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPSEdit();}">
+                  <input type="number" class="form-input" id="e_cps_total_comm" oninput="this.dataset.manual='1';calcCPSEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPSEdit();}">
                   <span class="form-hint" id="e_cps_total_comm_hint">직접 입력</span></div>
                 <div class="fg"><label class="form-label">실수수료율</label>
                   <input class="form-input auto" id="e_cps_comm_rate1" readonly placeholder="자동계산"></div>
@@ -1137,7 +1137,7 @@
                 <div class="fg"><label class="form-label">매체수수료율 (%)</label>
                   <input class="form-input auto" id="e_cps_media_rate" readonly placeholder="매체사 선택 후 조회"></div>
                 <div class="fg"><label class="form-label">매체수수료 (원)</label>
-                  <input type="number" class="form-input" id="e_cps_media_comm" placeholder="0" oninput="this.dataset.manual='1';calcCPSEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPSEdit();}">
+                  <input type="number" class="form-input" id="e_cps_media_comm" oninput="this.dataset.manual='1';calcCPSEdit()" onblur="if(!this.value){delete this.dataset.manual;calcCPSEdit();}">
                   <span class="form-hint" id="e_cps_media_comm_hint">직접 입력</span></div>
                 <div class="fg"><label class="form-label">실매체수수료율</label>
                   <input class="form-input auto" id="e_cps_comm_rate2" readonly placeholder="자동계산"></div>
@@ -1158,10 +1158,10 @@
               <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
                 <!-- 수량 -->
                 <div class="fg"><label class="form-label">발송예약수량</label>
-                  <input type="number" class="form-input" id="e_qty" placeholder="0" oninput="calcEdit()">
+                  <input type="number" class="form-input" id="e_qty" oninput="calcEdit()">
                 </div>
                 <div class="fg"><label class="form-label">서비스수량</label>
-                  <input type="number" class="form-input" id="e_svc" placeholder="0" oninput="calcEdit()">
+                  <input type="number" class="form-input" id="e_svc" oninput="calcEdit()">
                 </div>
                 <div class="fg"><label class="form-label">서비스적용</label>
                   <div style="display:flex;gap:16px;align-items:center;padding:6px 0;">
@@ -1181,10 +1181,10 @@
                   <span class="form-hint" id="e_sellBillQtyHint">정산수량: —</span>
                 </div>
                 <div class="fg"><label class="form-label">매출단가 (원)</label>
-                  <input type="number" class="form-input" id="e_sellUnit" placeholder="0" oninput="calcEdit()">
+                  <input type="number" class="form-input" id="e_sellUnit" oninput="calcEdit()">
                 </div>
                 <div class="fg"><label class="form-label">할인단가 (원/건)</label>
-                  <input type="number" class="form-input" id="e_disc" placeholder="0" oninput="calcEdit()">
+                  <input type="number" class="form-input" id="e_disc" oninput="calcEdit()">
                   <span class="form-hint">실제 청구할 단가 (매출단가를 대체)</span>
                 </div>
                 <div class="fg"><label class="form-label">광고비</label>
@@ -1198,7 +1198,7 @@
                   <span class="form-hint">정산수량 × 할인단가 (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">수수료율 (%)</label>
-                  <input type="number" class="form-input" id="e_comm" placeholder="0" oninput="calcEdit()">
+                  <input type="number" class="form-input" id="e_comm" oninput="calcEdit()">
                 </div>
 
                 <!-- 매체 섹션 구분선 -->
@@ -1231,7 +1231,7 @@
                   <span class="form-hint">광고비 − 매입액 (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">대행 (%)</label>
-                  <input type="number" class="form-input" id="e_agrate" placeholder="0" oninput="calcEdit()">
+                  <input type="number" class="form-input" id="e_agrate" oninput="calcEdit()">
                 </div>
                 <div class="fg"><label class="form-label">이익</label>
                   <input type="number" class="form-input" id="e_profit" placeholder="자동계산"
@@ -1253,11 +1253,11 @@
               <div id="ep_normal" class="form-grid" style="grid-template-columns:repeat(5,1fr);">
                 <div class="fg">
                   <label class="form-label">실발송수량</label>
-                  <input type="number" class="form-input" id="ep_actual" placeholder="0" oninput="epCalcCTR();epCalcDBR()">
+                  <input type="number" class="form-input" id="ep_actual" oninput="epCalcCTR();epCalcDBR()">
                 </div>
                 <div class="fg">
                   <label class="form-label">클릭수</label>
-                  <input type="number" class="form-input" id="ep_click" placeholder="0" oninput="epCalcCTR()">
+                  <input type="number" class="form-input" id="ep_click" oninput="epCalcCTR()">
                 </div>
                 <div class="fg">
                   <label class="form-label">클릭률</label>
@@ -1266,7 +1266,7 @@
                 </div>
                 <div class="fg">
                   <label class="form-label">DB등록수</label>
-                  <input type="number" class="form-input" id="ep_db" placeholder="0" oninput="epCalcDBR()">
+                  <input type="number" class="form-input" id="ep_db" oninput="epCalcDBR()">
                 </div>
                 <div class="fg">
                   <label class="form-label">DB등록률</label>
@@ -1279,19 +1279,19 @@
               <div id="ep_da" class="form-grid" style="grid-template-columns:repeat(4,1fr);display:none;">
                 <div class="fg">
                   <label class="form-label">노출수</label>
-                  <input type="number" class="form-input" id="ep_imp" placeholder="0" oninput="epCalcDA()">
+                  <input type="number" class="form-input" id="ep_imp" oninput="epCalcDA()">
                 </div>
                 <div class="fg">
                   <label class="form-label">클릭수</label>
-                  <input type="number" class="form-input" id="ep_da_click" placeholder="0" oninput="epCalcDA()">
+                  <input type="number" class="form-input" id="ep_da_click" oninput="epCalcDA()">
                 </div>
                 <div class="fg">
                   <label class="form-label">전환수</label>
-                  <input type="number" class="form-input" id="ep_conv" placeholder="0" oninput="epCalcDA()">
+                  <input type="number" class="form-input" id="ep_conv" oninput="epCalcDA()">
                 </div>
                 <div class="fg">
                   <label class="form-label">광고 매출 (원)</label>
-                  <input type="number" class="form-input" id="ep_da_rev" placeholder="0" oninput="epCalcDA()">
+                  <input type="number" class="form-input" id="ep_da_rev" oninput="epCalcDA()">
                 </div>
                 <div class="fg">
                   <label class="form-label">CTR</label>
@@ -2890,7 +2890,7 @@
                 </select>
               </div>
               <div class="fg"><label class="form-label">수수료율 (%)</label>
-                <input type="number" class="form-input" id="r_da_comm" placeholder="0" oninput="calcDA()">
+                <input type="number" class="form-input" id="r_da_comm" oninput="calcDA()">
               </div>
               <div class="fg"><label class="form-label">매입단가 (원)</label>
                 <input type="number" step="0.1" class="form-input" id="r_da_buyUnit" placeholder="자동계산" oninput="calcDA()">
@@ -2901,7 +2901,7 @@
                 <span class="form-hint">광고비 × 수수료율</span>
               </div>
               <div class="fg"><label class="form-label">대행 (%)</label>
-                <input type="number" class="form-input" id="r_da_agrate" placeholder="0" oninput="calcDA()">
+                <input type="number" class="form-input" id="r_da_agrate" oninput="calcDA()">
               </div>
               <div class="fg full"><label class="form-label">이익</label>
                 <input class="form-input auto" id="r_da_profit" readonly placeholder="자동계산">
@@ -2918,7 +2918,7 @@
                 </select>
               </div>
               <div class="fg"><label class="form-label">정산단가 (원) <span class="req">*</span></label>
-                <input type="number" class="form-input" id="r_cpa_unit" placeholder="0" oninput="calcCPA()">
+                <input type="number" class="form-input" id="r_cpa_unit" oninput="calcCPA()">
               </div>
               <div class="fg"><label class="form-label">대행수수료여부</label>
                 <select class="form-sel" id="r_cpa_fee_yn">
@@ -2934,7 +2934,7 @@
                 <input class="form-input auto" id="r_cpa_bill" readonly placeholder="자동계산">
               </div>
               <div class="fg"><label class="form-label">수수료율 (%)</label>
-                <input type="number" class="form-input" id="r_cpa_comm" placeholder="0" oninput="calcCPA()">
+                <input type="number" class="form-input" id="r_cpa_comm" oninput="calcCPA()">
               </div>
               <div class="fg"><label class="form-label">매입단가 (원)</label>
                 <input type="number" class="form-input auto" id="r_cpa_buyUnit" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPA()" onblur="if(!this.value){delete this.dataset.manual;calcCPA();}">
@@ -2949,7 +2949,7 @@
                 <span class="form-hint">광고비 × 수수료율 (직접 입력 시 고정)</span>
               </div>
               <div class="fg"><label class="form-label">대행 (%)</label>
-                <input type="number" class="form-input" id="r_cpa_agrate" placeholder="0" oninput="calcCPA()">
+                <input type="number" class="form-input" id="r_cpa_agrate" oninput="calcCPA()">
               </div>
               <div class="fg full"><label class="form-label">이익</label>
                 <input type="number" class="form-input auto" id="r_cpa_profit" placeholder="자동계산" oninput="this.dataset.manual='1';calcCPA()" onblur="if(!this.value){delete this.dataset.manual;calcCPA();}">
@@ -2960,9 +2960,9 @@
             <div id="r_qty_cps" class="form-grid" style="display:none;grid-template-columns:1fr 1fr 1fr;">
               <div class="form-section-lbl" style="grid-column:1/-1;">광고주 × 브레인큐브</div>
               <div class="fg"><label class="form-label"><span id="r_cps_final_sales_lbl">최종정산매출</span> (원) <span class="req">*</span></label>
-                <input type="number" class="form-input" id="r_cps_final_sales" placeholder="0" oninput="calcCPS(true)"></div>
+                <input type="number" class="form-input" id="r_cps_final_sales" oninput="calcCPS(true)"></div>
               <div class="fg"><label class="form-label">총CPS수수료 (원)</label>
-                <input type="number" class="form-input" id="r_cps_total_comm" placeholder="0" oninput="this.dataset.manual='1';calcCPS()" onblur="if(!this.value){delete this.dataset.manual;calcCPS();}">
+                <input type="number" class="form-input" id="r_cps_total_comm" oninput="this.dataset.manual='1';calcCPS()" onblur="if(!this.value){delete this.dataset.manual;calcCPS();}">
                 <span class="form-hint" id="r_cps_total_comm_hint">직접 입력</span></div>
               <div class="fg"><label class="form-label">실수수료율</label>
                 <input class="form-input auto" id="r_cps_comm_rate1" readonly placeholder="자동계산">
@@ -2972,7 +2972,7 @@
                 <input class="form-input auto" id="r_cps_media_rate" readonly placeholder="매체사 선택 후 조회">
                 <span class="form-hint">매체사 등록 기준</span></div>
               <div class="fg"><label class="form-label">매체수수료 (원)</label>
-                <input type="number" class="form-input" id="r_cps_media_comm" placeholder="0" oninput="this.dataset.manual='1';calcCPS()" onblur="if(!this.value){delete this.dataset.manual;calcCPS();}">
+                <input type="number" class="form-input" id="r_cps_media_comm" oninput="this.dataset.manual='1';calcCPS()" onblur="if(!this.value){delete this.dataset.manual;calcCPS();}">
                 <span class="form-hint" id="r_cps_media_comm_hint">직접 입력</span></div>
               <div class="fg"><label class="form-label">실매체수수료율</label>
                 <input class="form-input auto" id="r_cps_comm_rate2" readonly placeholder="자동계산">
@@ -2992,9 +2992,9 @@
             <div id="r_qty_normal" class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
               <!-- 수량 -->
               <div class="fg"><label class="form-label">발송예약수량 <span class="req">*</span></label>
-                <input type="number" class="form-input" id="r_sched" placeholder="0" oninput="calcReg()"></div>
+                <input type="number" class="form-input" id="r_sched" oninput="calcReg()"></div>
               <div class="fg"><label class="form-label">서비스수량</label>
-                <input type="number" class="form-input" id="r_svc" placeholder="0" oninput="calcReg()"></div>
+                <input type="number" class="form-input" id="r_svc" oninput="calcReg()"></div>
               <div class="fg"><label class="form-label">서비스적용</label>
                 <div style="display:flex;gap:16px;align-items:center;padding:6px 0;">
                   <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;"><input type="checkbox" id="r_svcApplyAdv" onchange="calcReg()"> 광고주</label>
@@ -3012,9 +3012,9 @@
                 <span class="form-hint" id="r_sellBillQtyHint">정산수량: —</span>
               </div>
               <div class="fg"><label class="form-label">매출단가 (원)</label>
-                <input type="number" class="form-input" id="r_sellUnit" placeholder="0" oninput="calcReg()"></div>
+                <input type="number" class="form-input" id="r_sellUnit" oninput="calcReg()"></div>
               <div class="fg"><label class="form-label">할인단가 (원/건)</label>
-                <input type="number" class="form-input" id="r_disc" placeholder="0" oninput="calcReg()">
+                <input type="number" class="form-input" id="r_disc" oninput="calcReg()">
                 <span class="form-hint">실제 청구할 단가 (매출단가를 대체)</span></div>
               <div class="fg"><label class="form-label">광고비</label>
                 <input type="number" class="form-input" id="r_adcost" placeholder="자동계산"
@@ -3052,7 +3052,7 @@
                   oninput="this.dataset.manual='1';calcReg()" onblur="if(!this.value){delete this.dataset.manual;calcReg();}">
                 <span class="form-hint">광고비 − 매입액 (직접 입력 시 고정)</span></div>
               <div class="fg"><label class="form-label">대행 (%)</label>
-                <input type="number" class="form-input" id="r_agrate" placeholder="0" oninput="calcReg()"></div>
+                <input type="number" class="form-input" id="r_agrate" oninput="calcReg()"></div>
               <div class="fg"><label class="form-label">이익</label>
                 <input type="number" class="form-input" id="r_profit" placeholder="자동계산"
                   oninput="this.dataset.manual='1';calcReg()" onblur="if(!this.value){delete this.dataset.manual;calcReg();}">
@@ -3062,19 +3062,19 @@
             <div id="r_pc_section" style="display:none;">
               <div class="rg-sec" style="margin-top:10px;">단가 정보</div>
               <div class="form-grid">
-                <div class="fg"><label class="form-label">광고주단가 (원/동의건)</label><input type="number" class="form-input" id="r_pc_adv_unit" placeholder="0" oninput="calcPC()"></div>
+                <div class="fg"><label class="form-label">광고주단가 (원/동의건)</label><input type="number" class="form-input" id="r_pc_adv_unit" oninput="calcPC()"></div>
               </div>
               <div class="rg-sec" style="margin-top:10px;">성과 입력</div>
               <div class="form-grid">
-                <div class="fg"><label class="form-label">매체유입 수 (신청자)</label><input type="number" class="form-input" id="r_pc_inflow" placeholder="0" oninput="calcPC()"></div>
-                <div class="fg"><label class="form-label">동의건 수</label><input type="number" class="form-input" id="r_pc_agree" placeholder="0" oninput="calcPC()"></div>
+                <div class="fg"><label class="form-label">매체유입 수 (신청자)</label><input type="number" class="form-input" id="r_pc_inflow" oninput="calcPC()"></div>
+                <div class="fg"><label class="form-label">동의건 수</label><input type="number" class="form-input" id="r_pc_agree" oninput="calcPC()"></div>
                 <div class="fg"><label class="form-label">전환율</label><input class="form-input auto" id="r_pc_cvr" readonly placeholder="자동계산"></div>
               </div>
               <div class="rg-sec" style="margin-top:10px;">비용 / 수익</div>
               <div class="form-grid">
                 <div class="fg full"><label class="form-label">광고비</label><input type="text" id="r_pc_adc" readonly placeholder="자동계산"
                   style="border:none;background:transparent;padding:4px 0;font-size:14px;font-weight:700;color:var(--accent);outline:none;width:100%;pointer-events:none;"></div>
-                <div class="fg"><label class="form-label">OHC 비용</label><input type="number" class="form-input" id="r_pc_ohc_cost" placeholder="0" oninput="calcPC()"><span class="form-hint">직접 입력</span></div>
+                <div class="fg"><label class="form-label">OHC 비용</label><input type="number" class="form-input" id="r_pc_ohc_cost" oninput="calcPC()"><span class="form-hint">직접 입력</span></div>
                 <div class="fg"><label class="form-label">DNU 비용</label><input class="form-input auto" id="r_pc_dnu_cost" readonly placeholder="자동계산"><span class="form-hint">동의건 × 5,500원</span></div>
                 <div class="fg"><label class="form-label">수익</label><input class="form-input auto" id="r_pc_profit" readonly placeholder="자동계산"></div>
                 <div class="fg"><label class="form-label">수익률</label><input class="form-input auto" id="r_pc_prf_rate" readonly placeholder="자동계산"></div>
@@ -3139,7 +3139,7 @@
           <div class="fg" style="flex:2;"><label class="form-label">매입처 (청구)</label><input type="text"
               class="form-input" id="med-invoiceTo" placeholder="매체명과 다를 경우 입력"></div>
           <div class="fg" style="flex:1;"><label class="form-label">단가 (원/건)</label><input type="number"
-              class="form-input" id="med-unit" placeholder="0"></div>
+              class="form-input" id="med-unit"></div>
           <div class="fg" style="flex:1;"><label class="form-label">담당자</label><input type="text" class="form-input"
               id="med-contact" placeholder="이름"></div>
           <div class="fg" style="flex:1;"><label class="form-label">연락처</label><input type="text" class="form-input"
@@ -3153,19 +3153,19 @@
         </div>
 
         <div style="display:flex;gap:10px;margin-top:4px;">
-          <div class="fg" style="flex:1;"><label class="form-label">쿠팡 CPS 매체수수료율 (%)</label><input type="number" step="0.01" class="form-input" id="med-cpsRate" placeholder="0"><span class="form-hint">광고주=쿠팡인 CPS 캠페인에 적용</span></div>
-          <div class="fg" style="flex:1;"><label class="form-label">네이버 CPS 매체수수료율 (%)</label><input type="number" step="0.01" class="form-input" id="med-naverCpsRate" placeholder="0"><span class="form-hint">광고주=네이버인 CPS 캠페인에 적용</span></div>
+          <div class="fg" style="flex:1;"><label class="form-label">쿠팡 CPS 매체수수료율 (%)</label><input type="number" step="0.01" class="form-input" id="med-cpsRate"><span class="form-hint">광고주=쿠팡인 CPS 캠페인에 적용</span></div>
+          <div class="fg" style="flex:1;"><label class="form-label">네이버 CPS 매체수수료율 (%)</label><input type="number" step="0.01" class="form-input" id="med-naverCpsRate"><span class="form-hint">광고주=네이버인 CPS 캠페인에 적용</span></div>
         </div>
 
         <!-- 수수료1 -->
         <div class="rg-sec">수수료1 (브레인큐브 수수료)</div>
         <div style="display:flex;gap:10px;">
           <div class="fg"><label class="form-label">기준 (%)</label><input type="number" class="form-input"
-              id="med-c1Base" placeholder="0"></div>
+              id="med-c1Base"></div>
           <div class="fg"><label class="form-label">요청 (%)</label><input type="number" class="form-input" id="med-c1Req"
-              placeholder="0"></div>
+             ></div>
           <div class="fg"><label class="form-label">조정 (%)</label><input type="number" class="form-input" id="med-c1Adj"
-              placeholder="0"></div>
+             ></div>
         </div>
         <div style="display:flex;gap:10px;">
           <div class="fg" style="flex:3;"><label class="form-label">조정사유</label><input type="text" class="form-input"
@@ -3179,11 +3179,11 @@
         <div class="rg-sec">수수료2 (대행사 수수료)</div>
         <div style="display:flex;gap:10px;">
           <div class="fg"><label class="form-label">기준 (%)</label><input type="number" class="form-input"
-              id="med-c2Base" placeholder="0"></div>
+              id="med-c2Base"></div>
           <div class="fg"><label class="form-label">요청 (%)</label><input type="number" class="form-input" id="med-c2Req"
-              placeholder="0"></div>
+             ></div>
           <div class="fg"><label class="form-label">조정 (%)</label><input type="number" class="form-input" id="med-c2Adj"
-              placeholder="0"></div>
+             ></div>
         </div>
         <div style="display:flex;gap:10px;">
           <div class="fg" style="flex:3;"><label class="form-label">조정사유</label><input type="text" class="form-input"
@@ -3237,26 +3237,26 @@
         <!-- 일반 캠페인 -->
         <div id="perf-normal" class="form-grid" style="grid-template-columns:1fr 1fr;">
           <div class="fg full"><label class="form-label" id="p_actualLbl">실발송수량</label><input type="number" class="form-input"
-              id="p_actual" placeholder="0" oninput="calcCTR(); calcDBR()"></div>
+              id="p_actual" oninput="calcCTR(); calcDBR()"></div>
           <div class="fg"><label class="form-label">클릭수</label><input type="number" class="form-input" id="p_click"
-              placeholder="0" oninput="calcCTR()"></div>
+              oninput="calcCTR()"></div>
           <div class="fg"><label class="form-label">클릭률 (자동계산)</label><input class="form-input auto" id="p_ctr" readonly
               placeholder="자동계산"></div>
           <div class="fg"><label class="form-label">DB등록수</label><input type="number" class="form-input" id="p_db"
-              placeholder="0" oninput="calcDBR()"></div>
+              oninput="calcDBR()"></div>
           <div class="fg"><label class="form-label">DB등록률 (자동계산)</label><input class="form-input auto" id="p_dbr"
               readonly placeholder="자동계산"></div>
         </div>
         <!-- DA 캠페인 -->
         <div id="perf-da" class="form-grid" style="grid-template-columns:1fr 1fr;display:none;">
           <div class="fg"><label class="form-label">노출수</label><input type="number" class="form-input" id="p_imp"
-              placeholder="0" oninput="calcDaPerf()"></div>
+              oninput="calcDaPerf()"></div>
           <div class="fg"><label class="form-label">클릭수</label><input type="number" class="form-input" id="p_da_click"
-              placeholder="0" oninput="calcDaPerf()"></div>
+              oninput="calcDaPerf()"></div>
           <div class="fg"><label class="form-label">전환수</label><input type="number" class="form-input" id="p_conv"
-              placeholder="0" oninput="calcDaPerf()"></div>
+              oninput="calcDaPerf()"></div>
           <div class="fg"><label class="form-label">광고 매출 (원)</label><input type="number" class="form-input"
-              id="p_da_rev" placeholder="0" oninput="calcDaPerf()"></div>
+              id="p_da_rev" oninput="calcDaPerf()"></div>
           <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:4px 0;"></div>
           <div class="fg"><label class="form-label">CTR <span
                 style="font-size:11px;color:var(--text3);">클릭÷노출</span></label>
@@ -3345,7 +3345,7 @@
         <div id="sel-agency-fields" style="display:none;">
           <div class="fg">
             <label class="form-label">대행료율 (%)</label>
-            <input type="number" class="form-input" id="sel-agrate" placeholder="0" style="width:120px;">
+            <input type="number" class="form-input" id="sel-agrate" style="width:120px;">
           </div>
         </div>
         <!-- 브랜드 목록 -->
@@ -3739,7 +3739,7 @@
           <div class="fg"><label class="form-label">업체명</label><input type="text" class="form-input" id="pr-company"
               placeholder="업체명"></div>
           <div class="fg"><label class="form-label">지급광고비(VAT포함)</label><input type="number" class="form-input"
-              id="pr-amount" placeholder="0"></div>
+              id="pr-amount"></div>
         </div>
         <div style="display:flex;gap:10px;">
           <div class="fg" style="flex:1;"><label class="form-label">메모</label><input type="text" class="form-input"
@@ -3755,9 +3755,9 @@
           <div class="fg" style="flex:1;"><label class="form-label">정산기간</label><input type="text" class="form-input"
               id="pr-det-period" placeholder="예: 2026-01-01 ~ 2026-01-31"></div>
           <div class="fg"><label class="form-label">VAT별도</label><input type="number" class="form-input" id="pr-vatExcl"
-              placeholder="0"></div>
+             ></div>
           <div class="fg"><label class="form-label">VAT포함</label><input type="number" class="form-input" id="pr-vatIncl"
-              placeholder="0"></div>
+             ></div>
         </div>
 
         <div style="display:flex;align-items:center;gap:8px;">
@@ -3879,7 +3879,7 @@
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;">
             <label class="form-label">예상 수량</label>
-            <input class="form-input" type="number" id="pm-estQty" placeholder="0" min="0" oninput="_calcPipeAmt()">
+            <input class="form-input" type="number" id="pm-estQty" min="0" oninput="_calcPipeAmt()">
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;">
             <label class="form-label">예상 금액 (원)</label>

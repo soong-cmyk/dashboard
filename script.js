@@ -10847,7 +10847,7 @@ function taxManualAddRow(rowData) {
       </div>
     </td>
     <td style="padding:4px 4px;"><input type="text" class="form-input tax-r-row-content" placeholder="품목" value="${_escHtml(rowData?.content || '')}" style="font-size:12px;padding:3px 6px;width:100%;"></td>
-    <td style="padding:4px 4px;"><input type="number" class="form-input tax-r-row-supply" placeholder="0" value="${rowData?.supplyAmt || ''}" oninput="taxManualCalcTotal()" style="font-size:12px;padding:3px 6px;text-align:right;width:100%;"></td>
+    <td style="padding:4px 4px;"><input type="number" class="form-input tax-r-row-supply" value="${rowData?.supplyAmt || ''}" oninput="taxManualCalcTotal()" style="font-size:12px;padding:3px 6px;text-align:right;width:100%;"></td>
     <td style="padding:4px 4px;"><input type="text" class="form-input tax-r-row-email" placeholder="이름, email@domain.com" value="${_escHtml(rowData?.contactEmail || '')}" style="font-size:12px;padding:3px 6px;width:100%;min-width:160px;"></td>
     <td style="padding:4px 4px;"><input type="text" class="form-input tax-r-row-memo" placeholder="메모" value="${_escHtml(rowData?.memo || '')}" style="font-size:12px;padding:3px 6px;width:100%;"></td>
     <td style="padding:4px 2px;text-align:center;"><button class="btn btn-ghost btn-sm" style="color:var(--red);border:none;font-size:14px;padding:2px 6px;line-height:1;" onclick="taxManualRemoveRow(this)">×</button></td>`;
