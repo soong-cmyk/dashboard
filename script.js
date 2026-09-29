@@ -6116,7 +6116,7 @@ function _getStlFilteredData() {
   return DATA.filter(c => {
     if (scope === 'settled') {
       if      (['DA','IPTV'].includes(c.product))  { if (!c.daAdcost)           return false; }
-      else if (c.product === 'CPA') { if (c.db == null && !c.qty) return false; }
+      else if (c.product === 'CPA') { if (!_stlHas(c))          return false; } // DB등록수·정산수량·광고비(수동) 중 하나
       else if (c.product === 'CPS') { if (!c.cpsFinalSales)      return false; }
       else if (c.status !== '성과입력완료') return false;
     }
@@ -8642,7 +8642,7 @@ function _stlGetFiltered() {
   return DATA.filter(c => {
     if (scope === 'settled') {
       if      (['DA','IPTV'].includes(c.product))  { if (!c.daAdcost)           return false; }
-      else if (c.product === 'CPA') { if (c.db == null && !c.qty) return false; }
+      else if (c.product === 'CPA') { if (!_stlHas(c))          return false; } // DB등록수·정산수량·광고비(수동) 중 하나
       else if (c.product === 'CPS') { if (!c.cpsFinalSales)      return false; }
       else if (c.status !== '성과입력완료') return false;
     }
