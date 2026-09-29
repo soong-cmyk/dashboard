@@ -11862,7 +11862,10 @@ function _renderNotifList() {
     const dt = n.createdAt ? new Date(n.createdAt) : null;
     const timeStr = dt ? `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}` : '';
     const logId = PL_NOTIF_TYPES.has(n.type) ? n.meta?.logId : null;
-    const jumpBtn = logId ? `<span style="flex-shrink:0;color:var(--accent);font-weight:700;cursor:pointer;font-size:12px;" onclick="event.stopPropagation();closeModal('modalNotif');plJumpToLog('${logId}')">일지 보기 →</span>` : '';
+    // 캠페인 단위 알림(perf_missing: CPA 성과입력 누락, dashboard-functions의 remindMissingPerf가 생성)은 캠페인 상세로
+    const campId = n.type === 'perf_missing' ? n.meta?.campaignId : null;
+    const jumpBtn = logId ? `<span style="flex-shrink:0;color:var(--accent);font-weight:700;cursor:pointer;font-size:12px;" onclick="event.stopPropagation();closeModal('modalNotif');plJumpToLog('${logId}')">일지 보기 →</span>`
+      : campId ? `<span style="flex-shrink:0;color:var(--accent);font-weight:700;cursor:pointer;font-size:12px;" onclick="event.stopPropagation();_notifOpenCampaign('${_escHtml(campId)}')">캠페인 보기 →</span>` : '';
     const delBtn = `<span style="flex-shrink:0;color:var(--text3);cursor:pointer;font-size:14px;" title="삭제" onclick="event.stopPropagation();notifDeleteOne('${n.id}')">×</span>`;
     return `<div style="display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);${n.read ? '' : 'background:var(--primary-light);'}">
       <div style="flex-shrink:0;margin-top:4px;">
@@ -11876,6 +11879,13 @@ function _renderNotifList() {
       ${delBtn}
     </div>`;
   }).join('');
+}
+
+function _notifOpenCampaign(campaignId) {
+  const idx = DATA.findIndex(c => c.id === campaignId);
+  if (idx === -1) { toast('해당 캠페인을 찾을 수 없습니다', 'warn'); return; }
+  closeModal('modalNotif');
+  openDetail(idx);
 }
 
 function openNotifModal() {
