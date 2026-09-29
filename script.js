@@ -4124,12 +4124,12 @@ function submitEdit() {
     const eCpaAdcEl = document.getElementById('e_cpa_adcost');
     const eCpaRevEl = document.getElementById('e_cpa_rev');
     const eCpaPrfEl = document.getElementById('e_cpa_profit');
-    c.adcostFixed  = eCpaAdcEl?.dataset.manual ? (+eCpaAdcEl.value || 0) : null;
-    c.revFixed     = eCpaRevEl?.dataset.manual ? (+eCpaRevEl.value || 0) : null;
-    c.profitFixed  = eCpaPrfEl?.dataset.manual ? (+eCpaPrfEl.value || 0) : null;
+    c.adcostFixed  = (eCpaAdcEl?.dataset.manual && eCpaAdcEl.value !== '') ? +eCpaAdcEl.value : null;
+    c.revFixed     = (eCpaRevEl?.dataset.manual && eCpaRevEl.value !== '') ? +eCpaRevEl.value : null;
+    c.profitFixed  = (eCpaPrfEl?.dataset.manual && eCpaPrfEl.value !== '') ? +eCpaPrfEl.value : null; // 빈칸이면 자동계산(null) — 예전엔 0으로 저장됐음
     c.amtFixed     = null;
     const eCpaBuyAmtEl = document.getElementById('e_cpa_buyAmt');
-    c.buyAmtFixed  = eCpaBuyAmtEl?.dataset.manual ? (+eCpaBuyAmtEl.value || 0) : null;
+    c.buyAmtFixed  = (eCpaBuyAmtEl?.dataset.manual && eCpaBuyAmtEl.value !== '') ? +eCpaBuyAmtEl.value : null;
     c.sellBillBase = '';
     c.buyBillBase  = '';
     c.svc       = 0;
@@ -4148,7 +4148,7 @@ function submitEdit() {
     c.comm = 0; c.agrate = 0; c.sellBillBase = ''; c.buyBillBase = '';
     c.adcostFixed = 0; c.amtFixed = 0; c.buyAmtFixed = 0; c.revFixed = 0;
     const eCpsBcProfitEl = document.getElementById('e_cps_bc_profit');
-    c.profitFixed = eCpsBcProfitEl?.dataset.manual ? (+eCpsBcProfitEl.value || 0) : null;
+    c.profitFixed = (eCpsBcProfitEl?.dataset.manual && eCpsBcProfitEl.value !== '') ? +eCpsBcProfitEl.value : null;
     c.status = '성과입력완료';
   } else {
     c.date     = _getDateTime('e');
