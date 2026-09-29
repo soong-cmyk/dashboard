@@ -4258,20 +4258,33 @@ function open2ndModal() {
 // 빈 값(null) = 미입력, 0 = 실제 0건(입력으로 인정). 핵심값 없이 저장하면 나머지 값만 저장하고 단계는
 // 대기로 유지하며, 핵심값을 지우고 저장하면 완료 → 대기로 되돌린다. 2차 성과입력·수정 모달 공용.
 // 퍼미션콜·CPS는 등록 시 금액 자체가 성과라 등록 즉시 완료 — 이 규칙에서 제외.
+// 보완(2026-09-29): 문자류라도 매출 정산기준이 '예약'이면 실발송수량이 정산에 안 쓰이므로 DA처럼
+// 2차 항목(실발송·클릭·DB) 중 아무거나로 완료. 그리고 정산 처리(매출/매입 계산서·입금·지급)가 하나라도
+// 시작된 캠페인은 핵심값이 비어도 완료 → 대기로 내리지 않는다 — 이미 계산서가 나간 캠페인이 메모 수정
+// 같은 저장 한 번에 대기로 떨어져 정산탭(문자류는 완료만 표시)에서 사라지는 걸 막기 위함.
+function _perfSchedBilled(c) {
+  return !['CPA','DA','IPTV','퍼미션콜','CPS'].includes(c.product)
+    && (c.sellBillBase || c.billBase) === 'sched';
+}
 function _perfKeyLabel(c) {
   if (c.product === 'CPA') return 'DB등록수';
   if (['DA','IPTV'].includes(c.product)) return '성과(노출·클릭·전환·매출)';
+  if (_perfSchedBilled(c)) return '성과(실발송·클릭·DB)';
   return '실발송수량';
 }
 function _perfKeyEntered(c) {
   const has = v => v != null && v !== '';
   if (['DA','IPTV'].includes(c.product)) return [c.daImp, c.daClick, c.daConv, c.daRev].some(has);
+  if (_perfSchedBilled(c)) return [c.actual, c.clicks, c.db].some(has);
   return has(c.product === 'CPA' ? c.db : c.actual);
+}
+function _perfSettleStarted(c) {
+  return !!(c.invoiceOut || c.payIn || c.invoiceIn || c.payOut);
 }
 function _applyPerfStatus(c) {
   if (c.product === '퍼미션콜' || c.product === 'CPS') return;
   if (_perfKeyEntered(c)) c.status = '성과입력완료';
-  else if (c.status === '성과입력완료') c.status = '성과입력대기';
+  else if (c.status === '성과입력완료' && !_perfSettleStarted(c)) c.status = '성과입력대기';
 }
 
 function submit2nd()  {
