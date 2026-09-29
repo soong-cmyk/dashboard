@@ -1700,7 +1700,7 @@ function openDetail(idx, skipPush) {
   // 실발송수량 (2차입력 여부)
   const actualEl = document.getElementById('dActual');
   if (actualEl) {
-    if (c.actual) {
+    if (c.actual != null && c.actual !== '') { // 0건도 입력값 — 빈 값만 '대기'로 표시
       actualEl.className = 'f-val'; actualEl.style.color='var(--green)';
       actualEl.textContent = c.actual.toLocaleString() + ' 건';
     } else {
