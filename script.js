@@ -1175,6 +1175,33 @@ const FIELD_LABELS = {
   confirmAdv:'담당자확인(광고주)', confirmMedia:'담당자확인(매체)',
 };
 
+// 수정 이력용 상품별 라벨 — 같은 필드라도 상품마다 폼에서 부르는 이름이 달라서(예: qty는 문자류에선
+// 발송예약수량, CPA에선 DB등록수를 복사한 정산수량) FIELD_LABELS 하나로 보이면 헷갈린다(2026-09-29).
+// 각 상품의 등록/수정 폼 라벨을 그대로 따른다. 여기 없는 필드는 FIELD_LABELS로 폴백.
+const PRODUCT_FIELD_LABELS = {
+  CPA: {
+    date:'집행 시작일', dateEnd:'집행 종료일', qty:'정산수량(DB등록수)', sellUnit:'정산단가', buyUnit:'매입단가',
+    comm:'수수료율', agrate:'대행(%)', billBase:'정산기준', cpaFeeYn:'대행수수료여부',
+    adcostFixed:'광고비 수동입력', buyAmtFixed:'매입액 수동입력', revFixed:'매출수익 수동입력', profitFixed:'이익 수동입력',
+  },
+  DA: {
+    date:'노출 시작일', dateEnd:'노출 종료일', daAdcost:'광고비', daBillBase:'정산기준', daFeeYn:'대행수수료여부',
+    comm:'수수료율', buyUnit:'매입단가', agrate:'대행(%)',
+    daImp:'노출수', daClick:'클릭수', daConv:'전환수', daRev:'광고 매출',
+  },
+  CPS: {
+    date:'집행월', stlMonth:'정산월', cpsFinalSales:'최종정산매출', cpsTotalComm:'총CPS수수료', cpsMediaComm:'매체수수료',
+    profitFixed:'브레인큐브 수익 수동입력',
+  },
+  퍼미션콜: {
+    date:'집행월', pcAdvUnit:'광고주단가', pcInflow:'매체유입 수', pcAgree:'동의건 수', pcOhcCost:'OHC 비용', pcDnuUnit:'DNU 단가',
+  },
+};
+PRODUCT_FIELD_LABELS.IPTV = PRODUCT_FIELD_LABELS.DA;
+function _histFieldLabel(field, product) {
+  return PRODUCT_FIELD_LABELS[product]?.[field] || FIELD_LABELS[field] || field || '';
+}
+
 function _nowStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
@@ -1264,6 +1291,16 @@ async function openHistory() {
     return;
   }
 
+  // 이력마다 "그 시점의 상품"을 구한다 — 상품이 도중에 바뀐 캠페인(예: 문자류로 등록 후 CPA로 변경)은
+  // 바뀌기 전 기록을 옛 상품 라벨로 보여줘야 한다. 최신 → 과거로 훑으면서 상품 변경 기록을 만나면 그 이전은 before 상품.
+  const productAt = new Map();
+  let _curProduct = c.product;
+  [...entries].sort((a, b) => (b.when || '').localeCompare(a.when || '') || String(b.id || '').localeCompare(String(a.id || '')))
+    .forEach(e => {
+      productAt.set(e, _curProduct);
+      if (e.field === 'product' && e.before) _curProduct = e.before;
+    });
+
   // 날짜별 그룹핑
   const groups = {};
   const dateOrder = [];
@@ -1294,7 +1331,9 @@ async function openHistory() {
         if (e.type === 'register') {
           return `<div class="hist-change"><span class="hist-tag-register">캠페인 등록</span></div>`;
         }
-        const label = FIELD_LABELS[e.field] || e.field || '';
+        const atProduct = productAt.get(e) || c.product;
+        // 지금 상품과 다른 시절의 기록이면 어느 상품 기준 라벨인지 덧붙인다
+        const label = _histFieldLabel(e.field, atProduct) + (atProduct && atProduct !== c.product && e.field !== 'product' ? ` (${atProduct} 당시)` : '');
         const bStr  = (e.before != null && e.before !== '') ? e.before : '미입력';
         const aStr  = (e.after  != null && e.after  !== '') ? e.after  : '미입력';
         return `<div class="hist-change">`
