@@ -448,7 +448,10 @@
             <option value="">담당자</option>
           </select>
            <div class="f-div"></div>
-          <input type="text" class="f-search" id="fQ" placeholder="🔍  광고주/대행사·매체사·캠페인명·ID 검색" oninput="applyFilter()">
+          <div class="combo-wrap">
+            <input type="text" class="f-search" id="fQ" placeholder="🔍  광고주/대행사·매체사·캠페인명·ID 검색" oninput="applyFilter()" style="padding-right:22px;">
+            <span class="combo-clear" onmousedown="event.preventDefault();_clearSearchInput('fQ', applyFilter)">✕</span>
+          </div>
           <div class="f-div"></div>
           <div id="drp-trigger" onclick="drpOpen()" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:13px;color:var(--text1);white-space:nowrap;user-select:none;">
             <span id="drp-label">기간 선택</span>
@@ -1466,7 +1469,10 @@
             <span class="combo-clear" onmousedown="event.preventDefault();fcClearFilter('stl-fMedia')">✕</span>
             <div class="combo-list" id="combo-stl-fMedia-list"></div>
           </div>
-          <input class="f-sel" id="stl-fQ" type="text" placeholder="캠페인명 / ID / 매출처 검색" oninput="renderSettlement()" style="width:170px;">
+          <div class="combo-wrap" style="width:170px;">
+            <input class="f-sel" id="stl-fQ" type="text" placeholder="캠페인명 / ID / 매출처 검색" oninput="renderSettlement()" style="width:170px;padding-right:22px;">
+            <span class="combo-clear" onmousedown="event.preventDefault();_clearSearchInput('stl-fQ', renderSettlement)">✕</span>
+          </div>
           <div style="flex:1;"></div>
           <span class="f-reset" onclick="resetStlFilter()">✕ 초기화</span>
           <div id="stl-dl-wrap" style="display:inline-block;">
@@ -1805,8 +1811,11 @@
         <!-- 검색 필터 -->
         <div class="filter-bar" style="margin-bottom:14px;">
           <span class="f-label">검색</span>
-          <input type="text" class="f-search" id="mediaQ" placeholder="매체명, 담당자, 매입처명 등" style="width:220px;"
-            onkeydown="if(event.key==='Enter')searchMedia()">
+          <div class="combo-wrap" style="width:220px;">
+            <input type="text" class="f-search" id="mediaQ" placeholder="매체명, 담당자, 매입처명 등" style="width:220px;padding-right:22px;"
+              oninput="searchMedia()" onkeydown="if(event.key==='Enter')searchMedia()">
+            <span class="combo-clear" onmousedown="event.preventDefault();resetMediaSearch()">✕</span>
+          </div>
 
           <button class="btn btn-primary btn-sm" onclick="searchMedia()">조회</button>
           <button class="btn btn-outline btn-sm" onclick="resetMediaSearch()">초기화</button>
@@ -1905,8 +1914,11 @@
         <!-- 공통 검색바 -->
         <div class="filter-bar" style="margin-bottom:14px;">
           <span class="f-label">검색</span>
-          <input type="text" class="f-search" id="sellerQ" placeholder="광고주·대행사·랩사·브랜드명 통합 검색" style="width:260px;"
-            oninput="searchSeller()" onkeydown="if(event.key==='Enter')searchSeller()">
+          <div class="combo-wrap" style="width:260px;">
+            <input type="text" class="f-search" id="sellerQ" placeholder="광고주·대행사·랩사·브랜드명 통합 검색" style="width:260px;padding-right:22px;"
+              oninput="searchSeller()" onkeydown="if(event.key==='Enter')searchSeller()">
+            <span class="combo-clear" onmousedown="event.preventDefault();resetSellerSearch()">✕</span>
+          </div>
           <button class="btn btn-primary btn-sm" onclick="searchSeller()">조회</button>
           <button class="btn btn-outline btn-sm" onclick="resetSellerSearch()">초기화</button>
         </div>
@@ -2305,7 +2317,10 @@
           <select class="form-sel" id="tax-fManager" onchange="renderTaxList()" style="width:110px;">
             <option value="">요청자 전체</option>
           </select>
-          <input class="form-input" id="tax-fCompany" placeholder="업체명 / 캠페인명 / ID / T번호 검색" oninput="renderTaxList()" style="width:160px;">
+          <div class="combo-wrap" style="width:160px;">
+            <input type="text" class="form-input" id="tax-fCompany" placeholder="업체명 / 캠페인명 / ID / T번호 검색" oninput="renderTaxList()" style="width:160px;padding-right:22px;">
+            <span class="combo-clear" onmousedown="event.preventDefault();_clearSearchInput('tax-fCompany', renderTaxList)">✕</span>
+          </div>
           <button class="btn btn-outline btn-sm" id="tax-chip-correction" onclick="setTaxQuickFilter('correction')" style="border-radius:14px;">수정발행건만 <span id="tax-correction-cnt">—</span></button>
           <button class="btn btn-ghost btn-sm" onclick="resetTaxFilter()">✕ 초기화</button>
           <div style="flex:1;"></div>
@@ -2387,7 +2402,10 @@
           <div class="table-card" style="margin-bottom:16px;">
             <div class="table-header" style="display:flex;align-items:center;gap:8px;">
               <span class="card-title">월별 광고 리스트</span>
-              <input type="text" class="f-search" id="kpi-clientlist-search" placeholder="🔍 광고주 검색" style="padding-left:20px;width:160px;" oninput="renderKpiClientListTable()">
+              <div class="combo-wrap" style="width:160px;">
+                <input type="text" class="f-search" id="kpi-clientlist-search" placeholder="🔍 광고주 검색" style="padding-left:20px;width:160px;padding-right:22px;" oninput="renderKpiClientListTable()">
+                <span class="combo-clear" onmousedown="event.preventDefault();_clearSearchInput('kpi-clientlist-search', renderKpiClientListTable)">✕</span>
+              </div>
             </div>
             <div id="kpi-clientlist-table"></div>
           </div>
@@ -2583,7 +2601,7 @@
           <!-- 날짜 / 담당자 / 입금완료 행 -->
           <div style="background:var(--surface2);padding:0 14px 10px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;">
             <div>
-              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">발행일자</label>
+              <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">발행일자 <span class="req">*</span></label>
               <input type="date" class="form-input" id="tax-r-issueDate" style="font-size:12px;padding:5px 8px;width:100%;">
             </div>
             <div id="tax-r-paydue-wrap">
@@ -2619,7 +2637,7 @@
               <tbody id="tax-r-rows"></tbody>
             </table>
             <div style="text-align:right;padding:6px 4px 2px;font-size:12px;color:var(--text2);">
-              공급가액 합계 <b id="tax-r-supply-total">0</b>원 &nbsp;·&nbsp; 부가세포함 <input type="text" id="tax-r-vat-total" class="form-input" style="width:90px;display:inline-block;text-align:right;font-size:12px;padding:2px 6px;" value="0">원
+              공급가액 합계 <b id="tax-r-supply-total">0</b>원 &nbsp;·&nbsp; 부가세포함 <input type="text" id="tax-r-vat-total" class="form-input" style="width:90px;display:inline-block;text-align:right;font-size:12px;padding:2px 6px;" value="0" oninput="this.dataset.manual='1'">원
             </div>
             <button class="btn btn-ghost btn-sm" id="tax-r-addrow-btn" onclick="taxManualAddRow()" style="margin-top:6px;">+ 항목 추가</button>
           </div>
@@ -2628,6 +2646,52 @@
       <div class="modal-foot">
         <button class="btn btn-ghost" onclick="closeModal('modalTaxReg')">취소</button>
         <button class="btn btn-primary" onclick="saveTaxReg()">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 참조 캠페인(참고) 모달 — 완료된 세금계산서 건에, 금액엔 영향 없이 관련 캠페인을 표시만 해두는 용도 -->
+  <div class="modal-overlay" id="modalTaxNoteCamp">
+    <div class="modal">
+      <div class="modal-head">
+        <span class="modal-title" id="tax-notecamp-title">참조 캠페인</span>
+        <button class="modal-close" onclick="closeModal('modalTaxNoteCamp')">✕</button>
+      </div>
+      <div class="modal-body" style="padding:0;">
+        <div style="padding:18px 24px 6px;">
+          <div style="padding:8px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">캠페인 연결</span>
+              <div style="position:relative;flex:1;">
+                <input type="text" class="form-input" id="tax-notecamp-input"
+                  placeholder="캠페인명·ID·매출처 검색 (여러 개 추가 가능)"
+                  autocomplete="off" style="font-size:12px;padding:5px 8px;width:100%;"
+                  oninput="_taxNoteCampRenderList()" onfocus="_taxNoteCampRenderList()"
+                  onkeydown="_comboKeyNav(event,'tax-notecamp-list')"
+                  onblur="setTimeout(()=>{const l=document.getElementById('tax-notecamp-list');if(l)l.style.display='none';},180)">
+                <div id="tax-notecamp-list" class="combo-list" style="display:none;max-height:220px;overflow-y:auto;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:14px 24px 20px;">
+          <table style="width:100%;font-size:13px;border-collapse:collapse;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+            <thead>
+              <tr style="background:var(--surface2);color:var(--text3);font-size:11px;">
+                <th style="padding:8px 10px;text-align:left;font-weight:500;">월</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:500;">캠페인ID</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:500;">캠페인명</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:500;">상품</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:500;">담당자</th>
+                <th style="width:30px;"></th>
+              </tr>
+            </thead>
+            <tbody id="tax-notecamp-rows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-primary" onclick="closeModal('modalTaxNoteCamp')">닫기</button>
       </div>
     </div>
   </div>

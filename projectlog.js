@@ -586,7 +586,10 @@ function _plBuildMineTabSkeleton(content) {
         <div class="combo-list" id="pl-mine-f-media-list" style="display:none;"></div>
       </div>
       <button class="btn btn-outline btn-sm${_plMineCommentedOnly ? ' pl-toggle-on' : ''}" id="pl-mine-commented-toggle" onclick="_plMineToggleCommentedOnly()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};">💬 댓글 있는 것만</button>
-      <input type="text" class="f-search" id="pl-mine-search" placeholder="검색어" style="width:160px;" oninput="_plRenderMineBody()">
+      <div class="combo-wrap" style="width:160px;">
+        <input type="text" class="f-search" id="pl-mine-search" placeholder="검색어" style="width:160px;padding-right:22px;" oninput="_plRenderMineBody()">
+        <span class="combo-clear" onmousedown="event.preventDefault();_clearSearchInput('pl-mine-search', _plRenderMineBody)">✕</span>
+      </div>
     </div>
     <div class="table-card">
       <div class="table-header"><span class="card-title" id="pl-mine-title">내가 작성한 일지</span><span class="table-count" id="pl-mine-count"></span><button class="btn btn-outline btn-sm pl-progress-btn${_plMineOpenOnly ? ' pl-toggle-on' : ''}" id="pl-mine-progress-toggle" onclick="_plMineToggleOpenOnly()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};" onmouseenter="_plShowFixedTip(this,'이어쓰기로 이미 이어진 옛 기록은 제외하고, 진짜 미완료(=진행중)인 것만 보여줍니다')" onmouseleave="_plHideFixedTip()">🔴 진행중 <b id="pl-mine-open-cnt">—</b>건</button></div>
@@ -1531,7 +1534,7 @@ ${typeTxtCss}
 .pl-detfoot{display:flex;justify-content:space-between;align-items:center;margin-top:9px;padding-top:8px;border-top:1px dashed var(--border);gap:10px;flex-wrap:wrap;}
 .pl-expand-bar{display:flex;gap:5px;margin-left:auto;}
 .pl-toggle-on{background:var(--accent-light)!important;border-color:var(--accent)!important;color:var(--accent)!important;}
-.pl-mark{background:var(--yellow-bg);padding:0 2px;border-radius:2px;}
+.pl-mark{background:var(--yellow-bg);padding:0 0 0 2px;border-radius:2px;}
 .pl-thumb{width:34px;height:24px;border-radius:4px;background:linear-gradient(135deg,#dde3f0,#c6cfe0);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#6b7590;font-weight:700;}
 /* 이슈 스레드·이어쓰기 흐름 타임라인 — 점+세로선, 줄 구분(카드 없음) */
 .tl{position:relative;padding-left:24px;}
@@ -2270,11 +2273,18 @@ function _plThreadNodeHtml(n, selfId) {
   const subHtml = (n.detail || []).filter(d => (d.text || '').trim()).map(d =>
     `<div class="tl-sub"><span class="tl-sub-l">ㄴ${d.label ? ' ' + _escHtml(d.label) : ''}</span><span style="white-space:pre-line;">${_escHtml(d.text)}</span></div>`
   ).join('');
+  // 관련 기록 타임라인은 자기 자신(self) 카드만 클릭해도 내용을 그대로 볼 수 있고, 나머지는
+  // 클릭해야 _plOpenIssueView로 그 기록의 상세(첨부·댓글)를 볼 수 있어서, 굳이 안 눌러봐도 "이 기록에
+  // 첨부/댓글이 있다"는 것만 미리 알 수 있게 작은 표시를 붙인다(2026-09-23, 사용자 리포트 — 타임라인
+  // 카드만 봐서는 댓글이 달려있는지 전혀 알 수 없었음).
+  const attachGlyphsN = (n.hasImages ? '🖼️' : '') + ((n.links && n.links.length) ? '🔗' : '') + ((n.attachPath || n.attachName) ? '📁' : '');
+  const attachHtmlN = attachGlyphsN ? ` <span class="form-hint" title="첨부 있음">${attachGlyphsN}</span>` : '';
+  const cmtBadgeHtmlN = ` <span id="pl-cmt-badge-${n.id}">${_plCommentBadgeHtml(n.id)}</span>`;
   const clickAttr = self ? '' : ` style="cursor:pointer;" onclick="event.stopPropagation();_plOpenIssueView('${n.id}')"`;
   return `<div class="${cls.join(' ')}">
     <div class="tl-dot">${self ? '✓' : ''}</div>
     <div class="tl-card"${clickAttr}>
-      <div class="tl-top"><span class="tl-date">${dateShort}</span><span class="badge pl-lg-${n.logType}">${_escHtml(_plTypeLabel(n.logType))}</span>${progHtml}<span class="tl-writer">${_escHtml(n.writer || '')}</span></div>
+      <div class="tl-top"><span class="tl-date">${dateShort}</span><span class="badge pl-lg-${n.logType}">${_escHtml(_plTypeLabel(n.logType))}</span>${progHtml}<span class="tl-writer">${_escHtml(n.writer || '')}</span>${attachHtmlN}${cmtBadgeHtmlN}</div>
       <div class="tl-text">${_escHtml(n.summary || '')}</div>${subHtml}
     </div>
   </div>`;
@@ -2839,18 +2849,24 @@ function _plBuildLogNewTabSkeleton(container) {
       <input type="hidden" id="pl-date-from" value="${_r.from}">
       <input type="hidden" id="pl-date-to" value="${_r.to}">
       <div class="combo-wrap" style="width:120px;">
-        <input type="text" class="f-search" id="pl-f-seller" placeholder="🔍 광고주" style="width:120px;">
+        <input type="text" class="f-search" id="pl-f-seller" placeholder="🔍 광고주" style="width:120px;padding-right:22px;">
+        <span class="combo-clear" onmousedown="event.preventDefault();_clearSearchInput('pl-f-seller', _plLogFilterChange)">✕</span>
         <div class="combo-list" id="pl-f-seller-list" style="display:none;"></div>
       </div>
       <div class="combo-wrap" style="width:110px;">
-        <input type="text" class="f-search" id="pl-f-project" placeholder="🔍 브랜드" style="width:110px;">
+        <input type="text" class="f-search" id="pl-f-project" placeholder="🔍 브랜드" style="width:110px;padding-right:22px;">
+        <span class="combo-clear" onmousedown="event.preventDefault();_clearSearchInput('pl-f-project', _plLogFilterChange)">✕</span>
         <div class="combo-list" id="pl-f-project-list" style="display:none;"></div>
       </div>
       <div class="combo-wrap" style="width:100px;">
-        <input type="text" class="f-search" id="pl-f-media" placeholder="🔍 매체" style="width:100px;">
+        <input type="text" class="f-search" id="pl-f-media" placeholder="🔍 매체" style="width:100px;padding-right:22px;">
+        <span class="combo-clear" onmousedown="event.preventDefault();_clearSearchInput('pl-f-media', _plLogFilterChange)">✕</span>
         <div class="combo-list" id="pl-f-media-list" style="display:none;"></div>
       </div>
-      <input type="text" class="f-search" id="pl-search" placeholder="검색어" style="width:160px;" oninput="_plPage=1;_plRenderNewRows();">
+      <div class="combo-wrap" style="width:160px;">
+        <input type="text" class="f-search" id="pl-search" placeholder="검색어" style="width:160px;padding-right:22px;" oninput="_plPage=1;_plRenderNewRows();">
+        <span class="combo-clear" onmousedown="event.preventDefault();_plPage=1;_clearSearchInput('pl-search', _plRenderNewRows)">✕</span>
+      </div>
       <select class="f-sel" id="pl-f-type" onchange="_plPage=1;_plRenderNewRows();"><option value="">유형 전체</option></select>
       <select class="f-sel" id="pl-f-org" onchange="_plPage=1;_plRenderNewRows();"><option value="">본부/팀 전체</option></select>
       <div class="combo-wrap" id="pl-f-writer-wrap" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">

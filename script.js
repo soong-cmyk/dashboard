@@ -520,7 +520,7 @@ async function renderUsageErrorStats() {
   }
 }
 
-const USAGE_SCREEN_LABELS = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI/매출현황',projectlog:'프로젝트일지',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',usage:'사용현황',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
+const USAGE_SCREEN_LABELS = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI/매출현황',projectlog:'프로젝트일지',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체사 관리','media-detail':'매체사 상세',seller:'매출처 관리',users:'사용자 관리',usage:'사용현황',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
 
 function _usagePopulateUserSel() {
   const sel = document.getElementById('usage-menu-user-sel');
@@ -1431,9 +1431,13 @@ function goScreen(name, skipPush) {
   }
   closeSidebar();
   document.querySelector('.topbar').style.display = '';
-  // update URL hash so refresh keeps same screen
+  // URL 해시 + history state를 여기서 한 번만 민다 — 예전엔 여기서 해시만 바꾸고 함수 끝에서
+  // history.pushState로 또 한 번 밀어서, 화면 하나 이동에 히스토리 항목이 2개(state 없는 것 +
+  // 있는 것) 쌓였다. 그래서 뒤로가기 한 번은 "URL은 그대로인데 state만 없는" 자기 자신으로
+  // 가버려 popstate가 항상 대시보드로 튕겨버리는 원인이었다(2026-09-22, media-detail 뒤로가기
+  // 버그를 조사하다 발견 — 사실상 모든 일반 화면에 영향).
   if (!skipPush) {
-    try { window.location.hash = name; } catch (e) {}
+    try { history.pushState({ screen: name }, '', '#' + name); } catch (e) {}
   }
 
   // 로그인 오버레이 처리
@@ -1467,7 +1471,7 @@ function goScreen(name, skipPush) {
   if (navIds[name]) document.getElementById(navIds[name])?.classList.add('active');
 
   // breadcrumb
-  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI/매출현황',projectlog:'프로젝트일지',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체 관리','media-detail':'매체 상세',seller:'매출처 관리',users:'사용자 관리',usage:'사용현황',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
+  const labels = {dashboard:'대시보드',calendar:'캘린더',campaigns:'캠페인 목록',perf:'성과분석',settlement:'정산',monthly:'월별 발송량',tax:'세금계산서',kpi:'KPI/매출현황',projectlog:'프로젝트일지',pipeline:'영업 리포트',adreport:'광고주 리포트',media:'매체사 관리','media-detail':'매체사 상세',seller:'매출처 관리',users:'사용자 관리',usage:'사용현황',payment:'월별 지급내역','payment-detail':'월별 지급내역 상세'};
   if (labels[name]) {
     document.getElementById('breadcrumb').innerHTML = `<span class="cur">${labels[name]}</span>`;
   }
@@ -1566,9 +1570,6 @@ function goScreen(name, skipPush) {
 
   if (['campaigns', 'settlement'].includes(name)) _fbSyncFilterWrap();
 
-  if (!skipPush) {
-    history.pushState({ screen: name }, '', '#' + name);
-  }
   _usageBeginVisit(name, performance.now() - _usagePerfStart);
 }
 
@@ -2850,6 +2851,15 @@ function fcClearFilter(name) {
   _fcConfig(name).onSelect();
   document.getElementById(_fcConfig(name).textId)?.focus();
   fcOpen(name);
+}
+
+// 콤보가 아닌 일반 자유텍스트 검색창의 x(clear) 버튼 공통 처리 — 값 비우고 그 화면의 렌더 함수를 다시 호출
+function _clearSearchInput(id, renderFn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = '';
+  el.focus();
+  if (typeof renderFn === 'function') renderFn();
 }
 
 /** 필터 콤보 값+표시텍스트 동시 초기화 (populate/reset 함수 공용) */
@@ -6069,7 +6079,19 @@ function campXlsxRenderPreview() {
         <tbody>${_campXlsxRows.map(r => `<tr><td style="padding:4px 8px;color:var(--text3);">${r.rowNum}</td><td style="padding:4px 8px;color:${r.valid ? 'var(--green)' : 'var(--red)'};">${r.valid ? '정상' : _escHtml(r.errors.join(', '))}</td></tr>`).join('')}</tbody>
       </table>
     </div>` : '';
-  const newHtml = newCnt ? `<div class="form-hint" style="margin-top:4px;">이 중 <b style="color:var(--accent);">${newCnt}</b>건은 매출처/브랜드를 새로 생성합니다</div>` : '';
+  const newSellerBrandRows = validRows.filter(r => r.isNewSeller || r.isNewBrand);
+  const newHtml = newCnt ? `
+    <div class="form-hint" style="margin-top:4px;">이 중 <b style="color:var(--accent);">${newCnt}</b>건은 매출처/브랜드를 새로 생성합니다</div>
+    <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-top:8px;">
+      <table style="width:100%;font-size:12px;">
+        <thead><tr style="background:var(--surface2);"><th style="padding:5px 8px;text-align:left;">행</th><th style="padding:5px 8px;text-align:left;">신규 매출처/브랜드</th></tr></thead>
+        <tbody>${newSellerBrandRows.map(r => `<tr><td style="padding:4px 8px;color:var(--text3);">${r.rowNum}</td><td style="padding:4px 8px;color:var(--accent);">${
+          r.isNewSeller
+            ? `${_escHtml(r.sellerName)} 매출처 + '${_escHtml(r.brandName)}' 브랜드를 새로 생성합니다`
+            : `'${_escHtml(r.brandName)}' 브랜드를 새로 생성합니다 (매출처: ${_escHtml(r.sellerName)})`
+        }</td></tr>`).join('')}</tbody>
+      </table>
+    </div>` : '';
   const newMediaRows = validRows.filter(r => r.isNewMedia);
   const newMediaHtml = newMediaRows.length ? `
     <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-top:8px;">
@@ -9956,6 +9978,14 @@ function _taxGroupId(t) {
   // 하위호환: groupId 없는 기존 항목은 id를 groupId로 사용
   return t.groupId != null ? t.groupId : t.id;
 }
+// 부가세 포함 금액 계산(공급가액×1.1, 버림) — 세금계산서 전체에서 이 함수 하나만 쓴다.
+// "공급가액 * 1.1"을 부동소수점으로 직접 계산하면 1.1이 이진수로 딱 안 떨어져서, 특히 음수
+// (상계/차감 항목)일 때 Math.floor가 한 원 더 깎아버리는 오차가 났다(예: -3,000,000원 →
+// -3,300,000원이어야 하는데 -3,300,001원으로 저장됨). *11/10 정수 연산으로 바꿔 오차를 없앴다
+// (2026-09-22, 사용자 리포트). 반올림(Math.round)을 쓰던 곳도 이 함수로 통일해 버림 규칙을 맞춘다.
+function _taxVatAmt(supply) {
+  return Math.floor((supply || 0) * 11 / 10);
+}
 // 수정발행 등록 권한 = 관리자 또는 본인이 요청한 건(createdBy/manager 일치) — 삭제 권한(canDelete)과 동일 기준
 function _taxCanCorrectGroup(gid) {
   const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
@@ -10001,6 +10031,7 @@ function _taxCampaignPending(c) {
 // ── 세금계산서 필터/렌더 ──
 var _taxQuickFilter = null; // 'unissued' | 'unpaid' | null
 let _taxRegLinkedCamps = []; // 수동등록 모달 — 연결된 캠페인 ID 배열
+let _taxNoteCampGid = null; // 참조 캠페인(참고) 모달 — 지금 열려있는 모달이 어느 그룹 건인지
 let _taxPage = 1;
 const TAX_PAGE_SIZE = 20;
 function taxGoPage(n) { _taxPage = n; renderTaxList(); }
@@ -10332,7 +10363,9 @@ function renderTaxList() {
               <span>요청일 <span style="color:var(--text1);">${rep.reqDate||'—'}</span></span>
               <span style="color:var(--border);">|</span>
               <span>입금예정 <span style="color:var(--text1);">${rep.payDue||'—'}</span></span>
-              ${refItems.length ? `<button class="btn btn-ghost btn-sm" onclick="taxToggleRef('${refItems.map(t=>t.id).join(',')}')">참조 캠페인 ${refItems.length}건 ▾</button>` : ''}
+              ${refItems.length
+                ? `<button class="btn btn-ghost btn-sm" onclick="taxToggleRef('${refItems.map(t=>t.id).join(',')}')">참조 캠페인 ${refItems.length}건 ▾</button>`
+                : (isDone ? `<button class="btn btn-ghost btn-sm${(rep.noteCampaignIds||[]).length ? '' : ' tax-ref-empty'}" onclick="taxOpenNoteCampModal(${gid})">참조 캠페인 ${(rep.noteCampaignIds||[]).length}건 ▾</button>` : '')}
             </div>
             <!-- [2,1]: 업체명 -->
             <div style="grid-column:1;grid-row:2;padding-right:40px;white-space:nowrap;display:flex;align-items:center;">
@@ -10877,20 +10910,29 @@ function openTaxReg(gid) {
     _taxRegRenderChips();
     items.filter(t => !t.isRef).sort((a, b) => a.id - b.id).forEach(t => taxManualAddRow(t));
   }
+  // 이전 세션에서 부가세포함을 직접 고쳤던 흔적(dataset.manual)이 새로 여는 폼에 남아있으면
+  // 자동계산이 영영 안 먹히니, 폼을 새로 열 때마다 초기화한다.
+  const vatEl = document.getElementById('tax-r-vat-total');
+  if (vatEl) delete vatEl.dataset.manual;
   taxManualCalcTotal();
   openModal('modalTaxReg');
 }
 
 // 수정발행 등록 — 완료된 그룹(originGid)을 원본으로 하는 새 그룹을 만드는 흐름 진입점.
 // 원본은 절대 수정하지 않음 (필드 프리필만 하고, 저장 시 완전히 새 groupId로 저장됨).
-// 금액은 일반 등록과 동일하게 품목/공급가액을 직접 입력 — 공급가액에 음수를 넣으면 상계(차감), 양수면 추가청구.
+// 금액은 최종금액을 그대로 입력 — 원본 품목을 그대로 불러와서 고칠 부분만 수정하면 된다
+// (2026-09-22, 사용자 요청 — 예전엔 빈 표로 시작해서 품목을 매번 다시 입력해야 했음).
 function openTaxCorrectionReg(originGid) {
   if (!_taxCanCorrectGroup(originGid)) { toast('수정발행 등록 권한이 없습니다.', 'err'); return; }
   const originItems = TAX_DATA.filter(t => _taxGroupId(t) === originGid);
   if (!originItems.length) return;
   const originRep  = originItems[0];
 
-  openTaxReg(null); // 기본 폼 초기화 재사용 (빈 행 1개 추가됨)
+  openTaxReg(null); // 기본 폼 초기화 재사용
+  // 기본 폼이 넣어준 빈 행 대신, 원본의 실제 품목행(참조항목 제외)을 그대로 불러온다.
+  document.getElementById('tax-r-rows').innerHTML = '';
+  originItems.filter(t => !t.isRef).sort((a, b) => a.id - b.id).forEach(t => taxManualAddRow(t));
+  taxManualCalcTotal();
   document.getElementById('tax-r-correction-of').value = originGid;
   document.getElementById('tax-r-company').value = originRep.company || '';
   document.getElementById('tax-r-bizName').value = originRep.bizName || '';
@@ -10952,7 +10994,11 @@ function taxManualCalcTotal() {
   const supplyEl = document.getElementById('tax-r-supply-total');
   const vatEl    = document.getElementById('tax-r-vat-total');
   if (supplyEl) supplyEl.textContent = total.toLocaleString();
-  if (vatEl)    vatEl.value          = Math.floor(total * 1.1).toLocaleString();
+  // 부가세포함 합계를 사용자가 직접 고친 적이 있으면(oninput으로 dataset.manual='1' 표시)
+  // 항목을 더 추가·수정해도 자동계산으로 덮어쓰지 않는다 — 안 그러면 직접 입력한 값이
+  // 저장 직전에 조용히 자동계산값으로 되돌아가버렸다(2026-09-22, 사용자 리포트 — 수정발행
+  // 시 입력한 부가세포함 금액이 DB에 저장 안 되고 자동계산값이 저장되던 문제).
+  if (vatEl && vatEl.dataset.manual !== '1') vatEl.value = _taxVatAmt(total).toLocaleString();
 }
 
 function taxManualPaidChange(chk) {
@@ -10986,6 +11032,7 @@ async function saveTaxReg() {
   const correctionOf = parseInt(_v('tax-r-correction-of')) || null;
   const isNew     = !editGid;
   if (!company) { alert('업체명을 입력해주세요.'); return; }
+  if (!issueDate) { alert('발행일자를 입력해주세요.'); return; }
   const rows = [...document.querySelectorAll('#tax-r-rows .tax-r-row')];
   if (!rows.length) { alert('항목을 하나 이상 입력해주세요.'); return; }
   // 완료된 그룹은 일반 수정 경로로 절대 들어오면 안 됨 (수정발행 등록으로만 처리) — 방어적 가드
@@ -11038,7 +11085,7 @@ async function saveTaxReg() {
       payInDate: paidChk ? payInDate : null,
       unpaid:    paidChk ? 0 : null,
       company, bizName, content,
-      supplyAmt: supply, vatAmt: Math.floor(supply * 1.1),
+      supplyAmt: supply, vatAmt: _taxVatAmt(supply),
       contactEmail: email, memo,
     });
   }
@@ -11069,7 +11116,7 @@ async function saveTaxReg() {
       payInDate: paidChk ? payInDate : null,
       unpaid: paidChk ? 0 : null,
       company, bizName, content: _taxContentAuto(lc),
-      supplyAmt: refAmt, vatAmt: Math.floor(refAmt * 1.1),
+      supplyAmt: refAmt, vatAmt: _taxVatAmt(refAmt),
       contactEmail: '', memo: ''
     }});
   }
@@ -11384,7 +11431,7 @@ function taxGenNext() {
           </table>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;margin-bottom:16px;">
             <button class="btn btn-ghost btn-sm" onclick="taxGenManualAddRow(${gi},${repYear},${repMon})">+ 항목 추가</button>
-            <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-${gi}">${supplyTotal ? supplyTotal.toLocaleString() : '0'}</b>원 &nbsp;·&nbsp; 부가세포함 <input type="text" id="tax-gen-m-vat-${gi}" class="form-input" style="width:90px;display:inline-block;text-align:right;font-size:12px;padding:2px 6px;" value="${supplyTotal ? Math.round(supplyTotal*1.1).toLocaleString() : '0'}">원</span>
+            <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-${gi}">${supplyTotal ? supplyTotal.toLocaleString() : '0'}</b>원 &nbsp;·&nbsp; 부가세포함 <input type="text" id="tax-gen-m-vat-${gi}" class="form-input" style="width:90px;display:inline-block;text-align:right;font-size:12px;padding:2px 6px;" value="${supplyTotal ? _taxVatAmt(supplyTotal).toLocaleString() : '0'}">원</span>
           </div>
 
           <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.4px;margin-bottom:6px;">불러온 캠페인 (참조) <span style="color:var(--primary,#1a73e8);font-weight:700;">${campaigns.length}건</span></div>
@@ -11512,7 +11559,7 @@ function taxGenManualCalcTotal(gi) {
   const supplyEl = document.getElementById(`tax-gen-m-supply-${gi}`);
   const vatEl    = document.getElementById(`tax-gen-m-vat-${gi}`);
   if (supplyEl) supplyEl.textContent = total.toLocaleString();
-  if (vatEl)    vatEl.value          = Math.floor(total * 1.1).toLocaleString();
+  if (vatEl)    vatEl.value          = _taxVatAmt(total).toLocaleString();
 }
 
 function taxToggleRef(ids) {
@@ -11567,6 +11614,95 @@ function taxToggleRef(ids) {
     </div>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
+}
+
+// ── 참조 캠페인(참고) — 완료된 세금계산서 건에 금액 영향 없이 "이 캠페인도 관련 있다"고
+// 표시만 해두는 기능. 등록 시 연결하는 실제 참조(금액이 그룹 합계에 합산되는 것, isRef)와는
+// 완전히 별개 필드(noteCampaignIds)라 공급가·부가세·이중발행 방지 플래그에 전혀 영향 없다.
+// 실무상 한 그룹에 실제 참조(isRef)와 이 참고 태그가 동시에 걸릴 일이 없어서(등록 시 참조를
+// 걸어 만든 건은 나중에 따로 태그할 필요가 없는 케이스라), 배지 이름·스타일은 "참조 캠페인"을
+// 그대로 재사용한다(2026-09-22).
+function taxOpenNoteCampModal(gid) {
+  const items = TAX_DATA.filter(t => _taxGroupId(t) === gid);
+  if (!items.length) return;
+  _taxNoteCampGid = gid;
+  document.getElementById('tax-notecamp-input').value = '';
+  document.getElementById('tax-notecamp-list').style.display = 'none';
+  _taxNoteCampRenderRows();
+  openModal('modalTaxNoteCamp');
+}
+function _taxNoteCampRep() {
+  const items = TAX_DATA.filter(t => _taxGroupId(t) === _taxNoteCampGid);
+  return items.find(t => !t.isRef) || items[0];
+}
+function _taxNoteCampRenderRows() {
+  const rep = _taxNoteCampRep();
+  if (!rep) return;
+  const ids = rep.noteCampaignIds || [];
+  document.getElementById('tax-notecamp-title').textContent = `참조 캠페인 ${ids.length}건`;
+  const rows = ids.map(cid => {
+    const c = DATA.find(x => x.id === cid);
+    if (!c) return '';
+    return `<tr>
+      <td style="padding:8px 10px;color:var(--text2);border-top:1px solid var(--border);">${_taxMonthLabel(c).replace(/\d+년/, '')}</td>
+      <td style="padding:8px 10px;color:var(--text2);border-top:1px solid var(--border);" class="f-mono">${_escHtml(c.id||'')}</td>
+      <td style="padding:8px 10px;font-weight:500;border-top:1px solid var(--border);">${_escHtml(_cName(c))}</td>
+      <td style="padding:8px 10px;color:var(--text2);border-top:1px solid var(--border);">${_escHtml(c.product||'—')}</td>
+      <td style="padding:8px 10px;color:var(--text2);border-top:1px solid var(--border);">${_escHtml(c.ops||'—')}</td>
+      <td style="padding:8px 10px;text-align:center;color:var(--text3);cursor:pointer;border-top:1px solid var(--border);" onclick="_taxNoteCampRemove('${cid}')" onmouseenter="this.style.color='var(--red)'" onmouseleave="this.style.color='var(--text3)'">✕</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('tax-notecamp-rows').innerHTML = rows ||
+    `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:22px;font-size:12.5px;">연결된 캠페인이 없습니다. 위 검색창에서 추가해보세요.</td></tr>`;
+}
+function _taxNoteCampRenderList() {
+  const q = (document.getElementById('tax-notecamp-input')?.value || '').trim().toLowerCase();
+  const list = document.getElementById('tax-notecamp-list');
+  if (!list) return;
+  const rep = _taxNoteCampRep();
+  const already = new Set(rep?.noteCampaignIds || []);
+  const hits = DATA.filter(c => {
+    if (already.has(c.id)) return false;
+    const name = (_cName(c) || '').toLowerCase();
+    const sel  = (c.seller || c.adv || '').toLowerCase();
+    const id   = (c.id || '').toLowerCase();
+    return !q || name.includes(q) || sel.includes(q) || id.includes(q);
+  }).slice(0, 30);
+  if (!hits.length) { list.style.display = 'none'; return; }
+  list.innerHTML = hits.map(c => {
+    const dateStr = (c.date || '').slice(0, 7);
+    return `<div class="combo-item" onmousedown="_taxNoteCampPick('${c.id}')">
+      <span style="font-weight:600;">${_escHtml(_cName(c))}</span>
+      <span style="color:var(--text3);font-size:11px;margin-left:6px;">${_escHtml(c.id||'')} · ${_escHtml(c.product||'')} · ${dateStr} · ${_escHtml(c.seller||c.adv||'')}</span>
+    </div>`;
+  }).join('');
+  list.style.display = 'block';
+}
+async function _taxNoteCampPick(cid) {
+  const rep = _taxNoteCampRep();
+  if (!rep) return;
+  const ids = [...(rep.noteCampaignIds || [])];
+  if (ids.includes(cid)) return;
+  ids.push(cid);
+  await taxGroupSaveField(_taxNoteCampGid, 'noteCampaignIds', ids);
+  document.getElementById('tax-notecamp-input').value = '';
+  document.getElementById('tax-notecamp-list').style.display = 'none';
+  _taxNoteCampRenderRows();
+  renderTaxList();
+  const c = DATA.find(x => x.id === cid);
+  const toUser = c && USERS.find(u => u.name === c.ops);
+  if (c && toUser && toUser.id !== currentUser?.id) {
+    const body = _notifBody('tax_note_camp', rep.company || '', _cName(c), undefined, _taxNoteCampGid);
+    _fbSaveNotification(toUser.id, 'tax_note_camp', body, { gid: _taxNoteCampGid, campaignId: cid });
+  }
+}
+async function _taxNoteCampRemove(cid) {
+  const rep = _taxNoteCampRep();
+  if (!rep) return;
+  const ids = (rep.noteCampaignIds || []).filter(x => x !== cid);
+  await taxGroupSaveField(_taxNoteCampGid, 'noteCampaignIds', ids);
+  _taxNoteCampRenderRows();
+  renderTaxList();
 }
 
 function taxEditGroup(gid) {
@@ -11677,7 +11813,7 @@ function taxEditGroup(gid) {
         </table>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;margin-bottom:16px;">
           <button class="btn btn-ghost btn-sm" onclick="taxGenManualAddRow(0,${repYear},${repMon})">+ 항목 추가</button>
-          <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-0">${manualTotal.toLocaleString()}</b>원 &nbsp;·&nbsp; 부가세포함 <input type="text" id="tax-gen-m-vat-0" class="form-input" style="width:90px;display:inline-block;text-align:right;font-size:12px;padding:2px 6px;" value="${Math.floor(manualTotal*1.1).toLocaleString()}">원</span>
+          <span style="font-size:12px;color:var(--text2);">공급가액 소계 <b id="tax-gen-m-supply-0">${manualTotal.toLocaleString()}</b>원 &nbsp;·&nbsp; 부가세포함 <input type="text" id="tax-gen-m-vat-0" class="form-input" style="width:90px;display:inline-block;text-align:right;font-size:12px;padding:2px 6px;" value="${_taxVatAmt(manualTotal).toLocaleString()}">원</span>
         </div>
 
         <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.4px;margin-bottom:6px;">불러온 캠페인 (참조)</div>
@@ -11765,7 +11901,7 @@ async function confirmTaxEdit() {
       createdBy: currentUser?.name || '',
       manager: origItem?.manager || '',
       month, content, supplyAmt: supply,
-      vatAmt: Math.floor(supply * 1.1),
+      vatAmt: _taxVatAmt(supply),
       contactEmail: email, memo,
       bizName: cardBizName || (taxType === 'adv' ? company : (MEDIA_DATA.find(mm => mm.company === company)?.invoiceTo || company)),
       taxStatus: origItem?.taxStatus || '',
@@ -11870,7 +12006,7 @@ async function confirmTaxAutoGen() {
         payInDate: paidChk ? (payInDate || null) : null,
         unpaid:    paidChk ? 0 : null,
         company: cardCompany, bizName: cardBizName || (cardTaxType === 'adv' ? cardCompany : (MEDIA_DATA.find(mm => mm.company === cardCompany)?.invoiceTo || cardCompany)),
-        content, supplyAmt: supply, vatAmt: Math.floor(supply * 1.1),
+        content, supplyAmt: supply, vatAmt: _taxVatAmt(supply),
         contactEmail: email, memo
       });
     }
@@ -11918,7 +12054,7 @@ async function confirmTaxAutoGen() {
         payInDate: paidChk ? (payInDate || null) : null,
         unpaid:    paidChk ? 0 : null,
         company, content: _taxContentAuto(c), bizName,
-        supplyAmt: supply, vatAmt: Math.floor(supply * 1.1),
+        supplyAmt: supply, vatAmt: _taxVatAmt(supply),
         contactEmail: email, memo,
         isRef: manualRows.length > 0 ? true : undefined
       };
@@ -11967,6 +12103,7 @@ function _notifBody(type, company, content, count, gid) {
     const name = currentUser?.name || '';
     return `${label}${name}님이 ${company} 세금계산서 발행을 요청했습니다.`;
   }
+  if (type === 'tax_note_camp') return `${label}${content} 캠페인이 ${company} 세금계산서 건과 관련 있다고 표시되었습니다.`;
   return '';
 }
 
@@ -12798,7 +12935,7 @@ async function _taxRestoreFromLog(logId) {
     taxStatus: '',
     payDue: '', paid: null, payInDate: null, unpaid: null,
     company: l.company || '', bizName: l.bizName || l.company || '',
-    content: l.content || '', supplyAmt: supply, vatAmt: Math.round(supply * 1.1),
+    content: l.content || '', supplyAmt: supply, vatAmt: _taxVatAmt(supply),
     contactEmail: '', memo: '',
   };
   TAX_DATA.push(t);
