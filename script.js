@@ -3347,6 +3347,25 @@ function calcDBR() {
   const a=+document.getElementById('p_actual').value||0, db=+document.getElementById('p_db').value||0;
   document.getElementById('p_dbr').value = (a&&db)?(db/a*100).toFixed(2)+'%':'';
 }
+// ── DA·IPTV·CPA 집행기간 ──
+// 시작 연/월/일을 바꾸면 종료를 시작 월의 말일로 맞춘다 — 예전엔 종료가 상품 선택 시점의 "이번 달 말일"로 한 번
+// 채워진 뒤 따라가지 않아, 다른 달 캠페인을 등록·수정하면 종료일이 시작일보다 빠르게 저장됐다(2026-09-29, CPA 7건).
+// 여러 달에 걸친 캠페인은 시작을 먼저 고른 뒤 종료를 따로 바꾸면 된다.
+function _daSyncEndToStartMonth(p) {
+  const v = id => document.getElementById(`${p}_da_${id}`)?.value;
+  const y = v('year'), m = v('month');
+  if (!y || !m) return;
+  const set = (id, val) => { const el = document.getElementById(`${p}_da_${id}`); if (el) el.value = val; };
+  set('eyear', y); set('emonth', m); set('eday', String(new Date(+y, +m, 0).getDate()).padStart(2, '0'));
+}
+// 종료일이 시작일보다 빠르면 true. useDay=false면 시작일을 1일로 본다(CPA 등록은 시작일을 항상 1일로 저장).
+function _daRangeInvalid(p, useDay) {
+  const v = id => document.getElementById(`${p}_da_${id}`)?.value || '';
+  if (!v('eyear') || !v('emonth') || !v('eday')) return false;
+  const start = `${v('year')}-${v('month')}-${useDay ? (v('day') || '01') : '01'}`;
+  return `${v('eyear')}-${v('emonth')}-${v('eday')}` < start;
+}
+
 function submitReg() {
   // 필수 항목 검증
   const prod  = document.getElementById('r_product').value;
@@ -3389,6 +3408,13 @@ function submitReg() {
       (document.getElementById(f.focusId || f.id) || el)?.focus();
       return;
     }
+  }
+
+  // 집행기간 검증 (DA·IPTV·CPA) — 종료일이 시작일보다 빠르면 저장하지 않는다
+  if ((isDA || isCPA) && _daRangeInvalid('r', isDA)) {
+    toast('⚠ 종료일이 시작일보다 빠릅니다. 기간을 확인해주세요', 'warn');
+    document.getElementById('r_da_eday')?.focus();
+    return;
   }
 
   // 시간 검증 (LMS/MMS/push/카톡msg는 00:00 불가)
@@ -4050,6 +4076,12 @@ function calcEdit() {
 }
 
 function submitEdit() {
+  // 집행기간 검증 (DA·IPTV·CPA) — 종료일이 시작일보다 빠르면 저장하지 않고 수정 화면에 머문다
+  if (['DA','IPTV','CPA'].includes(document.getElementById('e_product')?.value) && _daRangeInvalid('e', true)) {
+    toast('⚠ 종료일이 시작일보다 빠릅니다. 기간을 확인해주세요', 'warn');
+    document.getElementById('e_da_eday')?.focus();
+    return;
+  }
   document.querySelector('.topbar').style.display = '';
   const c = DATA[currentDetailIdx];
   // 변경 전 스냅샷 (이력용) — id/regDate/regUser 등 등록 메타데이터를 제외한 모든 필드 추적
