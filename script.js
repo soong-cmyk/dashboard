@@ -1630,7 +1630,7 @@ function openDetail(idx, skipPush) {
   const buyBillBase  = c.buyBillBase  || c.billBase || 'actual';
   const _baseLbl = (base) => base === 'sched' ? '발송예약수량 기준' : '실발송수량 기준';
   // CPA: DB등록수(c.db||c.qty) 기준, 일반: actual 기준
-  const cpaBillQty = c.db || c.qty || 0;
+  const cpaBillQty = (c.db != null && c.db !== '') ? c.db : (c.qty || 0); // _stlAmt와 같은 기준(0 = 실제 0건)
   const svcApplyAdv   = c.svcApplyAdv   ?? true;
   const svcApplyMedia = c.svcApplyMedia ?? (buyBillBase === 'actual');
   const hasActual = c.actual != null && c.actual !== ''; // 0건도 입력값 — _stlAmt와 같은 기준
@@ -3524,6 +3524,13 @@ function submitReg() {
     msg:      document.getElementById('r_msg').value,
     note:     document.getElementById('r_note').value,
   });
+  // CPA: 등록 화면의 DB등록수(종료된 과거 캠페인용). 입력하면 정산수량도 같이 맞추고 성과입력완료로 —
+  // 예전엔 등록 후 2차 성과입력을 따로 해야 해서 누락이 많았다(2026-09-29). 비우면 기존대로 성과입력대기.
+  if (isCPA) {
+    const _rCpaDb = document.getElementById('r_cpa_qty')?.value ?? '';
+    if (_rCpaDb !== '') { DATA[0].db = Number(_rCpaDb); DATA[0].qty = DATA[0].db; }
+    _applyPerfStatus(DATA[0]);
+  }
   _log(newId, 'register', null, null, null); // 이력: 캠페인 등록
   _fbSaveCampaign(DATA[0]);
 
@@ -3618,7 +3625,8 @@ function resetRegForm() {
   if (rSvcAdv2) rSvcAdv2.checked = true;
   const rSvcMedia2 = document.getElementById('r_svcApplyMedia');
   if (rSvcMedia2) rSvcMedia2.checked = false;
-  ['r_amt','r_adcost','r_buyAmt','r_rev','r_profit'].forEach(id => {
+  ['r_amt','r_adcost','r_buyAmt','r_rev','r_profit',
+   'r_cpa_qty','r_cpa_unit','r_cpa_comm','r_cpa_agrate','r_cpa_adcost','r_cpa_bill','r_cpa_buyUnit','r_cpa_buyAmt','r_cpa_rev','r_cpa_profit'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.value = ''; delete el.dataset.manual; }
   });
@@ -8090,7 +8098,7 @@ function _stlAmt(c) {
   }
   // CPA 캠페인: 실발송수량(actual) 기준, 미입력 시 정산수량(qty) 기준으로 폴백
   if (c.product === 'CPA') {
-    const billQty = c.db || c.qty || 0;  // DB등록수 우선, 없으면 정산수량
+    const billQty = (c.db != null && c.db !== '') ? c.db : (c.qty || 0);  // DB등록수(0 포함) 우선, 비어 있을 때만 정산수량
     const qty     = c.qty      || 0;  // 정산예정수량 (stlRate 계산용)
     const unit    = c.sellUnit || 0;
     // adcostFixed/buyAmtFixed는 ||가 아니라 ??로 봐야 한다 — 수기입력값이 정확히 0원이면
@@ -9950,7 +9958,7 @@ function _taxContentAuto(c) {
 }
 function _taxIsSettled(c) {
   if (['DA','IPTV'].includes(c.product))  return !!c.daAdcost;
-  if (c.product === 'CPA') return !!(c.db || c.qty);
+  if (c.product === 'CPA') return _stlHas(c); // 정산탭과 같은 기준 — 광고비(수동)만 있는 CPA, DB등록수 0도 포함
   return c.status === '성과입력완료';
 }
 function _taxCampaignPending(c) {

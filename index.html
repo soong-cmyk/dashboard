@@ -2910,6 +2910,8 @@
             </div>
             <!-- CPA 전용 -->
             <div id="r_qty_cpa" style="display:none;" class="form-grid">
+              <div class="fg full"><label class="form-label">DB등록수 <span style="font-weight:400;color:var(--text3);">— 이미 종료된 캠페인이면 입력 (입력 시 성과입력완료로 등록)</span></label>
+                <input type="number" class="form-input" id="r_cpa_qty" min="0" oninput="calcCPA()" placeholder="진행 전·진행 중이면 비워두세요"></div>
               <div class="fg"><label class="form-label">정산기준</label>
                 <select class="form-sel" id="r_cpa_billbase">
                   <option value="신청수">신청수</option>
