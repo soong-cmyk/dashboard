@@ -4375,7 +4375,17 @@ function confirmDel() {
     DATA.splice(currentDetailIdx, 1);
   }
   closeModal('modalDel');
-  goScreen('campaigns');
+  // 캠페인 목록에서 들어온 경우엔 ← 뒤로가기와 같은 경로로 돌아가 들어오기 전 필터를 되살린다
+  // (openDetail이 진입 시 저장해둔 값, goScreen(skipPush=true) → _restoreFilterState).
+  // 예전엔 goScreen('campaigns')로 새로 열어 필터가 전부 초기화됐다(2026-09-29, 사용자 요청).
+  // 해시는 삭제된 캠페인의 #detail/ID로 남지 않게 목록으로 바꿔둔다(새로고침 시 없는 캠페인을 열려 하지 않도록).
+  // (해시를 먼저 바꾸면 goScreen이 "지금 화면=campaigns"로 보고 필터를 다시 저장해버리므로 전환 후에 바꾼다)
+  if (_detailFromScreen === 'campaigns') {
+    goScreen('campaigns', true);
+    history.replaceState({ screen: 'campaigns' }, '', '#campaigns');
+  } else {
+    goScreen('campaigns');
+  }
   toast('🗑 캠페인이 삭제되었습니다', 'err');
 }
 
