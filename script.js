@@ -4139,15 +4139,16 @@ function submitEdit() {
 
   // 2차 성과 저장 (PC / CPS 제외)
   if (!isEditPC && !isEditCPS) {
+    const _epVal = id => document.getElementById(id)?.value ?? '';
+    const _epNum = id => { const v = _epVal(id); return v !== '' ? Number(v)      : null; };
+    const _epFlt = id => { const v = _epVal(id); return v !== '' ? parseFloat(v)  : null; };
     if (isEditDA) {
-      c.daImp   = +document.getElementById('ep_imp')?.value       || 0;
-      c.daClick = +document.getElementById('ep_da_click')?.value  || 0;
-      c.daConv  = +document.getElementById('ep_conv')?.value      || 0;
-      c.daRev   = +document.getElementById('ep_da_rev')?.value    || 0;
+      // 빈 칸은 null(미입력) — 예전엔 `|| 0`이라 빈 칸이 0으로 저장돼 "실제 0"과 구분이 안 됐다
+      c.daImp   = _epNum('ep_imp');
+      c.daClick = _epNum('ep_da_click');
+      c.daConv  = _epNum('ep_conv');
+      c.daRev   = _epNum('ep_da_rev');
     } else {
-      const _epVal = id => document.getElementById(id)?.value ?? '';
-      const _epNum = id => { const v = _epVal(id); return v !== '' ? Number(v)      : null; };
-      const _epFlt = id => { const v = _epVal(id); return v !== '' ? parseFloat(v)  : null; };
       c.actual = _epNum('ep_actual');
       c.clicks = _epNum('ep_click');
       c.ctr    = _epFlt('ep_ctr');   // "2.34%" → 2.34 (parseFloat이 % 무시)
@@ -4155,10 +4156,8 @@ function submitEdit() {
       c.dbr    = _epFlt('ep_dbr');
       // CPA: DB등록수 = 정산수량 자동 동기화
       if (c.product === 'CPA' && c.db != null) c.qty = c.db;
-      // 성과 입력 시 상태 자동 업데이트
-      const _hasPerfData = c.product === 'CPA' ? (c.db != null) : (c.actual != null);
-      if (_hasPerfData && c.status !== '성과입력완료') c.status = '성과입력완료';
     }
+    _applyPerfStatus(c);
   }
 
   // 변경된 필드만 이력 기록 — 스냅샷 이후 새로 생긴 필드까지 포함해 전부 비교
@@ -4213,6 +4212,26 @@ function open2ndModal() {
   openModal('modal2nd');
 }
 
+// ── 성과입력 단계 규칙 (2026-09-29 확정) ──
+// 완료 여부는 상품별 "핵심 성과값"이 입력됐는지로만 판정한다: 문자류=실발송수량, CPA=DB등록수, DA/IPTV=노출수.
+// 빈 값(null) = 미입력, 0 = 실제 0건(입력으로 인정). 핵심값 없이 저장하면 나머지 값만 저장하고 단계는
+// 대기로 유지하며, 핵심값을 지우고 저장하면 완료 → 대기로 되돌린다. 2차 성과입력·수정 모달 공용.
+// 퍼미션콜·CPS는 등록 시 금액 자체가 성과라 등록 즉시 완료 — 이 규칙에서 제외.
+function _perfKeyLabel(c) {
+  if (c.product === 'CPA') return 'DB등록수';
+  if (['DA','IPTV'].includes(c.product)) return '노출수';
+  return '실발송수량';
+}
+function _perfKeyEntered(c) {
+  const v = c.product === 'CPA' ? c.db : ['DA','IPTV'].includes(c.product) ? c.daImp : c.actual;
+  return v != null && v !== '';
+}
+function _applyPerfStatus(c) {
+  if (c.product === '퍼미션콜' || c.product === 'CPS') return;
+  if (_perfKeyEntered(c)) c.status = '성과입력완료';
+  else if (c.status === '성과입력완료') c.status = '성과입력대기';
+}
+
 function submit2nd()  {
   const c = DATA[currentDetailIdx];
   if (!c) return;
@@ -4232,12 +4251,12 @@ function submit2nd()  {
     if (newConv  !== c.daConv)  { _log(c.id,'perf','daConv',  String(c.daConv ??'미입력'), newConv !=null?newConv +'건':'미입력'); c.daConv  = newConv; }
     if (newRev   !== c.daRev)   { _log(c.id,'perf','daRev',   String(c.daRev  ??'미입력'), newRev  !=null?newRev  +'원':'미입력'); c.daRev   = newRev; }
     const prevStatus = c.status;
-    c.status = '성과입력완료';
+    _applyPerfStatus(c);
     if (c.status !== prevStatus) _log(c.id,'field','status', prevStatus, c.status);
     _fbSaveCampaign(c);
     closeModal('modal2nd');
     openDetail(currentDetailIdx, true);
-    toast('✓ DA 성과가 저장되었습니다', 'ok');
+    toast(_perfKeyEntered(c) ? '✓ DA 성과가 저장되었습니다' : '✓ 저장했습니다 (노출수 미입력 — 성과입력대기 유지)', 'ok');
     return;
   }
 
@@ -4262,14 +4281,14 @@ function submit2nd()  {
     // CPA: DB등록수 = 정산수량 자동 동기화
     if (c.product === 'CPA' && c.db != null) { const prevQty = c.qty; c.qty = c.db; if (prevQty !== c.qty) _log(c.id,'field','qty', String(prevQty??''), String(c.qty)); }
     const prevStatus = c.status;
-    c.status = '성과입력완료';
+    _applyPerfStatus(c);
     if (c.status !== prevStatus) _log(c.id,'field','status', prevStatus, c.status);
   }
 
   _fbSaveCampaign(DATA[currentDetailIdx]);
   closeModal('modal2nd');
   openDetail(currentDetailIdx, true);
-  toast('✓ 성과 데이터가 저장되었습니다', 'ok');
+  toast(_perfKeyEntered(c) ? '✓ 성과 데이터가 저장되었습니다' : `✓ 저장했습니다 (${_perfKeyLabel(c)} 미입력 — 성과입력대기 유지)`, 'ok');
 }
 // ── 수정화면 성과 자동계산 ──────────────────────────
 function epCalcCTR() {
@@ -6055,7 +6074,7 @@ function _getStlFilteredData() {
   return DATA.filter(c => {
     if (scope === 'settled') {
       if      (['DA','IPTV'].includes(c.product))  { if (!c.daAdcost)           return false; }
-      else if (c.product === 'CPA') { if (!c.db && !c.qty)       return false; }
+      else if (c.product === 'CPA') { if (c.db == null && !c.qty) return false; }
       else if (c.product === 'CPS') { if (!c.cpsFinalSales)      return false; }
       else if (c.status !== '성과입력완료') return false;
     }
@@ -7910,7 +7929,7 @@ window.addEventListener('hashchange', () => {
 /** 정산 데이터 표시 여부 (상품별 기준 필드 다름) */
 function _stlHas(c) {
   if (['DA','IPTV'].includes(c.product))        return !!c.daAdcost;
-  if (c.product === 'CPA')       return !!(c.db || c.qty || c.adcostFixed);
+  if (c.product === 'CPA')       return c.db != null || !!(c.qty || c.adcostFixed); // DB등록수 0 = 실제 0건(입력됨)
   if (c.product === 'CPS')       return !!c.cpsFinalSales;
   if (c.product === '퍼미션콜')  return !!c.pcAdvUnit || !!c.pcAgree;
   return !!((c.sellUnit && c.qty) || c.adcostFixed != null || c.amtFixed != null);
@@ -8581,7 +8600,7 @@ function _stlGetFiltered() {
   return DATA.filter(c => {
     if (scope === 'settled') {
       if      (['DA','IPTV'].includes(c.product))  { if (!c.daAdcost)           return false; }
-      else if (c.product === 'CPA') { if (!c.db && !c.qty)       return false; }
+      else if (c.product === 'CPA') { if (c.db == null && !c.qty) return false; }
       else if (c.product === 'CPS') { if (!c.cpsFinalSales)      return false; }
       else if (c.status !== '성과입력완료') return false;
     }
