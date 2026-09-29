@@ -5855,7 +5855,14 @@ const CAMP_COL = {
 // 타겟조건 줄 끝 공백 하나 차이로 3월 분양 캠페인 6건이 중복 등록됐다(2026-09-29). 특수공백→공백, 연속 공백 1개로,
 // 줄 앞뒤 공백 제거, 전체 앞뒤 공백 제거.
 function _campXlsxDupNorm(v) {
-  return String(v ?? '').replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').replace(/ *\r?\n */g, '\n').trim();
+  return String(v ?? '')
+    .replace(/[\u200b-\u200d\ufeff]/g, '')      // 폭 없는 공백(웹·메신저 복사 시 섞임)
+    .replace(/[\u00a0\u3000]/g, ' ')              // 특수 공백·전각 공백 → 일반 공백
+    .replace(/\r\n?/g, '\n')                      // 윈도우 줄바꿈
+    .replace(/[ \t]+/g, ' ')                       // 연속 공백 1개로
+    .replace(/ *\n */g, '\n')                      // 줄 앞뒤 공백
+    .replace(/\n{2,}/g, '\n')                      // 빈 줄 제거 (범어자이르네 2026-03-13 사례)
+    .trim();
 }
 function _campXlsxDupKey(date, media, seller, brand, product, ops, target) {
   return [date, media, seller, brand, product, ops, target].map(_campXlsxDupNorm).join('|');
