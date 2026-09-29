@@ -6180,7 +6180,7 @@ function downloadCampaignsExcel() {
     const opsUser = USERS.find(u => u.name === c.ops);
     const deptDisplay = opsUser ? [opsUser.bonbu, opsUser.dept].filter(Boolean).join(' ') : c.dept;
     return [
-      c.id, c.cat, _cName(c), c.media, c.product,
+      c.id, _getCat(c), _cName(c), c.media, c.product,
       c.seller || c.adv || '', c.content || '',
       c.ops, deptDisplay, c.date,
       c.qty || '', c.actual || '', c.clicks != null ? c.clicks : '', ctrVal,
@@ -6211,7 +6211,7 @@ function _getStlFilteredData() {
       else if (c.status !== '성과입력완료') return false;
     }
     if (prod  && c.product !== prod) return false;
-    if (cat   && c.cat   !== cat)    return false;
+    if (cat   && _getCat(c) !== cat) return false; // 브랜드 기준 카테고리(다른 화면과 동일)
     if (media && c.media !== media)  return false;
     if (adv   && (c.seller || c.adv || '') !== adv) return false;
     if (ops   && c.ops   !== ops)    return false;
@@ -6309,7 +6309,7 @@ async function downloadSettlementExcel() {
 
     const values = [
       c.date ? c.date.slice(0, 10) : '',
-      c.product, c.cat, _cCompany(c), _cName(c),
+      c.product, _getCat(c), _cCompany(c), _cName(c),
       r(c.sellUnit), r(c.qty), r(a.actual),
       r(a.amt ?? a.adc), r((a.amt ?? a.adc) + a.adcVat), r(+a.stlRate.toFixed(1)),
       c.media, MEDIA_DATA.find(x => x.company === c.media)?.invoiceTo || '',
@@ -6871,10 +6871,11 @@ function renderMonthly() {
   // ── 3열: 광고주별 발송량 (카테고리 토글) ──────
   const catMap = {};
   src.forEach(c => {
-    if (!catMap[c.cat]) catMap[c.cat] = {};
+    const cat = _getCat(c); // 브랜드 기준 카테고리
+    if (!catMap[cat]) catMap[cat] = {};
     const adv = _cCompany(c) || c.adv || '—';
-    if (!catMap[c.cat][adv]) catMap[c.cat][adv] = 0;
-    catMap[c.cat][adv] += c.qty||0;
+    if (!catMap[cat][adv]) catMap[cat][adv] = 0;
+    catMap[cat][adv] += c.qty||0;
   });
   document.getElementById('mly-adv-list').innerHTML = Object.entries(catMap)
     .sort((a,b)=>a[0].localeCompare(b[0]))
@@ -6928,12 +6929,13 @@ function mlySelectMedia(mediaName) {
 
   const catMap = {};
   src.forEach(c => {
-    if (!catMap[c.cat]) catMap[c.cat] = {qty:0,clicks:0,adc:0,list:[]};
+    const cat = _getCat(c); // 브랜드 기준 카테고리
+    if (!catMap[cat]) catMap[cat] = {qty:0,clicks:0,adc:0,list:[]};
     const base = (c.sellBillBase||c.billBase||'actual')==='sched' ? (c.qty||0)-(c.svc||0) : (c.actual ? c.actual-(c.svc||0) : (c.qty||0)-(c.svc||0));
-    catMap[c.cat].qty    += c.qty||0;
-    catMap[c.cat].clicks += c.clicks||0;
-    catMap[c.cat].adc    += base*(c.sellUnit||0);
-    catMap[c.cat].list.push(c);
+    catMap[cat].qty    += c.qty||0;
+    catMap[cat].clicks += c.clicks||0;
+    catMap[cat].adc    += base*(c.sellUnit||0);
+    catMap[cat].list.push(c);
   });
 
   const fmtAdc = v => v >= 100000000 ? (v/100000000).toFixed(2).replace(/\.?0+$/,'')+'억원' : v >= 10000 ? (v/10000).toFixed(2).replace(/\.?0+$/,'')+'만원' : v ? v.toLocaleString()+'원' : '—';
@@ -8740,7 +8742,7 @@ function _stlGetFiltered() {
       else if (c.status !== '성과입력완료') return false;
     }
     if (prod  && c.product !== prod) return false;
-    if (cat   && c.cat   !== cat)   return false;
+    if (cat   && _getCat(c) !== cat) return false; // 브랜드 기준 카테고리(다른 화면과 동일)
     if (media && c.media !== media) return false;
     if (adv   && (c.seller || c.adv || '') !== adv) return false;
     if (ops   && c.ops   !== ops)   return false;
@@ -8828,7 +8830,7 @@ function renderStlPermCall(container) {
 
   const data = DATA.filter(c => {
     if (c.product !== '퍼미션콜') return false;
-    if (cat  && c.cat  !== cat)  return false;
+    if (cat  && _getCat(c) !== cat)  return false;
     if (ops  && c.ops  !== ops)  return false;
     if (media && c.media !== media) return false;
     if (adv   && (c.seller || c.adv || '') !== adv) return false;
@@ -8918,7 +8920,7 @@ function renderStlCpsView(container) {
 
   const data = DATA.filter(c => {
     if (c.product !== 'CPS') return false;
-    if (cat && c.cat !== cat) return false;
+    if (cat && _getCat(c) !== cat) return false;
     if (ops && c.ops !== ops) return false;
     if (adv && (c.seller || c.adv || '') !== adv) return false;
     if (media && c.media !== media) return false;
