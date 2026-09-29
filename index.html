@@ -518,25 +518,28 @@
          캠페인 상세
     ══════════════════════════════════ -->
       <div class="screen" id="screen-detail">
-        <div class="detail-top">
-          <div style="display:flex;align-items:center;gap:8px;">
+        <div class="detail-top detail-top-view">
+          <div class="detail-top-title">
             <button class="back-btn" onclick="goDetailBack()">←</button>
             <span class="detail-id" id="dId"></span>
             <h1 class="detail-name" id="dName"></h1>
             <button class="btn btn-danger btn-sm" id="btn-detail-del" onclick="openDelModal()">🗑 삭제</button>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;margin-left:auto;">
+          <div class="detail-top-side">
             <div class="step-track" id="stepTrack">
               <div class="step done">부킹확정</div>
               <div class="step current">성과입력대기</div>
               <div class="step">성과입력완료</div>
             </div>
-            <button class="btn btn-ghost btn-sm" onclick="openHistory()">⏱ 수정 이력</button>
-            <button class="btn btn-ghost btn-sm" onclick="plOpenCampaignLogs(DATA[currentDetailIdx]?.id)">✎ 일지</button>
-             <button class="btn btn-ghost btn-sm" id="btn-detail-rpt"
-              onclick="openReportForCampaign(DATA[currentDetailIdx]?.id)">📄 리포트</button> 
-            <button class="btn btn-ghost btn-sm" id="btn-detail-copy" onclick="openCopyCampaign()">📋 복사 등록</button>
-            <button class="btn btn-ghost btn-sm" id="btn-detail-edit" onclick="openEdit()">✏ 수정</button>
+            <!-- 폭이 모자라면 이 묶음이 통째로 다음 줄로 내려간다(캠페인명이 세로로 찌그러지지 않게) -->
+            <div class="detail-actions">
+              <button class="btn btn-ghost btn-sm" onclick="openHistory()">⏱ 수정 이력</button>
+              <button class="btn btn-ghost btn-sm" onclick="plOpenCampaignLogs(DATA[currentDetailIdx]?.id)">✎ 일지</button>
+              <button class="btn btn-ghost btn-sm" id="btn-detail-rpt"
+                onclick="openReportForCampaign(DATA[currentDetailIdx]?.id)">📄 리포트</button>
+              <button class="btn btn-ghost btn-sm" id="btn-detail-copy" onclick="openCopyCampaign()">📋 복사 등록</button>
+              <button class="btn btn-ghost btn-sm" id="btn-detail-edit" onclick="openEdit()">✏ 수정</button>
+            </div>
           </div>
         </div>
 

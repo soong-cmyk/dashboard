@@ -225,6 +225,13 @@ tfoot td{padding:12px 14px;white-space:nowrap;border-top:1px solid var(--border)
 .back-btn:hover{background:var(--surface2);color:var(--text);}
 .detail-id{font-size:12px;font-family:'Noto Sans KR',monospace;color:var(--text2);background:var(--surface2);padding:4px 10px;border-radius:5px;border:1px solid var(--border);}
 .detail-name{font-size:19px;font-weight:700;flex:1;}
+/* 캠페인 상세 상단 — 폭이 모자라면 오른쪽(단계+버튼)이 줄어들다가 버튼 묶음부터 다음 줄로 내려간다.
+   예전엔 오른쪽이 한 줄을 고집해 캠페인명(flex:1)이 한 글자씩 세로로 쌓였다(2026-09-29). */
+.detail-top-view{flex-wrap:wrap;row-gap:10px;}
+.detail-top-title{display:flex;align-items:center;gap:8px;flex:1 0 280px;min-width:0;}
+.detail-top-title .detail-name{min-width:0;word-break:keep-all;overflow-wrap:anywhere;}
+.detail-top-side{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px;margin-left:auto;}
+.detail-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px;}
 .step-track{display:flex;align-items:center;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 6px;}
 .step{padding:5px 12px;border-radius:16px;font-size:11px;font-weight:700;color:var(--text3);cursor:pointer;transition:.15s;white-space:nowrap;}
 .step.done{color:var(--green);}.step.current{background:var(--accent);color:#fff;}
