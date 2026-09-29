@@ -5851,8 +5851,14 @@ const CAMP_COL = {
 // 본다(같은 파일을 실수로 두 번 올리는 상황을 잡는 게 목적). 타겟까지 넣은 이유는, 나머지가 전부
 // 같아도 타겟 조건이 다르면 같은 날 같은 매체로 세그먼트만 나눠 보낸 별개 캠페인일 수 있어서다.
 // 기존 DB(DATA)와 겹치는 경우, 같은 파일 안에서 같은 행이 두 번 들어간 경우 둘 다 이 키로 잡는다.
+// 비교 전에 양쪽 값을 같은 방식으로 정리한다 — 일괄등록은 엑셀 값을 trim하는데 기존 캠페인 값은 그대로 비교해서,
+// 타겟조건 줄 끝 공백 하나 차이로 3월 분양 캠페인 6건이 중복 등록됐다(2026-09-29). 특수공백→공백, 연속 공백 1개로,
+// 줄 앞뒤 공백 제거, 전체 앞뒤 공백 제거.
+function _campXlsxDupNorm(v) {
+  return String(v ?? '').replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').replace(/ *\r?\n */g, '\n').trim();
+}
 function _campXlsxDupKey(date, media, seller, brand, product, ops, target) {
-  return [date, media, seller, brand, product, ops, target].join('|');
+  return [date, media, seller, brand, product, ops, target].map(_campXlsxDupNorm).join('|');
 }
 function campXlsxValidateRow(row, rowNum) {
   const errors = [];
