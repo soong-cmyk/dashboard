@@ -4542,12 +4542,11 @@ let calView = 'month';
 let calDate = new Date(); // 기준 날짜
 let calY = calDate.getFullYear(), calM = calDate.getMonth() + 1;
 let calProductTab = 'sms'; // 'sms' | 'da'
-// 캘린더 탭별 상품 — 기간형 탭(cpt-da)은 시작~종료 막대로 그리는 DA·IPTV·CPA, 문자 탭은 발송일 1건짜리 문자류만.
-// CPS·퍼미션콜은 날짜가 월초(-01 00:00)로 저장되는 월 정산 데이터라 캘린더에 넣지 않는다 — CPS가 문자 탭
-// 매달 1일 칸에 몰려 보이던 문제(2026-09-29). 정산탭의 CPS·퍼미션콜 보기에서 확인.
+// 캘린더 탭별 상품 — 기간형 탭(cpt-da)은 시작~종료 막대로 그리는 DA·IPTV·CPA, 문자 탭은 그 외 전부.
+// CPS·퍼미션콜은 날짜가 월초(-01 00:00)로 저장되는 월 정산 데이터라 문자 탭의 매달 1일 칸에 모여 표시된다
+// (사용자 요청 2026-09-29 — 월 정산 건을 1일에 한데 모아 보기). 기간형 탭에 넣으면 1일짜리 막대가 매체 수만큼 쌓여 제외.
 const CAL_PERIOD_PRODUCTS = ['DA', 'IPTV', 'CPA'];
-const CAL_HIDDEN_PRODUCTS = ['CPS', '퍼미션콜'];
-const _calInSmsTab = prod => !CAL_PERIOD_PRODUCTS.includes(prod) && !CAL_HIDDEN_PRODUCTS.includes(prod);
+const _calInSmsTab = prod => !CAL_PERIOD_PRODUCTS.includes(prod);
 
 function _evColor(ev) {
   if (ev.idx !== null && DATA[ev.idx]) return _categoryColor(_getCat(DATA[ev.idx]));
