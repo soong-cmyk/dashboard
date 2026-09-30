@@ -2061,7 +2061,9 @@ function renderTable(data) {
       <td class="td-bold"><span style="font-size:10.5px;font-weight:400;color:var(--text3);">(${c.id})</span> ${c.content||_cCompany(c)}<span style="color:var(--text2);font-weight:400;">_${c.media}</span></td>
       <td class="td-dim">${c.product}</td>
       <td class="td-dim">${c.ops || '—'}</td>
-      <td class="td-num td-r">${(c.qty||0).toLocaleString()}</td>
+      <td class="td-num td-r">${c.product === 'CPA' // CPA의 qty는 DB등록수 복사본(정산수량)이라 발송수량 칸엔 노출수(actual)를 보여준다
+        ? (c.actual != null && c.actual !== '' ? Number(c.actual).toLocaleString() : '<span style="color:var(--text3)">—</span>')
+        : (c.qty||0).toLocaleString()}</td>
       <td class="td-num td-r">${(()=>{ const adc = _campAdcost(c); return adc?(adc>=10000?(adc/10000).toFixed(0)+'만':_fmtMoney(adc))+'원':'<span style="color:var(--text3)">—</span>';})()}</td>
       <td class="td-num td-r">${c.clicks!=null?c.clicks.toLocaleString():'<span style="color:var(--text3)">—</span>'}</td>
       <td class="td-num td-r">${(()=>{ const v=c.ctr; if(v==null)return '<span style="color:var(--text3)">—</span>'; const n=typeof v==='string'?parseFloat(v):v; return isNaN(n)?'<span style="color:var(--text3)">—</span>':n.toFixed(2)+'%'; })()}</td>
