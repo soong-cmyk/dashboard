@@ -298,7 +298,7 @@
           <button class="cal-nav" onclick="changeNav(-1)">‹</button>
           <div class="cal-title" style="position:relative;cursor:pointer;">
             <span id="calTitle">2026년 2월</span>
-            <input type="month" id="cal-title-input"
+            <input type="month" max="9999-12" id="cal-title-input"
               style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none;"
               onchange="_calMonthPicked(this.value)"
               onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[calendar] showPicker 실패',e);}">
@@ -886,7 +886,7 @@
                 </div>
                 <div class="fg full" id="e_date_normal"><label class="form-label">발송일시</label>
                   <div style="display:flex;gap:6px;align-items:center;">
-                    <input type="date" class="form-input" id="e_date" style="width:140px;">
+                    <input type="date" max="9999-12-31" class="form-input" id="e_date" style="width:140px;">
                     <select class="form-sel" id="e_hour" style="width:64px;">
                       <option>0</option>
                       <option>1</option>
@@ -1610,9 +1610,9 @@
             <div class="rpt-filter-group">
               <label class="rpt-filter-label">기간</label>
               <div style="display:flex;align-items:center;gap:4px;">
-                <input type="date" id="rpt-from" class="f-date" onchange="rptOnDateChange()">
+                <input type="date" max="9999-12-31" id="rpt-from" class="f-date" onchange="rptOnDateChange()">
                 <span style="color:var(--text3);">~</span>
-                <input type="date" id="rpt-to" class="f-date" onchange="rptOnDateChange()">
+                <input type="date" max="9999-12-31" id="rpt-to" class="f-date" onchange="rptOnDateChange()">
               </div>
             </div>
             <div class="rpt-filter-group">
@@ -2576,7 +2576,7 @@
         <!-- 발행요청일자 공통 -->
         <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 14px;">
           <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">발행요청일자</span>
-          <input type="date" class="form-input" id="tax-r-reqDate" style="font-size:12px;padding:4px 8px;width:160px;">
+          <input type="date" max="9999-12-31" class="form-input" id="tax-r-reqDate" style="font-size:12px;padding:4px 8px;width:160px;">
         </div>
         <!-- 카드 -->
         <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
@@ -2602,11 +2602,11 @@
           <div style="background:var(--surface2);padding:0 14px 10px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;">
             <div>
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">발행일자 <span class="req">*</span></label>
-              <input type="date" class="form-input" id="tax-r-issueDate" style="font-size:12px;padding:5px 8px;width:100%;">
+              <input type="date" max="9999-12-31" class="form-input" id="tax-r-issueDate" style="font-size:12px;padding:5px 8px;width:100%;">
             </div>
             <div id="tax-r-paydue-wrap">
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">입금예정일</label>
-              <input type="date" class="form-input" id="tax-r-payDue" style="font-size:12px;padding:5px 8px;width:100%;">
+              <input type="date" max="9999-12-31" class="form-input" id="tax-r-payDue" style="font-size:12px;padding:5px 8px;width:100%;">
             </div>
             <div>
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">담당자</label>
@@ -2822,7 +2822,7 @@
               </div>
               <div class="fg full" id="r_date_wrap"><label class="form-label">발송일시 <span class="req">*</span></label>
                 <div id="r_date_normal" style="display:flex;gap:6px;align-items:center;">
-                  <input type="date" class="form-input" id="r_date" style="width:140px;">
+                  <input type="date" max="9999-12-31" class="form-input" id="r_date" style="width:140px;">
                   <select class="form-sel" id="r_hour" style="width:64px;">
                     <option>0</option>
                     <option>1</option>
@@ -3422,7 +3422,7 @@
               oninput="_sellerSyncSaveBtn()"
               onkeydown="if(event.key==='Enter'){event.preventDefault();addSellerBrand();}" style="flex:1;">
             <select class="form-sel" id="sel-brand-cat" style="width:72px;"></select>
-            <input type="month" class="form-input" id="sel-brand-ym" style="width:110px;" title="계약 시작 연월">
+            <input type="month" max="9999-12" class="form-input" id="sel-brand-ym" style="width:110px;" title="계약 시작 연월">
             <button class="btn btn-primary btn-sm" id="sel-brand-add-btn" onclick="addSellerBrand()">추가</button>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
@@ -3889,7 +3889,7 @@
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;">
             <label class="form-label">해당 월</label>
-            <input class="form-input" type="month" id="pm-month">
+            <input class="form-input" type="month" max="9999-12" id="pm-month">
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;">
             <label class="form-label">본부 / 팀</label>
@@ -4115,7 +4115,7 @@
     </div>
     <div class="modal-body">
       <label class="form-label">입금날짜 <span class="req">*</span></label>
-      <input type="date" class="form-input" id="payInDateInput">
+      <input type="date" max="9999-12-31" class="form-input" id="payInDateInput">
     </div>
     <div class="modal-foot" style="display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modalPayInDate')">취소</button>

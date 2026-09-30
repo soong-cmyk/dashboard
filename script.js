@@ -7551,7 +7551,7 @@ function renderSellerBrands() {
           style="border:none;background:transparent;padding:5px 2px;width:100%;font-size:12px;">${catOpts}</select>
       </td>
       <td style="padding:2px;">
-        <input type="month" class="form-input" value="${_escHtml(b.contractYm || '')}" onchange="_sellerBrandYmChange(${i}, this.value)"
+        <input type="month" max="9999-12" class="form-input" value="${_escHtml(b.contractYm || '')}" onchange="_sellerBrandYmChange(${i}, this.value)"
           style="border:none;background:transparent;padding:5px 2px;width:100%;font-size:12px;">
       </td>
       <td style="padding:5px 4px;text-align:center;white-space:nowrap;">
@@ -11357,7 +11357,7 @@ function taxGenNext() {
     const cards = [];
     cards.push(`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;">
       <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">발행요청일자 (공통)</span>
-      <input type="date" class="form-input" id="tax-gen-common-req" style="font-size:12px;padding:4px 8px;width:160px;" value="${todayStr}">
+      <input type="date" max="9999-12-31" class="form-input" id="tax-gen-common-req" style="font-size:12px;padding:4px 8px;width:160px;" value="${todayStr}">
       <span style="font-size:12px;color:var(--text3);">※ 아래 모든 업체에 동일하게 적용됩니다</span>
     </div>`);
 
@@ -11407,11 +11407,11 @@ function taxGenNext() {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
             <div>
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">발행일자</label>
-              <input type="date" class="form-input tax-gen-iss" style="font-size:12px;padding:4px 6px;width:100%;" value="${groupIssDefault}">
+              <input type="date" max="9999-12-31" class="form-input tax-gen-iss" style="font-size:12px;padding:4px 6px;width:100%;" value="${groupIssDefault}">
             </div>
             <div class="tax-gen-paydue-wrap">
               <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">입금예정일</label>
-              <input type="date" class="form-input tax-gen-paydue" style="font-size:12px;padding:4px 6px;width:100%;">
+              <input type="date" max="9999-12-31" class="form-input tax-gen-paydue" style="font-size:12px;padding:4px 6px;width:100%;">
             </div>
           </div>
 
@@ -11780,7 +11780,7 @@ function taxEditGroup(gid) {
     </div>
     <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;">
       <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">발행요청일자 (공통)</span>
-      <input type="date" class="form-input" id="tax-gen-common-req" style="font-size:12px;padding:4px 8px;width:160px;" value="${rep.reqDate||''}">
+      <input type="date" max="9999-12-31" class="form-input" id="tax-gen-common-req" style="font-size:12px;padding:4px 8px;width:160px;" value="${rep.reqDate||''}">
     </div>
     <div class="tax-gen-group-card" data-gi="0" data-company="${_escHtml(company)}" data-taxtype="${taxType}" data-pay-in-date="${isPaid ? (rep.payInDate||'') : ''}" style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;">
       <div style="background:var(--surface2);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -11798,11 +11798,11 @@ function taxEditGroup(gid) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
           <div>
             <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">발행일자</label>
-            <input type="date" class="form-input tax-gen-iss" style="font-size:12px;padding:4px 6px;width:100%;" value="${rep.issueDate||prevMonthEndStr}">
+            <input type="date" max="9999-12-31" class="form-input tax-gen-iss" style="font-size:12px;padding:4px 6px;width:100%;" value="${rep.issueDate||prevMonthEndStr}">
           </div>
           <div class="tax-gen-paydue-wrap"${isPaid ? ' style="opacity:0.4;"' : ''}>
             <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">입금예정일</label>
-            <input type="date" class="form-input tax-gen-paydue" style="font-size:12px;padding:4px 6px;width:100%;" value="${rep.payDue||''}"${isPaid ? ' disabled' : ''}>
+            <input type="date" max="9999-12-31" class="form-input tax-gen-paydue" style="font-size:12px;padding:4px 6px;width:100%;" value="${rep.payDue||''}"${isPaid ? ' disabled' : ''}>
           </div>
         </div>
 

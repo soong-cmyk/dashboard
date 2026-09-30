@@ -2999,7 +2999,7 @@ function _plBuildWriteModalShell() {
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <span class="modal-title">✎ 일지 작성</span>
           <span class="form-hint" id="pl-w-who"></span>
-          <input type="date" class="form-input f-mono" id="pl-w-date" style="width:150px;font-weight:700;" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
+          <input type="date" max="9999-12-31" class="form-input f-mono" id="pl-w-date" style="width:150px;font-weight:700;" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
         </div>
         <button class="modal-close" onclick="plCloseWrite()">✕</button>
       </div>
@@ -6034,7 +6034,7 @@ function _plGRenderMonthly() {
     <div class="table-card">
       <div class="table-header">
         <span class="card-title">② 월간 요약</span>
-        <input type="month" class="f-date" id="pl-g-month" value="${_escHtml(ym)}" onchange="_plGMonthChange(this.value)" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
+        <input type="month" max="9999-12" class="f-date" id="pl-g-month" value="${_escHtml(ym)}" onchange="_plGMonthChange(this.value)" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       </div>
       <div class="table-wrap" style="overflow-y:hidden;"><table class="pl-g-monthly-tbl" style="width:100%;">
         <thead><tr><th>프로젝트</th><th>집행월</th><th>광고상품</th><th>매체사</th><th class="td-r">목표(매출)</th><th class="td-r">매출</th><th>달성률</th><th class="td-r">요청수량</th><th class="td-r">발송수량</th><th>캠페인 상태</th><th>DB등록수</th></tr></thead>
@@ -6385,9 +6385,9 @@ function _plBuildCampaignTabSkeleton(content) {
       <div class="combo-wrap" style="width:110px;"><input type="text" class="f-search" id="pl-camp-seller" placeholder="🔍 광고주" style="width:110px;"><div class="combo-list" id="pl-camp-seller-list" style="display:none;"></div></div>
       <div class="combo-wrap" style="width:100px;"><input type="text" class="f-search" id="pl-camp-media" placeholder="🔍 매체" style="width:100px;"><div class="combo-list" id="pl-camp-media-list" style="display:none;"></div></div>
       <select class="f-sel" id="pl-camp-product" onchange="_plCampTabState.page=1;_plRenderCampaignRows();"><option value="">상품 전체</option>${_plProductOptionsHtml()}</select>
-      <input type="date" class="f-date" id="pl-camp-from" onchange="_plCampTabState.page=1;_plRenderCampaignRows();" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
+      <input type="date" max="9999-12-31" class="f-date" id="pl-camp-from" onchange="_plCampTabState.page=1;_plRenderCampaignRows();" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       <span class="form-hint">~</span>
-      <input type="date" class="f-date" id="pl-camp-to" onchange="_plCampTabState.page=1;_plRenderCampaignRows();" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
+      <input type="date" max="9999-12-31" class="f-date" id="pl-camp-to" onchange="_plCampTabState.page=1;_plRenderCampaignRows();" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       <select class="f-sel" id="pl-camp-status" onchange="_plCampTabState.page=1;_plRenderCampaignRows();"><option value="">상태 전체</option>${_plStatusOptionsHtml()}</select>
       <select class="f-sel" id="pl-camp-record" onchange="_plCampTabState.page=1;_plRenderCampaignRows();"><option value="">기록 전체</option><option value="has">기록있음</option><option value="none">기록없음</option></select>
       <select class="f-sel" id="pl-camp-sort" style="margin-left:auto;" onchange="_plRenderCampaignRows();"><option value="recent">정렬: 최근 기록순</option><option value="date">정렬: 발송일순</option></select>
@@ -6870,7 +6870,7 @@ function _plBuildDateTabSkeleton(content) {
   content.innerHTML = `
     <div class="filter-bar" style="margin-bottom:14px;overflow:visible;">
       <button class="btn btn-ghost btn-sm" onclick="_plDateNav(-1)">← 전날</button>
-      <input type="date" class="f-date f-mono" style="font-weight:700;" id="pl-date-picker" value="${_escHtml(_plDateTabDate)}" onchange="_plDatePick(this.value)" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
+      <input type="date" max="9999-12-31" class="f-date f-mono" style="font-weight:700;" id="pl-date-picker" value="${_escHtml(_plDateTabDate)}" onchange="_plDatePick(this.value)" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       <button class="btn btn-ghost btn-sm" onclick="_plDateNav(1)">다음날 →</button>
       <button class="btn btn-outline btn-sm" onclick="_plDateToday()">오늘</button>
       <input type="text" class="f-search" id="pl-date-search" placeholder="검색어" style="width:160px;" oninput="_plRenderDateBody()">
