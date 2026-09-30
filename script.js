@@ -11229,7 +11229,7 @@ function taxGenRenderList() {
     if (fSeller && (c.seller||c.adv||'') !== fSeller)              return false;
     if (fMedia  && (c.media||'') !== fMedia)                        return false;
     if (fMgr    && (c.ops||'') !== fMgr)                            return false;
-    if (fSearch && !_cName(c).toLowerCase().includes(fSearch) && !(c.id||'').toLowerCase().includes(fSearch) && !(c.seller||c.adv||'').toLowerCase().includes(fSearch)) return false;
+    if (fSearch && !_stlQMatch(c, fSearch)) return false; // 정산 검색창과 같은 기준(매체사·매입처 포함)
     return true;
   });
   const countEl = document.getElementById('tax-gen-count');
