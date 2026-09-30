@@ -6263,7 +6263,7 @@ function _getStlFilteredData() {
     const filterDate = c.product === 'CPS' ? (c.stlMonth || (c.date || '').slice(0, 7)) : (c.date || '');
     if (selYear  && !filterDate.startsWith(selYear))    return false;
     if (selMonth && filterDate.slice(5, 7) !== selMonth) return false;
-    if (fQ && !_cName(c).toLowerCase().includes(fQ) && !(c.id||'').toLowerCase().includes(fQ) && !(c.seller||c.adv||'').toLowerCase().includes(fQ)) return false;
+    if (fQ && !_stlQMatch(c, fQ)) return false;
     return true;
   });
 }
@@ -8100,6 +8100,13 @@ window.addEventListener('hashchange', () => {
 //             또는 별도 settlement 테이블로 분리
 // ══════════════════════════════════════════
 
+/** 정산 검색창(#stl-fQ) 매칭 — 캠페인명 / ID / 매출처 / 매체사명 / 매입처명(매체사의 invoiceTo). fQ는 소문자로 넘길 것 */
+function _stlQMatch(c, fQ) {
+  const invoiceTo = MEDIA_DATA.find(m => m.company === c.media)?.invoiceTo || '';
+  return [_cName(c), c.id, c.seller || c.adv, c.media, invoiceTo]
+    .some(s => String(s || '').toLowerCase().includes(fQ));
+}
+
 /** 정산 데이터 표시 여부 (상품별 기준 필드 다름) */
 function _stlHas(c) {
   if (['DA','IPTV'].includes(c.product))        return !!c.daAdcost;
@@ -8794,7 +8801,7 @@ function _stlGetFiltered() {
     const filterDate = c.product === 'CPS' ? (c.stlMonth || (c.date || '').slice(0, 7)) : (c.date || '');
     if (selYear  && !filterDate.startsWith(selYear))    return false;
     if (selMonth && filterDate.slice(5, 7) !== selMonth) return false;
-    if (fQ && !_cName(c).toLowerCase().includes(fQ) && !(c.id||'').toLowerCase().includes(fQ) && !(c.seller||c.adv||'').toLowerCase().includes(fQ)) return false;
+    if (fQ && !_stlQMatch(c, fQ)) return false;
     return true;
   });
 }
