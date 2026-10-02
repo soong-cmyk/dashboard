@@ -11727,8 +11727,13 @@ function taxEditGroup(gid) {
   const typeLabel   = taxType === 'adv' ? '광고주' : '매체';
   const company     = rep.company || '';
   const isPaid      = rep.paid === '완료';
-  const manualItems = items.filter(t => !t.isRef).sort((a, b) => a.id - b.id);
-  const refItems    = items.filter(t =>  t.isRef).sort((a, b) => a.id - b.id);
+  // 캠페인 행 구분 — 참조(isRef) 항목이 있으면 그것들이 캠페인 행. 없으면(캠페인 선택 화면에서 수동 항목 없이
+  // 캠페인만으로 만든 그룹) campaignId가 있는 일반 항목이 곧 캠페인 행이다. 예전엔 후자를 수동 항목으로
+  // 보여주고 저장 시 campaignId를 null로 덮어써서 캠페인 연결이 끊겼었다(2026-10-02 수정).
+  const hasRefs     = items.some(t => t.isRef);
+  const isCampItem  = t => hasRefs ? !!t.isRef : !!t.campaignId;
+  const manualItems = items.filter(t => !isCampItem(t)).sort((a, b) => a.id - b.id);
+  const refItems    = items.filter(t =>  isCampItem(t)).sort((a, b) => a.id - b.id);
   const refTotal    = refItems.reduce((s, t) => s + _taxRefSupplyAmt(t), 0);
   const manualTotal = manualItems.reduce((s, t) => s + (t.supplyAmt||0), 0);
 
@@ -11759,15 +11764,10 @@ function taxEditGroup(gid) {
 
   const refRowsHtml = refItems.map(t => {
     const camp = DATA.find(c => c.id === t.campaignId);
-    const campName = camp ? _cName(camp) : (t.content||'—');
-    const supply = _taxRefSupplyAmt(t);
-    return `<tr data-tid="${t.id}" class="tax-gen-camp-row">
-      <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_escHtml(t.month||'—')}</td>
-      <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_escHtml(camp?.product||'—')}</td>
-      <td style="font-size:12px;font-weight:600;padding:5px 4px;">${_escHtml(campName)}</td>
-      <td class="td-r" style="font-size:12px;padding:5px 4px;">${supply ? supply.toLocaleString() : '—'}</td>
-      <td style="font-size:12px;padding:5px 4px;color:var(--text2);">${_escHtml(t.manager||'—')}</td>
-    </tr>`;
+    return _taxEditCampRowHtml({
+      tid: t.id, cid: t.campaignId, month: t.month, product: camp?.product,
+      name: camp ? _cName(camp) : t.content, supply: _taxRefSupplyAmt(t), manager: t.manager,
+    });
   }).join('');
 
   // 발행일자 기본값(rep.issueDate가 비어있을 때만 쓰이는 폴백) — 오늘 기준이 아니라 이 그룹이 실제
@@ -11778,7 +11778,7 @@ function taxEditGroup(gid) {
 
   container.innerHTML = `
     <div style="font-size:12px;color:var(--orange,#d97706);background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 14px;margin-bottom:12px;">
-      * 참조 캠페인을 수정하려면 삭제 후 새로 등록해주세요.
+      * 참조 캠페인은 발행완료 전까지만 추가·삭제할 수 있습니다. 발행완료 후에는 "수정발행 등록"을 이용해주세요.
     </div>
     <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;">
       <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">발행요청일자 (공통)</span>
@@ -11789,7 +11789,7 @@ function taxEditGroup(gid) {
         <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text3);">업체명 <input type="text" class="form-input tax-gen-company" style="font-size:13px;font-weight:700;padding:3px 6px;width:140px;" value="${_escHtml(company)}"></span>
         <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text3);">법인 상호명(매입처명) <input type="text" class="form-input tax-gen-bizname" style="font-size:12px;padding:3px 6px;width:140px;" value="${_escHtml(rep.bizName || company)}"></span>
         <span style="font-size:11px;color:var(--primary,#1a73e8);background:rgba(26,115,232,.1);padding:2px 8px;border-radius:20px;font-weight:600;">${typeLabel}</span>
-        <span style="font-size:12px;color:var(--text2);">캠페인 ${refItems.length}건 · 참조 공급가액 ${refTotal.toLocaleString()}원</span>
+        <span style="font-size:12px;color:var(--text2);" id="tax-edit-camp-summary">캠페인 ${refItems.length}건 · 참조 공급가액 ${refTotal.toLocaleString()}원</span>
         <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
           <span style="color:var(--text3);font-weight:700;"> | </span>
           <input type="checkbox" class="tax-gen-paid-chk" ${isPaid ? 'checked' : ''} onchange="taxGenPaidChkChange(this,0)">
@@ -11836,10 +11836,17 @@ function taxEditGroup(gid) {
               <th style="text-align:left;padding:6px 4px;font-weight:500;">캠페인명</th>
               <th style="text-align:right;padding:6px 4px;font-weight:500;">공급가액</th>
               <th style="text-align:left;padding:6px 4px;font-weight:500;">담당자</th>
+              <th style="width:28px;"></th>
             </tr>
           </thead>
-          <tbody>${refRowsHtml}</tbody>
+          <tbody id="tax-edit-camp-rows">${refRowsHtml}</tbody>
         </table>
+        <div class="combo-wrap" style="position:relative;margin-top:6px;">
+          <input type="text" class="form-input" id="tax-edit-camp-text" placeholder="+ 캠페인 추가 (캠페인명·ID·매출처·매체사 검색)" autocomplete="off"
+            style="font-size:12px;padding:4px 8px;width:100%;"
+            oninput="taxEditCampRender()" onfocus="taxEditCampRender()" onkeydown="_comboKeyNav(event,'tax-edit-camp-list')" onblur="setTimeout(taxEditCampClose,180)">
+          <div id="tax-edit-camp-list" class="combo-list" style="display:none;position:static;margin-top:3px;max-height:220px;overflow-y:auto;"></div><!-- 카드가 overflow:hidden이라 absolute면 잘림 → 아래로 펼침 -->
+        </div>
       </div>
     </div>`;
 
@@ -11850,6 +11857,77 @@ function taxEditGroup(gid) {
   openModal('modalTaxAutoGen');
 }
 
+// ── 발행요청 수정 화면: 참조 캠페인 추가·삭제 (발행완료 전만 — 완료 건은 이 화면에 못 들어옴) ──
+// 기존 행은 data-tid(원본 항목 id), 새로 추가한 행은 data-cid만 가진다. 저장은 confirmTaxEdit에서.
+function _taxEditCampRowHtml({ tid, cid, month, product, name, supply, manager }) {
+  return `<tr class="tax-gen-camp-row"${tid ? ` data-tid="${tid}"` : ''} data-cid="${_escHtml(cid||'')}" data-supply="${supply||0}">
+      <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_escHtml(month||'—')}</td>
+      <td style="font-size:12px;color:var(--text2);padding:5px 4px;">${_escHtml(product||'—')}</td>
+      <td style="font-size:12px;font-weight:600;padding:5px 4px;">${_escHtml(name||'—')}</td>
+      <td class="td-r" style="font-size:12px;padding:5px 4px;">${supply ? supply.toLocaleString() : '—'}</td>
+      <td style="font-size:12px;padding:5px 4px;color:var(--text2);">${_escHtml(manager||'—')}</td>
+      <td style="padding:4px 2px;text-align:center;"><button class="btn btn-ghost btn-sm" style="color:var(--red);border:none;font-size:14px;padding:2px 6px;line-height:1;" title="이 캠페인을 요청에서 빼기" onclick="taxEditCampRemove(this)">×</button></td>
+    </tr>`;
+}
+function _taxEditCampSummary() {
+  const rows = [...document.querySelectorAll('#tax-edit-camp-rows .tax-gen-camp-row')];
+  const total = rows.reduce((s, tr) => s + (parseFloat(tr.dataset.supply) || 0), 0);
+  const el = document.getElementById('tax-edit-camp-summary');
+  if (el) el.textContent = `캠페인 ${rows.length}건 · 참조 공급가액 ${total.toLocaleString()}원`;
+}
+// 추가 가능한 캠페인 — 캠페인 선택 화면(openTaxAutoGen)과 같은 기준: 정산 데이터가 있고, 같은 발행구분으로
+// 다른 세금계산서에 아직 안 걸린 캠페인. 이 그룹에 원래 걸려 있던 캠페인(뺐다가 다시 넣는 경우)은 허용.
+function _taxEditCampEligible(c, taxType, gid) {
+  if (!_taxIsSettled(c)) return false;
+  const inThisGroup = TAX_DATA.some(t => _taxGroupId(t) === gid && t.campaignId === c.id);
+  if (inThisGroup) return true;
+  const sameType = t => taxType === 'media' ? t.taxType === 'media' : (t.taxType === 'adv' || !t.taxType);
+  if (TAX_DATA.some(t => t.campaignId === c.id && sameType(t))) return false;
+  if (taxType === 'media') {
+    if (c.taxMediaReq) return false;
+    if (MEDIA_DATA.find(m => m.company === c.media)?.taxYn === false) return false;
+  } else if (c.taxAdvReq) return false;
+  return true;
+}
+function taxEditCampRender() {
+  const q    = (document.getElementById('tax-edit-camp-text')?.value || '').trim().toLowerCase();
+  const list = document.getElementById('tax-edit-camp-list');
+  const card = document.querySelector('#tax-gen-step2-container .tax-gen-group-card');
+  if (!list || !card || _taxEditGid == null) return;
+  delete _comboNavIdx['tax-edit-camp-list'];
+  const taxType = card.dataset.taxtype || 'adv';
+  const already = new Set([...document.querySelectorAll('#tax-edit-camp-rows .tax-gen-camp-row')].map(tr => tr.dataset.cid));
+  const hits = DATA.filter(c => !already.has(c.id) && (!q || _stlQMatch(c, q)) && _taxEditCampEligible(c, taxType, _taxEditGid)).slice(0, 30);
+  list.innerHTML = hits.length ? hits.map(c => `<div class="combo-item" onmousedown="taxEditCampAdd('${c.id}')">
+      <span style="font-weight:600;">${_escHtml(_cName(c))}</span>
+      <span style="color:var(--text3);font-size:11px;margin-left:6px;">${_escHtml(c.id||'')} · ${_escHtml(c.product||'')} · ${(c.date || '').slice(0, 7)} · ${_escHtml(c.seller||c.adv||'')}</span>
+    </div>`).join('')
+    : `<div style="padding:8px 10px;font-size:12px;color:var(--text3);">추가할 수 있는 캠페인이 없습니다 (정산 데이터가 없거나 이미 다른 세금계산서에 요청된 캠페인은 제외)</div>`;
+  list.style.display = 'block';
+}
+function taxEditCampClose() {
+  const list = document.getElementById('tax-edit-camp-list');
+  if (list) list.style.display = 'none';
+}
+function taxEditCampAdd(cid) {
+  const c    = DATA.find(x => x.id === cid);
+  const card = document.querySelector('#tax-gen-step2-container .tax-gen-group-card');
+  const body = document.getElementById('tax-edit-camp-rows');
+  if (!c || !card || !body) return;
+  if (body.querySelector(`.tax-gen-camp-row[data-cid="${cid}"]`)) { taxEditCampClose(); return; }
+  const stl = _stlAmt(c);
+  const supply = (card.dataset.taxtype === 'media' ? stl.buyAmt : stl.amt) || 0;
+  body.insertAdjacentHTML('beforeend', _taxEditCampRowHtml({
+    cid, month: _taxMonthLabel(c), product: c.product, name: _cName(c), supply, manager: c.ops,
+  }));
+  document.getElementById('tax-edit-camp-text').value = '';
+  taxEditCampClose();
+  _taxEditCampSummary();
+}
+function taxEditCampRemove(btn) {
+  btn.closest('tr')?.remove();
+  _taxEditCampSummary();
+}
 
 async function confirmTaxEdit() {
   if (!_taxEditGid) return;
@@ -11930,30 +12008,46 @@ async function confirmTaxEdit() {
     }
   }
 
-  // Build ref rows (preserve campaignId / isRef from original)
+  // 캠페인 행 — 기존 행(data-tid)은 원본 값 유지, 새로 추가한 행(data-cid만)은 캠페인 정산값으로 새로 만든다.
+  // isRef는 캠페인 선택 화면(confirmTaxAutoGen)과 같은 규칙: 수동 항목이 있으면 참조(true), 없으면 캠페인
+  // 항목 자체가 본 항목(undefined). 수동 항목을 다 지우거나 새로 넣어도 그룹 모양이 일관되게 유지된다.
+  const hasManual = newItems.length > 0;
   const campRows = [...card.querySelectorAll('.tax-gen-camp-row')];
+  const newLinkedCids = [];
   for (const tr of campRows) {
     const origTid  = parseInt(tr.dataset.tid);
     const origItem = origTid ? origMap[origTid] : null;
-    if (!origItem?.campaignId) continue;
-    const camp = DATA.find(c => c.id === origItem.campaignId);
+    const cid      = origItem?.campaignId || tr.dataset.cid;
+    const camp     = DATA.find(c => c.id === cid);
+    if (!cid || (!origItem && !camp)) continue;
+    newLinkedCids.push(cid);
     const bizName = cardBizName || (taxType === 'adv'
       ? (camp?.seller || camp?.adv || company)
       : (MEDIA_DATA.find(mm => mm.company === camp?.media)?.invoiceTo || camp?.media || company));
+    let supply, vat, extra;
+    if (origItem) {
+      // 참조(isRef) 항목은 발행 전엔 라이브 계산값을 보여주므로, 본 항목으로 바뀔 수도 있는 저장 시점엔 그 값으로 확정
+      supply = _taxRefSupplyAmt(origItem);
+      vat    = supply === (origItem.supplyAmt || 0) ? (origItem.vatAmt || 0) : _taxVatAmt(supply);
+      extra  = { manager: origItem.manager || '', month: origItem.month || '', content: origItem.content || '',
+                 contactEmail: origItem.contactEmail || '', memo: origItem.memo || '', taxStatus: origItem.taxStatus || '' };
+    } else {
+      supply = parseFloat(tr.dataset.supply) || 0;
+      vat    = _taxVatAmt(supply);
+      extra  = { manager: camp.ops || '', month: _taxMonthLabel(camp), content: _taxContentAuto(camp),
+                 contactEmail: '', memo: '', taxStatus: '' };
+    }
     newItems.push({
-      id: nextNewId++, ...commonFields,
-      campaignId: origItem.campaignId, isRef: true,
+      id: nextNewId++, ...commonFields, ...extra,
+      campaignId: cid, ...(hasManual ? { isRef: true } : {}), // undefined 값은 Firestore set()에서 거부될 수 있어 키 자체를 뺌
       createdBy: currentUser?.name || '',
-      manager:      origItem.manager      || '',
-      month:        origItem.month        || '',
-      content:      origItem.content      || '',
-      supplyAmt:    origItem.supplyAmt    || 0,
-      vatAmt:       origItem.vatAmt       || 0,
-      contactEmail: origItem.contactEmail || '',
-      memo:         origItem.memo         || '',
+      supplyAmt: supply, vatAmt: vat,
       bizName,
-      taxStatus: origItem.taxStatus || '',
     });
+  }
+  if (!newItems.length) {
+    alert('남은 항목이 없습니다. 요청 전체를 지우려면 목록에서 "삭제"를 이용해주세요.');
+    return;
   }
 
   // ① 새 레코드 Firebase 저장 먼저 — 성공해야만 기존 것 삭제
@@ -11961,6 +12055,22 @@ async function confirmTaxEdit() {
 
   // ② 저장 성공 후 기존 레코드 삭제
   await Promise.all(existing.map(t => _fbDeleteTax(t.id)));
+
+  // ③ 이중발행 방지 플래그 정리 — 뺀 캠페인은 해제, 새로 넣은 캠페인은 설정(openTaxReg 저장과 같은 방식)
+  const oldLinkedCids = [...new Set(existing.filter(t => t.campaignId).map(t => t.campaignId))];
+  const flagKey = taxType === 'media' ? 'taxMediaReq' : 'taxAdvReq';
+  oldLinkedCids.filter(cid => !newLinkedCids.includes(cid)).forEach(cid => {
+    const c = DATA.find(x => x.id === cid);
+    if (!c) return;
+    c[flagKey] = false;
+    _fbSaveCampaign(c);
+  });
+  newLinkedCids.filter(cid => !oldLinkedCids.includes(cid)).forEach(cid => {
+    const c = DATA.find(x => x.id === cid);
+    if (!c) return;
+    c[flagKey] = true;
+    _fbSaveCampaign(c);
+  });
 
   // TAX_DATA는 onSnapshot이 자동으로 갱신 — 수동 조작 제거 (중복 방지)
   _taxEditGid = null;
