@@ -10867,7 +10867,7 @@ function openTaxReg(gid) {
   document.getElementById('tax-r-correction-of').value = '';
   const campLinkSection = document.getElementById('tax-r-camp-link-section');
   if (campLinkSection) campLinkSection.style.display = '';
-  document.getElementById('tax-r-reqDate').value  = isNew ? now.toISOString().slice(0, 10) : '';
+  document.getElementById('tax-r-reqDate').value  = isNew ? _dateKey(now) : ''; // 로컬 날짜 — toISOString은 오전 9시 전엔 전날이 됨
   document.getElementById('tax-r-company').value  = '';
   document.getElementById('tax-r-bizName').value  = '';
   document.getElementById('tax-r-taxType').value  = 'adv';
