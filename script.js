@@ -8532,7 +8532,7 @@ let _payInDateCtx = null; // { type:'settle'|'tax', campaignId?, gid? }
 function openPayInDateModal(ctx) {
   _payInDateCtx = ctx;
   const el = document.getElementById('payInDateInput');
-  if (el) el.value = new Date().toISOString().slice(0, 10);
+  if (el) el.value = _dateKey(new Date()); // 로컬 날짜 — toISOString은 오전 9시 전엔 전날이 됨
   openModal('modalPayInDate');
   setTimeout(() => el?.focus(), 100);
 }
@@ -8715,7 +8715,7 @@ async function stlBulkAction(field, value) {
   const label  = { invoiceOut:'매출계산서', payIn:'입금', invoiceIn:'매입계산서', payOut:'지급' }[field];
   const action = value ? '전체완료' : '전체취소';
   if (!confirm(`필터 결과 ${targets.length}건을 [${label}] ${action} 처리하겠습니까?`)) return;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = _dateKey(new Date()); // 로컬 날짜 — toISOString은 오전 9시 전엔 전날이 됨
   for (const c of targets) {
     if (field === 'invoiceOut') {
       if (c.invoiceOut === value) continue;
