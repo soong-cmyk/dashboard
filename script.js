@@ -10873,7 +10873,9 @@ function openTaxReg(gid) {
   document.getElementById('tax-r-taxType').value  = 'adv';
   document.getElementById('tax-r-taxType').disabled = false;
   _taxTypeLabelSync();
-  document.getElementById('tax-r-issueDate').value = '';
+  // 신규 요청은 발행일자 기본값을 오늘 기준 전월 말일로(2026-10-02, 사용자 요청 — 수동 모달은 캠페인을
+  // 고르기 전이라 캠페인 월을 알 수 없어서 일괄 생성 화면의 "캠페인 월 말일" 대신 전월 말일 고정).
+  document.getElementById('tax-r-issueDate').value = isNew ? _taxMonthEndStr(now.getFullYear(), now.getMonth()) : '';
   document.getElementById('tax-r-payDue').value   = '';
   document.getElementById('tax-r-payin-date').value = '';
   document.getElementById('tax-r-rows').innerHTML = '';
