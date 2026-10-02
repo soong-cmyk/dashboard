@@ -10835,7 +10835,15 @@ function taxRegCampRemove(cid) {
   _taxRegRenderChips();
   _taxRegSyncLinkedSupply();
 }
-// 연결된 캠페인이 여러 건이면 첫 행의 공급가액을 그 캠페인들의 합계로 채움
+// 공급가액을 사용자가 직접 입력하면 data-manual 표시 — 이후 캠페인 연결/해제 시 자동 합계로 덮어쓰지 않는다.
+// 칸을 비우면 표시를 풀어 다시 자동 채움 대상이 된다. 수정 모드에서 저장된 금액으로 채워진 행도 처음부터
+// manual로 본다(이미 확정한 요청 금액이라)(2026-10-02, 사용자 요청).
+function _taxRegSupplyInput(el) {
+  if (el.value === '') delete el.dataset.manual;
+  else el.dataset.manual = '1';
+  taxManualCalcTotal();
+}
+// 연결된 캠페인이 여러 건이면 첫 행의 공급가액을 그 캠페인들의 합계로 채움(직접 입력한 값이 있으면 그대로 둠)
 function _taxRegSyncLinkedSupply() {
   if (!_taxRegLinkedCamps.length) return;
   const taxType = document.getElementById('tax-r-taxType')?.value || 'adv';
@@ -10846,7 +10854,7 @@ function _taxRegSyncLinkedSupply() {
     return s + (taxType === 'media' ? (stl.buyAmt || 0) : (stl.amt || 0));
   }, 0);
   const supplyEl = document.querySelector('#tax-r-rows .tax-r-row .tax-r-row-supply');
-  if (supplyEl && total > 0) { supplyEl.value = total; taxManualCalcTotal(); }
+  if (supplyEl && total > 0 && supplyEl.dataset.manual !== '1') { supplyEl.value = total; taxManualCalcTotal(); }
 }
 
 // 발행구분(광고주/매체)에 따라 업체명·법인상호명 라벨의 의미가 달라져서(예: "매입처명"은 매체용에만 맞는 표현)
@@ -10984,7 +10992,7 @@ function taxManualAddRow(rowData) {
       </div>
     </td>
     <td style="padding:4px 4px;"><input type="text" class="form-input tax-r-row-content" placeholder="품목" value="${_escHtml(rowData?.content || '')}" style="font-size:12px;padding:3px 6px;width:100%;"></td>
-    <td style="padding:4px 4px;"><input type="number" class="form-input tax-r-row-supply" value="${rowData?.supplyAmt || ''}" oninput="taxManualCalcTotal()" style="font-size:12px;padding:3px 6px;text-align:right;width:100%;"></td>
+    <td style="padding:4px 4px;"><input type="number" class="form-input tax-r-row-supply" value="${rowData?.supplyAmt || ''}"${rowData?.supplyAmt ? ' data-manual="1"' : ''} oninput="_taxRegSupplyInput(this)" style="font-size:12px;padding:3px 6px;text-align:right;width:100%;"></td>
     <td style="padding:4px 4px;"><input type="text" class="form-input tax-r-row-email" placeholder="이름, email@domain.com" value="${_escHtml(rowData?.contactEmail || '')}" style="font-size:12px;padding:3px 6px;width:100%;min-width:160px;"></td>
     <td style="padding:4px 4px;"><input type="text" class="form-input tax-r-row-memo" placeholder="메모" value="${_escHtml(rowData?.memo || '')}" style="font-size:12px;padding:3px 6px;width:100%;"></td>
     <td style="padding:4px 2px;text-align:center;"><button class="btn btn-ghost btn-sm" style="color:var(--red);border:none;font-size:14px;padding:2px 6px;line-height:1;" onclick="taxManualRemoveRow(this)">×</button></td>`;
