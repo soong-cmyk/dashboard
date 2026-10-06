@@ -6076,9 +6076,13 @@ function _plGDayToggleProgressSort() {
   _plGRenderDaily();
 }
 // 검색창은 표 본문만 다시 그린다 — 카드 전체를 innerHTML로 갈면 입력창이 새로 만들어져 한글 조합이 끊긴다.
+// 타이핑마다 결과 행 수가 바뀌어 표가 줄면 페이지 높이가 줄면서 브라우저가 스크롤을 끌어올려 화면이
+// 출렁인다 — 검색 중엔 표 영역이 지금까지 가장 컸던 높이 밑으로 줄지 않게 붙잡고, 검색어를 비우면 푼다.
 function _plGDaySearchInput(val) {
   _plGState.daySearch = val;
   _plGState.dayPage = 1;
+  const wrap = document.getElementById('pl-g-day-tbody')?.closest('.table-wrap');
+  if (wrap) wrap.style.minHeight = val.trim() ? Math.max(wrap.offsetHeight, parseFloat(wrap.style.minHeight) || 0) + 'px' : '';
   _plGRenderDailyBody();
 }
 function _plGDayGoPage(p) { _plGState.dayPage = p; _plGRenderDaily(); }
