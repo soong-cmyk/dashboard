@@ -5348,7 +5348,7 @@ function plRenderAdvertiserTab() {
 // ══════════════════════════════════════════════════════════
 
 let _plGCompany = null;
-let _plGState = { year: String(new Date().getFullYear()), month: '', dayProject: '', dayType: '', dayMedia: '', dayWriter: '', dayOpenOnly: false, dayProgressSort: false, dayPage: 1, monthPage: 1 };
+let _plGState = { year: String(new Date().getFullYear()), month: '', dayProject: '', dayType: '', dayMedia: '', dayWriter: '', daySearch: '', dayOpenOnly: false, dayProgressSort: false, dayPage: 1, monthPage: 1 };
 const PL_G_DAY_PAGE_SIZE = 10;
 
 function _plCurrentYm() { return _plTodayStr().slice(0, 7); }
@@ -6050,6 +6050,9 @@ function _plGDailyFiltered(company) {
   if (_plGState.dayType) logs = logs.filter(l => l.logType === _plGState.dayType);
   if (_plGState.dayMedia) logs = logs.filter(l => _plLogHasMedia(l, _plGState.dayMedia));
   if (_plGState.dayWriter) logs = logs.filter(l => l.writer === _plGState.dayWriter);
+  // "일지" 탭 검색창(pl-search)과 완전히 같은 매칭 로직(_plTokenMatchNormalized) 재사용 — 동작이 갈리지 않게.
+  const q = _plGState.daySearch.trim();
+  if (q) logs = logs.filter(l => _plTokenMatchNormalized(_plNormalizeSearch(l.searchText || ''), q));
   if (_plGState.dayOpenOnly) logs = logs.filter(_plLogOpen);
   if (_plGState.dayProgressSort) logs = _plSortByIncompleteProgress(logs);
   return logs;
@@ -6072,6 +6075,12 @@ function _plGDayToggleProgressSort() {
   _plGState.dayPage = 1;
   _plGRenderDaily();
 }
+// 검색창은 표 본문만 다시 그린다 — 카드 전체를 innerHTML로 갈면 입력창이 새로 만들어져 한글 조합이 끊긴다.
+function _plGDaySearchInput(val) {
+  _plGState.daySearch = val;
+  _plGState.dayPage = 1;
+  _plGRenderDailyBody();
+}
 function _plGDayGoPage(p) { _plGState.dayPage = p; _plGRenderDaily(); }
 function _plGDayPaginationHtml(total, page, totalPages) {
   const start = total === 0 ? 0 : (page - 1) * PL_G_DAY_PAGE_SIZE + 1;
@@ -6086,17 +6095,16 @@ function _plGRenderDaily() {
   const projects = [...new Set(allLogs.map(l => l.content || '브랜드 미지정'))];
   const medias = [...new Set(allLogs.map(l => l.media).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
   const writers = [...new Set(allLogs.map(l => l.writer).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
-  const filtered = _plGDailyFiltered(_plGCompany);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PL_G_DAY_PAGE_SIZE));
-  _plGState.dayPage = Math.min(Math.max(1, _plGState.dayPage), totalPages);
-  const pageItems = filtered.slice((_plGState.dayPage - 1) * PL_G_DAY_PAGE_SIZE, _plGState.dayPage * PL_G_DAY_PAGE_SIZE);
-  const rowsHtml = pageItems.length ? pageItems.map(l => _plRenderLogRowNew(l, '', 'gdaily')).join('') : `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3);">기록이 없습니다.</td></tr>`;
 
   el.innerHTML = `
     <div class="table-card">
       <div class="table-header">
         <span class="card-title">③ 일간 기록</span>
-        <span class="table-count">전체 <b>${filtered.length}</b>건</span>
+        <span class="table-count" id="pl-g-day-count"></span>
+        <div class="combo-wrap" style="width:160px;">
+          <input type="text" class="f-search" id="pl-g-day-search" placeholder="검색어" style="width:160px;padding-right:22px;" value="${_escHtml(_plGState.daySearch)}" oninput="_plGDaySearchInput(this.value)">
+          <span class="combo-clear" onmousedown="event.preventDefault();_clearSearchInput('pl-g-day-search', () => _plGDaySearchInput(''))">✕</span>
+        </div>
         <select class="f-sel" onchange="_plGDayFilter('project',this.value)">
           <option value="">프로젝트 전체</option>${projects.map(p => `<option value="${_escHtml(p)}" ${_plGState.dayProject === p ? 'selected' : ''}>${_escHtml(p)}</option>`).join('')}
         </select>
@@ -6119,10 +6127,27 @@ function _plGRenderDaily() {
           <th style="width:22px;"></th><th style="width:78px;">작성일</th><th style="width:60px;">유형</th>
           <th>내용</th><th style="width:120px;">진척률</th><th style="width:120px;">작성자</th>
         </tr></thead>
-        <tbody>${rowsHtml}</tbody>
+        <tbody id="pl-g-day-tbody"></tbody>
       </table></div>
-      <div class="pagination" style="justify-content:flex-end;gap:12px;">${_plGDayPaginationHtml(filtered.length, _plGState.dayPage, totalPages)}</div>
+      <div class="pagination" id="pl-g-day-pagination" style="justify-content:flex-end;gap:12px;"></div>
     </div>`;
+  _plGRenderDailyBody();
+}
+
+// 건수·표 본문·페이지네이션만 갱신 — 헤더(필터·검색창)는 그대로 둔다.
+function _plGRenderDailyBody() {
+  const filtered = _plGDailyFiltered(_plGCompany);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PL_G_DAY_PAGE_SIZE));
+  _plGState.dayPage = Math.min(Math.max(1, _plGState.dayPage), totalPages);
+  const pageItems = filtered.slice((_plGState.dayPage - 1) * PL_G_DAY_PAGE_SIZE, _plGState.dayPage * PL_G_DAY_PAGE_SIZE);
+  const q = _plGState.daySearch.trim();
+  const emptyMsg = q ? '조건에 맞는 기록이 없습니다.' : '기록이 없습니다.';
+  const cntEl = document.getElementById('pl-g-day-count');
+  if (cntEl) cntEl.innerHTML = `전체 <b>${filtered.length}</b>건`;
+  const tbody = document.getElementById('pl-g-day-tbody');
+  if (tbody) tbody.innerHTML = pageItems.length ? pageItems.map(l => _plRenderLogRowNew(l, q, 'gdaily')).join('') : `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3);">${emptyMsg}</td></tr>`;
+  const pagEl = document.getElementById('pl-g-day-pagination');
+  if (pagEl) pagEl.innerHTML = _plGDayPaginationHtml(filtered.length, _plGState.dayPage, totalPages);
 }
 
 function _plWriteFromAdvertiser(company) {
@@ -6132,7 +6157,7 @@ function _plWriteFromAdvertiser(company) {
 function _plRenderAdvertiserDetail(content, company) {
   if (_plGCompany !== company) {
     _plGCompany = company;
-    _plGState = { year: String(new Date().getFullYear()), month: _plCurrentYm(), dayProject: '', dayType: '', dayMedia: '', dayWriter: '', dayOpenOnly: false, dayProgressSort: false, dayPage: 1, monthPage: 1, campView: false };
+    _plGState = { year: String(new Date().getFullYear()), month: _plCurrentYm(), dayProject: '', dayType: '', dayMedia: '', dayWriter: '', daySearch: '', dayOpenOnly: false, dayProgressSort: false, dayPage: 1, monthPage: 1, campView: false };
   }
   const seller = SELLER_DATA.find(s => s.company === company);
   content.innerHTML = `
