@@ -10071,7 +10071,7 @@ function _taxPopulateManagerFilter() {
   const sel = document.getElementById('tax-fManager');
   if (!sel) return;
   const cur = sel.value;
-  const names = [...new Set(TAX_DATA.map(t => t.createdBy).filter(Boolean))].sort();
+  const names = [...new Set(TAX_DATA.map(t => t.createdBy).filter(n => n && !_isSystemUserName(n)))].sort();
   sel.innerHTML = '<option value="">요청자 전체</option>' +
     names.map(n => `<option value="${n}" ${n===cur?'selected':''}>${n}</option>`).join('');
 }
@@ -12826,6 +12826,12 @@ function _populateMediaSelects() {
     if (!hidden) return;
     if (!companies.includes(hidden.value)) _fcClear(id);
   });
+}
+
+// 관리자·시스템계정 이름 — 담당자 드롭다운(_populateSalesSelects)과 같은 기준. 기록에 남은 이름
+// 문자열로 만든 필터(세금계산서 요청자, 프로젝트일지 작성자)에서 이 이름들을 빼는 용도(2026-10-14).
+function _isSystemUserName(name) {
+  return USERS.some(u => u.name === name && (u.isAdmin || u.id === 'user'));
 }
 
 function _populateSalesSelects() {

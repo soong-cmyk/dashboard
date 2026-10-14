@@ -833,7 +833,7 @@ function _plRenderInternalDetail(content, client) {
   }
   const allLogs = PL_LOGS.filter(l => l.scope === 'internal' && l.seller === client);
   const tasks = _plInternalClientRows().find(r => r.client === client)?.tasks || [];
-  const writers = [...new Set(allLogs.map(l => l.writer).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const writers = [...new Set(allLogs.map(l => l.writer).filter(w => w && !_isSystemUserName(w)))].sort((a, b) => a.localeCompare(b, 'ko'));
   const logs = allLogs
     .filter(l => !_plInternalDetailTaskFilter || (l.content || '') === _plInternalDetailTaskFilter)
     .filter(l => !_plInternalDetailWriterFilter || l.writer === _plInternalDetailWriterFilter)
@@ -1708,7 +1708,7 @@ function _plMediaNames() {
 // 배열로는 부족해짐 — 값(이름)과 화면 표시를 분리해야 필터링은 그대로, 표시만 달라짐).
 function _plWriterNames() {
   const byName = new Map();
-  USERS.forEach(u => { if (u.name && !byName.has(u.name)) byName.set(u.name, u.isActive !== false); });
+  USERS.forEach(u => { if (u.name && !byName.has(u.name) && !_isSystemUserName(u.name)) byName.set(u.name, u.isActive !== false); });
   return [...byName.entries()].map(([name, isActive]) => ({ name, isActive }))
     .sort((a, b) => (a.isActive === b.isActive ? 0 : a.isActive ? -1 : 1) || a.name.localeCompare(b.name, 'ko'));
 }
@@ -6098,7 +6098,7 @@ function _plGRenderDaily() {
   const allLogs = PL_LOGS.filter(l => l.seller === _plGCompany);
   const projects = [...new Set(allLogs.map(l => l.content || '브랜드 미지정'))];
   const medias = [...new Set(allLogs.map(l => l.media).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
-  const writers = [...new Set(allLogs.map(l => l.writer).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const writers = [...new Set(allLogs.map(l => l.writer).filter(w => w && !_isSystemUserName(w)))].sort((a, b) => a.localeCompare(b, 'ko'));
 
   el.innerHTML = `
     <div class="table-card">
@@ -6612,7 +6612,7 @@ function _plMRenderAllLogs() {
   const company = _plMCompany;
   const allLogs = PL_LOGS.filter(l => _plLogHasMedia(l, company));
   const sellers = [...new Set(allLogs.map(l => l.seller).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
-  const writers = [...new Set(allLogs.map(l => l.writer).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const writers = [...new Set(allLogs.map(l => l.writer).filter(w => w && !_isSystemUserName(w)))].sort((a, b) => a.localeCompare(b, 'ko'));
   const logs = _plMediaDetailFiltered(company);
   el.innerHTML = `
     <div class="table-card">
