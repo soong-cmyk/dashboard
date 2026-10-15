@@ -2160,7 +2160,11 @@ function _saveFilterState(screen) {
       fQ:     document.getElementById('fQ')?.value     || '',
       fFrom:  document.getElementById('fFrom')?.value  || '',
       fTo:    document.getElementById('fTo')?.value    || '',
-      activeStatus
+      activeStatus,
+      // 상세 갔다 돌아왔을 때 보던 페이지·스크롤 위치로 복귀하기 위함
+      page:    currentPage,
+      scrollY: window.scrollY,
+      contentScroll: document.querySelector('.content')?.scrollTop || 0
     }));
   } else if (screen === 'settlement') {
     sessionStorage.setItem('filterState_settlement', JSON.stringify({
@@ -2195,6 +2199,14 @@ function _restoreFilterState(screen) {
     if (boardEl) boardEl.classList.add('active-board');
     _populateAdvFilter();
     applyFilter();
+    // applyFilter가 1페이지로 되돌리므로 저장해둔 페이지로 다시 그림(범위 넘으면 renderTable이 1로 보정)
+    if (s.page > 1) { currentPage = s.page; renderTable(filtered); }
+    // goScreen이 맨 위로 스크롤한 뒤라 렌더 다음 프레임에 스크롤 위치 복원
+    requestAnimationFrame(() => {
+      if (s.scrollY) window.scrollTo({ top: s.scrollY, behavior: 'instant' });
+      const contentEl = document.querySelector('.content');
+      if (contentEl && s.contentScroll) contentEl.scrollTop = s.contentScroll;
+    });
   } else if (screen === 'tax') {
     resetTaxFilter();
   } else if (screen === 'settlement') {
@@ -12637,7 +12649,12 @@ function _campApplySnapshot(snap) {
   // 현재 활성 화면 재렌더
   const sid = document.querySelector('.screen.active')?.id;
   if (sid === 'screen-dashboard') renderDashboard();
-  if (sid === 'screen-campaigns') applyFilter();
+  if (sid === 'screen-campaigns') {
+    // 실시간 갱신(다른 사람 수정 등)으로 보던 페이지가 1페이지로 튀지 않게 유지
+    const keepPage = currentPage;
+    applyFilter();
+    if (keepPage > 1) { currentPage = keepPage; renderTable(filtered); }
+  }
   if (sid === 'screen-calendar')  renderCalendar();
   if (sid === 'screen-settlement') {
     _stlPopulateDynFilters();
