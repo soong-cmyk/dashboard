@@ -1479,7 +1479,17 @@ function goScreen(name, skipPush) {
   // screen-specific init
   if (name === 'calendar') {
     calView = 'month';
-    calProductTab = localStorage.getItem('calProductTab') || 'sms';
+    // 메뉴 클릭 진입은 항상 이번 달 + 문자 탭으로 시작, 뒤로가기·새로고침 복원(skipPush)만 마지막 탭 유지
+    if (!skipPush) {
+      const t = new Date();
+      calDate = new Date(t);
+      calY = t.getFullYear();
+      calM = t.getMonth() + 1;
+      calProductTab = 'sms';
+      try { localStorage.setItem('calProductTab', 'sms'); } catch (e) {}
+    } else {
+      calProductTab = localStorage.getItem('calProductTab') || 'sms';
+    }
     document.querySelectorAll('#screen-calendar .view-tab').forEach(t => t.classList.remove('active'));
     document.getElementById('vt-month').classList.add('active');
     document.getElementById('cpt-sms').classList.toggle('active', calProductTab === 'sms');
