@@ -1020,7 +1020,9 @@
                   </select>
                 </div>
                 <div class="fg"><label class="form-label">대행수수료여부</label>
-                  <select class="form-sel" id="e_da_fee_yn">
+                  <div class="form-hint" style="padding-top:6px;">대행수수료 포함 여부 입력칸이 삭제되었습니다. 필요시 '황순근'에게 문의해주세요.</div>
+                  <!-- 2026-10-19 입력칸 숨김: 계산에 안 쓰이던 값. 기존 저장값 보존용으로 select만 숨겨 둠 -->
+                  <select class="form-sel" id="e_da_fee_yn" style="display:none;">
                     <option value="포함">포함</option>
                     <option value="미포함">미포함</option>
                   </select>
@@ -1086,7 +1088,9 @@
                   <input type="number" class="form-input" id="e_cpa_unit" oninput="calcCPAEdit()">
                 </div>
                 <div class="fg"><label class="form-label">대행수수료여부</label>
-                  <select class="form-sel" id="e_cpa_fee_yn">
+                  <div class="form-hint" style="padding-top:6px;">대행수수료 포함 여부 입력칸이 삭제되었습니다. 필요시 '황순근'에게 문의해주세요.</div>
+                  <!-- 2026-10-19 입력칸 숨김: 계산에 안 쓰이던 값. 기존 저장값 보존용으로 select만 숨겨 둠 -->
+                  <select class="form-sel" id="e_cpa_fee_yn" style="display:none;">
                     <option value="포함">포함</option>
                     <option value="미포함">미포함</option>
                   </select>
@@ -2948,7 +2952,9 @@
                 </select>
               </div>
               <div class="fg"><label class="form-label">대행수수료여부</label>
-                <select class="form-sel" id="r_da_fee_yn" onchange="calcDA()">
+                <div class="form-hint" style="padding-top:6px;">대행수수료 포함 여부 입력칸이 삭제되었습니다. 필요시 '황순근'에게 문의해주세요.</div>
+                <!-- 2026-10-19 입력칸 숨김: 계산에 안 쓰이던 값. 신규 등록은 빈 값으로 저장 -->
+                <select class="form-sel" id="r_da_fee_yn" style="display:none;">
                   <option value="포함">포함</option>
                   <option value="미포함">미포함</option>
                 </select>
@@ -2987,7 +2993,9 @@
                 <input type="number" class="form-input" id="r_cpa_unit" oninput="calcCPA()">
               </div>
               <div class="fg"><label class="form-label">대행수수료여부</label>
-                <select class="form-sel" id="r_cpa_fee_yn">
+                <div class="form-hint" style="padding-top:6px;">대행수수료 포함 여부 입력칸이 삭제되었습니다. 필요시 '황순근'에게 문의해주세요.</div>
+                <!-- 2026-10-19 입력칸 숨김: 계산에 안 쓰이던 값. 신규 등록은 빈 값으로 저장 -->
+                <select class="form-sel" id="r_cpa_fee_yn" style="display:none;">
                   <option value="포함">포함</option>
                   <option value="미포함">미포함</option>
                 </select>

@@ -3546,8 +3546,8 @@ function submitReg() {
     dateEnd:   (isDA || isCPA) ? `${document.getElementById('r_da_eyear').value}-${document.getElementById('r_da_emonth').value}-${document.getElementById('r_da_eday').value}` : '',
     daAdcost:  isDA  ? (+document.getElementById('r_da_adcost').value  || 0) : 0,
     daBillBase: isDA ? (document.getElementById('r_da_billbase')?.value || '') : '',
-    daFeeYn:   isDA  ? (document.getElementById('r_da_fee_yn')?.value   || '') : '',
-    cpaFeeYn:  isCPA ? (document.getElementById('r_cpa_fee_yn')?.value  || '') : '',
+    daFeeYn:   '', // 2026-10-19 입력칸 숨김(계산 미사용) — 신규 등록은 빈 값
+    cpaFeeYn:  '',
     daImage:  isDA ? [..._daImagesBase64] : [],
     pcAdvUnit: isPC ? (+document.getElementById('r_pc_adv_unit').value  || 0) : 0,
     pcOhcCost: isPC ? (+document.getElementById('r_pc_ohc_cost').value  || 0) : 0,
@@ -3935,7 +3935,7 @@ function openEdit() {
     const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
     setEl('e_da_adcost',  c.daAdcost  || '');
     setEl('e_da_billbase', c.daBillBase || 'CPP');
-    setEl('e_da_fee_yn',  c.daFeeYn   || '포함');
+    setEl('e_da_fee_yn',  c.daFeeYn   || ''); // 숨긴 칸: 기존 값 그대로 보존, 없으면 빈 값 유지
     setEl('e_da_comm',    c.comm      || '');
     setEl('e_da_agrate',  c.agrate    || '');
     // 저장된 매입이 수수료율 자동계산값과 다르면 직접 입력한 값으로 보고 고정, 같으면 자동계산 상태로 연다 (CPA와 같은 방식)
@@ -3983,7 +3983,7 @@ function openEdit() {
     setEl('e_cpa_qty',      c.db != null && c.db !== '' ? c.db : (c.qty || '')); // CPA 정산수량 = DB등록수 복사본(0도 표시)
     setEl('e_cpa_unit',     c.sellUnit  || '');
     setEl('e_cpa_billbase', c.billBase  || '신청수');
-    setEl('e_cpa_fee_yn',   c.cpaFeeYn  || '포함');
+    setEl('e_cpa_fee_yn',   c.cpaFeeYn  || ''); // 숨긴 칸: 기존 값 그대로 보존, 없으면 빈 값 유지
     setEl('e_cpa_comm',     c.comm      || '');
     setEl('e_cpa_agrate',   c.agrate    || '');
     // 수기입력 고정값 복원 (있으면 manual 표시, 없으면 자동계산) — null만 "미입력"으로 취급 (일반상품 _restoreManual과 동일 기준, 0원 수동입력도 존중)
