@@ -338,7 +338,7 @@ KPI 메뉴에서 사용. 본부·팀 단위 **매출(이익) 목표**를 월별�
 }
 ```
 
-- 실적은 저장하지 않고 `_kpiCalcActual()`이 `DATA`에서 `_stlAmt(c).prf` 합계로 산출
+- 실적은 저장하지 않고 `_kpiCalcActual()`이 `DATA`에서 산출. 기본은 **매출** = `_campNetSales(c)`(취급고 − `_stlAmt(c).agFee`), `basis='turnover'`면 **취급고** = `_campTurnover(c)`(실청구액). `target`(매출 KPI)·`prevYear`(전년도 매출)는 매출 기준으로 입력 (2026-10-19~)
 - 편집 권한: `isAdmin` 또는 `대표이사`·`이사`·`본부장`
 
 ### 10-2. `settings/bep_scenario` — BEP 시나리오

@@ -5497,13 +5497,16 @@ function _bepCanEdit() { return _kpiCanEdit(); }
 // 열람은 실장/팀장까지 허용(레벨 5 이하), 편집권한(_bepCanEdit)은 기존과 동일하게 유지
 function _bepCanView() { return !!(currentUser?.isAdmin || RANK_LEVEL[currentUser?.rank || '일반'] <= 3); }
 
-function _bepDerive(turnover, cogs, sga) {
-  const t = turnover || 0, c = cogs || 0, s = sga || 0;
-  const profit     = t - c;
-  const profitRate = t ? profit / t : 0;
+// 2026-10-19: "취급고"(turnover, 실청구액)와 "매출"(net, 취급고−대행수수료)을 둘 다 보여준다.
+// 매출이익 = 매출 − 매출원가, 이익율도 매출(net) 기준. net이 없는 예전 저장값(시나리오 수기입력 등)은
+// 취급고를 매출로 간주해 예전과 같은 숫자가 나오게 한다.
+function _bepDerive(turnover, net, cogs, sga) {
+  const t = turnover || 0, n = (net == null ? t : net) || 0, c = cogs || 0, s = sga || 0;
+  const profit     = n - c;
+  const profitRate = n ? profit / n : 0;
   const opProfit   = profit - s;
-  const opRate     = t ? opProfit / t : 0;
-  return { turnover: t, cogs: c, sga: s, profit, profitRate, opProfit, opRate };
+  const opRate     = n ? opProfit / n : 0;
+  return { turnover: t, net: n, cogs: c, sga: s, profit, profitRate, opProfit, opRate };
 }
 
 function _fmtBepWon(n) { return (n == null) ? '<span style="color:var(--text3)">—</span>' : Math.round(n).toLocaleString(); }
@@ -5530,23 +5533,26 @@ function _bepMonthOptions(selected) {
 // 매출원가는 buyAmt를 그대로 합산하지 않고 turnover-prf로 역산함: _stlAmt의 prf는 대행료(agFee) 차감 및
 // profitFixed 수동입력까지 반영된 "검증된" 매출이익 값이라(정산탭·KPI 실적 계산과 동일 기준),
 // 단순 amt-buyAmt로 계산하면 대행료가 안 빠져서 매출이익이 늘 과대계상되는 문제가 있었음
+// 2026-10-19: 매출(net)=취급고−대행료 추가. 대행료가 매출에서 빠지므로 매출원가는 net−prf
+// (= 대행료가 빠진 순수 매입 쪽 원가). 매출이익(prf) 금액 자체는 예전과 동일.
 function _bepCalcMonthActual(ym) {
-  let turnover = 0, profit = 0;
+  let turnover = 0, net = 0, profit = 0;
   DATA.filter(c => c.status !== '삭제' && _stlHas(c) && (c.date || '').startsWith(ym))
     .forEach(c => {
       turnover += _campTurnover(c);
+      net      += _campNetSales(c);
       profit   += _stlAmt(c).prf || 0;
     });
-  return { turnover, cogs: turnover - profit };
+  return { turnover, net, cogs: net - profit };
 }
 // As-is 헤더의 월 선택 드롭다운 — 수정모드 여부와 무관하게 항상 동작, 선택 즉시 실제 캠페인 데이터 반영+저장
 // (bep/kpi1/kpi2 필드는 건드리지 않도록 asis 필드만 merge 저장 — 다른 컬럼을 수정 중이던 입력값을 덮어쓰지 않음)
 async function bepAsisMonthChange() {
   const sel = document.getElementById('bep_sc_asis_refmonth');
   const ym  = sel?.value || '';
-  const { turnover, cogs } = ym ? _bepCalcMonthActual(ym) : { turnover: 0, cogs: 0 };
+  const { turnover, net, cogs } = ym ? _bepCalcMonthActual(ym) : { turnover: 0, net: 0, cogs: 0 };
   const sga = BEP_SCENARIO.asis?.sga || 0;
-  const asis = { refMonth: ym, turnover, cogs, sga };
+  const asis = { refMonth: ym, turnover, net, cogs, sga };
   if (!window._db) { toast('DB 연결 없음', 'err'); return; }
   try {
     await window._db.collection('settings').doc('bep_scenario').set({ asis }, { merge: true });
@@ -5595,8 +5601,13 @@ function renderBepScenarioTable() {
   const el = document.getElementById('bep-scenario-table');
   if (!el) return;
   const edit = _bepScenarioEdit;
-  const cols = _BEP_COLS.map(c => ({ ...c, val: BEP_SCENARIO[c.key] || {} }));
-  const derived = cols.map(c => _bepDerive(c.val.turnover, c.val.cogs, c.val.sga));
+  const cols = _BEP_COLS.map(c => {
+    let val = BEP_SCENARIO[c.key] || {};
+    // As-is는 월 선택값으로 자동계산되는 열 — 매출(net) 도입 전에 저장된 값이면 그 달로 다시 계산해서 채운다
+    if (c.key === 'asis' && val.refMonth && val.net == null) val = { ...val, ..._bepCalcMonthActual(val.refMonth) };
+    return { ...c, val };
+  });
+  const derived = cols.map(c => _bepDerive(c.val.turnover, c.val.net, c.val.cogs, c.val.sga));
 
   const thC    = 'padding:9px 12px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:12px;color:var(--text2);text-align:center;min-width:140px;';
   const tdL    = 'padding:8px 12px;border:1px solid var(--border);font-weight:600;font-size:12px;color:var(--text2);background:var(--surface2);white-space:nowrap;';
@@ -5620,14 +5631,15 @@ function renderBepScenarioTable() {
   const inputRow = (field) => cols.map((c, i) => {
     if (c.key === 'asis' && field !== 'sga') return `<td style="${tdV}">${_fmtBepWon(derived[i][field])}</td>`;
     if (!edit) return '';
-    return `<td style="${tdV}"><input type="number" class="form-input" style="width:100%;text-align:right;font-size:11px;padding:3px 4px;" id="bep_sc_${field}_${c.key}" value="${c.val[field] || ''}" step="1000000"></td>`;
+    return `<td style="${tdV}"><input type="number" class="form-input" style="width:100%;text-align:right;font-size:11px;padding:3px 4px;" id="bep_sc_${field}_${c.key}" value="${c.val[field] ?? ''}" step="1000000"></td>`;
   }).join('');
   const valRow = (field) => derived.map(d => `<td style="${tdV}">${_fmtBepWon(d[field])}</td>`).join('');
 
   el.innerHTML = `<div style="overflow-x:auto;"><table class="bep-tbl" style="width:max-content;">
     <thead><tr><th style="${thC}text-align:left;min-width:100px;">구분</th>${colHead}</tr></thead>
     <tbody>
-      <tr><td style="${tdL}">매출</td>${edit ? inputRow('turnover') : valRow('turnover')}</tr>
+      <tr><td style="${tdL}">취급고</td>${edit ? inputRow('turnover') : valRow('turnover')}</tr>
+      <tr><td style="${tdL}">매출</td>${edit ? inputRow('net') : valRow('net')}</tr>
       <tr><td style="${tdL}">매출원가</td>${edit ? inputRow('cogs') : valRow('cogs')}</tr>
       <tr><td style="${tdL}background:#fff9e6;">매출이익</td>${derived.map(d => `<td style="${tdHiB}">${_fmtBepWon(d.profit)}</td>`).join('')}</tr>
       <tr><td style="${tdL}">매출이익율</td>${derived.map(d => `<td style="${tdV}color:${d.profitRate>=0?'var(--red)':'#1971c2'};font-weight:600;">${_fmtBepPct(d.profitRate)}</td>`).join('')}</tr>
@@ -5655,8 +5667,11 @@ async function toggleBepScenarioEdit() {
           };
           return;
         }
+        const netRaw = document.getElementById(`bep_sc_net_${c.key}`)?.value ?? '';
         data[c.key] = {
           turnover: Math.round(+(document.getElementById(`bep_sc_turnover_${c.key}`)?.value) || 0),
+          // 매출 칸을 비워 두면 null → 취급고를 매출로 간주(예전 저장값과 같은 동작)
+          net:      netRaw === '' ? null : Math.round(+netRaw || 0),
           cogs:     Math.round(+(document.getElementById(`bep_sc_cogs_${c.key}`)?.value)     || 0),
           sga:      Math.round(+(document.getElementById(`bep_sc_sga_${c.key}`)?.value)      || 0),
         };
@@ -5698,8 +5713,8 @@ function renderBepMonthlyTable() {
     if (isFuture) return { m, isFuture, d: null, sgaVal: 150000000 };
     const md = _bepMonthData(m);
     const sgaVal = md?.sga != null ? md.sga : 150000000;
-    const { turnover, cogs } = _bepCalcMonthActual(ym);
-    return { m, isFuture, d: _bepDerive(turnover, cogs, sgaVal), sgaVal };
+    const { turnover, net, cogs } = _bepCalcMonthActual(ym);
+    return { m, isFuture, d: _bepDerive(turnover, net, cogs, sgaVal), sgaVal };
   });
 
   const thC   = 'padding:9px 10px;border:1px solid var(--border);background:var(--surface2);font-weight:600;font-size:11px;color:var(--text2);text-align:center;min-width:92px;';
@@ -5731,7 +5746,8 @@ function renderBepMonthlyTable() {
       ${_KPI_MONTHS.map(m => `<th style="${thC}">${_KPI_ML[m]}</th>`).join('')}
     </tr></thead>
     <tbody>
-      <tr><td style="${tdL}">매출</td><td style="${tdVA}">${_fmtBepWon(sumOf('turnover'))}</td>${rows.map(r => valCell(r, 'turnover')).join('')}</tr>
+      <tr><td style="${tdL}">취급고</td><td style="${tdVA}">${_fmtBepWon(sumOf('turnover'))}</td>${rows.map(r => valCell(r, 'turnover')).join('')}</tr>
+      <tr><td style="${tdL}">매출</td><td style="${tdVA}">${_fmtBepWon(sumOf('net'))}</td>${rows.map(r => valCell(r, 'net')).join('')}</tr>
       <tr><td style="${tdL}">매출원가</td><td style="${tdVA}">${_fmtBepWon(sumOf('cogs'))}</td>${rows.map(r => valCell(r, 'cogs')).join('')}</tr>
       <tr><td style="${tdL}background:#fff9e6;">매출이익</td><td style="${tdHiB}">${_fmtBepWon(sumOf('profit'))}</td>${rows.map(r => r.d ? `<td style="${tdHiB}">${_fmtBepWon(r.d.profit)}</td>` : `<td style="${tdDim}background:#fff9e6;">—</td>`).join('')}</tr>
       <tr><td style="${tdL}">매출이익율</td><td style="${tdVA}color:${(avgOf('profitRate')||0)>=0?'var(--red)':'#1971c2'};">${avgOf('profitRate') == null ? '—' : _fmtBepPct(avgOf('profitRate'))}</td>${rows.map(r => r.d ? `<td style="${tdV}color:${r.d.profitRate>=0?'var(--red)':'#1971c2'};font-weight:600;">${_fmtBepPct(r.d.profitRate)}</td>` : `<td style="${tdDim}">—</td>`).join('')}</tr>
@@ -8341,6 +8357,14 @@ function _campTurnover(c) {
     return s.prf || 0;
   }
   return s.amt || 0;
+}
+
+// 캠페인 매출(대행수수료 차감) = 취급고(_campTurnover, 실청구액) − 대행료(_stlAmt.agFee).
+// 예: 실청구 500만, 대행 10% → 450만. 대행료는 c.agrate로 직접 곱하지 않고 _stlAmt 결과를 써서
+// 상품별 기준(문자=실청구, DA·CPA=광고비, 퍼미션콜·CPS=0)이 정산탭과 그대로 맞게 한다(2026-10-19).
+function _campNetSales(c) {
+  if (!_stlHas(c)) return 0;
+  return _campTurnover(c) - (_stlAmt(c).agFee || 0);
 }
 
 /** 정산 동적 필터 드롭다운 채우기 (매출처·담당자·본부·팀) */
@@ -13440,7 +13464,10 @@ function _kpiCanEdit() {
 // 한때 _stlAmt(c).prf(이익)를 합산해 라벨은 매출인데 실제론 이익을 보여줬고, 그다음엔 할인
 // 반영 안 된 광고비(adc, 정산수량×매출단가) 기준으로 잠깐 바꿨었으나, 최종적으로 할인이
 // 반영된 실청구액 기준으로 확정(2026-09-02). BEP의 "매출"도 같은 기준이라 두 메뉴가 일치한다.
-function _kpiCalcActual(year, bonbu, team, month) {
+// 2026-10-19: 위 실청구액 기준은 "취급고"로 이름을 바꾸고(basis='turnover'), 기본값은 대행수수료를
+// 뺀 새 "매출"(_campNetSales)로 변경 — KPI 목표·달성률·YoY·카드가 전부 새 매출 기준.
+function _kpiCalcActual(year, bonbu, team, month, basis) {
+  const fn = basis === 'turnover' ? _campTurnover : _campNetSales;
   return DATA.filter(c => {
     if (c.status === '삭제') return false;
     if (!_stlHas(c)) return false;
@@ -13453,7 +13480,7 @@ function _kpiCalcActual(year, bonbu, team, month) {
       if (team  && u.dept  !== team)  return false;
     }
     return true;
-  }).reduce((s, c) => s + _campTurnover(c), 0);
+  }).reduce((s, c) => s + fn(c), 0);
 }
 
 // 본부(팀 인자를 주면 그 팀만) 소속 담당자가 등록한 캠페인의 광고주+브랜드 중, 그 달
@@ -13996,9 +14023,10 @@ function renderKpiGrandTable() {
   const jt = (jb.teams || []).find(t => t.name === '전사') || {};
   (jt.months || []).forEach(md => { prev[md.month] = (prev[md.month] || 0) + (md.prevYear || 0); });
 
-  const act = {};
-  _KPI_MONTHS.forEach(m => { act[m] = _kpiCalcActual(_kpiYear, '', '', m); });
+  const act = {}, turn = {};
+  _KPI_MONTHS.forEach(m => { act[m] = _kpiCalcActual(_kpiYear, '', '', m); turn[m] = _kpiCalcActual(_kpiYear, '', '', m, 'turnover'); });
   const totAct  = _KPI_MONTHS.reduce((s, m) => s + act[m], 0);
+  const totTurn = _KPI_MONTHS.reduce((s, m) => s + turn[m], 0);
   const totTgt  = _KPI_MONTHS.reduce((s, m) => s + tgt[m], 0);
   const totPrev = _KPI_MONTHS.reduce((s, m) => s + prev[m], 0);
 
@@ -14035,12 +14063,12 @@ function renderKpiGrandTable() {
     ? `<th style="${thQ}">${col}</th>`
     : `<th style="${thC}">${_KPI_ML[col]}</th>`;
 
-  const actCell = (col) => {
+  const actCell = (col, vals = act) => {
     if (col.startsWith('Q')) {
       if (isFutureQ(col)) return `<td style="${tdQ}">${nd}</td>`;
-      return `<td style="${tdQ}">${_fmtKpi(qSum(act, col))}</td>`;
+      return `<td style="${tdQ}">${_fmtKpi(qSum(vals, col))}</td>`;
     }
-    return col > curM ? `<td style="${tdV}">${nd}</td>` : `<td style="${tdV}">${_fmtKpi(act[col])}</td>`;
+    return col > curM ? `<td style="${tdV}">${nd}</td>` : `<td style="${tdV}">${_fmtKpi(vals[col])}</td>`;
   };
   const tgtCell = (col) => col.startsWith('Q')
     ? `<td style="${tdQ}">${_fmtKpi(qSum(tgt, col))}</td>`
@@ -14091,7 +14119,8 @@ function renderKpiGrandTable() {
       ${cols.map(colHdr).join('')}
     </tr></thead>
     <tbody>
-      <tr><td style="${tdL}">매출</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(actCell).join('')}</tr>
+      <tr><td style="${tdL}">${_kpiTipLabel('실청구액 기준(대행수수료 차감 전)', '취급고')}</td><td style="${tdAN}">${_fmtKpi(totTurn)}</td>${cols.map(c => actCell(c, turn)).join('')}</tr>
+      <tr><td style="${tdL}">${_kpiTipLabel('취급고 − 대행수수료(실청구액 × 대행%)', '매출')}</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(c => actCell(c)).join('')}</tr>
       <tr><td style="${tdL}">매출 KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
       <tr><td style="${tdL}">KPI 달성률</td><td style="${tdAC}">${_kpiRateHtml(totAct, totTgt)}</td>${cols.map(rateCell).join('')}</tr>
       <tr><td style="${tdL}">광고주별 KPI 달성률(평균)</td><td style="${tdAC}font-weight:600;">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
@@ -14347,21 +14376,23 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
     // "광고주별 KPI 달성률(평균)"은 목표 광고주 수와 무관 — 그 본부 소속 광고주/브랜드들의
     // "월 KPI 달성률"(projectGoals.advKpiRate) 수기입력값을 그대로 평균낸다(2026-08-28).
     {
-      const bAct = {}, bTgt = {}, bClientRate = {};
+      const bAct = {}, bTurn = {}, bTgt = {}, bClientRate = {};
       _KPI_MONTHS.forEach(m => {
-        bAct[m] = _kpiCalcActual(_kpiYear, g.bonbuName, '', m);
+        bAct[m]  = _kpiCalcActual(_kpiYear, g.bonbuName, '', m);
+        bTurn[m] = _kpiCalcActual(_kpiYear, g.bonbuName, '', m, 'turnover');
         bTgt[m] = g.teams.reduce((s, t) => s + ((t.months || []).find(x => x.month === m)?.target || 0), 0);
         bClientRate[m] = _kpiBonbuAdvKpiRateAvg(g.bonbuName, `${_kpiYear}-${m}`);
       });
-      const totBAct = _KPI_MONTHS.reduce((s, m) => s + bAct[m], 0);
+      const totBAct  = _KPI_MONTHS.reduce((s, m) => s + bAct[m], 0);
+      const totBTurn = _KPI_MONTHS.reduce((s, m) => s + bTurn[m], 0);
       const totBTgt = _KPI_MONTHS.reduce((s, m) => s + bTgt[m], 0);
       const validRates = _KPI_MONTHS.map(m => bClientRate[m]).filter(r => r != null);
       const totBClientRate = validRates.length ? Math.round(validRates.reduce((s, r) => s + r, 0) / validRates.length) : null;
 
-      const sActCell = col => {
+      const sActCell = (col, vals = bAct) => {
         const isQ = col.startsWith('Q'); const st = isQ ? tdSVY : tdSV;
-        if (isQ) return isFutureQ(col) ? `<td style="${st}">${nd}</td>` : `<td style="${st}">${_fmtKpi(qSum(bAct,col))}</td>`;
-        return col > curM ? `<td style="${st}">${nd}</td>` : `<td style="${st}">${_fmtKpi(bAct[col])}</td>`;
+        if (isQ) return isFutureQ(col) ? `<td style="${st}">${nd}</td>` : `<td style="${st}">${_fmtKpi(qSum(vals,col))}</td>`;
+        return col > curM ? `<td style="${st}">${nd}</td>` : `<td style="${st}">${_fmtKpi(vals[col])}</td>`;
       };
       const sTgtCell = col => {
         const isQ = col.startsWith('Q'); const st = isQ ? tdSVY : tdSV;
@@ -14385,7 +14416,8 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       };
 
       const sumRows = [
-        { label:'매출',                  total:`<td style="${tdSVY}">${_fmtKpi(totBAct)}</td>`,               cells: cols.map(sActCell).join('') },
+        { label:_kpiTipLabel('실청구액 기준(대행수수료 차감 전)', '취급고'), total:`<td style="${tdSVY}">${_fmtKpi(totBTurn)}</td>`, cells: cols.map(c => sActCell(c, bTurn)).join('') },
+        { label:_kpiTipLabel('취급고 − 대행수수료(실청구액 × 대행%)', '매출'), total:`<td style="${tdSVY}">${_fmtKpi(totBAct)}</td>`,  cells: cols.map(c => sActCell(c)).join('') },
         { label:'매출 KPI',                   total:`<td style="${tdSVY}">${_fmtKpi(totBTgt)}</td>`,               cells: cols.map(sTgtCell).join('') },
         { label:_kpiTipLabel('매출 ÷ 매출 KPI로 자동 계산됩니다', '매출 KPI 달성률'),                 total:`<td style="${tdSCY}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
         { label:_kpiTipLabel('각 브랜드에서 수기 입력된 광고주 월 KPI 달성률의 평균입니다 — 매출과는 무관', '광고주별 KPI 달성률(평균)'),  total:`<td style="${tdSCY}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
@@ -14407,7 +14439,8 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
     // ── 팀별 블록 — 이제 본부 합계가 항상 앞에 있으므로, 모든 팀 블록의 첫 줄은 항상 구분선을 받는다
     // (첫 팀이면 본부합계↔팀 경계, 두 번째 팀부터는 팀↔팀 경계 — 둘 다 같은 색 kpi-bonbu-sep).
     g.teams.forEach(t => {
-      const acts  = {}; _KPI_MONTHS.forEach(m => { acts[m]  = _kpiCalcActual(_kpiYear, t.bonbuName, t.name, m); });
+      const acts  = {}, turns = {};
+      _KPI_MONTHS.forEach(m => { acts[m] = _kpiCalcActual(_kpiYear, t.bonbuName, t.name, m); turns[m] = _kpiCalcActual(_kpiYear, t.bonbuName, t.name, m, 'turnover'); });
       const tgts  = {}, prevs = {};
       _KPI_MONTHS.forEach(m => {
         const md = (t.months || []).find(x => x.month === m) || {};
@@ -14416,6 +14449,7 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       });
 
       const totAct     = _KPI_MONTHS.reduce((s, m) => s + acts[m], 0);
+      const totTurn    = _KPI_MONTHS.reduce((s, m) => s + turns[m], 0);
       const totTgt     = _KPI_MONTHS.reduce((s, m) => s + tgts[m], 0);
       const totPrev    = _KPI_MONTHS.reduce((s, m) => s + prevs[m], 0);
 
@@ -14427,9 +14461,9 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
 
       const teamLabel = _escHtml(t.name);
 
-      const actCell = col => {
-        if (col.startsWith('Q')) return isFutureQ(col) ? `<td style="${tdQ}">${nd}</td>` : `<td style="${tdQ}">${_fmtKpi(qSum(acts,col))}</td>`;
-        return col > curM ? `<td style="${tdV}">${nd}</td>` : `<td style="${tdV}">${_fmtKpi(acts[col])}</td>`;
+      const actCell = (col, vals = acts) => {
+        if (col.startsWith('Q')) return isFutureQ(col) ? `<td style="${tdQ}">${nd}</td>` : `<td style="${tdQ}">${_fmtKpi(qSum(vals,col))}</td>`;
+        return col > curM ? `<td style="${tdV}">${nd}</td>` : `<td style="${tdV}">${_fmtKpi(vals[col])}</td>`;
       };
       const tgtCell = col => {
         if (col.startsWith('Q')) return `<td style="${tdQ}">${_fmtKpi(qSum(tgts,col))}</td>`;
@@ -14467,7 +14501,8 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       // 전년도 매출·YoY 행은 일단 숨김 처리 — 계산 로직(totPrev/prevCell/yoyCell)은 그대로
       // 두고 렌더링에서만 뺐다(2026-08-28, 나중에 다시 보여줄 수도 있어 삭제하지 않음).
       const rows = [
-        { label:'매출',       total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,          cells: cols.map(actCell).join('') },
+        { label:_kpiTipLabel('실청구액 기준(대행수수료 차감 전)', '취급고'), total:`<td style="${tdAN}">${_fmtKpi(totTurn)}</td>`, cells: cols.map(c => actCell(c, turns)).join('') },
+        { label:_kpiTipLabel('취급고 − 대행수수료(실청구액 × 대행%)', '매출'), total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,  cells: cols.map(c => actCell(c)).join('') },
         { label:'매출 KPI',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
         { label:_kpiTipLabel('매출 ÷ 매출 KPI로 자동 계산됩니다', '매출 KPI 달성률'),          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts)).join('') },
         { label:_kpiTipLabel('각 브랜드에서 수기 입력된 광고주 월 KPI 달성률의 평균입니다 — 매출과는 무관', '광고주별 KPI 달성률(평균)'), total:`<td style="${tdAC}">${_kpiRateNumHtml(totTClientRate)}</td>`, cells: cols.map(tClientRateCell).join('') },
