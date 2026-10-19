@@ -3306,13 +3306,16 @@ function _calcDAByPrefix(p) {
   const adc  = g('adcost');
   const comm = g('comm');
   const ag   = g('agrate');
-  // 매입단가: 사용자 입력값 있으면 유지, 비어있으면 자동계산
+  // 매입단가: 사람이 직접 친 값(dataset.manual)만 고정, 아니면 광고비·수수료율 바뀔 때마다 다시 자동계산.
+  // 예전엔 "칸이 비어 있을 때만" 자동계산이라, 한 번 채워진 뒤 광고비·수수료율을 고쳐도 매입이 처음 값에
+  // 멈춰 있었다(2026-10-19, 수수료율 바꾼 IPTV 캠페인 매입이 그대로 남아 있던 건으로 발견).
+  const buyEl = document.getElementById(p + 'buyUnit');
   let buyUnit;
-  if (getRaw('buyUnit') === '') {
+  if (buyEl?.dataset.manual && getRaw('buyUnit') !== '') {
+    buyUnit = g('buyUnit');
+  } else {
     buyUnit = adc ? Math.round(adc * (1 - comm / 100)) : 0;
     set('buyUnit', buyUnit || '');
-  } else {
-    buyUnit = g('buyUnit');
   }
   // 매출수익·이익은 상세보기·정산탭(_stlAmt)과 같은 식: 광고비 × 수수료율 기준, 매입단가는 안 봄.
   // 예전엔 (광고비 − 매입단가)라 매입단가가 잘못 들어가면(예: 1원) 수정화면 이익만 혼자 튀었다(2026-10-19).
@@ -3661,7 +3664,7 @@ function resetRegForm() {
   if (rSvcAdv2) rSvcAdv2.checked = true;
   const rSvcMedia2 = document.getElementById('r_svcApplyMedia');
   if (rSvcMedia2) rSvcMedia2.checked = false;
-  ['r_amt','r_adcost','r_buyAmt','r_rev','r_profit',
+  ['r_amt','r_adcost','r_buyAmt','r_rev','r_profit','r_da_buyUnit',
    'r_cpa_qty','r_cpa_unit','r_cpa_comm','r_cpa_agrate','r_cpa_adcost','r_cpa_bill','r_cpa_buyUnit','r_cpa_buyAmt','r_cpa_rev','r_cpa_profit'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.value = ''; delete el.dataset.manual; }
@@ -3781,6 +3784,11 @@ function openCopyCampaign() {
     _set('r_da_comm',     c.comm       || '');
     _set('r_da_agrate',   c.agrate     || '');
     _set('r_da_buyUnit',  c.buyUnit    || '');
+    const rDaBuyEl = document.getElementById('r_da_buyUnit');
+    if (rDaBuyEl) {
+      if (c.buyUnit && c.buyUnit !== Math.round((c.daAdcost || 0) * (1 - (c.comm || 0) / 100))) rDaBuyEl.dataset.manual = '1';
+      else delete rDaBuyEl.dataset.manual;
+    }
     // DA 이미지는 복사하지 않음 (새 캠페인 용도)
     _daImagesBase64 = [];
     _daRenderGrid('r_da_preview_grid', _daImagesBase64);
@@ -3928,7 +3936,14 @@ function openEdit() {
     setEl('e_da_fee_yn',  c.daFeeYn   || '포함');
     setEl('e_da_comm',    c.comm      || '');
     setEl('e_da_agrate',  c.agrate    || '');
-    setEl('e_da_buyUnit', c.buyUnit   || '');
+    // 저장된 매입이 수수료율 자동계산값과 다르면 직접 입력한 값으로 보고 고정, 같으면 자동계산 상태로 연다 (CPA와 같은 방식)
+    const eDaBuyEl = document.getElementById('e_da_buyUnit');
+    if (eDaBuyEl) {
+      const _daAutoBuy = Math.round((c.daAdcost || 0) * (1 - (c.comm || 0) / 100));
+      eDaBuyEl.value = c.buyUnit || '';
+      if (c.buyUnit && c.buyUnit !== _daAutoBuy) eDaBuyEl.dataset.manual = '1';
+      else delete eDaBuyEl.dataset.manual;
+    }
     calcDAEdit();
     // 구버전(string) · 신버전(array) 모두 호환
     _daEditImagesBase64 = Array.isArray(c.daImage) ? [...c.daImage] : (c.daImage ? [c.daImage] : []);
