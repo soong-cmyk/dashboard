@@ -13641,11 +13641,13 @@ function _kpiOrgSalesRenderWithLoading(fn) {
   const sec = document.getElementById('kpi-orgsales-section');
   if (!sec) { (fn || renderKpiOrgSales)(); return; }
   if (!sec.style.minHeight) sec.style.minHeight = '240px'; // 처음 열 때 빈 영역이라도 스피너가 보이게
+  sec.classList.add('data-loading-instant');
   _showDataLoading(sec);
-  requestAnimationFrame(() => setTimeout(() => {
+  // rAF 두 번: 첫 프레임에 흐림·스피너가 실제로 칠해진 걸 보장한 뒤 무거운 렌더 시작
+  requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
     try { (fn || renderKpiOrgSales)(); }
-    finally { _hideDataLoading(sec); }
-  }, 0));
+    finally { _hideDataLoading(sec); sec.classList.remove('data-loading-instant'); }
+  }, 0)));
 }
 
 // ══════════════════════════════════════════

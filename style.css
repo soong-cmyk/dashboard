@@ -940,4 +940,8 @@ td.grp-confirm{border-left:2px solid var(--orange-bg);}
 /* 스피너는 fixed로 — 화면(.screen)이 스크롤될 만큼 길면 absolute는 콘텐츠 하단 어딘가에 붙어 안 보일 수 있음 */
 .data-loading-overlay { position: absolute; inset: 0; z-index: 50; pointer-events: none; }
 .data-loading-spinner { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 28px; height: 28px; border: 3px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: dataLoadSpin .7s linear infinite; }
-@keyframes dataLoadSpin { to { transform: rotate(360deg); } }
+/* 회전에도 translate(-50%,-50%)를 같이 넣어야 함 — rotate만 쓰면 가운데 맞춤이 덮어써져 스피너가 오른쪽 아래로 밀려서 돎 */
+@keyframes dataLoadSpin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+/* 무거운 동기 렌더 직전에 쓰는 즉시형 — 흐림 전환(.15s)이 렌더에 막혀 안 보이므로 전환 없이 바로 흐리게 + 옅은 덮개 */
+.data-loading-blur.data-loading-instant > *:not(.data-loading-overlay) { transition: none; }
+.data-loading-instant > .data-loading-overlay { background: color-mix(in srgb, var(--bg, #fff) 45%, transparent); }
