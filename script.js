@@ -3314,7 +3314,9 @@ function _calcDAByPrefix(p) {
   } else {
     buyUnit = g('buyUnit');
   }
-  const rev = adc ? (adc - buyUnit) : 0;
+  // 매출수익·이익은 상세보기·정산탭(_stlAmt)과 같은 식: 광고비 × 수수료율 기준, 매입단가는 안 봄.
+  // 예전엔 (광고비 − 매입단가)라 매입단가가 잘못 들어가면(예: 1원) 수정화면 이익만 혼자 튀었다(2026-10-19).
+  const rev = adc ? Math.round(adc * comm / 100) : 0;
   const agf = adc ? Math.round(adc * ag / 100) : 0;
   const prf = rev - agf;
   set('rev',    adc ? rev.toLocaleString() + '원' : '');
