@@ -1889,6 +1889,9 @@ let _plFixedTip = null;
 function _plShowFixedTip(el, text) {
   _plHideFixedTip();
   if (!text) return;
+  // .pl-fixed-tip 스타일은 plInit(프로젝트일지 진입) 때만 주입돼서, KPI처럼 다른 화면에서 먼저 쓰면
+  // position:fixed가 없어 말풍선이 화면 맨 아래 왼쪽에 붙어 나왔다(2026-10-19). 띄울 때 확보한다(중복 주입 안 함).
+  _plInjectStyles();
   const tip = document.createElement('div');
   tip.className = 'pl-fixed-tip';
   tip.textContent = text;
