@@ -2952,21 +2952,22 @@ function autoCommEdit() {
   calcEdit();
 }
 
-function autoSellerReg() {
-  const sellerName = document.getElementById('r_seller').value;
-  const s = SELLER_DATA.find(x => x.company === sellerName && x.type === '대행사');
-  if (s && s.agrate) document.getElementById('r_agrate').value = s.agrate;
-  else document.getElementById('r_agrate').value = '';
-  calcReg();
+// 매출처 선택 시 그 매출처(대행사·랩사)의 대행료율을 상품별 대행% 칸에 채운다.
+// 2026-10-19: DA·IPTV·CPA도 채우도록 확장, 랩사 포함. 매출처에 대행료율이 없으면 칸을 비우지 않고 그대로 둔다 —
+// 예전엔 비워서, 광고주 직거래+분양대행 수수료처럼 대행%를 먼저 넣고 매출처를 고르면 입력값이 지워졌다.
+function _autoSellerAgrate(prefix) {
+  const prod = document.getElementById(prefix + '_product')?.value;
+  const isDA = ['DA','IPTV'].includes(prod), isCPA = prod === 'CPA';
+  const id = isDA ? prefix + '_da_agrate' : isCPA ? prefix + '_cpa_agrate' : prefix + '_agrate';
+  const sellerName = document.getElementById(prefix + '_seller').value;
+  const s = SELLER_DATA.find(x => x.company === sellerName && (x.type === '대행사' || x.type === '랩사'));
+  const el = document.getElementById(id);
+  if (el && s && s.agrate) el.value = s.agrate;
+  if (prefix === 'r') { isDA ? calcDA() : isCPA ? calcCPA() : calcReg(); }
+  else                { isDA ? calcDAEdit() : isCPA ? calcCPAEdit() : calcEdit(); }
 }
-
-function autoSellerEdit() {
-  const sellerName = document.getElementById('e_seller').value;
-  const s = SELLER_DATA.find(x => x.company === sellerName && x.type === '대행사');
-  if (s && s.agrate) document.getElementById('e_agrate').value = s.agrate;
-  else document.getElementById('e_agrate').value = '';
-  calcEdit();
-}
+function autoSellerReg()  { _autoSellerAgrate('r'); }
+function autoSellerEdit() { _autoSellerAgrate('e'); }
 
 let _daImagesBase64     = [];  // 등록폼
 let _daEditImagesBase64 = [];  // 수정폼
@@ -8262,6 +8263,9 @@ function _campWarnings(c) {
   const isDA = ['DA','IPTV'].includes(c.product);
   const comm = c.comm || 0, ag = c.agrate || 0;
   if (ag >= 100)   w.push(`대행율이 ${ag}%예요`);
+  const sl = SELLER_DATA.find(x => x.company === c.seller && (x.type === '대행사' || x.type === '랩사'));
+  if (sl && sl.agrate && !ag)
+    w.push(`매출처(${c.seller}) 대행료율은 ${sl.agrate}%인데 이 캠페인 대행율은 0%예요`);
   if (comm >= 100) w.push(`수수료율이 ${comm}%예요`);
   if (isDA) {
     const auto = Math.round((c.daAdcost || 0) * (1 - comm / 100));
