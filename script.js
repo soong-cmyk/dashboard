@@ -5498,10 +5498,12 @@ function _bepCanEdit() { return _kpiCanEdit(); }
 function _bepCanView() { return !!(currentUser?.isAdmin || RANK_LEVEL[currentUser?.rank || '일반'] <= 3); }
 
 // 2026-10-19: "취급고"(turnover, 실청구액)와 "매출"(net, 취급고−대행수수료)을 둘 다 보여준다.
-// 매출이익 = 매출 − 매출원가, 이익율도 매출(net) 기준. net이 없는 예전 저장값(시나리오 수기입력 등)은
-// 취급고를 매출로 간주해 예전과 같은 숫자가 나오게 한다.
+// 매출이익 = 매출 − 매출원가, 이익율도 매출(net) 기준. 매출이 비어 있으면(시나리오 수기 열에서
+// 아직 안 넣은 경우) 매출과 거기서 나오는 이익·이익율을 전부 '—'로 둔다(취급고로 대신 계산하지 않음).
 function _bepDerive(turnover, net, cogs, sga) {
-  const t = turnover || 0, n = (net == null ? t : net) || 0, c = cogs || 0, s = sga || 0;
+  const t = turnover || 0, c = cogs || 0, s = sga || 0;
+  if (net == null) return { turnover: t, net: null, cogs: c, sga: s, profit: null, profitRate: null, opProfit: null, opRate: null };
+  const n = net || 0;
   const profit     = n - c;
   const profitRate = n ? profit / n : 0;
   const opProfit   = profit - s;
@@ -5510,7 +5512,7 @@ function _bepDerive(turnover, net, cogs, sga) {
 }
 
 function _fmtBepWon(n) { return (n == null) ? '<span style="color:var(--text3)">—</span>' : Math.round(n).toLocaleString(); }
-function _fmtBepPct(r) { return Math.round(r * 100) + '%'; }
+function _fmtBepPct(r) { return r == null ? '<span style="color:var(--text3)">—</span>' : Math.round(r * 100) + '%'; }
 
 function _bepMonthLabel(ym) {
   if (!ym) return '';
@@ -5670,7 +5672,7 @@ async function toggleBepScenarioEdit() {
         const netRaw = document.getElementById(`bep_sc_net_${c.key}`)?.value ?? '';
         data[c.key] = {
           turnover: Math.round(+(document.getElementById(`bep_sc_turnover_${c.key}`)?.value) || 0),
-          // 매출 칸을 비워 두면 null → 취급고를 매출로 간주(예전 저장값과 같은 동작)
+          // 매출 칸을 비워 두면 null → 표에서 매출·이익 줄이 '—'로 표시됨
           net:      netRaw === '' ? null : Math.round(+netRaw || 0),
           cogs:     Math.round(+(document.getElementById(`bep_sc_cogs_${c.key}`)?.value)     || 0),
           sga:      Math.round(+(document.getElementById(`bep_sc_sga_${c.key}`)?.value)      || 0),
@@ -13629,7 +13631,21 @@ function kpiSwitchTab(tab) {
   if (orgsalesSec)    orgsalesSec.style.display    = tab === 'orgsales'    ? '' : 'none';
   if (bepSec)         bepSec.style.display         = tab === 'bep'         ? '' : 'none';
   if (mainCtrl)        mainCtrl.style.display       = (tab === 'main')       ? '' : 'none';
-  if (tab === 'orgsales') renderKpiOrgSales();
+  if (tab === 'orgsales') _kpiOrgSalesRenderWithLoading();
+}
+
+// 본부별 매출 현황은 캠페인 전체를 본부·팀·광고주별로 여러 번 훑어서 그리는 데 시간이 걸린다 —
+// 그동안 화면이 멈춘 것처럼 보이지 않게 기존 로딩 표시(흐림+스피너, _showDataLoading)를 먼저 그리고,
+// 브라우저가 그걸 화면에 칠한 다음(rAF→setTimeout) 무거운 렌더를 돌린다(2026-10-19, 사용자 요청).
+function _kpiOrgSalesRenderWithLoading(fn) {
+  const sec = document.getElementById('kpi-orgsales-section');
+  if (!sec) { (fn || renderKpiOrgSales)(); return; }
+  if (!sec.style.minHeight) sec.style.minHeight = '240px'; // 처음 열 때 빈 영역이라도 스피너가 보이게
+  _showDataLoading(sec);
+  requestAnimationFrame(() => setTimeout(() => {
+    try { (fn || renderKpiOrgSales)(); }
+    finally { _hideDataLoading(sec); }
+  }, 0));
 }
 
 // ══════════════════════════════════════════
@@ -13669,8 +13685,7 @@ function renderKpiOrgSalesCards() {
 
 function kpiOrgSalesSelectBonbu(name) {
   _kpiOrgSalesBonbu = name;
-  renderKpiOrgSalesCards();
-  renderKpiOrgSalesDetail();
+  _kpiOrgSalesRenderWithLoading(() => { renderKpiOrgSalesCards(); renderKpiOrgSalesDetail(); });
 }
 
 // 이 본부 소속 담당자가 등록한 캠페인이 하나라도 있는 광고주+브랜드 조합 전체(가나다순) —
