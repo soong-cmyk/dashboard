@@ -3570,6 +3570,8 @@ function submitReg() {
     if (_rCpaDb !== '') { DATA[0].db = Number(_rCpaDb); DATA[0].qty = DATA[0].db; }
     _applyPerfStatus(DATA[0]);
   }
+  // 정산값 이상 점검 — 취소하면 방금 넣은 캠페인을 빼고 등록 화면에 머문다
+  if (!_confirmCampWarnings(DATA[0])) { DATA.shift(); _nextCampaignNum--; return; }
   _log(newId, 'register', null, null, null); // 이력: 캠페인 등록
   _fbSaveCampaign(DATA[0]);
 
@@ -4141,8 +4143,11 @@ function submitEdit() {
     document.getElementById('e_da_eday')?.focus();
     return;
   }
-  document.querySelector('.topbar').style.display = '';
+  const _topbarEl = document.querySelector('.topbar');
+  const _topbarPrev = _topbarEl.style.display;
+  _topbarEl.style.display = '';
   const c = DATA[currentDetailIdx];
+  const _origCamp = { ...c }; // 정산값 경고에서 취소하면 되돌릴 원본
   // 변경 전 스냅샷 (이력용) — id/regDate/regUser 등 등록 메타데이터를 제외한 모든 필드 추적
   const _histSkip = new Set(['id','regDate','regUser']);
   const _histVal = (v) => Array.isArray(v) ? (v.length ? `이미지 ${v.length}장` : '') : String(v ?? '');
@@ -4294,6 +4299,14 @@ function submitEdit() {
       }
     }
     _applyPerfStatus(c);
+  }
+
+  // 정산값 이상 점검 — 취소하면 폼에서 옮겨 담은 값을 원래대로 되돌리고 수정 화면에 머문다
+  if (!_confirmCampWarnings(c)) {
+    Object.keys(c).forEach(k => { if (!(k in _origCamp)) delete c[k]; });
+    Object.assign(c, _origCamp);
+    _topbarEl.style.display = _topbarPrev;
+    return;
   }
 
   // 변경된 필드만 이력 기록 — 스냅샷 이후 새로 생긴 필드까지 포함해 전부 비교
@@ -8238,6 +8251,38 @@ function _stlAmt(c) {
   const prf     = c.profitFixed  ?? Math.round(amt - buyAmt - agFee);
   const prfRate = amt > 0 ? (prf / amt * 100) : 0;
   return { actual: sellQty, buyActual: buyQty, qty, disc, eu, adc, amt, adcVat, buyAmt, buyVat, stlRate, agFee, prf, prfRate };
+}
+
+/** 저장 직전 정산값 이상 점검 — 막지는 않고 confirm에 "뭐가 이상한지"를 같이 보여준다.
+ *  2026-10-19 전체 데이터 점검에서 실제로 나온 입력 실수 유형들(대행율 100%, 매입단가 1원·빈칸,
+ *  매입단가=매출단가, 광고비 0인데 매입만 있음, DA 매입이 수수료율과 따로 놂)을 기준으로 함. */
+function _campWarnings(c) {
+  if (['CPS','퍼미션콜'].includes(c.product)) return [];
+  const s = _stlAmt(c), w = [], M = v => _fmtMoney(v) + '원';
+  const isDA = ['DA','IPTV'].includes(c.product);
+  const comm = c.comm || 0, ag = c.agrate || 0;
+  if (ag >= 100)   w.push(`대행율이 ${ag}%예요`);
+  if (comm >= 100) w.push(`수수료율이 ${comm}%예요`);
+  if (isDA) {
+    const auto = Math.round((c.daAdcost || 0) * (1 - comm / 100));
+    if (c.daAdcost && c.buyUnit && c.buyUnit !== auto)
+      w.push(`매입 ${M(c.buyUnit)}이 수수료율 ${comm}%로 계산한 값(${M(auto)})과 달라요. 이익은 수수료율 기준으로 계산돼요`);
+  } else {
+    if (c.sellUnit && c.buyUnit && c.buyUnit === c.sellUnit)
+      w.push(`매입단가가 매출단가와 같아요 (${M(c.sellUnit)})`);
+    if (c.product !== 'CPA' && c.sellUnit && !c.buyUnit && !comm && c.buyAmtFixed == null)
+      w.push('매입단가와 수수료율이 모두 비어 있어서 매입이 매출과 같게 계산돼요');
+    if (!s.adc && s.buyAmt > 0)
+      w.push(`광고비가 0원인데 매입이 ${M(s.buyAmt)}이에요`);
+  }
+  if (s.prf < 0)
+    w.push(`이익이 마이너스예요: ${M(s.prf)} (광고비 ${M(s.adc)} · 매입 ${M(s.buyAmt)} · 대행료 ${M(s.agFee)})`);
+  return w;
+}
+function _confirmCampWarnings(c) {
+  const w = _campWarnings(c);
+  if (!w.length) return true;
+  return confirm('저장하기 전에 확인해주세요.\n\n' + w.map(x => '• ' + x).join('\n') + '\n\n이대로 저장할까요?');
 }
 
 /**
