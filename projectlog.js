@@ -5281,7 +5281,7 @@ function _plBuildAdvertiserTabSkeleton(content) {
       <div class="table-wrap"><table style="width:100%;">
         <thead><tr>
           <th style="width:26px;"></th><th>광고주</th><th style="width:70px;">유형</th><th style="width:80px;">업종</th>
-          <th>프로젝트</th><th class="td-r" style="width:110px;">${_escHtml(PL_ADV_YEAR)} 매출</th>
+          <th>프로젝트</th><th class="td-r" style="width:110px;">${_escHtml(PL_ADV_YEAR)} 취급고</th>
           <th class="td-r" style="width:60px;">캠페인</th><th class="td-r" style="width:56px;">기록</th><th style="width:80px;">최근 기록</th>
         </tr></thead>
         <tbody id="pl-adv-tbody"></tbody>
@@ -5526,7 +5526,7 @@ function _plGRenderAnnual() {
     <th style="${miniHeadStyle}">프로젝트</th>
     <th style="${miniHeadStyle}">집행월</th>
     <th style="${miniHeadStyle}">광고상품</th>
-    <th class="td-r" style="${miniHeadStyleR}">매출</th>
+    <th class="td-r" style="${miniHeadStyleR}">취급고</th>
     <th class="td-r" style="${miniHeadStyleR}">요청수량</th>
     <th class="td-r" style="${miniHeadStyleR}">발송수량</th>
     <th style="${miniHeadStyle}">수익율</th>
@@ -5567,7 +5567,7 @@ function _plGRenderAnnual() {
         ${_plCanEditGoal() ? `<button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="plOpenGoalModal()">🎯 목표 설정</button>` : ''}
       </div>
       <div class="table-wrap"><table style="width:100%;">
-        <thead><tr><th>프로젝트</th><th>집행월</th><th>광고상품</th><th class="td-r">매출</th><th class="td-r">요청수량</th><th class="td-r">발송수량</th><th>수익율</th><th>담당자</th><th class="td-r">기록</th></tr></thead>
+        <thead><tr><th>프로젝트</th><th>집행월</th><th>광고상품</th><th class="td-r">취급고</th><th class="td-r">요청수량</th><th class="td-r">발송수량</th><th>수익율</th><th>담당자</th><th class="td-r">기록</th></tr></thead>
         <tbody>${totalRow}${bodyRows || `<tr><td colspan="${COLS}" style="text-align:center;padding:24px;color:var(--text3);">${_escHtml(year)}년 캠페인이 없습니다.</td></tr>`}</tbody>
       </table></div>
     </div>`;
@@ -5637,7 +5637,7 @@ function _plRenderGoalModalBody() {
           <input type="text" class="form-input pl-goal-brand-advkpi" data-brand="${_escHtml(b)}" placeholder="예) 전환 500건 이상" value="${_escHtml(g?.advKpiDesc || '')}" style="width:100%;">
         </div>
         <div style="width:220px;flex-shrink:0;">
-          <label style="font-size:9.5px;color:var(--text3);display:block;margin-bottom:2px;">매출 목표(월별 합)</label>
+          <label style="font-size:9.5px;color:var(--text3);display:block;margin-bottom:2px;">취급고 목표(월별 합)</label>
           <div style="display:flex;align-items:center;gap:6px;">
             <div class="form-input auto" style="border:none;width:100%;">${brandTarget ? _fmtMoney(brandTarget) : '미입력'}</div>
             <button type="button" class="btn btn-outline btn-sm" style="white-space:nowrap;padding:6px 10px;font-size:11.5px;" onclick="_plOpenMonthlyGoalModalFor('${_escHtml(_plGCompany)}','${_escHtml(year)}','${_escHtml(b)}','${_escHtml(b)}')">월별 입력 →</button>
@@ -5648,9 +5648,9 @@ function _plRenderGoalModalBody() {
   }).join('') : '<div class="form-hint">매출처관리에 등록된 브랜드가 없습니다.</div>';
   const body = document.getElementById('pl-goal-body');
   if (body) body.innerHTML = `
-    <div class="form-label" style="margin-bottom:6px;">광고주 전체 목표(매출) — 브랜드별 월별 목표의 합</div>
+    <div class="form-label" style="margin-bottom:6px;">광고주 전체 목표(취급고) — 브랜드별 월별 목표의 합</div>
     <div class="form-input auto" style="border:none;margin-bottom:16px;width:100%;">${totalTargetAll ? _fmtMoney(totalTargetAll) : '미입력'}</div>
-    <div class="form-label" style="margin-bottom:6px;">브랜드별 목표(매출) · 광고주 연간 KPI</div>
+    <div class="form-label" style="margin-bottom:6px;">브랜드별 목표(취급고) · 광고주 연간 KPI</div>
     ${brandRows}
     <div class="form-hint" style="margin-top:8px;">광고주 연간 KPI는 비워두고 저장하면 삭제됩니다. ${_escHtml(year)}년에만 적용됩니다.</div>
   `;
@@ -5789,19 +5789,19 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
       <tbody>
         <tr>
           ${infoCells[0]}
-          <td style="${tdLbl}" ${_tip('월별 매출 합계입니다')}>매출</td>
+          <td style="${tdLbl}" ${_tip('월별 취급고(실청구액, 대행수수료 차감 전) 합계입니다')}>취급고</td>
           <td style="${tdYr}">${_fmtKpi(totalAdcost)}</td>
           ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.adcost)}</td>`).join('')}
         </tr>
         <tr>
           ${infoCells[1]}
-          <td style="${tdLbl}" ${_tip('이 브랜드의 매출 목표(월별 입력값의 합)입니다')}>매출 KPI</td>
+          <td style="${tdLbl}" ${_tip('이 브랜드의 취급고 목표(월별 입력값의 합)입니다')}>취급고 KPI</td>
           <td style="${tdYr}">${_fmtKpi(totalTarget)}</td>
           ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.target)}</td>`).join('')}
         </tr>
         <tr>
           ${infoCells[2]}
-          <td style="${tdLbl}" ${_tip('매출 ÷ 매출 KPI로 자동 계산됩니다')}>매출 KPI 달성률</td>
+          <td style="${tdLbl}" ${_tip('취급고 ÷ 취급고 KPI로 자동 계산됩니다')}>취급고 KPI 달성률</td>
           <td style="${tdYr}text-align:center;">${_kpiRateHtml(totalAdcost, totalTarget)}</td>
           ${months.map(m => `<td style="${tdVal}text-align:center;">${_kpiRateHtml(m.adcost, m.target)}</td>`).join('')}
         </tr>
@@ -5813,7 +5813,7 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
         </tr>
         <tr>
           ${infoCells[4]}
-          <td style="${tdLbl}" ${_tip('수기로 입력하는 값입니다 — 매출 KPI 달성률처럼 자동 계산되지 않고, 매달 직접 입력합니다')}>광고주 월 KPI 달성률</td>
+          <td style="${tdLbl}" ${_tip('수기로 입력하는 값입니다 — 취급고 KPI 달성률처럼 자동 계산되지 않고, 매달 직접 입력합니다')}>광고주 월 KPI 달성률</td>
           <td style="${tdYr}text-align:center;">${nd}</td>
           ${months.map(m => `<td style="${tdVal}text-align:center;">${m.advKpiRate != null ? m.advKpiRate + '%' : nd}</td>`).join('')}
         </tr>
@@ -5886,7 +5886,7 @@ function _plRenderMonthlyGoalModalBody() {
   if (bodyEl) {
     const headStyle = 'font-size:9.5px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.03em;';
     let rows = `<div style="display:grid;grid-template-columns:34px 1fr 1fr 1fr;gap:8px;padding:0 2px 4px;">
-      <span></span><span style="${headStyle}">매출 KPI</span><span style="${headStyle}">광고주 월 KPI</span><span style="${headStyle}">광고주 월 KPI 달성률</span>
+      <span></span><span style="${headStyle}">취급고 KPI</span><span style="${headStyle}">광고주 월 KPI</span><span style="${headStyle}">광고주 월 KPI 달성률</span>
     </div>`;
     for (let m = 1; m <= 12; m++) {
       const ym = `${year}-${String(m).padStart(2, '0')}`;
@@ -5898,7 +5898,7 @@ function _plRenderMonthlyGoalModalBody() {
         <input type="number" class="form-input pl-mg-adv-input" data-ym="${ym}" value="${g?.advKpiRate ?? ''}" placeholder="%" style="font-size:12px;padding:6px 8px;">
       </div>`;
     }
-    bodyEl.innerHTML = rows + `<div class="form-hint" style="margin-top:6px;">전부 비워두고 저장하면 그 달 값이 삭제됩니다. 매출 KPI 달성률은 매출 KPI 대비 자동 계산되어 여기서 따로 입력하지 않습니다.</div>`;
+    bodyEl.innerHTML = rows + `<div class="form-hint" style="margin-top:6px;">전부 비워두고 저장하면 그 달 값이 삭제됩니다. 취급고 KPI 달성률은 취급고 KPI 대비 자동 계산되어 여기서 따로 입력하지 않습니다.</div>`;
   }
 }
 async function _plSaveMonthlyGoalModal() {
@@ -6040,7 +6040,7 @@ function _plGRenderMonthly() {
         <input type="month" max="9999-12" class="f-date" id="pl-g-month" value="${_escHtml(ym)}" onchange="_plGMonthChange(this.value)" onmousedown="event.preventDefault();this.focus();try{this.showPicker&&this.showPicker()}catch(e){console.error('[projectlog] showPicker 실패',e);}">
       </div>
       <div class="table-wrap" style="overflow-y:hidden;"><table class="pl-g-monthly-tbl" style="width:100%;">
-        <thead><tr><th>프로젝트</th><th>집행월</th><th>광고상품</th><th>매체사</th><th class="td-r">목표(매출)</th><th class="td-r">매출</th><th>달성률</th><th class="td-r">요청수량</th><th class="td-r">발송수량</th><th>캠페인 상태</th><th>DB등록수</th></tr></thead>
+        <thead><tr><th>프로젝트</th><th>집행월</th><th>광고상품</th><th>매체사</th><th class="td-r">목표(취급고)</th><th class="td-r">취급고</th><th>달성률</th><th class="td-r">요청수량</th><th class="td-r">발송수량</th><th>캠페인 상태</th><th>DB등록수</th></tr></thead>
         <tbody>${bodyRows || `<tr><td colspan="${COLS}" style="text-align:center;padding:24px;color:var(--text3);">해당 월 캠페인이 없습니다.</td></tr>`}</tbody>
       </table></div>
       ${rows.length ? `<div class="pagination" style="justify-content:flex-end;gap:12px;">${_plGMonthPaginationHtml(rows.length, _plGState.monthPage, totalPages)}</div>` : ''}
