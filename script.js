@@ -1776,6 +1776,12 @@ function openDetail(idx, skipPush) {
     if (cpaBillBaseField) cpaBillBaseField.style.display = '';
     const cpaFeeEl = document.getElementById('dCpaFeeYn');
     if (cpaFeeEl) cpaFeeEl.textContent = c.cpaFeeYn || '—';
+    // 정산월 — 비어 있는 예전 캠페인은 정산탭이 시작월로 보여주므로 그 달을 '(시작월)'로 표기
+    const cpaStlEl = document.getElementById('dCpaStlMonth');
+    if (cpaStlEl) { const sm = c.stlMonth || (c.date || '').slice(0, 7); const [sy, smo] = sm.split('-');
+      cpaStlEl.textContent = sy && smo ? `${sy}년 ${+smo}월${c.stlMonth ? '' : ' (시작월)'}` : '—'; }
+    const cpaStlField = document.getElementById('dCpaStlMonthField');
+    if (cpaStlField) cpaStlField.style.display = '';
     const cpaFeeField = document.getElementById('dCpaFeeYnField');
     if (cpaFeeField) cpaFeeField.style.display = '';
     // CPA: '실발송수량' → '노출수'
@@ -1797,6 +1803,8 @@ function openDetail(idx, skipPush) {
     if (cpaFeeField) cpaFeeField.style.display = 'none';
     const cpaBillBaseField2 = document.getElementById('dCpaBillBaseField');
     if (cpaBillBaseField2) cpaBillBaseField2.style.display = 'none';
+    const cpaStlField2 = document.getElementById('dCpaStlMonthField');
+    if (cpaStlField2) cpaStlField2.style.display = 'none';
     // 비CPA: 원래 라벨 복원
     const _setActualLbl = (t) => {
       const a = document.getElementById('dActualLbl');    if (a) a.textContent = t;
@@ -1819,6 +1827,8 @@ function openDetail(idx, skipPush) {
     const setText  = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     setText('dDaAdcostShow', daAdc   ? _fmtMoney(daAdc)  + '원' : '—');
     setText('dDaBillBase',   c.daBillBase || '—');
+    { const sm = c.stlMonth || (c.date || '').slice(0, 7); const [sy, smo] = sm.split('-');
+      setText('dDaStlMonth', sy && smo ? `${sy}년 ${+smo}월${c.stlMonth ? '' : ' (시작월)'}` : '—'); }
     setText('dDaFeeYn',      c.daFeeYn    || '—');
     setText('dDaComm',       daComm  ? daComm + '%'            : '—');
     setText('dDaBuyUnit',    daBuyU  ? _fmtMoney(daBuyU) + '원' : '—');
@@ -3087,6 +3097,10 @@ function onEditProductChange() {
     }
   }
   if (isCPS) _populateCpsMonthSelects('e');
+  // 정산월: 상품을 바꾸면 종료월 기준으로 다시 채움
+  const eStlWrap = document.getElementById('e_da_stl_wrap');
+  if (eStlWrap) { eStlWrap.style.display = (isDA || isCPA) ? '' : 'none'; delete eStlWrap.dataset.manual; }
+  if (isDA || isCPA) _daSyncStlMonth('e');
 }
 
 function onRegProductChange() {
@@ -3118,6 +3132,10 @@ function onRegProductChange() {
       }
     }
   }
+  // 정산월: DA·IPTV·CPA만, 종료월 기준으로 채움(직접 고른 값은 상품을 바꾸면 초기화)
+  const rStlWrap = document.getElementById('r_da_stl_wrap');
+  if (rStlWrap) { rStlWrap.style.display = (isDA || isCPA) ? '' : 'none'; delete rStlWrap.dataset.manual; }
+  if (isDA || isCPA) _daSyncStlMonth('r');
   document.getElementById('r_qty_normal').style.display  = (isDA || isPC || isCPA || isCPS) ? 'none' : '';
   document.getElementById('r_qty_da').style.display      = isDA  ? '' : 'none';
   document.getElementById('r_qty_cpa').style.display     = isCPA ? '' : 'none';
@@ -3397,6 +3415,41 @@ function _daSyncEndToStartMonth(p) {
   if (!y || !m) return;
   const set = (id, val) => { const el = document.getElementById(`${p}_da_${id}`); if (el) el.value = val; };
   set('eyear', y); set('emonth', m); set('eday', String(new Date(+y, +m, 0).getDate()).padStart(2, '0'));
+  _daSyncStlMonth(p);
+}
+
+// ── DA·IPTV·CPA 정산월 (2026-10-19) ──
+// 정산탭 월 필터 기준(CPS의 stlMonth와 같은 필드). KPI·매출현황 등 실적은 지금처럼 집행월(c.date) 기준.
+// 기본은 종료월을 따라가고, 사람이 정산월을 직접 고르면(_daStlMarkManual) 그 뒤로는 종료일을 바꿔도 고정.
+function _daStlFill(p) {
+  const yEl = document.getElementById(`${p}_da_stl_year`), mEl = document.getElementById(`${p}_da_stl_month`);
+  if (yEl && !yEl.options.length) {
+    const curY = new Date().getFullYear();
+    for (let y = 2024; y <= curY + 2; y++) { const o = document.createElement('option'); o.value = String(y); o.textContent = y + '년'; yEl.appendChild(o); }
+  }
+  if (mEl && !mEl.options.length) {
+    for (let m = 1; m <= 12; m++) { const o = document.createElement('option'); o.value = String(m).padStart(2, '0'); o.textContent = m + '월'; mEl.appendChild(o); }
+  }
+}
+function _daStlSet(p, ym, manual) {
+  _daStlFill(p);
+  const [y, m] = (ym || '').split('-');
+  const yEl = document.getElementById(`${p}_da_stl_year`), mEl = document.getElementById(`${p}_da_stl_month`);
+  if (yEl && y) yEl.value = y;
+  if (mEl && m) mEl.value = m;
+  const wrap = document.getElementById(`${p}_da_stl_wrap`);
+  if (wrap) { if (manual) wrap.dataset.manual = '1'; else delete wrap.dataset.manual; }
+}
+function _daStlMarkManual(p) { const w = document.getElementById(`${p}_da_stl_wrap`); if (w) w.dataset.manual = '1'; }
+function _daSyncStlMonth(p) {
+  const wrap = document.getElementById(`${p}_da_stl_wrap`);
+  if (!wrap || wrap.dataset.manual) return;
+  const v = id => document.getElementById(`${p}_da_${id}`)?.value;
+  if (v('eyear') && v('emonth')) _daStlSet(p, `${v('eyear')}-${v('emonth')}`, false);
+}
+function _daStlGet(p) {
+  const y = document.getElementById(`${p}_da_stl_year`)?.value, m = document.getElementById(`${p}_da_stl_month`)?.value;
+  return (y && m) ? `${y}-${m}` : '';
 }
 // 종료일이 시작일보다 빠르면 true. useDay=false면 시작일을 1일로 본다(CPA 등록은 시작일을 항상 1일로 저장).
 function _daRangeInvalid(p, useDay) {
@@ -3454,6 +3507,11 @@ function submitReg() {
   if ((isDA || isCPA) && _daRangeInvalid('r', isDA)) {
     toast('⚠ 종료일이 시작일보다 빠릅니다. 기간을 확인해주세요', 'warn');
     document.getElementById('r_da_eday')?.focus();
+    return;
+  }
+  if ((isDA || isCPA) && !_daStlGet('r')) {
+    toast("⚠ '정산월'을 입력해주세요", 'warn');
+    document.getElementById('r_da_stl_year')?.focus();
     return;
   }
 
@@ -3559,7 +3617,8 @@ function submitReg() {
     cpsFinalSales: isCPS ? (+document.getElementById('r_cps_final_sales')?.value || 0) : 0,
     cpsTotalComm:  isCPS ? (+document.getElementById('r_cps_total_comm')?.value  || 0) : 0,
     cpsMediaComm:  isCPS ? (+document.getElementById('r_cps_media_comm')?.value  || 0) : 0,
-    stlMonth: isCPS ? (() => { const sy = document.getElementById('r_cps_stl_year')?.value; const sm = document.getElementById('r_cps_stl_month')?.value; return (sy && sm) ? `${sy}-${sm}` : ''; })() : '',
+    stlMonth: isCPS ? (() => { const sy = document.getElementById('r_cps_stl_year')?.value; const sm = document.getElementById('r_cps_stl_month')?.value; return (sy && sm) ? `${sy}-${sm}` : ''; })()
+            : (isDA || isCPA) ? _daStlGet('r') : '',
     target:   document.getElementById('r_target').value,
     dtarget:  document.getElementById('r_dtarget').value,
     msg:      document.getElementById('r_msg').value,
@@ -3907,6 +3966,11 @@ function openEdit() {
   document.getElementById('e_date_da').style.display          = (useMonthPicker && !isEditCPS) ? '' : 'none';
   document.getElementById('e_cps_exec_wrap').style.display    = isEditCPS ? '' : 'none';
   document.getElementById('e_cps_stl_wrap').style.display     = isEditCPS ? '' : 'none';
+  const eDaStlWrap = document.getElementById('e_da_stl_wrap');
+  if (eDaStlWrap) eDaStlWrap.style.display = (isEditDA || isEditCPA) ? '' : 'none';
+  // 정산월 — 저장값이 있으면 그 값(고정), 없으면(정산월 도입 전 캠페인) 지금 정산탭에 보이던 달인 시작월로
+  // 채워 고정 → 그냥 저장해도 정산탭에서 다른 달로 옮겨가지 않는다(2026-10-19, 기존 캠페인은 시작월 유지로 결정)
+  if (isEditDA || isEditCPA) _daStlSet('e', c.stlMonth || (c.date || '').slice(0, 7), true);
   document.getElementById('e_card_qty').style.display         = (isEditDA || isEditPC || isEditCPA || isEditCPS) ? 'none' : '';
   document.getElementById('e_card_da_adcost').style.display   = isEditDA  ? '' : 'none';
   const eMsgSec   = document.getElementById('e_msg_section');
@@ -4180,6 +4244,7 @@ function submitEdit() {
     c.date       = `${yr}-${mo}-${day} 00:00`;
     const eyr = document.getElementById('e_da_eyear')?.value || yr;
     c.dateEnd    = `${eyr}-${document.getElementById('e_da_emonth')?.value || mo}-${document.getElementById('e_da_eday')?.value || '01'}`;
+    c.stlMonth   = _daStlGet('e') || c.stlMonth || '';
     c.daAdcost   = +document.getElementById('e_da_adcost').value  || 0;
     c.daBillBase = document.getElementById('e_da_billbase')?.value || '';
     c.daFeeYn    = document.getElementById('e_da_fee_yn')?.value   || '';
@@ -4211,6 +4276,7 @@ function submitEdit() {
     c.date    = `${yr}-${mo}-${day} 00:00`;
     const eyr = document.getElementById('e_da_eyear')?.value || yr;
     c.dateEnd = `${eyr}-${document.getElementById('e_da_emonth')?.value || mo}-${document.getElementById('e_da_eday')?.value || day}`;
+    c.stlMonth = _daStlGet('e') || c.stlMonth || '';
     c.sellUnit  = +document.getElementById('e_cpa_unit').value     || 0;
     c.billBase  = document.getElementById('e_cpa_billbase')?.value || '';
     c.cpaFeeYn  = document.getElementById('e_cpa_fee_yn')?.value   || '';
@@ -6333,7 +6399,7 @@ function _getStlFilteredData() {
       if (bonbu && (!u || u.bonbu !== bonbu)) return false;
       if (team  && (!u || u.dept  !== team))  return false;
     }
-    const filterDate = c.product === 'CPS' ? (c.stlMonth || (c.date || '').slice(0, 7)) : (c.date || '');
+    const filterDate = _STL_MONTH_PRODUCTS.includes(c.product) ? (c.stlMonth || (c.date || '').slice(0, 7)) : (c.date || ''); // 정산월 있는 상품은 정산월, 비면 집행(시작)월
     if (selYear  && !filterDate.startsWith(selYear))    return false;
     if (selMonth && filterDate.slice(5, 7) !== selMonth) return false;
     if (fQ && !_stlQMatch(c, fQ)) return false;
@@ -8190,6 +8256,8 @@ function _stlHas(c) {
 }
 
 /** 실발송수량(actual) 기준 정산 금액 계산 */
+// 정산탭에서 정산월(stlMonth)로 월을 거르는 상품 — CPS + DA·IPTV·CPA(2026-10-19). KPI·매출현황 실적은 전부 집행월(c.date).
+const _STL_MONTH_PRODUCTS = ['CPS', 'DA', 'IPTV', 'CPA'];
 function _stlAmt(c) {
   // DA 캠페인: daAdcost 기준 (수량 개념 없음)
   if (['DA','IPTV'].includes(c.product)) {
@@ -8914,7 +8982,7 @@ function _stlGetFiltered() {
       if (bonbu && (!u || u.bonbu !== bonbu)) return false;
       if (team  && (!u || u.dept  !== team))  return false;
     }
-    const filterDate = c.product === 'CPS' ? (c.stlMonth || (c.date || '').slice(0, 7)) : (c.date || '');
+    const filterDate = _STL_MONTH_PRODUCTS.includes(c.product) ? (c.stlMonth || (c.date || '').slice(0, 7)) : (c.date || ''); // 정산월 있는 상품은 정산월, 비면 집행(시작)월
     if (selYear  && !filterDate.startsWith(selYear))    return false;
     if (selMonth && filterDate.slice(5, 7) !== selMonth) return false;
     if (fQ && !_stlQMatch(c, fQ)) return false;
