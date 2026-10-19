@@ -3543,7 +3543,8 @@ function submitReg() {
       : (!isDA && !isPC ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_profit'))) : null),
     svcApplyAdv:   (!isDA && !isPC && !isCPA && !isCPS) ? (document.getElementById('r_svcApplyAdv')?.checked   ?? true)  : true,
     svcApplyMedia: (!isDA && !isPC && !isCPA && !isCPS) ? (document.getElementById('r_svcApplyMedia')?.checked ?? false) : false,
-    agrate:    isDA  ? (+document.getElementById('r_da_agrate')?.value || 0) : (isCPA ? (+document.getElementById('r_cpa_agrate')?.value || 0) : (isCPS ? 0 : (+document.getElementById('r_agrate').value || 0))),
+    // 퍼미션콜·CPS는 정산(_stlAmt)에서 대행료를 안 쓰므로 0으로 저장 — 대행사 매출처 자동입력값이 DB에 남지 않게(2026-10-19)
+    agrate:    isDA  ? (+document.getElementById('r_da_agrate')?.value || 0) : (isCPA ? (+document.getElementById('r_cpa_agrate')?.value || 0) : ((isCPS || isPC) ? 0 : (+document.getElementById('r_agrate').value || 0))),
     dateEnd:   (isDA || isCPA) ? `${document.getElementById('r_da_eyear').value}-${document.getElementById('r_da_emonth').value}-${document.getElementById('r_da_eday').value}` : '',
     daAdcost:  isDA  ? (+document.getElementById('r_da_adcost').value  || 0) : 0,
     daBillBase: isDA ? (document.getElementById('r_da_billbase')?.value || '') : '',
@@ -4199,6 +4200,7 @@ function submitEdit() {
     c.pcDnuUnit = 5500;
     c.pcInflow  = +document.getElementById('e_pc_inflow').value    || 0;
     c.pcAgree      = +document.getElementById('e_pc_agree').value   || 0;
+    c.agrate       = 0; // 정산에서 대행료 미사용(CPS와 동일) — 대행사 통한 퍼미션콜 생기면 _stlAmt부터 고칠 것
     c.sellBillBase = '';
     c.buyBillBase  = '';
     c.status    = '성과입력완료';
