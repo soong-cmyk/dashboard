@@ -2424,9 +2424,12 @@ function _plCommentsHtml(logId) {
     const canDel = !!(currentUser?.isAdmin || c.writerId === currentUser?.id);
     const when = _plFmtDateTimeLocal(c.createdAt);
     if (canDel && _plCommentEditing.has(c.id)) {
-      return `<div style="display:flex;gap:6px;align-items:center;padding:4px 0;font-size:12px;">
-        <input type="text" class="pl-mini" id="pl-cm-edit-${c.id}" value="${_escHtml(c.content).replace(/"/g,'&quot;')}" maxlength="500" style="flex:1;"
-          onkeydown="if(event.key==='Enter'&&!event.isComposing){event.stopPropagation();plSaveCommentEdit('${c.id}');}else if(event.key==='Escape'){event.stopPropagation();_plCommentCancelEdit('${c.id}');}">
+      // 등록 입력창과 같이 textarea — Enter 저장, Shift+Enter 줄바꿈(한 줄 input이라 줄바꿈이 안 됐음, 2026-10-20)
+      return `<div style="display:flex;gap:6px;align-items:flex-start;padding:4px 0;font-size:12px;">
+        <textarea class="pl-mini" id="pl-cm-edit-${c.id}" maxlength="500" rows="1"
+          style="flex:1;resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;"
+          oninput="_plAutoGrowTextarea(this)"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();event.stopPropagation();plSaveCommentEdit('${c.id}');}else if(event.key==='Escape'){event.stopPropagation();_plCommentCancelEdit('${c.id}');}">${_escHtml(c.content)}</textarea>
         <span class="pl-x" onclick="plSaveCommentEdit('${c.id}')">[저장]</span>
         <span class="pl-x" onclick="plDeleteComment('${c.id}')">[삭제]</span>
       </div>`;
@@ -2439,7 +2442,7 @@ function _plCommentsHtml(logId) {
     return `<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;font-size:12px;">
       <span style="font-weight:700;color:var(--text2);white-space:nowrap;">${_escHtml(c.writer || '')}</span>
       <span class="form-hint f-mono" style="white-space:nowrap;">${_escHtml(when)}</span>
-      <span style="flex:1;">${_plHighlightMentions(c.content)}${replyHtml}</span>
+      <span style="flex:1;white-space:pre-wrap;word-break:break-word;">${_plHighlightMentions(c.content)}${replyHtml}</span>
       ${canDel ? `<span class="pl-x" onclick="_plCommentToggleEdit('${c.id}')">수정/삭제</span>` : ''}
     </div>`;
   }).join('');
@@ -2523,7 +2526,7 @@ function _plCommentToggleEdit(commentId) {
   _plCommentReRender(commentId);
   setTimeout(() => {
     const inp = document.getElementById(`pl-cm-edit-${commentId}`);
-    if (inp) { inp.focus(); inp.selectionStart = inp.selectionEnd = inp.value.length; }
+    if (inp) { _plAutoGrowTextarea(inp); inp.focus(); inp.selectionStart = inp.selectionEnd = inp.value.length; }
   }, 0);
 }
 function _plCommentCancelEdit(commentId) {
