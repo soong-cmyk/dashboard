@@ -4663,6 +4663,7 @@ function saveEditNote() {
   const note = document.getElementById('en_note').value;
   if (note !== (c.note||'')) _log(c.id, 'field', 'note', c.note||'', note);
   c.note = note;
+  _fbSaveCampaign(c);
   document.getElementById('dNote').innerHTML = note.replace(/\n/g, '<br>') || '<span style="color:var(--text3);">—</span>';
   closeModal('modalEditNote');
   toast('✓ 특기사항이 저장되었습니다', 'ok');
