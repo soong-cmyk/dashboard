@@ -236,6 +236,33 @@ function _plWatchLogs() {
   } catch (e) {
     console.error('[projectlog] 구독 실패', e);
   }
+  _plWatchOpenLogs();
+}
+// '일지' 탭 맨 위 "이전부터 진행중" 묶음은 기간과 상관없이 끝나지 않은 일지를 전부 보여줘야 해서,
+// 최근 구독 범위(PL_RECENT_MONTHS) 밖이라도 진척률 100% 미만인 일지는 따로 전체 기간에서 구독한다
+// (2026-10-22, 사용자 요청). 진척률이 없는(null) 일지는 쿼리에 안 잡히지만 _plLogOpen에서도 진행중이 아니다.
+// 다만 진행중 판단은 "이어쓰기로 다음 기록에 넘어갔는지"도 봐야 하는데, 옛 일지를 이어쓴 기록이 이미
+// 100%로 끝나 있으면 위 쿼리에도 최근 범위에도 안 잡혀 옛 일지가 계속 진행중으로 보인다 — 그래서
+// 최근 범위 밖 진행중 일지에 대해서는 그 일지를 이어쓴 기록(continuedFromId)도 같이 구독한다.
+let _plOpenWatchStarted = false;
+let _plWatchedContinueOf = new Set();
+function _plWatchOpenLogs() {
+  if (_plOpenWatchStarted || !window._db) return;
+  _plOpenWatchStarted = true;
+  _plDb('projectLogs').where('progress', '<', 100).onSnapshot(snap => {
+    _plApplySnapshot(snap);
+    if (_plFullyWatching) return;
+    const cutoff = _plRecentCutoff();
+    const ids = snap.docs.map(d => d.data())
+      .filter(l => (l.logDate || '') < cutoff && !_plWatchedContinueOf.has(l.id))
+      .map(l => l.id);
+    ids.forEach(id => _plWatchedContinueOf.add(id));
+    // in 쿼리는 값 개수 제한이 있어 10개씩 나눠 구독한다
+    for (let i = 0; i < ids.length; i += 10) {
+      _plDb('projectLogs').where('continuedFromId', 'in', ids.slice(i, i + 10))
+        .onSnapshot(_plApplySnapshot, err => console.error('[projectlog] 이어쓰기 구독 오류', err));
+    }
+  }, err => console.error('[projectlog] 진행중 구독 오류', err));
 }
 let _plWatchedCompanies = new Set();
 let _plWatchedMedia = new Set();
@@ -1843,10 +1870,12 @@ function _plLogWriterRemove(name) {
   _plRenderLogOrNew();
 }
 
-function _plGetFiltered() {
+// opts.ignoreDate — 기간만 빼고 나머지 필터를 적용(맨 위 "이전부터 진행중" 묶음용)
+function _plGetFiltered(opts) {
+  const ignoreDate = !!opts?.ignoreDate;
   const q      = document.getElementById('pl-search')?.value || '';
-  const dFrom  = document.getElementById('pl-date-from')?.value || '';
-  const dTo    = document.getElementById('pl-date-to')?.value   || '';
+  const dFrom  = ignoreDate ? '' : (document.getElementById('pl-date-from')?.value || '');
+  const dTo    = ignoreDate ? '' : (document.getElementById('pl-date-to')?.value   || '');
   const seller  = _plStripInternalSuffix(document.getElementById('pl-f-seller')?.value.trim()  || '');
   const project = document.getElementById('pl-f-project')?.value.trim() || '';
   const media  = document.getElementById('pl-f-media')?.value.trim()   || '';
@@ -2703,8 +2732,10 @@ function _plLogCellParts(log) {
 }
 // 광고주/프로젝트/캠페인/매체를 각자의 컬럼 대신 "내용" 칸 안에 "라벨: 값" 한 줄로 모으고,
 // 유형 배지는 내용 텍스트 맨 앞으로 옮겨서 내용이 쓸 수 있는 폭을 넓힌 행 렌더러(2026-09-16).
-function _plRenderLogRowNew(log, q, ctx) {
+// extra.dateNoteHtml — 작성일 아래에 덧붙일 한 줄, extra.rowBg — 행 배경색("이전부터 진행중" 묶음용)
+function _plRenderLogRowNew(log, q, ctx, extra) {
   ctx = ctx || 'lognew';
+  const rowBgStyle = extra?.rowBg ? `background:${extra.rowBg};` : '';
   const isOpen = _plExpanded.has(log.id);
   const arrow = isOpen ? '▾' : '▸';
   const dateShort = (log.logDate || '').slice(2).replace(/-/g, '.');
@@ -2784,7 +2815,7 @@ function _plRenderLogRowNew(log, q, ctx) {
   // 한다는 사용자 판단(제목이 실제 내용을 담고 있어 스캔할 때 더 중요함)에 따라 6칸을 전부
   // 제목이 있는 행으로 옮겼다. 제목이 길어 줄바꿈되더라도 vertical-align:top이라 첫 줄 기준으로
   // 맞는다(2026-09-16, 사용자 요청).
-  const rowHtml = `<tr class="pl-lgnew-row1" onclick="_plToggleRowGuarded(event,'${log.id}','${ctx}')" style="cursor:pointer;">
+  const rowHtml = `<tr class="pl-lgnew-row1" onclick="_plToggleRowGuarded(event,'${log.id}','${ctx}')" style="cursor:pointer;${rowBgStyle}">
     <td></td>
     <td></td>
     <td></td>
@@ -2792,9 +2823,9 @@ function _plRenderLogRowNew(log, q, ctx) {
     <td></td>
     <td></td>
   </tr>
-  <tr id="pl-row-${log.id}" class="pl-lg-head pl-lgnew-row2" onclick="_plToggleRowGuarded(event,'${log.id}','${ctx}')" style="cursor:pointer;">
+  <tr id="pl-row-${log.id}" class="pl-lg-head pl-lgnew-row2" onclick="_plToggleRowGuarded(event,'${log.id}','${ctx}')" style="cursor:pointer;${rowBgStyle}">
     <td class="pl-lg-arrow" style="vertical-align:top;">${arrow}</td>
-    <td style="vertical-align:top;"><span class="pl-lgnew-mi" style="font-size:11.5px;color:var(--text2);">${dateShort}</span></td>
+    <td style="vertical-align:top;"><span class="pl-lgnew-mi" style="font-size:11.5px;color:var(--text2);">${dateShort}</span>${extra?.dateNoteHtml || ''}</td>
     <td style="vertical-align:top;">${typeCellHtml}</td>
     <td style="vertical-align:top;">
       <div style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;flex-wrap:wrap;">
@@ -2833,15 +2864,66 @@ function _plRenderNewRows() {
   _plPage = Math.min(Math.max(1, _plPage), totalPages);
   const pageItems = filtered.slice((_plPage - 1) * PL_PAGE_SIZE, _plPage * PL_PAGE_SIZE);
 
+  const carried = _plCarriedOpenLogs();
+  if (cntEl && carried.length) cntEl.insertAdjacentHTML('beforeend', ` <span style="color:var(--orange);">+ 이전부터 진행중 ${carried.length}</span>`);
+
   const tbody = document.getElementById('pl-log-tbody');
   if (tbody) {
-    tbody.innerHTML = pageItems.length
+    const listHtml = pageItems.length
       ? pageItems.map(log => _plRenderLogRowNew(log, q)).join('')
       : `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text3);font-size:13px;">조건에 맞는 일지가 없습니다.</td></tr>`;
+    tbody.innerHTML = (carried.length && _plPage === 1) ? _plCarriedGroupHtml(carried, q) + listHtml : listHtml;
   }
 
   const pagEl = document.getElementById('pl-log-pagination');
   if (pagEl) pagEl.innerHTML = _plBuildPagination(filtered.length, _plPage, totalPages, '_plGoPageNew');
+}
+
+// ── '일지' 탭 맨 위 "이전부터 진행중" 묶음 ──
+// 기본 기간이 이번 달이라 지난달 이전에 쓰고 아직 안 끝난 일지가 월이 바뀌면 안 보이던 문제(2026-10-22,
+// 사용자 요청) — 선택한 기간의 시작일보다 앞에 쓰인 진행중 일지를 기간과 상관없이 맨 위에 접어서 보여준다.
+// 기간 외 필터(검색어·광고주·매체·유형·작성자·본부팀)는 그대로 적용하고, '완료만'을 고르면 숨긴다.
+const PL_CARRY_STALE_DAYS = 30;
+let _plCarryExpanded = false;
+function _plToggleCarry() { _plCarryExpanded = !_plCarryExpanded; _plRenderNewRows(); }
+// 마지막 활동일 = 일지 작성일과 그 일지에 달린 마지막 댓글 날짜 중 늦은 날
+function _plLastActivityDate(log) {
+  let last = log.logDate || '';
+  PL_COMMENTS.forEach(c => {
+    if (c.logId !== log.id || !c.createdAt) return;
+    const d = _plFmtDateLocal(new Date(c.createdAt));
+    if (d > last) last = d;
+  });
+  return last;
+}
+function _plCarriedOpenLogs() {
+  const dFrom = document.getElementById('pl-date-from')?.value || '';
+  if (!dFrom || document.getElementById('pl-f-open')?.value === 'done') return [];
+  return _plGetFiltered({ ignoreDate: true })
+    .filter(l => (l.logDate || '') < dFrom && _plLogOpen(l))
+    .map(l => ({ log: l, last: _plLastActivityDate(l) }))
+    .sort((a, b) => b.last.localeCompare(a.last));
+}
+function _plCarriedGroupHtml(items, q) {
+  const today = _plTodayStr();
+  const daysSince = d => Math.round((Date.parse(today) - Date.parse(d)) / 864e5);
+  const staleCnt = items.filter(x => daysSince(x.last) >= PL_CARRY_STALE_DAYS).length;
+  const head = `<tr onclick="_plToggleCarry()" style="cursor:pointer;">
+    <td colspan="6" style="background:var(--orange-bg);border-bottom:1px solid var(--border);padding:9px 12px;font-size:13px;">
+      <b>${_plCarryExpanded ? '▾' : '▸'} 📌 이전부터 진행중 ${items.length}건</b>
+      ${staleCnt ? `<span style="margin-left:8px;color:var(--orange);font-size:12px;">· ${PL_CARRY_STALE_DAYS}일 이상 활동 없음 ${staleCnt}건</span>` : ''}
+      <span style="margin-left:8px;color:var(--text3);font-size:12px;">선택한 기간 전에 작성됐고 아직 안 끝난 일지</span>
+    </td></tr>`;
+  if (!_plCarryExpanded) return head;
+  const rows = items.map(({ log, last }) => {
+    const n = daysSince(last);
+    const note = n >= PL_CARRY_STALE_DAYS
+      ? `<div style="font-size:11px;color:var(--orange);margin-top:2px;">⏸ ${n}일째 활동 없음</div>`
+      : `<div style="font-size:11px;color:var(--text3);margin-top:2px;">최근 활동 ${_escHtml(last.slice(2).replace(/-/g, '.'))}</div>`;
+    return _plRenderLogRowNew(log, q, 'lognew', { dateNoteHtml: note, rowBg: 'var(--orange-bg)' });
+  }).join('');
+  const divider = `<tr><td colspan="6" style="background:var(--surface2);padding:7px 12px;font-size:12px;color:var(--text2);font-weight:600;">선택한 기간의 일지</td></tr>`;
+  return head + rows + divider;
 }
 
 // '일지' 탭 스켈레톤 — 필터바(검색어/기간/광고주/매체/유형/작성자) + 6컬럼 표.
