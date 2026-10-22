@@ -1871,9 +1871,11 @@ function _plLogWriterRemove(name) {
 }
 
 // opts.ignoreDate — 기간만 빼고 나머지 필터를 적용(맨 위 "이전부터 진행중" 묶음용)
+// 검색어가 있으면 기간도 무시한다 — 검색은 원래 전체 일지를 불러온 뒤(_plEnsureFullyLoaded) 화면에서만
+// 기간으로 걸러내고 있었는데, 지난 기록을 찾으려면 기간을 일일이 넓혀야 해서(2026-10-22, 사용자 요청).
 function _plGetFiltered(opts) {
-  const ignoreDate = !!opts?.ignoreDate;
   const q      = document.getElementById('pl-search')?.value || '';
+  const ignoreDate = !!opts?.ignoreDate || !!q.trim();
   const dFrom  = ignoreDate ? '' : (document.getElementById('pl-date-from')?.value || '');
   const dTo    = ignoreDate ? '' : (document.getElementById('pl-date-to')?.value   || '');
   const seller  = _plStripInternalSuffix(document.getElementById('pl-f-seller')?.value.trim()  || '');
@@ -2864,6 +2866,19 @@ function _plRenderNewRows() {
   _plPage = Math.min(Math.max(1, _plPage), totalPages);
   const pageItems = filtered.slice((_plPage - 1) * PL_PAGE_SIZE, _plPage * PL_PAGE_SIZE);
 
+  // 검색 중에는 기간이 무시되므로 기간 표시도 그에 맞게 바꾸고, 검색어를 지우면 원래 표시로 되돌린다
+  const drpLabel = document.getElementById('pl-drp-label');
+  if (drpLabel) {
+    if (searchVal) {
+      // 검색 중에 기간을 다시 고르면 데이트피커가 라벨을 새 기간으로 바꿔두므로 그 값을 새로 보관한다
+      if (drpLabel.textContent !== '전체 기간 검색 중') drpLabel.dataset.searchSaved = drpLabel.textContent;
+      drpLabel.textContent = '전체 기간 검색 중';
+    } else if (drpLabel.dataset.searchSaved != null) {
+      drpLabel.textContent = drpLabel.dataset.searchSaved;
+      delete drpLabel.dataset.searchSaved;
+    }
+  }
+
   const carried = _plCarriedOpenLogs();
   if (cntEl && carried.length) cntEl.insertAdjacentHTML('beforeend', ` <span style="color:var(--orange);">+ 이전부터 진행중 ${carried.length}</span>`);
 
@@ -2898,6 +2913,8 @@ function _plLastActivityDate(log) {
 }
 function _plCarriedOpenLogs() {
   const dFrom = document.getElementById('pl-date-from')?.value || '';
+  // 검색 중에는 아래 목록이 전체 기간이라 묶음에 같은 일지가 겹쳐 보이므로 숨긴다
+  if ((document.getElementById('pl-search')?.value || '').trim()) return [];
   if (!dFrom || document.getElementById('pl-f-open')?.value === 'done') return [];
   return _plGetFiltered({ ignoreDate: true })
     .filter(l => (l.logDate || '') < dFrom && _plLogOpen(l))
