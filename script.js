@@ -971,30 +971,18 @@ async function submitChangePw() {
   if (next.length < 4)               return showErr('새 비밀번호는 4자 이상이어야 합니다.');
   if (next !== confirm)              return showErr('새 비밀번호가 일치하지 않습니다.');
 
-  // 서버(Cloud Function)에서 현재 비번 확인 후 해시로 저장 — 현재 비번이 틀리면 서버가 막는다.
-  // 서버 장애 시에만 로컬 저장으로 폴백(2026-10-23). 폴백 대비 현재 비번 선확인도 유지.
-  if (window._fbFns) {
-    try {
-      await window._fbFns.httpsCallable('changeMyPassword')({ id: currentUser.id, currentPw: current, newPw: next });
-      _localChangePassword(currentUser.id, next); // users.pw도 동기화(과도기 폴백 정확성 유지) + UI/토스트
-      return;
-    } catch (e) {
-      const code = (e && e.code) || '';
-      if (code === 'functions/unauthenticated') return showErr('현재 비밀번호가 올바르지 않습니다.');
-      if (code === 'functions/invalid-argument') return showErr(e.message || '입력값을 확인해주세요.');
-      console.warn('[changePw] 서버 저장 실패 → 로컬만 갱신:', code, e && e.message);
-    }
+  // 비밀번호는 서버(Cloud Function)에서만 해시로 저장한다 — 평문은 어디에도 남기지 않는다(2026-10-23).
+  if (!window._fbFns) return showErr('로그인 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.');
+  try {
+    await window._fbFns.httpsCallable('changeMyPassword')({ id: currentUser.id, currentPw: current, newPw: next });
+  } catch (e) {
+    const code = (e && e.code) || '';
+    if (code === 'functions/unauthenticated') return showErr('현재 비밀번호가 올바르지 않습니다.');
+    if (code === 'functions/invalid-argument') return showErr(e.message || '입력값을 확인해주세요.');
+    return showErr('비밀번호 변경 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
   }
-  if (currentUser.pw !== current) return showErr('현재 비밀번호가 올바르지 않습니다.');
-  _localChangePassword(currentUser.id, next);
-}
-
-function _localChangePassword(userId, newPw) {
-  const u = USERS.find(x => x.id === userId);
-  if (!u) return;
-  u.pw = newPw;
-  if (currentUser && currentUser.id === userId) currentUser.pw = newPw;
-  _fbSaveUser(u);
+  // 세션 값만 갱신(다음 로그인 때 다시 세팅됨) — DB엔 평문을 쓰지 않는다.
+  if (currentUser) currentUser.pw = next;
   closeModal('modalChangePw');
   toast('✓ 비밀번호가 변경되었습니다', 'ok');
 }
@@ -1106,14 +1094,16 @@ function openResetPwModal(uid) {
 async function confirmResetPw() {
   const u = USERS.find(x => x.id === _pendingResetUid);
   if (u) {
-    // 서버(Cloud Function)에서 관리자 확인 후 대상 비번을 1234 해시로 저장. 장애 시 로컬만 갱신(2026-10-23).
-    if (window._fbFns) {
-      try {
-        await window._fbFns.httpsCallable('adminResetPassword')({ adminId: currentUser.id, adminPw: currentUser.pw, targetId: u.id, newPw: '1234' });
-      } catch (e) { console.warn('[resetPw] 서버 저장 실패 → 로컬만 갱신:', (e && e.code), e && e.message); }
+    // 서버(Cloud Function)에서 관리자 확인 후 대상 비번을 1234 해시로 저장 — 평문은 저장하지 않는다(2026-10-23).
+    if (!window._fbFns) { toast('로그인 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.', 'err'); return; }
+    try {
+      await window._fbFns.httpsCallable('adminResetPassword')({ adminId: currentUser.id, adminPw: currentUser.pw, targetId: u.id, newPw: '1234' });
+      toast(`✓ ${u.name} 비밀번호가 1234로 초기화되었습니다`, 'ok');
+    } catch (e) {
+      const code = (e && e.code) || '';
+      toast(code === 'functions/permission-denied' ? '관리자 인증에 실패했습니다. 다시 로그인 후 시도해주세요.' : '초기화 중 오류가 발생했습니다.', 'err');
+      return;
     }
-    u.pw = '1234'; _fbSaveUser(u); // users.pw도 동기화(과도기 폴백 정확성 유지)
-    toast(`✓ ${u.name} 비밀번호가 1234로 초기화되었습니다`, 'ok');
   }
   _pendingResetUid = null;
   closeModal('modalResetPw');
@@ -1156,7 +1146,7 @@ function _syncRegDeptOpts() {
   const deptSel = document.getElementById('ureg-dept');
   if (deptSel) deptSel.innerHTML = _deptOptsHtml(bonbu, '');
 }
-function submitUserReg() {
+async function submitUserReg() {
   const name  = document.getElementById('ureg-name').value.trim();
   const id    = document.getElementById('ureg-id').value.trim();
   const pw    = document.getElementById('ureg-pw').value;
@@ -1166,7 +1156,16 @@ function submitUserReg() {
   const slackId = document.getElementById('ureg-slack')?.value.trim() || null;
   if (!name || !id || !pw) { toast('⚠ 이름, 아이디, 비밀번호는 필수입니다', 'warn'); return; }
   if (USERS.find(u => u.id === id)) { toast('⚠ 이미 사용 중인 아이디입니다', 'warn'); return; }
-  const newUser = { id, pw, name, bonbu, dept, rank, slackId, isAdmin: false, perms: { ops: true } };
+  if (!window._fbFns) { toast('로그인 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.', 'err'); return; }
+  // 비밀번호는 users에 저장하지 않고, 서버 함수가 userAuth에 해시로 저장한다(2026-10-23).
+  const newUser = { id, name, bonbu, dept, rank, slackId, isAdmin: false, perms: { ops: true } };
+  try {
+    await window._fbFns.httpsCallable('adminResetPassword')({ adminId: currentUser.id, adminPw: currentUser.pw, targetId: id, newPw: pw });
+  } catch (e) {
+    const code = (e && e.code) || '';
+    toast(code === 'functions/permission-denied' ? '관리자 인증에 실패했습니다. 다시 로그인 후 시도해주세요.' : '비밀번호 설정 중 오류가 발생했습니다.', 'err');
+    return;
+  }
   USERS.push(newUser);
   _fbSaveUser(newUser);
   _renderUserMgmtList();
