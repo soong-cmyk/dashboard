@@ -131,13 +131,16 @@ function _plFmtDateTimeLocal(iso) {
   return `${y}.${mo}.${day} ${hh}:${mi}`;
 }
 function _plTodayStr() { return _plFmtDateLocal(new Date()); }
-// 데이트피커 기본값 — 캠페인 목록(resetFilter)과 동일하게 "이번 달"로 맞춘다(2026-09-14, 사용자 요청).
-function _plThisMonthRange() {
-  const now = new Date();
-  const from = _plFmtDateLocal(new Date(now.getFullYear(), now.getMonth(), 1));
-  const to = _plFmtDateLocal(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-  const label = `${from.replace(/-/g, '.')}. ~ ${to.replace(/-/g, '.')}.`;
-  return { from, to, label };
+// '일지' 탭 데이트피커 기본값 — 원래 캠페인 목록처럼 "이번 달"이었는데, 월초마다 목록이 비는 문제로
+// "오늘 기준 30일 전 ~ 종료일 없음"으로 바꿨다(2026-10-23, 사용자 요청). 종료일을 비워 앞날짜로 미리
+// 적어둔 일지도 보이게 하고, 라벨은 "~ 계속"으로 표시한다(데이트피커 openEnd 옵션과 같은 문구).
+const PL_LOG_DEFAULT_DAYS = 30;
+const PL_OPEN_END_LABEL = '계속';
+function _plDefaultLogRange() {
+  const d = new Date();
+  d.setDate(d.getDate() - PL_LOG_DEFAULT_DAYS);
+  const from = _plFmtDateLocal(d);
+  return { from, to: '', label: `${from.replace(/-/g, '.')}. ~ ${PL_OPEN_END_LABEL}` };
 }
 
 // ── 클릭 고정 말풍선 (script.js의 tax-memo-bubble과 같은 패턴 — projectlog 전용으로 독립 구현) ──
@@ -2008,11 +2011,17 @@ function _plToggleBtn(id, renderFn) {
 function _plGoPageNew(p) { _plPage = p; _plRenderNewRows(); }
 
 function plResetLogFilter(renderFn) {
-  ['pl-search', 'pl-date-from', 'pl-date-to', 'pl-f-seller', 'pl-f-project', 'pl-f-media', 'pl-f-writer'].forEach(id => {
+  ['pl-search', 'pl-f-seller', 'pl-f-project', 'pl-f-media', 'pl-f-writer'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  const drpLbl = document.getElementById('pl-drp-label'); if (drpLbl) drpLbl.textContent = '기간 선택';
+  // 기간은 비우지 않고 기본값(30일 전 ~ 계속)으로 되돌린다 — 데이트피커로는 종료일을 다시 비울 수 없어서
+  // 기본 상태로 돌아가는 방법이 초기화뿐이다(2026-10-23)
+  const _r = _plDefaultLogRange();
+  const fromEl = document.getElementById('pl-date-from'); if (fromEl) fromEl.value = _r.from;
+  const toEl   = document.getElementById('pl-date-to');   if (toEl)   toEl.value   = _r.to;
+  const drpLbl = document.getElementById('pl-drp-label');
+  if (drpLbl) { drpLbl.textContent = _r.label; delete drpLbl.dataset.searchSaved; }
   const typeEl = document.getElementById('pl-f-type'); if (typeEl) typeEl.value = '';
   const orgEl  = document.getElementById('pl-f-org');  if (orgEl)  orgEl.value  = '';
   const openEl = document.getElementById('pl-f-open');
@@ -3061,10 +3070,10 @@ function _plCarriedGroupHtml(items, q) {
 
 // '일지' 탭 스켈레톤 — 필터바(검색어/기간/광고주/매체/유형/작성자) + 6컬럼 표.
 function _plBuildLogNewTabSkeleton(container) {
-  const _r = _plThisMonthRange();
+  const _r = _plDefaultLogRange();
   container.innerHTML = `
     <div class="filter-bar" style="margin-bottom:12px;overflow:visible;">
-      <div id="pl-drp-trigger" onclick="drpOpen({trigger:'pl-drp-trigger',from:'pl-date-from',to:'pl-date-to',label:'pl-drp-label',onApply:'_plDrpApplyNew'})" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:13px;color:var(--text1);white-space:nowrap;user-select:none;">
+      <div id="pl-drp-trigger" onclick="drpOpen({trigger:'pl-drp-trigger',from:'pl-date-from',to:'pl-date-to',label:'pl-drp-label',onApply:'_plDrpApplyNew',openEnd:PL_OPEN_END_LABEL})" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:13px;color:var(--text1);white-space:nowrap;user-select:none;">
         <span id="pl-drp-label">${_r.label}</span>
       </div>
       <input type="hidden" id="pl-date-from" value="${_r.from}">

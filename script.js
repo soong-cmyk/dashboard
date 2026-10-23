@@ -15744,6 +15744,7 @@ function renderPerfHistory() {
     picking: 'from',
     viewYear: 0, viewMonth: 0,
     activePreset: null,
+    openEnd: '—',
     fromId: 'fFrom', toId: 'fTo', labelId: 'drp-label', onApply: 'applyFilter',
   };
 
@@ -15796,7 +15797,7 @@ function renderPerfHistory() {
     const lbl = document.getElementById(DRP.labelId);
     if (lbl) {
       if (DRP.start && DRP.end) lbl.textContent = _fmt(DRP.start)+' ~ '+_fmt(DRP.end);
-      else if (DRP.start) lbl.textContent = _fmt(DRP.start)+' ~ —';
+      else if (DRP.start) lbl.textContent = _fmt(DRP.start)+' ~ '+DRP.openEnd;
       else lbl.textContent = '기간 선택';
     }
   }
@@ -15868,6 +15869,8 @@ function renderPerfHistory() {
     DRP.toId    = cfg.to    || 'fTo';
     DRP.labelId = cfg.label || 'drp-label';
     DRP.onApply = cfg.onApply || 'applyFilter';
+    // 종료일이 비어있을 때 라벨에 쓸 문구 — 프로젝트일지 '일지' 탭은 기본 종료일이 없어 "~ 계속"으로 표시(2026-10-23)
+    DRP.openEnd = cfg.openEnd || '—';
     const popup = document.getElementById('drp-popup');
     const trigger = document.getElementById(triggerId);
     if (!popup || !trigger) return;
