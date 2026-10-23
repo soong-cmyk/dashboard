@@ -7083,7 +7083,8 @@ function _plDateSubGroupLabelHtml(m) {
       ? `<span class="pl-click f-mono" style="font-weight:600;font-size:11px;" onclick="event.stopPropagation();openCalPreview(${campIdx})">(${_escHtml(m.campaignId)})</span>`
       : `<span style="font-weight:600;font-size:11px;">(${_escHtml(m.campaignId)})</span>`;
     const productHtml = c?.product ? ` <span class="form-hint">· ${_escHtml(c.product)}</span>` : '';
-    return `<span class="tag pl-media">${_escHtml(mediaLabel)}</span>${productHtml} ${campIdTag}`;
+    // 캠페인ID 뒤 발송일시는 '일지' 탭 메타 라인과 같은 인라인 형식(2026-10-23, 사용자 요청)
+    return `<span class="tag pl-media">${_escHtml(mediaLabel)}</span>${productHtml} ${campIdTag}${_plCampSendInfoHtml(c, true)}`;
   }
   return `<span class="tag pl-media">${_escHtml(_plDateGroupMediaLabel(m))}</span>`;
 }
