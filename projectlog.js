@@ -1873,8 +1873,9 @@ function _plLogWriterRemove(name) {
 // opts.ignoreDate — 기간만 빼고 나머지 필터를 적용(맨 위 "이전부터 진행중" 묶음용)
 // 검색어가 있으면 기간도 무시한다 — 검색은 원래 전체 일지를 불러온 뒤(_plEnsureFullyLoaded) 화면에서만
 // 기간으로 걸러내고 있었는데, 지난 기록을 찾으려면 기간을 일일이 넓혀야 해서(2026-10-22, 사용자 요청).
+// opts.ignoreQuery — 검색어만 빼고 적용(이어쓰기 묶어 보기에서 체인의 마지막 기록이 다른 필터에 맞는지 확인용)
 function _plGetFiltered(opts) {
-  const q      = document.getElementById('pl-search')?.value || '';
+  const q      = opts?.ignoreQuery ? '' : (document.getElementById('pl-search')?.value || '');
   const ignoreDate = !!opts?.ignoreDate || !!q.trim();
   const dFrom  = ignoreDate ? '' : (document.getElementById('pl-date-from')?.value || '');
   const dTo    = ignoreDate ? '' : (document.getElementById('pl-date-to')?.value   || '');
@@ -2781,7 +2782,7 @@ function _plRenderLogRowNew(log, q, ctx, extra) {
     + ((log.attachPath || log.attachName) ? `<span title="첨부 경로: ${_escHtml(log.attachPath || log.attachName || '')}">📁</span>` : '');
   // 이어쓰기는 원래대로 파란 라벨 유지, 댓글보다 앞에 온다(2026-09-16, 사용자 요청으로 순서 교체).
   // 소급 표시는 폐지(2026-09-21, 사용자 요청) — 첨부만 무채색 트레이로 뺀다.
-  const chainHtml = _plContinueChainBadgeHtml(log);
+  const chainHtml = extra?.chainHtml != null ? extra.chainHtml : _plContinueChainBadgeHtml(log);
   const trayHtml = attachIconsHtml
     ? `<span class="pl-lgnew-tray">${attachIconsHtml}</span>` : '';
   // "+ㄴ 추가" 트리거는 텍스트 링크 대신 원형 아이콘 버튼(옵션2) — 마지막으로 작성된 줄(ㄴ 추가
@@ -2852,8 +2853,8 @@ function _plRenderNewRows() {
   if (mediaFilterVal) _plEnsureMediaLoaded(mediaFilterVal);
   if (searchVal || (dateFromVal && dateFromVal < _plRecentCutoff())) _plEnsureFullyLoaded();
 
-  const filtered = _plGetFiltered();
   const q = (document.getElementById('pl-search')?.value || '').trim();
+  const { list: filtered, info: chainInfo } = _plCollapseChains(_plGetFiltered(), !!q);
 
   const typeCounts = {};
   filtered.forEach(l => { typeCounts[l.logType] = (typeCounts[l.logType] || 0) + 1; });
@@ -2885,13 +2886,110 @@ function _plRenderNewRows() {
   const tbody = document.getElementById('pl-log-tbody');
   if (tbody) {
     const listHtml = pageItems.length
-      ? pageItems.map(log => _plRenderLogRowNew(log, q)).join('')
+      ? pageItems.map(log => _plRenderLogRowNew(log, q, 'lognew', { chainHtml: _plLatestChainBadgeHtml(log, chainInfo.get(log.id)) })).join('')
       : `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text3);font-size:13px;">조건에 맞는 일지가 없습니다.</td></tr>`;
     tbody.innerHTML = (carried.length && _plPage === 1) ? _plCarriedGroupHtml(carried, q) + listHtml : listHtml;
   }
 
   const pagEl = document.getElementById('pl-log-pagination');
   if (pagEl) pagEl.innerHTML = _plBuildPagination(filtered.length, _plPage, totalPages, '_plGoPageNew');
+}
+
+// ── '일지' 탭 이어쓰기 묶어 보기 ──
+// 이어쓰기로 연결된 일지가 목록에 전부 따로 보여 어느 게 최신인지, 어디에 이어써야 하는지 헷갈린다는
+// 의견(2026-10-23, 사용자 요청) — 일지 탭에서만 체인당 마지막 기록만 남기고 이전 기록은 펼침(타임라인)으로 본다.
+//  · 기간 보기: 선택한 조건(기간 포함) 안에 있는 기록 중 가장 마지막 것만 남긴다. 그 뒤에 기간 밖에서
+//    이어쓰기됐으면 '→ 이어짐' 표시(예: 9월을 보면 9월의 마지막 기록 + 10월에 이어졌다는 표시).
+//  · 검색: 검색어가 이전 기록에만 있어도 그 체인의 마지막 기록을 보여주고 '이전 기록에서 일치' 표시.
+//    마지막 기록이 다른 필터(광고주·유형·작성자 등)에 안 맞으면 일치한 기록을 그대로 보여준다.
+//  · 한 기록을 두 갈래로 이어쓴 경우엔 갈래마다 마지막 기록을 남긴다.
+// 나의 일지·광고주 상세·일자별 탭은 "그날 한 일" 기록이라 그대로 전부 보여준다.
+function _plChainMaps() {
+  const byId = new Map(PL_LOGS.map(l => [l.id, l]));
+  const children = new Map();
+  PL_LOGS.forEach(l => {
+    if (!l.continuedFromId) return;
+    if (!children.has(l.continuedFromId)) children.set(l.continuedFromId, []);
+    children.get(l.continuedFromId).push(l);
+  });
+  return { byId, children };
+}
+function _plAncestorCount(log, byId) {
+  let n = 0, cur = log;
+  const seen = new Set([log.id]);
+  while (cur.continuedFromId && byId.has(cur.continuedFromId) && !seen.has(cur.continuedFromId)) {
+    cur = byId.get(cur.continuedFromId);
+    seen.add(cur.id);
+    n++;
+  }
+  return n;
+}
+function _plDescendants(log, children) {
+  const out = [], seen = new Set([log.id]);
+  let frontier = [log];
+  while (frontier.length) {
+    const next = [];
+    frontier.forEach(n => (children.get(n.id) || []).forEach(c => {
+      if (seen.has(c.id)) return;
+      seen.add(c.id); out.push(c); next.push(c);
+    }));
+    frontier = next;
+  }
+  return out;
+}
+function _plCollapseChains(filtered, isSearch) {
+  const { byId, children } = _plChainMaps();
+  const info = new Map();
+  const sortDesc = (a, b) => (b.logDate || '').localeCompare(a.logDate || '') || (b.createdAt || '').localeCompare(a.createdAt || '');
+  let pool = filtered;
+  if (isSearch) {
+    // 일치한 기록을 그 체인의 마지막 기록(들)로 바꾼다 — 마지막 기록도 검색어 외 필터는 맞아야 한다
+    const passOther = new Set(_plGetFiltered({ ignoreDate: true, ignoreQuery: true }).map(l => l.id));
+    const matched = new Set(filtered.map(l => l.id));
+    const out = new Map();
+    filtered.forEach(l => {
+      const leaves = _plDescendants(l, children).filter(d => !(children.get(d.id) || []).length && passOther.has(d.id));
+      if (!leaves.length) { out.set(l.id, l); return; }
+      leaves.forEach(d => {
+        out.set(d.id, d);
+        if (!matched.has(d.id)) info.set(d.id, { viaPrev: true });
+      });
+    });
+    pool = [...out.values()];
+  }
+  // 목록 안에 자기보다 뒤에 이어진 기록이 있으면 숨긴다
+  const poolIds = new Set(pool.map(l => l.id));
+  const superseded = new Set();
+  pool.forEach(l => {
+    let cur = l;
+    const seen = new Set([l.id]);
+    while (cur.continuedFromId && byId.has(cur.continuedFromId) && !seen.has(cur.continuedFromId)) {
+      cur = byId.get(cur.continuedFromId);
+      seen.add(cur.id);
+      if (poolIds.has(cur.id)) superseded.add(cur.id);
+    }
+  });
+  const list = pool.filter(l => !superseded.has(l.id)).sort(sortDesc);
+  list.forEach(l => {
+    const desc = _plDescendants(l, children);
+    const nextDate = desc.map(d => d.logDate || '').sort().pop();
+    const prev = _plAncestorCount(l, byId);
+    info.set(l.id, { ...(info.get(l.id) || {}), prevCount: prev, nextDate: desc.length ? nextDate : null });
+  });
+  return { list, info };
+}
+// 체인 배지 — '↩ 이전 N건'(앞에 쌓인 기록 수), '→ 이어짐 MM.DD'(기간 밖에서 이어쓰기됨), 검색 시 '이전 기록에서 일치'.
+// 배지는 행 안에 있어서 누르면 행이 펼쳐지고 이어쓰기 타임라인이 보인다.
+function _plLatestChainBadgeHtml(log, info) {
+  if (!info) {
+    const { byId, children } = _plChainMaps();
+    info = { prevCount: _plAncestorCount(log, byId), nextDate: (children.get(log.id) || []).length ? _plDescendants(log, children).map(d => d.logDate || '').sort().pop() : null };
+  }
+  let html = '';
+  if (info.prevCount) html += ` <span class="tag pl-ref" data-tooltip="이어쓰기로 쌓인 이전 기록 ${info.prevCount}건 — 누르면 흐름이 펼쳐집니다">↩ 이전 ${info.prevCount}건</span>`;
+  if (info.nextDate) html += ` <span class="tag" style="color:var(--text2);" data-tooltip="이 기록은 이후에 이어쓰기됐습니다 — 최신 기록 ${_escHtml(info.nextDate)}">→ 이어짐 ${_escHtml(info.nextDate.slice(5).replace('-', '.'))}</span>`;
+  if (info.viaPrev) html += ` <span class="form-hint" style="color:var(--text2);">🔎 이전 기록에서 일치</span>`;
+  return html;
 }
 
 // ── '일지' 탭 맨 위 "이전부터 진행중" 묶음 ──
@@ -2937,7 +3035,7 @@ function _plCarriedGroupHtml(items, q) {
     const note = n >= PL_CARRY_STALE_DAYS
       ? `<div style="font-size:11px;color:var(--orange);margin-top:2px;">⏸ ${n}일째 활동 없음</div>`
       : `<div style="font-size:11px;color:var(--text3);margin-top:2px;">최근 활동 ${_escHtml(last.slice(2).replace(/-/g, '.'))}</div>`;
-    return _plRenderLogRowNew(log, q, 'lognew', { dateNoteHtml: note, rowBg: 'var(--orange-bg)' });
+    return _plRenderLogRowNew(log, q, 'lognew', { dateNoteHtml: note, rowBg: 'var(--orange-bg)', chainHtml: _plLatestChainBadgeHtml(log) });
   }).join('');
   const divider = `<tr><td colspan="6" style="background:var(--surface2);padding:7px 12px;font-size:12px;color:var(--text2);font-weight:600;">선택한 기간의 일지</td></tr>`;
   return head + rows + divider;
