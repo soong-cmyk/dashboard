@@ -221,6 +221,23 @@ function _plApplySnapshot(snap) {
     if (ch.type === 'removed') _plLogsMap.delete(ch.doc.id);
     else _plLogsMap.set(ch.doc.id, ch.doc.data());
   });
+  _plRebuildLogs();
+}
+// 이어쓰기 체인을 거슬러 올라가다 최근 구독 범위 밖이라 아직 안 불러온 이전 기록을 만나면 그 기록만
+// ID로 따로 구독한다 — 일지 탭이 체인의 마지막 기록만 보여주게 되면서(_plCollapseChains) 이전 기록을 볼
+// 방법이 펼침 타임라인뿐이라, 2개월보다 긴 체인의 '↩ 이전 N건' 숫자와 타임라인이 잘리지 않게(2026-10-23).
+// 불러오면 다시 그려지고, 그 기록의 이전 기록도 같은 방식으로 이어서 불러온다.
+let _plWatchedLogIds = new Set();
+function _plEnsureLogLoaded(id) {
+  if (!id || _plFullyWatching || _plLogsMap.has(id) || _plWatchedLogIds.has(id) || !window._db) return;
+  _plWatchedLogIds.add(id);
+  _plDb('projectLogs').doc(id).onSnapshot(doc => {
+    if (doc.exists) _plLogsMap.set(doc.id, doc.data());
+    else _plLogsMap.delete(doc.id);
+    _plRebuildLogs();
+  }, err => console.error('[projectlog] 이전 기록 구독 오류', err));
+}
+function _plRebuildLogs() {
   PL_LOGS = [..._plLogsMap.values()].sort((a, b) => (b.logDate || '').localeCompare(a.logDate || '')
                                                   || (b.createdAt || '').localeCompare(a.createdAt || ''));
   if (document.getElementById('screen-projectlog')?.classList.contains('active')) {
@@ -2276,7 +2293,7 @@ function _plContinueChainNodes(log) {
   while (head.continuedFromId && !seen.has(head.id)) {
     seen.add(head.id);
     const prev = PL_LOGS.find(l => l.id === head.continuedFromId);
-    if (!prev) break;
+    if (!prev) { _plEnsureLogLoaded(head.continuedFromId); break; }
     head = prev;
   }
   const chain = [head];
@@ -2922,6 +2939,7 @@ function _plAncestorCount(log, byId) {
     seen.add(cur.id);
     n++;
   }
+  if (cur.continuedFromId && !byId.has(cur.continuedFromId)) _plEnsureLogLoaded(cur.continuedFromId);
   return n;
 }
 function _plDescendants(log, children) {
@@ -4342,7 +4360,7 @@ function _plChainRootLog(log) {
   while (head && head.continuedFromId && !seen.has(head.id)) {
     seen.add(head.id);
     const prev = PL_LOGS.find(l => l.id === head.continuedFromId);
-    if (!prev) break;
+    if (!prev) { _plEnsureLogLoaded(head.continuedFromId); break; }
     head = prev;
   }
   return head;
