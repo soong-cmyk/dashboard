@@ -6940,7 +6940,10 @@ function _plDateItemHtml(l, hideMediaTag) {
     <div style="display:flex;align-items:flex-start;gap:4px;cursor:pointer;" onclick="_plToggleRowGuarded(event,'${l.id}','date')">
       <span style="flex-shrink:0;font-size:10px;color:var(--text3);width:12px;">${arrow}</span>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;">${starHtml}<span class="badge pl-lg-${l.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(_plTypeLabel(l.logType))}</span>${mediaHtml}${_escHtml(l.summary || '')}${_plContinueChainBadgeHtml(l)}${progText}${attachIconsHtml}</div>
+        <div style="font-size:13px;display:flex;align-items:flex-start;gap:8px;">
+          <span style="flex:1;min-width:0;">${starHtml}<span class="badge pl-lg-${l.logType}" style="margin-right:4px;vertical-align:middle;">${_escHtml(_plTypeLabel(l.logType))}</span>${mediaHtml}${_escHtml(l.summary || '')}${_plContinueChainBadgeHtml(l)}${progText}${attachIconsHtml}</span>
+          <span style="flex-shrink:0;font-size:11.5px;color:var(--text2);">${_escHtml(l.writer || '—')}</span>
+        </div>
         ${subHtml}
       </div>
     </div>
@@ -7018,7 +7021,8 @@ function _plDateOrgChange(v) {
 }
 // 카드 = 대분류(광고주/프로젝트/캠페인/매체/내부) 하나. 매체는 카드를 쪼개는 기준이 아니라 카드 안의
 // 소그룹 기준으로 내려서, 같은 프로젝트를 여러 매체로 동시에 진행 중이어도(혹은 같은 본부 여러 명이
-// 같은 프로젝트를 나눠 맡아도) 카드 하나에 모인다. 작성자는 이 화면엔 아예 안 보이고 수정 모달에서만 확인.
+// 같은 프로젝트를 나눠 맡아도) 카드 하나에 모인다. 작성자는 항목 줄 오른쪽 끝에 표시(2026-10-23, 사용자 요청 —
+// 예전엔 이 화면에 안 보이고 수정 모달에서만 확인).
 function _plDateGroupedData(dateStr) {
   const logs = _plDateFilteredLogs(dateStr);
   // PL_LOGS 자체는 최신순(createdAt 내림차순)이라, 그 순서 그대로 묶으면 "가장 나중에 쓴 게 위로" 온다.
