@@ -4094,6 +4094,7 @@
 <!-- Firebase SDK (compat — file:// 직접 열기 지원) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyCU7qZOE4yJCWa5vhxpuxO5ZDBEKTTPY9U",
@@ -4108,6 +4109,9 @@
   firebase.initializeApp(firebaseConfig);
   const _fbDB = firebase.firestore();
   window._db = _fbDB; // 먼저 전역 노출
+  // 로그인·비밀번호 서버 검증용 Cloud Functions(서울 리전). 로드 실패해도 로그인은 구방식으로 폴백(2026-10-23).
+  try { window._fbFns = firebase.app().functions('asia-northeast3'); }
+  catch (e) { console.warn('[FB] functions 초기화 실패(구방식 로그인으로 동작):', e); window._fbFns = null; }
 
   // file:// 환경에서 long polling 자동 감지 (v10 기본값)
   try { _fbDB.settings({ experimentalAutoDetectLongPolling: true, merge: true }); }

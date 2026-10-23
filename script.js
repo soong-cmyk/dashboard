@@ -372,19 +372,36 @@ async function login() {
   const id = document.getElementById('login-id').value.trim();
   const pw = document.getElementById('login-pw').value;
   const errEl = document.getElementById('login-err');
-  // USERS 배열이 아직 로드 안 됐을 수 있으므로 Firebase에서 직접 조회
-  let user = USERS.find(u => u.id === id && u.pw === pw);
-  if (!user && window._db) {
+  const showLoginErr = (msg) => { if (errEl) { errEl.textContent = msg; errEl.style.display = ''; } };
+  let user = null;
+
+  // 1순위: 서버(Cloud Function)에서 검증 — 비밀번호 비교가 서버에서만 일어나고, 비번 뺀 프로필만 돌려받는다.
+  // 인증 오류(아이디/비번 틀림·퇴사·잠금)는 그대로 표시하고, 네트워크/서버 장애일 때만 아래 구방식으로 폴백한다
+  // (2026-10-23, 비밀번호 서버 검증 전환 — 장애 시에도 로그인이 끊기지 않게).
+  if (window._fbFns) {
     try {
-      const doc = await window._db.collection('users').doc(id).get();
-      if (doc.exists) { const u = doc.data(); if (u.pw === pw) user = u; }
-    } catch(e) {}
+      const res = await window._fbFns.httpsCallable('verifyLogin')({ id, pw });
+      user = res.data && res.data.user ? res.data.user : null;
+      if (user) user.pw = pw; // 전환 과도기: 비번변경·초기화 등에서 쓰도록 세션에만 보관
+    } catch (e) {
+      const code = (e && e.code) || '';
+      const AUTH_ERRS = ['functions/unauthenticated', 'functions/permission-denied', 'functions/invalid-argument', 'functions/resource-exhausted'];
+      if (AUTH_ERRS.includes(code)) return showLoginErr(e.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
+      console.warn('[login] 서버 검증 실패 → 구방식으로 폴백:', code, e && e.message);
+    }
   }
-  if (!user) { if (errEl) { errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.'; errEl.style.display = ''; } return; }
-  // 퇴사 처리된 계정은 로그인 자체를 막는다(2026-09-11, 사용자관리 퇴사자 처리 기능 추가).
-  if (user.isActive === false) {
-    if (errEl) { errEl.textContent = '퇴사 처리된 계정입니다. 관리자에게 문의해주세요.'; errEl.style.display = ''; }
-    return;
+
+  // 2순위(폴백): 서버 함수가 없거나 장애일 때만 — 기존 클라이언트 방식. USERS 미로드 시 Firebase 직접 조회.
+  if (!user) {
+    user = USERS.find(u => u.id === id && u.pw === pw);
+    if (!user && window._db) {
+      try {
+        const doc = await window._db.collection('users').doc(id).get();
+        if (doc.exists) { const u = doc.data(); if (u.pw === pw) user = u; }
+      } catch(e) {}
+    }
+    if (!user) return showLoginErr('아이디 또는 비밀번호가 올바르지 않습니다.');
+    if (user.isActive === false) return showLoginErr('퇴사 처리된 계정입니다. 관리자에게 문의해주세요.');
   }
   if (errEl) errEl.style.display = 'none';
   currentUser = user;
@@ -942,7 +959,7 @@ function openChangePwModal() {
   openModal('modalChangePw');
 }
 
-function submitChangePw() {
+async function submitChangePw() {
   const current = document.getElementById('cpw-current').value;
   const next    = document.getElementById('cpw-new').value;
   const confirm = document.getElementById('cpw-confirm').value;
@@ -951,12 +968,24 @@ function submitChangePw() {
   const showErr = (msg) => { errEl.textContent = msg; errEl.style.display = ''; };
 
   if (!current || !next || !confirm) return showErr('모든 항목을 입력해주세요.');
-  if (currentUser.pw !== current)    return showErr('현재 비밀번호가 올바르지 않습니다.');
   if (next.length < 4)               return showErr('새 비밀번호는 4자 이상이어야 합니다.');
   if (next !== confirm)              return showErr('새 비밀번호가 일치하지 않습니다.');
 
-  // ── DB 연동 시 아래 로컬 저장 대신 API 호출로 교체 ──
-  // await _apiChangePassword(currentUser.id, current, next);
+  // 서버(Cloud Function)에서 현재 비번 확인 후 해시로 저장 — 현재 비번이 틀리면 서버가 막는다.
+  // 서버 장애 시에만 로컬 저장으로 폴백(2026-10-23). 폴백 대비 현재 비번 선확인도 유지.
+  if (window._fbFns) {
+    try {
+      await window._fbFns.httpsCallable('changeMyPassword')({ id: currentUser.id, currentPw: current, newPw: next });
+      _localChangePassword(currentUser.id, next); // users.pw도 동기화(과도기 폴백 정확성 유지) + UI/토스트
+      return;
+    } catch (e) {
+      const code = (e && e.code) || '';
+      if (code === 'functions/unauthenticated') return showErr('현재 비밀번호가 올바르지 않습니다.');
+      if (code === 'functions/invalid-argument') return showErr(e.message || '입력값을 확인해주세요.');
+      console.warn('[changePw] 서버 저장 실패 → 로컬만 갱신:', code, e && e.message);
+    }
+  }
+  if (currentUser.pw !== current) return showErr('현재 비밀번호가 올바르지 않습니다.');
   _localChangePassword(currentUser.id, next);
 }
 
@@ -1074,9 +1103,18 @@ function openResetPwModal(uid) {
   document.getElementById('reset-pw-name').textContent = u.name;
   openModal('modalResetPw');
 }
-function confirmResetPw() {
+async function confirmResetPw() {
   const u = USERS.find(x => x.id === _pendingResetUid);
-  if (u) { u.pw = '1234'; _fbSaveUser(u); toast(`✓ ${u.name} 비밀번호가 1234로 초기화되었습니다`, 'ok'); }
+  if (u) {
+    // 서버(Cloud Function)에서 관리자 확인 후 대상 비번을 1234 해시로 저장. 장애 시 로컬만 갱신(2026-10-23).
+    if (window._fbFns) {
+      try {
+        await window._fbFns.httpsCallable('adminResetPassword')({ adminId: currentUser.id, adminPw: currentUser.pw, targetId: u.id, newPw: '1234' });
+      } catch (e) { console.warn('[resetPw] 서버 저장 실패 → 로컬만 갱신:', (e && e.code), e && e.message); }
+    }
+    u.pw = '1234'; _fbSaveUser(u); // users.pw도 동기화(과도기 폴백 정확성 유지)
+    toast(`✓ ${u.name} 비밀번호가 1234로 초기화되었습니다`, 'ok');
+  }
   _pendingResetUid = null;
   closeModal('modalResetPw');
 }
