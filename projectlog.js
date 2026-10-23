@@ -545,7 +545,7 @@ function _plRenderShell() {
   _plUpdateTabButtons();
   plRenderActiveTab();
 }
-function _plCanViewDateTab() { return !!currentUser?.isAdmin || ['younghyun', 'janghwan'].includes(currentUser?.id); }
+function _plCanViewDateTab() { return !!currentUser?.isAdmin || ['younghyun', 'janghwan', 'soongeun'].includes(currentUser?.id); }
 function _plUpdateTabButtons() {
   ['advertiser', 'campaign', 'lognew', 'media', 'date', 'mine', 'internal'].forEach(t => {
     document.getElementById(`pl-vt-${t}`)?.classList.toggle('active', PL_STATE.tab === t);
