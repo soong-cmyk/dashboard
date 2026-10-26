@@ -15702,34 +15702,43 @@ function perfCloseMonthPanel() {
 // 핵심 지표는 DB/만(1만 건당 DB등록). 발송완료 5회 미만 브랜드는 카드 대신 안내만.
 // ──────────────────────────────────────────────────────────
 const INS_MIN_CAMPAIGNS = 5;           // 이 미만이면 카드 숨김
+// 업종/관심 키워드 — 전 카테고리(건강·교육·분양·펫·안경·금융·차량 등) 실제 타겟 코퍼스에서 추출(2026-10-26)
 const INS_TARGET_KEYS = [
-  ['건기식', /건기식|건강기능식품|건강식품/], ['약국', /약국/],
-  ['병의원', /정형외과|한의원|통증클리닉|병의원|척추|관절.?클리닉|의원/],
-  ['안마의자', /안마의자|바디프렌드|코지마|휴테크|세라젬/], ['홈쇼핑', /홈쇼핑/],
-  ['경쟁사', /호관원|관절팔팔|경쟁사/], ['레저', /골프|등산|여행|아웃도어|항공/],
-  ['상조', /상조/], ['전화권유', /전화\s*권유/],
+  ['입학지원금', /입학지원금/], ['유치원·어린이집', /유치원|어린이집|키즈카페/],
+  ['스쿨뱅킹', /스쿨뱅킹|쿨뱅킹/], ['산후조리원', /산후조리원/],
+  ['학원·사교육', /학원|사교육|독서실|스터디카페/], ['자녀 학년', /초\s?\d|중\s?\d|초등|중등/],
+  ['자녀 생년', /\d{2}\s?년생/], ['AI·개발강의', /chatgpt|claude|gemini|ai\s*서비스|개발자\s*강의/i],
+  ['펫', /펫사료|반려동물|동물병원|사료/], ['안경·안과', /안경점|렌즈점|안과/],
+  ['보험', /보험/], ['대출·신용', /대출|신용|카드론|리볼빙|연체|캐쉬백/],
+  ['뷰티·화장품', /올리브영|코스메틱|화장품/], ['고소득·차량', /억\s*이상|연\s*?추정소득|연소득|백화점|면세점|차량\s*보유/],
+  ['건기식', /건기식|건강기능식품|건강식품/], ['병의원', /정형외과|한의원|통증클리닉|병의원|척추|관절.?클리닉|의원/],
+  ['약국', /약국/], ['안마의자', /안마의자|바디프렌드|코지마|휴테크|세라젬/],
+  ['홈쇼핑', /홈쇼핑/], ['상조', /상조/], ['경쟁사', /경쟁사|호관원|관절팔팔/], ['전화권유', /전화\s*권유/],
 ];
 // 주의: 타겟조건은 '<최근 1년 이내 건기식...>'처럼 꺾쇠로 조건을 감싸 적으므로 <...>를 지우면 안 된다
 // (줄바꿈 태그만 공백으로 바꾸고 나머지는 그대로 둔다 — 2026-10-26, 꺾쇠 안 키워드 누락 버그 수정).
 function _insClean(s) { return String(s || '').replace(/<br\s*\/?>/gi, ' ').replace(/^'+/, '').replace(/\s+/g, ' ').trim(); }
+// 연령: 여러 형식(NN~NN세, NN-NN대, 3049, F3554, 만N세이상) 지원 — 자녀 생년/학년은 키워드로 따로 잡으므로 여기선 나이만
+function _insAge(t) {
+  let m = t.match(/만?\s*(\d{2})\s*세?\s*이상\s*~?\s*만?\s*(\d{2})\s*세?\s*미만/); if (m) return `${m[1]}~${+m[2] - 1}세`;
+  m = t.match(/(\d{2})\s*[~\-]\s*(\d{2})\s*세/); if (m) return `${m[1]}~${m[2]}세`;
+  m = t.match(/(\d{2})\s*[~\-]\s*(\d{2})\s*대/); if (m) return `${m[1]}~${+m[2] + 9}세`;
+  m = t.match(/(?:^|[^\d.])([3-6]\d)([0-6]\d)(?!\s*[년원만건%\d])/); if (m) return `${m[1]}~${m[2]}세`;
+  m = t.match(/만?\s*(\d{2})\s*세\s*이상/); if (m) return `${m[1]}세+`;
+  m = t.match(/(\d{2})\s*대/); if (m) return `${m[1]}대`;
+  return '연령미상';
+}
+function _insRegions(t) { const s = new Set(); (t.match(/[가-힣]{2,5}(?:시|군|구)(?![가-힣])/g) || []).forEach(r => s.add(r)); return [...s]; }
 function _insTag(c) {
   const t = _insClean(c.target), all = t + ' ' + _insClean(c.dtarget);
-  const am = t.match(/(\d{2})\s*~\s*(\d{2})\s*세/);
-  const ageBand = am ? (+am[1] <= 49 ? '31~49세' : +am[1] >= 60 ? '60~79세' : '50대 중심') : '연령미상';
   const keys = INS_TARGET_KEYS.filter(([, re]) => re.test(all)).map(([k]) => k);
-  return { ageBand, ageRaw: am ? `${am[1]}~${am[2]}세` : '—', keys, hasTarget: t.length > 0 };
+  return { age: _insAge(t), keys, regions: _insRegions(t), hasTarget: t.length > 0 };
 }
-// 한 캠페인을 대표 패턴 하나에만 배정(겹침 없음) — 우선순위로 결정
-function _insPattern(ageBand, keys) {
-  if (keys.includes('약국')) return '약국 결제자';
-  if (ageBand === '31~49세' || keys.includes('상조')) return '31~49세(안마·상조)';
-  if (keys.includes('홈쇼핑')) return '홈쇼핑 혼합';
-  if (keys.includes('경쟁사')) return '경쟁사 결제자';
-  if (keys.includes('레저')) return '레저/골프·여행';
-  const g = keys.includes('건기식'), b = keys.includes('병의원');
-  if (g && b) return '건기식∩병의원';
-  if (g) return '건기식 중심';
-  if (b) return '병의원 단독';
+// 대표 패턴(겹침 없음): 업종 키워드 > 지역 > 연령 > 기타 (전 카테고리 공통)
+function _insPattern(keys, regions, age) {
+  if (keys.length) return keys[0];
+  if (regions.length) return '지역:' + regions[0];
+  if (age && age !== '연령미상') return age;
   return '기타';
 }
 function _insRows(camps) {
@@ -15739,8 +15748,8 @@ function _insRows(camps) {
     const ctr = (c.ctr != null && c.ctr !== '') ? parseFloat(c.ctr) : (sent && clicks ? +(clicks / sent * 100).toFixed(2) : null);
     return {
       id: c.id, dt: (c.date || '').slice(0, 16), media: c.media || '—',
-      ageRaw: t.ageRaw, ageBand: t.ageBand, keys: t.keys, hasTarget: t.hasTarget,
-      pat: _insPattern(t.ageBand, t.keys), sent, clicks, db, ctr,
+      ageRaw: t.age, ageBand: t.age, keys: t.keys, hasTarget: t.hasTarget,
+      pat: _insPattern(t.keys, t.regions, t.age), sent, clicks, db, ctr,
       dbIn: (c.db != null && c.db !== ''),
     };
   });
@@ -15877,10 +15886,10 @@ function _insRenderBrand(brand, camps) {
   const recoHtml = li.length ? `<div class="ins-reco"><h4>다음 발송 추천</h4><ul>${li.map(x => `<li><span>${x[0]}</span><span><span>${x[1]}</span> <span class="w">— ${x[2]}</span></span></li>`).join('')}</ul></div>` : '';
 
   // 데이터 이상 플래그
-  const noKw = rows.filter(r => r.sent > 0 && r.hasTarget && r.keys.length === 0).map(r => r.id);
+  const noKw = rows.filter(r => r.sent > 0 && r.hasTarget && r.pat === '기타').map(r => r.id);
   const noCl = rows.filter(r => r.sent > 0 && !(r.clicks > 0)).map(r => r.id);
   const flags = [];
-  if (noKw.length) flags.push(`타겟 키워드 미검출 ${noKw.length}건 — 타겟 문구 확인 (${noKw.slice(0, 4).join(', ')}${noKw.length > 4 ? ' 외' : ''})`);
+  if (noKw.length) flags.push(`타겟 패턴 미분류(기타) ${noKw.length}건 — 타겟 문구 확인 (${noKw.slice(0, 4).join(', ')}${noKw.length > 4 ? ' 외' : ''})`);
   if (noCl.length) flags.push(`클릭수 미입력 ${noCl.length}건 — 성과 입력 확인`);
   const flagHtml = flags.length ? `<div class="ins-flag">🟡 <b>데이터 확인</b> — ${flags.map(_escHtml).join(' · ')}</div>` : '';
 
