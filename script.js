@@ -15807,9 +15807,13 @@ function _insStyle() {
     .ins-flag{margin:9px 15px 0;background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:9px;padding:8px 12px;font-size:12px;color:var(--text);}
     .ins-lens{display:flex;gap:6px;flex-wrap:wrap;padding:12px 15px 2px;align-items:center;}
     .ins-lens .lb{font-size:11.5px;color:var(--text3);margin-right:2px;}
-    .ins-lens button{font:inherit;font-size:12px;font-weight:600;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 11px;cursor:pointer;}
-    .ins-lens button.on{background:var(--accent);border-color:var(--accent);color:#fff;}
-    .ins-rank{padding:4px 12px 12px;}
+    .ins-lens button,.ins-view button{font:inherit;font-size:12px;font-weight:600;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 11px;cursor:pointer;}
+    .ins-lens button.on,.ins-view button.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+    .ins-view{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:3px 15px 0;}
+    .ins-pane{padding:4px 12px 12px;}
+    .ins-sc{padding:8px 14px 12px;}
+    .ins-sc svg{width:100%;height:auto;max-width:480px;display:block;}
+    .ins-sc .cap{font-size:11px;color:var(--text3);margin-top:5px;line-height:1.6;}
     .ins-item{border:1px solid var(--border);border-radius:10px;margin-top:8px;overflow:hidden;}
     .ins-row{display:grid;grid-template-columns:1fr 132px auto;gap:12px;align-items:center;padding:10px 13px;cursor:pointer;background:none;border:none;width:100%;text-align:left;color:inherit;font:inherit;}
     .ins-row:hover{background:var(--surface2);}
@@ -15835,7 +15839,7 @@ function _insStyle() {
   document.head.appendChild(s);
 }
 let _INS_MAX = 6;
-function _insRankHtml(groups, base, secId, lens, show) {
+function _insRankHtml(groups, base, secId, lens, vis) {
   _INS_MAX = Math.max(6, ...groups.map(g => g.dbper || 0));
   const esc = _escHtml;
   const body = groups.map(G => {
@@ -15864,12 +15868,46 @@ function _insRankHtml(groups, base, secId, lens, show) {
       <div class="ins-dt"><table><thead><tr><th>집행일시</th><th>캠페인ID</th><th>매체</th><th>연령</th><th class="r">발송</th><th class="r">CTR</th><th class="r">DB</th><th class="r">DB/만</th></tr></thead><tbody>${rws}</tbody></table></div>
     </div>`;
   }).join('');
-  return `<div class="ins-rank" data-sec="${secId}" data-lens="${lens}" style="display:${show ? 'block' : 'none'}">${body}</div>`;
+  return `<div class="ins-pane" data-sec="${secId}" data-lens="${lens}" data-view="bar" style="display:${vis ? 'block' : 'none'}">${body}</div>`;
 }
-function _insLensSwitch(secId, lens, btn) {
-  document.querySelectorAll(`.ins-rank[data-sec="${secId}"]`).forEach(el => el.style.display = el.dataset.lens === lens ? 'block' : 'none');
-  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+// 산점도 — 같은 렌즈 집계를 CTR(가로)×DB/만(세로) 좌표에 점으로. 사분면: 오른쪽 아래=클릭 함정
+function _insScatterHtml(groups, base, baseCtr, secId, lens, vis) {
+  const esc = _escHtml;
+  const pts = groups.filter(g => g.dbper != null && g.ctr != null);
+  const wrap = inner => `<div class="ins-pane ins-sc" data-sec="${secId}" data-lens="${lens}" data-view="scatter" style="display:${vis ? 'block' : 'none'}">${inner}</div>`;
+  if (!pts.length) return wrap(`<div class="cap">CTR과 DB가 모두 입력된 회차가 없어 산점도를 그릴 수 없어요.</div>`);
+  const W = 520, H = 340, L = 46, R = 14, T = 16, B = 40, PW = W - L - R, PH = H - T - B;
+  const xMax = Math.max(4, ...pts.map(p => p.ctr)) * 1.08;
+  const yMax = Math.max(6, ...pts.map(p => p.dbper)) * 1.08;
+  const x = v => L + v / xMax * PW, y = v => T + (1 - v / yMax) * PH;
+  const col = db => db >= base * 1.25 ? 'var(--green)' : db <= base * 0.6 ? 'var(--red)' : 'var(--accent)';
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="CTR 대 DB/만 산점도">`;
+  s += `<rect x="${x(baseCtr).toFixed(1)}" y="${T}" width="${(x(xMax) - x(baseCtr)).toFixed(1)}" height="${(y(base) - T).toFixed(1)}" fill="var(--green-bg)"/>`;
+  s += `<rect x="${x(baseCtr).toFixed(1)}" y="${y(base).toFixed(1)}" width="${(x(xMax) - x(baseCtr)).toFixed(1)}" height="${(y(0) - y(base)).toFixed(1)}" fill="var(--red-bg)"/>`;
+  s += `<rect x="${L}" y="${T}" width="${PW}" height="${PH}" fill="none" stroke="var(--border)"/>`;
+  s += `<line x1="${x(baseCtr).toFixed(1)}" y1="${T}" x2="${x(baseCtr).toFixed(1)}" y2="${T + PH}" stroke="var(--text3)" stroke-dasharray="4 4"/>`;
+  s += `<line x1="${L}" y1="${y(base).toFixed(1)}" x2="${L + PW}" y2="${y(base).toFixed(1)}" stroke="var(--text3)" stroke-dasharray="4 4"/>`;
+  s += `<text x="${(x(baseCtr) + 3).toFixed(1)}" y="${T + 11}" fill="var(--text3)" font-size="9">평균 CTR ${baseCtr.toFixed(1)}%</text>`;
+  s += `<text x="${L + 3}" y="${(y(base) - 4).toFixed(1)}" fill="var(--text3)" font-size="9">평균 DB/만 ${base.toFixed(1)}</text>`;
+  s += `<text x="${L + PW / 2}" y="${H - 6}" fill="var(--text2)" font-size="10" text-anchor="middle">CTR →</text>`;
+  s += `<text x="12" y="${T + PH / 2}" fill="var(--text2)" font-size="10" text-anchor="middle" transform="rotate(-90 12 ${T + PH / 2})">DB/만 →</text>`;
+  pts.forEach(p => {
+    const r = Math.min(16, 4 + Math.sqrt(p.n) * 1.8);
+    const cx = x(p.ctr).toFixed(1), cy = y(p.dbper).toFixed(1);
+    s += `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(1)}" fill="${col(p.dbper)}" fill-opacity="0.8" stroke="var(--surface)" stroke-width="1.3"><title>${esc(p.k)} · CTR ${p.ctr}% · DB/만 ${p.dbper} · ${p.n}회</title></circle>`;
+    s += `<text x="${(x(p.ctr) + r + 3).toFixed(1)}" y="${(y(p.dbper) + 3).toFixed(1)}" fill="var(--text2)" font-size="9.5">${esc(p.k.length > 10 ? p.k.slice(0, 9) + '…' : p.k)}</text>`;
+  });
+  s += `</svg><div class="cap">오른쪽 아래(붉은 구역) = 클릭은 많은데 DB 낮은 '함정' · 오른쪽 위(초록) = 둘 다 좋음 · 점 크기 = 회차</div>`;
+  return wrap(s);
 }
+function _insApply(secId) {
+  const sec = document.querySelector(`[data-insb="${secId}"]`); if (!sec) return;
+  const lens = sec.querySelector('.ins-lens button.on')?.dataset.lens || 'pat';
+  const view = sec.querySelector('.ins-view button.on')?.dataset.view || 'bar';
+  sec.querySelectorAll('.ins-pane').forEach(el => { el.style.display = (el.dataset.lens === lens && el.dataset.view === view) ? 'block' : 'none'; });
+}
+function _insLensSwitch(secId, lens, btn) { btn.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn)); _insApply(secId); }
+function _insViewSwitch(secId, view, btn) { btn.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn)); _insApply(secId); }
 let _insSecCount = 0;
 function _insRenderBrand(brand, camps) {
   const rows = _insRows(camps);
@@ -15909,16 +15947,22 @@ function _insRenderBrand(brand, camps) {
   if (noCl.length) flags.push(`클릭수 미입력 ${noCl.length}건 — 성과 입력 확인`);
   const flagHtml = flags.length ? `<div class="ins-flag">🟡 <b>데이터 확인</b> — ${flags.map(_escHtml).join(' · ')}</div>` : '';
 
-  return `<div class="ins">
+  return `<div class="ins" data-insb="${secId}">
     <div class="ins-h"><b>${name}</b><span class="m">발송완료 ${done.length}회 · 평균 CTR ${ctrBase.toFixed(2)}% · DB/만 ${base.toFixed(1)} <span style="color:var(--text3)">(1만 건당 DB)</span></span></div>
     ${recoHtml}${flagHtml}
     <div class="ins-lens"><span class="lb">기준</span>
-      <button class="on" onclick="_insLensSwitch('${secId}','pat',this)">타겟 패턴</button>
-      <button onclick="_insLensSwitch('${secId}','media',this)">매체</button>
-      <button onclick="_insLensSwitch('${secId}','age',this)">연령대</button></div>
+      <button class="on" data-lens="pat" onclick="_insLensSwitch('${secId}','pat',this)">타겟 패턴</button>
+      <button data-lens="media" onclick="_insLensSwitch('${secId}','media',this)">매체</button>
+      <button data-lens="age" onclick="_insLensSwitch('${secId}','age',this)">연령대</button></div>
+    <div class="ins-view"><span class="lb">보기</span>
+      <button class="on" data-view="bar" onclick="_insViewSwitch('${secId}','bar',this)">순위 막대</button>
+      <button data-view="scatter" onclick="_insViewSwitch('${secId}','scatter',this)">산점도</button></div>
     ${_insRankHtml(patAgg, base, secId, 'pat', true)}
+    ${_insScatterHtml(patAgg, base, ctrBase, secId, 'pat', false)}
     ${_insRankHtml(mediaAgg, base, secId, 'media', false)}
+    ${_insScatterHtml(mediaAgg, base, ctrBase, secId, 'media', false)}
     ${_insRankHtml(ageAgg, base, secId, 'age', false)}
+    ${_insScatterHtml(ageAgg, base, ctrBase, secId, 'age', false)}
   </div>`;
 }
 function _insBrandSections(camps) {
