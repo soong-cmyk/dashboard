@@ -15750,9 +15750,10 @@ function _insTag(c) {
   const keys = INS_TARGET_KEYS.filter(([, re]) => re.test(all)).map(([k]) => k);
   return { age: _insAge(t), keys, regions: _insRegions(t), hasTarget: t.length > 0 };
 }
-// 대표 패턴(겹침 없음): 업종 키워드 > 지역 > 연령 > 기타 (전 카테고리 공통)
+// 대표 패턴(겹침 없음): 매칭된 업종 키워드를 ∩로 모두 이어 교집합을 보존 > 지역 > 연령 > 기타
+// (예: 건기식+병의원 둘 다 잡히면 '건기식∩병의원'으로, 건기식만이면 '건기식'으로 구분)
 function _insPattern(keys, regions, age) {
-  if (keys.length) return keys[0];
+  if (keys.length) return keys.slice(0, 3).join('∩');
   if (regions.length) return '지역:' + regions[0];
   if (age && age !== '연령미상') return age;
   return '기타';
