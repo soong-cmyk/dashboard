@@ -15791,7 +15791,7 @@ function _insSig(dbper, base, n) {
   if (dbper == null || !base) return ['관찰', 'mid'];
   if (dbper >= base * 1.25) return ['🟢 권장', 'good'];
   if (dbper <= base * 0.6) return ['🔴 중단', 'bad'];
-  return ['관찰', 'mid'];
+  return ['➖ 관찰', 'mid'];
 }
 function _insStyle() {
   if (document.getElementById('ins-style')) return;
@@ -15827,7 +15827,7 @@ function _insStyle() {
     .ins-bar .tp{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);}
     .ins-bar .tp b{font-size:15px;font-weight:800;color:var(--text);}
     .ins-bk{height:7px;border-radius:4px;background:var(--surface2);overflow:hidden;} .ins-bk>i{display:block;height:100%;border-radius:4px;}
-    .ins-sg{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap;justify-self:end;}
+    .ins-sg{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap;justify-self:end;min-width:58px;text-align:center;}
     .ins-sg.good{background:var(--green-bg);color:var(--green);} .ins-sg.bad{background:var(--red-bg);color:var(--red);} .ins-sg.mid{background:var(--surface2);color:var(--text2);}
     .ins-dt{display:none;padding:2px 13px 11px;background:var(--surface2);border-top:1px solid var(--border);}
     .ins-item.op .ins-dt{display:block;}
