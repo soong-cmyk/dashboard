@@ -15767,7 +15767,7 @@ function _insRows(camps) {
       id: c.id, dt: (c.date || '').slice(0, 16), media: c.media || '—',
       ageRaw: t.age, ageBand: t.age, keys: t.keys, hasTarget: t.hasTarget,
       pat: _insPattern(t.keys, t.regions, t.age), sent, clicks, db, ctr,
-      dbIn: (c.db != null && c.db !== ''),
+      tgt: _insClean(c.target), dbIn: (c.db != null && c.db !== ''),
     };
   });
 }
@@ -15786,7 +15786,8 @@ function _insAgg(rows, keyFn) {
     dbper: v.ds ? +(v.dd / v.ds * 1e4).toFixed(2) : null, rows: v.rows,
   })).sort((a, b) => (b.dbper ?? -1) - (a.dbper ?? -1));
 }
-function _insSig(dbper, base) {
+function _insSig(dbper, base, n) {
+  if (n != null && n < 3) return ['🔎 관찰', 'mid'];   // 표본 3회 미만은 단정 안 함
   if (dbper == null || !base) return ['관찰', 'mid'];
   if (dbper >= base * 1.25) return ['🟢 권장', 'good'];
   if (dbper <= base * 0.6) return ['🔴 중단', 'bad'];
@@ -15833,6 +15834,7 @@ function _insStyle() {
     .ins-dt table{width:100%;border-collapse:collapse;font-size:12px;}
     .ins-dt th{text-align:left;color:var(--text3);font-weight:500;padding:6px 7px;white-space:nowrap;}
     .ins-dt td{padding:6px 7px;border-top:1px solid var(--border);white-space:nowrap;}
+    .ins-dt .ins-tgt td{border-top:none;padding:0 7px 7px 20px;color:var(--text3);font-size:11px;white-space:normal;line-height:1.5;}
     .ins-dt .r{text-align:right;font-variant-numeric:tabular-nums;}
     .ins-cid{font-family:ui-monospace,monospace;color:var(--accent);font-size:11.5px;cursor:pointer;text-decoration:none;} .ins-cid:hover{text-decoration:underline;}
     .ins-hi{color:var(--green);font-weight:700;} .ins-lo{color:var(--red);font-weight:700;}
@@ -15844,7 +15846,7 @@ function _insRankHtml(groups, base, secId, lens, vis) {
   _INS_MAX = Math.max(6, ...groups.map(g => g.dbper || 0));
   const esc = _escHtml;
   const body = groups.map(G => {
-    const [sg, cls] = _insSig(G.dbper, base);
+    const [sg, cls] = _insSig(G.dbper, base, G.n);
     const barC = cls === 'good' ? 'var(--green)' : cls === 'bad' ? 'var(--red)' : 'var(--accent)';
     const dbTxt = G.dbper == null ? '—' : G.dbper.toFixed(1);
     const ctrTxt = G.ctr == null ? '—' : G.ctr.toFixed(2) + '%';
@@ -15858,7 +15860,8 @@ function _insRankHtml(groups, base, secId, lens, vis) {
         <td class="r">${r.sent ? r.sent.toLocaleString() : '—'}</td>
         <td class="r">${r.ctr == null ? '—' : r.ctr.toFixed(2) + '%'}</td>
         <td class="r">${r.dbIn ? r.db : '<span style="color:var(--text3)">미입력</span>'}</td>
-        <td class="r ${dp != null && base && dp >= base * 1.25 ? 'ins-hi' : dp != null && base && dp <= base * 0.6 ? 'ins-lo' : ''}">${dp == null ? '—' : dp.toFixed(2)}</td></tr>`;
+        <td class="r ${dp != null && base && dp >= base * 1.25 ? 'ins-hi' : dp != null && base && dp <= base * 0.6 ? 'ins-lo' : ''}">${dp == null ? '—' : dp.toFixed(2)}</td></tr>`
+        + (r.tgt ? `<tr class="ins-tgt"><td colspan="8" title="${esc(r.tgt)}">↳ ${esc(r.tgt.length > 140 ? r.tgt.slice(0, 140) + '…' : r.tgt)}</td></tr>` : '');
     }).join('');
     return `<div class="ins-item">
       <button class="ins-row" onclick="var it=this.closest('.ins-item');it.classList.toggle('op')">
@@ -15925,14 +15928,17 @@ function _insRenderBrand(brand, camps) {
 
   // 다음 발송 추천
   const li = [];
-  const wd = patAgg.filter(g => g.dbper != null);
-  if (wd.length) {
-    const top = wd[0];
-    if (top.dbper >= base * 1.15) li.push(['🎯', `<b>${_escHtml(top.k)}</b> 타겟 반복·확대`, `DB/만 ${top.dbper} · 평균 ${base.toFixed(1)}의 ${(top.dbper / base).toFixed(1)}배`]);
-    const bot = wd[wd.length - 1];
-    if (bot !== top && bot.dbper <= base * 0.6) li.push(['🛑', `<b>${_escHtml(bot.k)}</b> 중단 검토`, `DB/만 ${bot.dbper}${bot.ctr != null ? ` · CTR ${bot.ctr}%(클릭은 되나 전환 저조)` : ''}`]);
+  // 권장/중단은 표본 3회 이상에서만. 표본 적은 유망 패턴은 '관찰'로만 안내(2026-10-26)
+  const solid = patAgg.filter(g => g.dbper != null && g.n >= 3);
+  if (solid.length) {
+    const top = solid[0];
+    if (top.dbper >= base * 1.15) li.push(['🎯', `<b>${_escHtml(top.k)}</b> 타겟 반복·확대`, `DB/만 ${top.dbper} · ${top.n}회 · 평균의 ${(top.dbper / base).toFixed(1)}배`]);
+    const bot = solid[solid.length - 1];
+    if (bot !== top && bot.dbper <= base * 0.6) li.push(['🛑', `<b>${_escHtml(bot.k)}</b> 중단 검토`, `DB/만 ${bot.dbper} · ${bot.n}회${bot.ctr != null ? ` · CTR ${bot.ctr}%(클릭은 되나 전환 저조)` : ''}`]);
   }
-  const mwd = mediaAgg.filter(g => g.dbper != null);
+  const promising = patAgg.filter(g => g.dbper != null && g.n < 3 && g.dbper >= base * 1.15).sort((a, b) => b.dbper - a.dbper)[0];
+  if (promising) li.push(['🔎', `<b>${_escHtml(promising.k)}</b> 관찰 — 표본 적음`, `DB/만 ${promising.dbper} · ${promising.n}회 · 더 보내보고 판단`]);
+  const mwd = mediaAgg.filter(g => g.dbper != null && g.n >= 3);
   if (mwd.length >= 2) {
     const mt = mwd[0], mb = mwd[mwd.length - 1];
     const avoid = (mb.dbper <= base * 0.6) || (mb.ctr != null && mb.ctr < 1);
