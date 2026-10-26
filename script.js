@@ -15788,7 +15788,7 @@ function _insAgg(rows, keyFn) {
 }
 function _insSig(dbper, base, n) {
   if (n != null && n < 3) return ['🔎 관찰', 'mid'];   // 표본 3회 미만은 단정 안 함
-  if (dbper == null || !base) return ['관찰', 'mid'];
+  if (dbper == null || !base) return ['➖ 관찰', 'mid'];
   if (dbper >= base * 1.25) return ['🟢 권장', 'good'];
   if (dbper <= base * 0.6) return ['🔴 중단', 'bad'];
   return ['➖ 관찰', 'mid'];
