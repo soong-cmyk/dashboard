@@ -15967,7 +15967,7 @@ function renderPerfHistory() {
     camps.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     html += `<div style="margin-bottom:24px;">
       <div style="font-weight:700;font-size:14px;padding:6px 0 8px;border-bottom:2px solid var(--accent);margin-bottom:10px;">${_escHtml(adv)}</div>
-      ${fAdv ? _insBrandSections(camps) : ''}
+      ${(fAdv || fBrand || search) ? _insBrandSections(camps) : ''}
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
         <thead><tr>
           <th style="${thH}">집행일</th>
