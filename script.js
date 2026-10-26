@@ -15695,6 +15695,217 @@ function perfCloseMonthPanel() {
   if (panel) panel.style.display = 'none';
 }
 
+// ══════════════════════════════════════════════════════════
+// 캠페인 인사이트 카드 (성과분석 > 광고주 히스토리) — 2026-10-26
+// 광고주를 선택하면, 그 광고주의 브랜드별로 "다음 발송 추천 + 타겟/매체/연령 렌즈 순위"를
+// 캠페인 표 위에 띄운다. 타겟조건(자유텍스트)을 정규식으로 자동 태그해 대표 패턴으로 묶고,
+// 핵심 지표는 DB/만(1만 건당 DB등록). 발송완료 5회 미만 브랜드는 카드 대신 안내만.
+// ──────────────────────────────────────────────────────────
+const INS_MIN_CAMPAIGNS = 5;           // 이 미만이면 카드 숨김
+const INS_TARGET_KEYS = [
+  ['건기식', /건기식|건강기능식품|건강식품/], ['약국', /약국/],
+  ['병의원', /정형외과|한의원|통증클리닉|병의원|척추|관절.?클리닉|의원/],
+  ['안마의자', /안마의자|바디프렌드|코지마|휴테크|세라젬/], ['홈쇼핑', /홈쇼핑/],
+  ['경쟁사', /호관원|관절팔팔|경쟁사/], ['레저', /골프|등산|여행|아웃도어|항공/],
+  ['상조', /상조/], ['전화권유', /전화\s*권유/],
+];
+// 주의: 타겟조건은 '<최근 1년 이내 건기식...>'처럼 꺾쇠로 조건을 감싸 적으므로 <...>를 지우면 안 된다
+// (줄바꿈 태그만 공백으로 바꾸고 나머지는 그대로 둔다 — 2026-10-26, 꺾쇠 안 키워드 누락 버그 수정).
+function _insClean(s) { return String(s || '').replace(/<br\s*\/?>/gi, ' ').replace(/^'+/, '').replace(/\s+/g, ' ').trim(); }
+function _insTag(c) {
+  const t = _insClean(c.target), all = t + ' ' + _insClean(c.dtarget);
+  const am = t.match(/(\d{2})\s*~\s*(\d{2})\s*세/);
+  const ageBand = am ? (+am[1] <= 49 ? '31~49세' : +am[1] >= 60 ? '60~79세' : '50대 중심') : '연령미상';
+  const keys = INS_TARGET_KEYS.filter(([, re]) => re.test(all)).map(([k]) => k);
+  return { ageBand, ageRaw: am ? `${am[1]}~${am[2]}세` : '—', keys, hasTarget: t.length > 0 };
+}
+// 한 캠페인을 대표 패턴 하나에만 배정(겹침 없음) — 우선순위로 결정
+function _insPattern(ageBand, keys) {
+  if (keys.includes('약국')) return '약국 결제자';
+  if (ageBand === '31~49세' || keys.includes('상조')) return '31~49세(안마·상조)';
+  if (keys.includes('홈쇼핑')) return '홈쇼핑 혼합';
+  if (keys.includes('경쟁사')) return '경쟁사 결제자';
+  if (keys.includes('레저')) return '레저/골프·여행';
+  const g = keys.includes('건기식'), b = keys.includes('병의원');
+  if (g && b) return '건기식∩병의원';
+  if (g) return '건기식 중심';
+  if (b) return '병의원 단독';
+  return '기타';
+}
+function _insRows(camps) {
+  return camps.filter(c => c.status !== '삭제' && c.product !== '실시간 발송').map(c => {
+    const t = _insTag(c);
+    const sent = parseFloat(c.actual) || 0, clicks = parseFloat(c.clicks) || 0, db = parseFloat(c.db) || 0;
+    const ctr = (c.ctr != null && c.ctr !== '') ? parseFloat(c.ctr) : (sent && clicks ? +(clicks / sent * 100).toFixed(2) : null);
+    return {
+      id: c.id, dt: (c.date || '').slice(0, 16), media: c.media || '—',
+      ageRaw: t.ageRaw, ageBand: t.ageBand, keys: t.keys, hasTarget: t.hasTarget,
+      pat: _insPattern(t.ageBand, t.keys), sent, clicks, db, ctr,
+      dbIn: (c.db != null && c.db !== ''),
+    };
+  });
+}
+// 기준(렌즈)별 집계 — CTR은 clicks 있는 회차, DB/만은 DB 입력된 회차 기준(미입력을 0으로 안 끌어내림)
+function _insAgg(rows, keyFn) {
+  const g = {};
+  rows.forEach(r => {
+    if (!(r.sent > 0)) return;
+    const k = keyFn(r); (g[k] = g[k] || { n: 0, cs: 0, cc: 0, ds: 0, dd: 0, rows: [] });
+    g[k].n++; g[k].rows.push(r);
+    if (r.clicks > 0) { g[k].cs += r.sent; g[k].cc += r.clicks; }
+    if (r.dbIn) { g[k].ds += r.sent; g[k].dd += r.db; }
+  });
+  return Object.entries(g).map(([k, v]) => ({
+    k, n: v.n, ctr: v.cs ? +(v.cc / v.cs * 100).toFixed(2) : null,
+    dbper: v.ds ? +(v.dd / v.ds * 1e4).toFixed(2) : null, rows: v.rows,
+  })).sort((a, b) => (b.dbper ?? -1) - (a.dbper ?? -1));
+}
+function _insSig(dbper, base) {
+  if (dbper == null || !base) return ['관찰', 'mid'];
+  if (dbper >= base * 1.25) return ['🟢 권장', 'good'];
+  if (dbper <= base * 0.6) return ['🔴 중단', 'bad'];
+  return ['관찰', 'mid'];
+}
+function _insStyle() {
+  if (document.getElementById('ins-style')) return;
+  const s = document.createElement('style'); s.id = 'ins-style';
+  s.textContent = `
+    .ins{margin:2px 0 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden;}
+    .ins-h{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;padding:12px 15px 0;}
+    .ins-h b{font-size:14px;} .ins-h .m{font-size:11.5px;color:var(--text3);}
+    .ins-thin{padding:11px 15px;font-size:12.5px;color:var(--text3);}
+    .ins-reco{margin:11px 15px 0;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;}
+    .ins-reco h4{margin:0 0 7px;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.03em;}
+    .ins-reco ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px;}
+    .ins-reco li{font-size:12.5px;display:flex;gap:7px;align-items:baseline;}
+    .ins-reco .w{color:var(--text3);font-size:11.5px;}
+    .ins-flag{margin:9px 15px 0;background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:9px;padding:8px 12px;font-size:12px;color:var(--text);}
+    .ins-lens{display:flex;gap:6px;flex-wrap:wrap;padding:12px 15px 2px;align-items:center;}
+    .ins-lens .lb{font-size:11.5px;color:var(--text3);margin-right:2px;}
+    .ins-lens button{font:inherit;font-size:12px;font-weight:600;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 11px;cursor:pointer;}
+    .ins-lens button.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+    .ins-rank{padding:4px 12px 12px;}
+    .ins-item{border:1px solid var(--border);border-radius:10px;margin-top:8px;overflow:hidden;}
+    .ins-row{display:grid;grid-template-columns:1fr 132px auto;gap:12px;align-items:center;padding:10px 13px;cursor:pointer;background:none;border:none;width:100%;text-align:left;color:inherit;font:inherit;}
+    .ins-row:hover{background:var(--surface2);}
+    .ins-nm{font-size:13px;font-weight:700;display:flex;gap:6px;align-items:center;min-width:0;}
+    .ins-nm .a{color:var(--text3);font-size:9px;transition:transform .15s;}
+    .ins-item.op .a{transform:rotate(90deg);}
+    .ins-nm .mt{display:block;font-weight:400;font-size:11px;color:var(--text3);margin-top:1px;}
+    .ins-bar{display:flex;flex-direction:column;gap:3px;}
+    .ins-bar .tp{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);}
+    .ins-bar .tp b{font-size:15px;font-weight:800;color:var(--text);}
+    .ins-bk{height:7px;border-radius:4px;background:var(--surface2);overflow:hidden;} .ins-bk>i{display:block;height:100%;border-radius:4px;}
+    .ins-sg{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap;justify-self:end;}
+    .ins-sg.good{background:var(--green-bg);color:var(--green);} .ins-sg.bad{background:var(--red-bg);color:var(--red);} .ins-sg.mid{background:var(--surface2);color:var(--text2);}
+    .ins-dt{display:none;padding:2px 13px 11px;background:var(--surface2);border-top:1px solid var(--border);}
+    .ins-item.op .ins-dt{display:block;}
+    .ins-dt table{width:100%;border-collapse:collapse;font-size:12px;}
+    .ins-dt th{text-align:left;color:var(--text3);font-weight:500;padding:6px 7px;white-space:nowrap;}
+    .ins-dt td{padding:6px 7px;border-top:1px solid var(--border);white-space:nowrap;}
+    .ins-dt .r{text-align:right;font-variant-numeric:tabular-nums;}
+    .ins-cid{font-family:ui-monospace,monospace;color:var(--accent);font-size:11.5px;cursor:pointer;text-decoration:none;} .ins-cid:hover{text-decoration:underline;}
+    .ins-hi{color:var(--green);font-weight:700;} .ins-lo{color:var(--red);font-weight:700;}
+    @media(max-width:560px){.ins-row{grid-template-columns:1fr 96px;}.ins-sg{grid-column:2;justify-self:start;margin-top:3px;}}`;
+  document.head.appendChild(s);
+}
+let _INS_MAX = 6;
+function _insRankHtml(groups, base, secId, lens, show) {
+  _INS_MAX = Math.max(6, ...groups.map(g => g.dbper || 0));
+  const esc = _escHtml;
+  const body = groups.map(G => {
+    const [sg, cls] = _insSig(G.dbper, base);
+    const barC = cls === 'good' ? 'var(--green)' : cls === 'bad' ? 'var(--red)' : 'var(--accent)';
+    const dbTxt = G.dbper == null ? '—' : G.dbper.toFixed(1);
+    const ctrTxt = G.ctr == null ? '—' : G.ctr.toFixed(2) + '%';
+    const w = G.dbper == null ? 0 : Math.min(100, Math.round(G.dbper / _INS_MAX * 100));
+    const rws = G.rows.slice().sort((a, b) => ((b.dbIn ? b.db / b.sent : -1)) - ((a.dbIn ? a.db / a.sent : -1))).map(r => {
+      const dp = r.dbIn && r.sent ? (r.db / r.sent * 1e4) : null;
+      const idx = DATA.findIndex(d => d.id === r.id);
+      return `<tr><td>${esc(r.dt || '—')}</td>
+        <td><a class="ins-cid" href="#" onclick="openCalPreview(${idx});return false;">${esc(r.id)}</a></td>
+        <td>${esc(r.media)}</td><td>${esc(r.ageRaw)}</td>
+        <td class="r">${r.sent ? r.sent.toLocaleString() : '—'}</td>
+        <td class="r">${r.ctr == null ? '—' : r.ctr.toFixed(2) + '%'}</td>
+        <td class="r">${r.dbIn ? r.db : '<span style="color:var(--text3)">미입력</span>'}</td>
+        <td class="r ${dp != null && base && dp >= base * 1.25 ? 'ins-hi' : dp != null && base && dp <= base * 0.6 ? 'ins-lo' : ''}">${dp == null ? '—' : dp.toFixed(2)}</td></tr>`;
+    }).join('');
+    return `<div class="ins-item">
+      <button class="ins-row" onclick="var it=this.closest('.ins-item');it.classList.toggle('op')">
+        <span class="ins-nm"><span class="a">▶</span>${esc(G.k)}<span class="mt">${G.n}회 · CTR ${ctrTxt}</span></span>
+        <span class="ins-bar"><span class="tp"><span>DB/만</span><b>${dbTxt}</b></span><span class="ins-bk"><i style="width:${w}%;background:${barC}"></i></span></span>
+        <span class="ins-sg ${cls}">${sg}</span>
+      </button>
+      <div class="ins-dt"><table><thead><tr><th>집행일시</th><th>캠페인ID</th><th>매체</th><th>연령</th><th class="r">발송</th><th class="r">CTR</th><th class="r">DB</th><th class="r">DB/만</th></tr></thead><tbody>${rws}</tbody></table></div>
+    </div>`;
+  }).join('');
+  return `<div class="ins-rank" data-sec="${secId}" data-lens="${lens}" style="display:${show ? 'block' : 'none'}">${body}</div>`;
+}
+function _insLensSwitch(secId, lens, btn) {
+  document.querySelectorAll(`.ins-rank[data-sec="${secId}"]`).forEach(el => el.style.display = el.dataset.lens === lens ? 'block' : 'none');
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+}
+let _insSecCount = 0;
+function _insRenderBrand(brand, camps) {
+  const rows = _insRows(camps);
+  const done = rows.filter(r => r.sent > 0);
+  const base = (() => { let s = 0, d = 0; rows.forEach(r => { if (r.dbIn && r.sent) { s += r.sent; d += r.db; } }); return s ? d / s * 1e4 : 0; })();
+  const ctrBase = (() => { let s = 0, c = 0; rows.forEach(r => { if (r.clicks > 0) { s += r.sent; c += r.clicks; } }); return s ? c / s * 100 : 0; })();
+  const name = _escHtml(brand || '(브랜드 미지정)');
+  if (done.length < INS_MIN_CAMPAIGNS) {
+    return `<div class="ins"><div class="ins-h"><b>${name}</b><span class="m">발송완료 ${done.length}회</span></div>
+      <div class="ins-thin">분석에 필요한 데이터가 아직 적어요(발송완료 ${INS_MIN_CAMPAIGNS}회 이상부터 인사이트 표시).</div></div>`;
+  }
+  const secId = 'ins' + (++_insSecCount);
+  const patAgg = _insAgg(rows, r => r.pat), mediaAgg = _insAgg(rows, r => r.media), ageAgg = _insAgg(rows, r => r.ageBand);
+
+  // 다음 발송 추천
+  const li = [];
+  const wd = patAgg.filter(g => g.dbper != null);
+  if (wd.length) {
+    const top = wd[0];
+    if (top.dbper >= base * 1.15) li.push(['🎯', `<b>${_escHtml(top.k)}</b> 타겟 반복·확대`, `DB/만 ${top.dbper} · 평균 ${base.toFixed(1)}의 ${(top.dbper / base).toFixed(1)}배`]);
+    const bot = wd[wd.length - 1];
+    if (bot !== top && bot.dbper <= base * 0.6) li.push(['🛑', `<b>${_escHtml(bot.k)}</b> 중단 검토`, `DB/만 ${bot.dbper}${bot.ctr != null ? ` · CTR ${bot.ctr}%(클릭은 되나 전환 저조)` : ''}`]);
+  }
+  const mwd = mediaAgg.filter(g => g.dbper != null);
+  if (mwd.length >= 2) {
+    const mt = mwd[0], mb = mwd[mwd.length - 1];
+    const avoid = (mb.dbper <= base * 0.6) || (mb.ctr != null && mb.ctr < 1);
+    li.push(['📨', `<b>${_escHtml(mt.k)}</b> 우선${avoid ? `, <b>${_escHtml(mb.k)}</b> 지양` : ''}`, `${_escHtml(mt.k)} DB/만 ${mt.dbper}${mb.ctr != null && mb.ctr < 1 ? ` · ${_escHtml(mb.k)} CTR ${mb.ctr}%` : ''}`]);
+  }
+  const recoHtml = li.length ? `<div class="ins-reco"><h4>다음 발송 추천</h4><ul>${li.map(x => `<li><span>${x[0]}</span><span><span>${x[1]}</span> <span class="w">— ${x[2]}</span></span></li>`).join('')}</ul></div>` : '';
+
+  // 데이터 이상 플래그
+  const noKw = rows.filter(r => r.sent > 0 && r.hasTarget && r.keys.length === 0).map(r => r.id);
+  const noCl = rows.filter(r => r.sent > 0 && !(r.clicks > 0)).map(r => r.id);
+  const flags = [];
+  if (noKw.length) flags.push(`타겟 키워드 미검출 ${noKw.length}건 — 타겟 문구 확인 (${noKw.slice(0, 4).join(', ')}${noKw.length > 4 ? ' 외' : ''})`);
+  if (noCl.length) flags.push(`클릭수 미입력 ${noCl.length}건 — 성과 입력 확인`);
+  const flagHtml = flags.length ? `<div class="ins-flag">🟡 <b>데이터 확인</b> — ${flags.map(_escHtml).join(' · ')}</div>` : '';
+
+  return `<div class="ins">
+    <div class="ins-h"><b>${name}</b><span class="m">발송완료 ${done.length}회 · 평균 CTR ${ctrBase.toFixed(2)}% · DB/만 ${base.toFixed(1)} <span style="color:var(--text3)">(1만 건당 DB)</span></span></div>
+    ${recoHtml}${flagHtml}
+    <div class="ins-lens"><span class="lb">기준</span>
+      <button class="on" onclick="_insLensSwitch('${secId}','pat',this)">타겟 패턴</button>
+      <button onclick="_insLensSwitch('${secId}','media',this)">매체</button>
+      <button onclick="_insLensSwitch('${secId}','age',this)">연령대</button></div>
+    ${_insRankHtml(patAgg, base, secId, 'pat', true)}
+    ${_insRankHtml(mediaAgg, base, secId, 'media', false)}
+    ${_insRankHtml(ageAgg, base, secId, 'age', false)}
+  </div>`;
+}
+function _insBrandSections(camps) {
+  _insStyle();
+  const byBrand = {};
+  camps.forEach(c => { const b = c.content || '(브랜드 미지정)'; (byBrand[b] = byBrand[b] || []).push(c); });
+  // 브랜드 많은 순(발송건수)으로
+  return Object.entries(byBrand)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([brand, cs]) => _insRenderBrand(brand, cs)).join('');
+}
+
 function renderPerfHistory() {
   const container = document.getElementById('perf-history-list');
   if (!container) return;
@@ -15729,6 +15940,7 @@ function renderPerfHistory() {
     camps.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     html += `<div style="margin-bottom:24px;">
       <div style="font-weight:700;font-size:14px;padding:6px 0 8px;border-bottom:2px solid var(--accent);margin-bottom:10px;">${_escHtml(adv)}</div>
+      ${selVal ? _insBrandSections(camps) : ''}
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
         <thead><tr>
           <th style="${thH}">집행일</th>
