@@ -15932,17 +15932,17 @@ function _insRenderBrand(brand, camps) {
   const solid = patAgg.filter(g => g.dbper != null && g.n >= 3);
   if (solid.length) {
     const top = solid[0];
-    if (top.dbper >= base * 1.15) li.push(['🎯', `<b>${_escHtml(top.k)}</b> 타겟 반복·확대`, `DB/만 ${top.dbper} · ${top.n}회 · 평균의 ${(top.dbper / base).toFixed(1)}배`]);
+    if (top.dbper >= base * 1.15) li.push(['🎯', `<b>${_escHtml(top.k)}</b> 타겟 반복·확대`, `${top.dbper} (DB/만) · ${top.n}회 · 평균의 ${(top.dbper / base).toFixed(1)}배`]);
     const bot = solid[solid.length - 1];
-    if (bot !== top && bot.dbper <= base * 0.6) li.push(['🛑', `<b>${_escHtml(bot.k)}</b> 중단 검토`, `DB/만 ${bot.dbper} · ${bot.n}회${bot.ctr != null ? ` · CTR ${bot.ctr}%(클릭은 되나 전환 저조)` : ''}`]);
+    if (bot !== top && bot.dbper <= base * 0.6) li.push(['🛑', `<b>${_escHtml(bot.k)}</b> 중단 검토`, `${bot.dbper} (DB/만) · ${bot.n}회${bot.ctr != null ? ` · CTR ${bot.ctr}%(클릭은 되나 전환 저조)` : ''}`]);
   }
   const promising = patAgg.filter(g => g.dbper != null && g.n < 3 && g.dbper >= base * 1.15).sort((a, b) => b.dbper - a.dbper)[0];
-  if (promising) li.push(['🔎', `<b>${_escHtml(promising.k)}</b> 관찰 — 표본 적음`, `DB/만 ${promising.dbper} · ${promising.n}회 · 더 보내보고 판단`]);
+  if (promising) li.push(['🔎', `<b>${_escHtml(promising.k)}</b> 관찰 — 표본 적음`, `${promising.dbper} (DB/만) · ${promising.n}회 · 더 보내보고 판단`]);
   const mwd = mediaAgg.filter(g => g.dbper != null && g.n >= 3);
   if (mwd.length >= 2) {
     const mt = mwd[0], mb = mwd[mwd.length - 1];
     const avoid = (mb.dbper <= base * 0.6) || (mb.ctr != null && mb.ctr < 1);
-    li.push(['📨', `<b>${_escHtml(mt.k)}</b> 우선${avoid ? `, <b>${_escHtml(mb.k)}</b> 지양` : ''}`, `${_escHtml(mt.k)} DB/만 ${mt.dbper}${mb.ctr != null && mb.ctr < 1 ? ` · ${_escHtml(mb.k)} CTR ${mb.ctr}%` : ''}`]);
+    li.push(['📨', `<b>${_escHtml(mt.k)}</b> 우선${avoid ? `, <b>${_escHtml(mb.k)}</b> 지양` : ''}`, `${_escHtml(mt.k)} ${mt.dbper} (DB/만)${mb.ctr != null && mb.ctr < 1 ? ` · ${_escHtml(mb.k)} CTR ${mb.ctr}%` : ''}`]);
   }
   const recoHtml = li.length ? `<div class="ins-reco"><h4>다음 발송 추천</h4><ul>${li.map(x => `<li><span>${x[0]}</span><span><span>${x[1]}</span> <span class="w">— ${x[2]}</span></span></li>`).join('')}</ul></div>` : '';
 
