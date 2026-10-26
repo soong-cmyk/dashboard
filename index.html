@@ -2524,12 +2524,15 @@
         <!-- 히스토리 뷰 -->
         <div id="perf-view-history" style="display:none;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-            <select class="form-sel" id="perf-h-adv-sel" onchange="perfHistorySelChange()" style="width:180px;">
-              <option value="">광고주 전체</option>
+            <select class="form-sel" id="perf-h-adv-sel" onchange="perfHistorySelChange()" style="width:160px;">
+              <option value="">광고주 선택</option>
+            </select>
+            <select class="form-sel" id="perf-h-brand-sel" onchange="perfHistoryBrandChange()" style="width:160px;" disabled>
+              <option value="">브랜드 전체</option>
             </select>
             <input type="text" class="form-input" id="perf-h-search"
               placeholder="직접 검색…" oninput="perfHistoryInputChange()"
-              style="width:180px;">
+              style="width:150px;">
             <button class="btn btn-ghost btn-sm" onclick="perfHistoryClear()">✕</button>
             <button class="btn btn-ghost btn-sm" id="perf-h-db-toggle" onclick="perfHistoryDbToggle()">DB등록 건만</button>
           </div>

@@ -14889,6 +14889,8 @@ function initPerfScreen() {
     const advs = [...new Set(DATA.filter(c => c.status !== '삭제').map(c => c.seller || c.adv).filter(Boolean))].sort();
     advs.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; advSel.appendChild(o); });
   }
+  const brandSel0 = document.getElementById('perf-h-brand-sel');
+  if (brandSel0) { brandSel0.innerHTML = '<option value="">브랜드 전체</option>'; brandSel0.disabled = true; }
   const searchInp = document.getElementById('perf-h-search');
   if (searchInp) searchInp.value = '';
   _perfHistoryDbOnly = true;
@@ -14909,21 +14911,35 @@ function initPerfScreen() {
   perfSwitchTab('matrix');
 }
 
+// 광고주 선택 시 그 광고주의 브랜드만 브랜드 셀렉트에 채운다(2026-10-26, 광고주>브랜드 2단 필터)
+function _perfHistoryFillBrands(adv) {
+  const bSel = document.getElementById('perf-h-brand-sel');
+  if (!bSel) return;
+  bSel.innerHTML = '<option value="">브랜드 전체</option>';
+  if (!adv) { bSel.disabled = true; return; }
+  const brands = [...new Set(DATA.filter(c => c.status !== '삭제' && (c.seller || c.adv) === adv).map(c => c.content).filter(Boolean))].sort();
+  brands.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; bSel.appendChild(o); });
+  bSel.disabled = brands.length === 0;
+}
 function perfHistorySelChange() {
-  const sel = document.getElementById('perf-h-adv-sel');
-  const inp = document.getElementById('perf-h-search');
-  if (inp) inp.value = sel?.value || '';
+  const adv = document.getElementById('perf-h-adv-sel')?.value || '';
+  _perfHistoryFillBrands(adv);
+  const inp = document.getElementById('perf-h-search'); if (inp) inp.value = '';
   renderPerfHistory();
 }
+function perfHistoryBrandChange() { renderPerfHistory(); }
 function perfHistoryInputChange() {
+  // 자유 검색은 셀렉트와 독립 — 검색어를 쓰면 광고주/브랜드 셀렉트는 비운다
   const sel = document.getElementById('perf-h-adv-sel');
   if (sel) sel.value = '';
+  _perfHistoryFillBrands('');
   renderPerfHistory();
 }
 function perfHistoryClear() {
   const sel = document.getElementById('perf-h-adv-sel');
   const inp = document.getElementById('perf-h-search');
   if (sel) sel.value = '';
+  _perfHistoryFillBrands('');
   if (inp) inp.value = '';
   _perfHistoryDbOnly = false;
   _applyPerfDbToggleStyle();
@@ -15918,14 +15934,16 @@ function _insBrandSections(camps) {
 function renderPerfHistory() {
   const container = document.getElementById('perf-history-list');
   if (!container) return;
-  const selVal = (document.getElementById('perf-h-adv-sel')?.value || '').trim();
+  const fAdv   = (document.getElementById('perf-h-adv-sel')?.value || '').trim();
+  const fBrand = (document.getElementById('perf-h-brand-sel')?.value || '').trim();
   const search = (document.getElementById('perf-h-search')?.value  || '').trim().toLowerCase();
 
   let data = _perfBaseData().filter(c => {
     const adv   = (c.seller || c.adv || '');
-    const brand = (c.content || '').toLowerCase();
-    if (selVal) return adv === selVal;
-    if (search) return adv.toLowerCase().includes(search) || brand.includes(search);
+    const brand = (c.content || '');
+    if (fAdv && adv !== fAdv) return false;
+    if (fBrand && brand !== fBrand) return false;
+    if (!fAdv && !fBrand && search) return adv.toLowerCase().includes(search) || brand.toLowerCase().includes(search);
     return true;
   });
   if (_perfHistoryDbOnly) data = data.filter(c => c.db != null && parseFloat(c.db) > 0);
@@ -15949,7 +15967,7 @@ function renderPerfHistory() {
     camps.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     html += `<div style="margin-bottom:24px;">
       <div style="font-weight:700;font-size:14px;padding:6px 0 8px;border-bottom:2px solid var(--accent);margin-bottom:10px;">${_escHtml(adv)}</div>
-      ${selVal ? _insBrandSections(camps) : ''}
+      ${fAdv ? _insBrandSections(camps) : ''}
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
         <thead><tr>
           <th style="${thH}">집행일</th>
