@@ -103,6 +103,7 @@ let _perfTimeSub   = 'cat';
 let _perfSelectedKey = '';
 let _perfHistoryDbOnly = true;
 let _perfPendingTab = null; // 뒤로가기(popstate)로 성과분석 복원 시 적용할 탭
+let _perfPendingBrandView = null; // 뒤로가기로 히스토리 복원 시 적용할 광고주/브랜드 필터
 
 let KPI_DATA       = {};
 let _kpiYear       = String(new Date().getFullYear());
@@ -8182,10 +8183,16 @@ window.addEventListener('popstate', (e) => {
     if (state.idx != null) openMediaDetail(state.idx, true);
     else goScreen('media', true);
   } else if (state.screen === 'perf') {
-    // 성과분석 하위 탭(광고주 히스토리/매체×카테고리 등) 뒤로가기 — state.perfTab 복원
+    // 성과분석 하위 탭 뒤로가기 — state.perfTab 복원. 히스토리는 state.perfBrandView(없으면 초기화)까지 반영
     const t = state.perfTab || 'history';
-    if (document.getElementById('screen-perf')?.classList.contains('active')) perfSwitchTab(t, true);
-    else { _perfPendingTab = t; goScreen('perf', true); }
+    if (document.getElementById('screen-perf')?.classList.contains('active')) {
+      if (t === 'history') _perfApplyHistoryState(state.perfBrandView || null);
+      perfSwitchTab(t, true);
+    } else {
+      _perfPendingTab = t;
+      _perfPendingBrandView = state.perfBrandView || null;
+      goScreen('perf', true);
+    }
   } else if (state.screen === 'projectlog-detail' || state.screen === 'projectlog') {
     // 프로젝트로그 광고주/매체/내부업무 상세 뒤로가기 → 진입 당시 탭(plSwitchTab이 replaceState로 기록)의 목록으로
     PL_STATE.advDetailCompany = null;
@@ -14915,6 +14922,8 @@ function initPerfScreen() {
   }
   const _startTab = _perfPendingTab || 'history';   // 기본은 광고주 히스토리(뒤로가기 복원 시 그 탭)
   _perfPendingTab = null;
+  const _bv = _perfPendingBrandView; _perfPendingBrandView = null;
+  if (_startTab === 'history' && _bv) _perfApplyHistoryState(_bv);
   perfSwitchTab(_startTab, false, true);
 }
 
@@ -14945,6 +14954,27 @@ function perfHistoryPickBrand(adv, brand) {
   const sInp = document.getElementById('perf-h-search'); if (sInp) sInp.value = '';
   renderPerfHistory();
   const contentEl = document.querySelector('.content'); if (contentEl) contentEl.scrollTop = 0;
+  // history에 '브랜드 상세' 항목을 쌓아, 뒤로가기 시 직전(초기화) 상태로 돌아가게 한다(2026-10-27)
+  try { history.pushState({ screen: 'perf', perfTab: 'history', perfBrandView: { adv: adv || '', brand: brand || '' } }, '', '#perf'); } catch (e) {}
+}
+// 광고주 히스토리 필터를 state에 맞게 적용(브랜드 상세) 또는 초기화. perfSwitchTab이 이어서 렌더
+function _perfApplyHistoryState(view) {
+  const aSel = document.getElementById('perf-h-adv-sel');
+  const bSel = document.getElementById('perf-h-brand-sel');
+  const sInp = document.getElementById('perf-h-search');
+  if (view) {
+    if (aSel) aSel.value = view.adv || '';
+    _perfHistoryFillBrands(view.adv || '');
+    if (bSel) bSel.value = view.brand || '';
+    if (sInp) sInp.value = '';
+  } else {
+    // 초기화('✕'와 동일)
+    if (aSel) aSel.value = '';
+    _perfHistoryFillBrands('');
+    if (sInp) sInp.value = '';
+    _perfHistoryDbOnly = false;
+    _applyPerfDbToggleStyle();
+  }
 }
 function perfHistoryInputChange() {
   // 자유 검색은 셀렉트와 독립 — 검색어를 쓰면 광고주/브랜드 셀렉트는 비운다
@@ -15005,6 +15035,11 @@ function perfSwitchTab(tab, fromPop, initial) {
   const timeSubEl = document.getElementById('perf-time-subtabs');
   if (subEl)     subEl.style.display     = tab === 'matrix' ? 'flex' : 'none';
   if (timeSubEl) timeSubEl.style.display = tab === 'time'   ? 'flex' : 'none';
+  // 상단 '문자 기준' 안내는 히스토리 탭(CPA·DA 포함)에선 숨긴다
+  const noteEl = document.getElementById('perf-f-note');
+  if (noteEl) noteEl.style.display = (tab === 'history') ? 'none' : '';
+  // 사용자가 '광고주 히스토리' 탭을 직접 누르면 필터 초기화(처음 진입·뒤로가기 복원은 제외)
+  if (tab === 'history' && !fromPop && !initial) _perfApplyHistoryState(null);
   if (tab === 'matrix')  renderPerfMatrix();
   else if (tab === 'time')  renderPerfTimeMatrix();
   else if (tab === 'month') renderPerfMonthMatrix();
