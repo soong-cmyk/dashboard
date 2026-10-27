@@ -14906,7 +14906,7 @@ function initPerfScreen() {
   if (brandSel0) { brandSel0.innerHTML = '<option value="">브랜드 전체</option>'; brandSel0.disabled = true; }
   const searchInp = document.getElementById('perf-h-search');
   if (searchInp) searchInp.value = '';
-  _perfHistoryDbOnly = true;
+  _perfHistoryDbOnly = false;   // 기본값: 'DB등록 건만' 해제(전체 표시) — 2026-10-27 사용자 요청
   _applyPerfDbToggleStyle();
 
   // 상태 초기화 — 기본 탭은 아래 _startTab(광고주 히스토리), 카테고리별 서브탭만 여기서 리셋
