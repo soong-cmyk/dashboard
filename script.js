@@ -15107,6 +15107,26 @@ function _perfBaseData(opts) {
   });
 }
 
+// 상품별로 흩어진 성과 필드를 하나로 통일 — 문자/CPA는 actual·clicks·db, DA·IPTV는 daImp·daClick·daConv(전환=DB로 취급)
+// reach=도달(발송/노출), conv=전환(DB등록/전환수). 광고주 히스토리 표·인사이트 카드가 공유한다(2026-10-27).
+function _perfMetrics(c) {
+  const num = v => (v != null && v !== '' && !isNaN(parseFloat(v))) ? parseFloat(v) : null;
+  if (c.product === 'DA' || c.product === 'IPTV') {
+    const imp = num(c.daImp), clk = num(c.daClick), conv = num(c.daConv);
+    return {
+      reach: imp, clicks: clk,
+      ctr: (imp && clk != null) ? +(clk / imp * 100).toFixed(2) : num(c.ctr),
+      conv, convRate: (clk && conv != null) ? +(conv / clk * 100).toFixed(2) : null,
+    };
+  }
+  const sent = num(c.actual), clk = num(c.clicks), conv = num(c.db);
+  return {
+    reach: sent, clicks: clk,
+    ctr: num(c.ctr) != null ? num(c.ctr) : (sent && clk != null ? +(clk / sent * 100).toFixed(2) : null),
+    conv, convRate: num(c.dbr) != null ? num(c.dbr) : (clk && conv != null ? +(conv / clk * 100).toFixed(2) : null),
+  };
+}
+
 const _PERF_CAT_PALETTE = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#ec4899','#8b5cf6','#14b8a6','#f97316','#06b6d4'];
 // 시간대/월별 탭은 집행시각으로 묶어 '실시간 발송'·집행시각 00:00 캠페인을 제외한다 — 그 안내(2026-10-27)
 const _PERF_EXC_NOTE = `<div style="font-size:11.5px;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 11px;margin-bottom:12px;">※ '실시간 발송' 상품과 집행시각이 00:00(미입력)인 캠페인은 이 탭에서 제외됩니다. 전체는 '광고주 히스토리' 탭에서 확인하세요.</div>`;
@@ -15788,13 +15808,13 @@ function _insPattern(keys, regions, age) {
 function _insRows(camps) {
   return camps.filter(c => c.status !== '삭제').map(c => {
     const t = _insTag(c);
-    const sent = parseFloat(c.actual) || 0, clicks = parseFloat(c.clicks) || 0, db = parseFloat(c.db) || 0;
-    const ctr = (c.ctr != null && c.ctr !== '') ? parseFloat(c.ctr) : (sent && clicks ? +(clicks / sent * 100).toFixed(2) : null);
+    const m = _perfMetrics(c);              // 상품별 통일 지표(DA=노출·전환 포함)
+    const sent = m.reach || 0, clicks = m.clicks || 0, db = m.conv || 0;
     return {
       id: c.id, dt: (c.date || '').slice(0, 16), media: c.media || '—',
       ageRaw: t.age, ageBand: t.age, keys: t.keys, hasTarget: t.hasTarget,
-      pat: _insPattern(t.keys, t.regions, t.age), sent, clicks, db, ctr,
-      tgt: _insClean(c.target), dbIn: (c.db != null && c.db !== ''),
+      pat: _insPattern(t.keys, t.regions, t.age), sent, clicks, db, ctr: m.ctr,
+      tgt: _insClean(c.target), dbIn: (m.conv != null),
     };
   });
 }
@@ -16052,22 +16072,23 @@ function renderPerfHistory() {
           <th style="${thH}">브랜드</th>
           <th style="${thH}">매체</th>
           <th style="${thH}">상품</th>
-          <th style="${thH}text-align:right;">발송건수</th>
+          <th style="${thH}text-align:right;" title="문자=발송 / DA·IPTV=노출">발송·노출</th>
           <th style="${thH}text-align:right;">클릭수</th>
           <th style="${thH}text-align:right;">CTR</th>
-          <th style="${thH}text-align:right;">DB등록수</th>
-          <th style="${thH}text-align:right;">DB등록률</th>
-          <th style="${thH}text-align:right;">DB단가</th>
+          <th style="${thH}text-align:right;" title="문자=DB등록 / DA·IPTV=전환 / CPA=DB등록">DB·전환</th>
+          <th style="${thH}text-align:right;">전환율</th>
+          <th style="${thH}text-align:right;" title="취급고(광고비) ÷ DB·전환">DB단가</th>
         </tr></thead>
         <tbody>${camps.map(c => {
-          const date   = (c.date   || '').slice(0, 10).replace(/-/g, '/') || '—';
-          const actual = c.actual  != null && c.actual  !== '' ? Math.round(parseFloat(c.actual)).toLocaleString()   : '—';
-          const ctr    = c.ctr     != null && c.ctr     !== '' ? parseFloat(c.ctr).toFixed(2)    + '%'               : '—';
-          const clicks = c.clicks  != null && c.clicks  !== '' ? Math.round(parseFloat(c.clicks)).toLocaleString()   : '—';
-          const db     = c.db      != null && c.db      !== '' ? Math.round(parseFloat(c.db)).toLocaleString()       : '—';
-          const dbr    = c.dbr     != null && c.dbr     !== '' ? parseFloat(c.dbr).toFixed(2)    + '%'               : '—';
-          const _tv    = _campTurnover(c), _dbn = parseFloat(c.db);
-          const dbCost = (_tv > 0 && _dbn > 0) ? Math.round(_tv / _dbn).toLocaleString() + '원' : '—';
+          const m = _perfMetrics(c);
+          const date   = (c.date || '').slice(0, 10).replace(/-/g, '/') || '—';
+          const reach  = m.reach    != null ? Math.round(m.reach).toLocaleString()  : '—';
+          const clicks = m.clicks   != null ? Math.round(m.clicks).toLocaleString() : '—';
+          const ctr    = m.ctr      != null ? m.ctr.toFixed(2) + '%'                : '—';
+          const conv   = m.conv     != null ? Math.round(m.conv).toLocaleString()   : '—';
+          const cvr    = m.convRate != null ? m.convRate.toFixed(2) + '%'           : '—';
+          const _tv    = _campTurnover(c);
+          const dbCost = (_tv > 0 && m.conv > 0) ? Math.round(_tv / m.conv).toLocaleString() + '원' : '—';
           const brandCell = c.content
             ? `<a href="#" class="perf-brand-link" data-adv="${_escHtml(adv).replace(/"/g, '&quot;')}" data-brand="${_escHtml(c.content).replace(/"/g, '&quot;')}" onclick="perfHistoryPickBrand(this.dataset.adv,this.dataset.brand);return false;" style="color:var(--accent);text-decoration:none;">${_escHtml(c.content)}</a>`
             : '—';
@@ -16076,11 +16097,11 @@ function renderPerfHistory() {
             <td style="${tdS}">${brandCell}</td>
             <td style="${tdS}color:var(--text2);">${_escHtml(c.media || '—')}</td>
             <td style="${tdS}color:var(--text2);">${_escHtml(c.product || '—')}</td>
-            <td style="${tdS}text-align:right;color:var(--text2);">${actual}</td>
+            <td style="${tdS}text-align:right;color:var(--text2);">${reach}</td>
             <td style="${tdS}text-align:right;">${clicks}</td>
             <td style="${tdS}text-align:right;font-weight:700;">${ctr}</td>
-            <td style="${tdS}text-align:right;color:var(--text2);">${db}</td>
-            <td style="${tdS}text-align:right;color:var(--text2);">${dbr}</td>
+            <td style="${tdS}text-align:right;color:var(--text2);">${conv}</td>
+            <td style="${tdS}text-align:right;color:var(--text2);">${cvr}</td>
             <td style="${tdS}text-align:right;color:var(--text2);">${dbCost}</td>
           </tr>`;
         }).join('')}</tbody>
