@@ -15097,6 +15097,8 @@ function _perfBaseData(opts) {
 }
 
 const _PERF_CAT_PALETTE = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#ec4899','#8b5cf6','#14b8a6','#f97316','#06b6d4'];
+// 시간대/월별 탭은 집행시각으로 묶어 '실시간 발송'·집행시각 00:00 캠페인을 제외한다 — 그 안내(2026-10-27)
+const _PERF_EXC_NOTE = `<div style="font-size:11.5px;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 11px;margin-bottom:12px;">※ '실시간 발송' 상품과 집행시각이 00:00(미입력)인 캠페인은 이 탭에서 제외됩니다. 전체는 '광고주 히스토리' 탭에서 확인하세요.</div>`;
 
 function _buildAdvCatColors(data) {
   // 광고주별 주 카테고리(캠페인 수 기준) 결정
@@ -15472,7 +15474,7 @@ function renderPerfTimeMatrix() {
       <div id="perf-time-list" style="overflow-y:auto;max-height:420px;"></div>
     </div>
   </div>`;
-  container.innerHTML = html;
+  container.innerHTML = _PERF_EXC_NOTE + html;
 }
 
 function perfSelectTimeCell(td) {
@@ -15641,7 +15643,7 @@ function renderPerfMonthMatrix() {
       `<span style="width:10px;height:10px;border-radius:50%;background:${COLORS[ci % COLORS.length]};flex-shrink:0;display:inline-block;"></span>${_escHtml(cat)}</span>`
     ).join('') + '</div>';
 
-  container.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px;">
+  container.innerHTML = _PERF_EXC_NOTE + `<div style="display:flex;flex-direction:column;gap:16px;">
     <div style="width:100%;">${svg}${legendHtml}</div>
     <div id="perf-month-panel" style="display:none;width:100%;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:16px;box-shadow:var(--shadow);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
