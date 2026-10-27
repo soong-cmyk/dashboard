@@ -15047,8 +15047,15 @@ function perfSwitchTab(tab, fromPop, initial) {
     // 히스토리는 브랜드 카드까지 그려 무거울 수 있어, 스피너+블러를 먼저 띄우고 다음 프레임에 렌더.
     // 블러는 '표'가 아니라 바깥 뷰(perf-view-history)에 걸어야, 표 교체 중에도 흐림이 유지된다(2026-10-27)
     const _el = document.getElementById('perf-view-history');
-    if (_el) { _showDataLoading(_el); requestAnimationFrame(() => setTimeout(() => { renderPerfHistory(); _hideDataLoading(_el); }, 0)); }
-    else renderPerfHistory();
+    if (_el) {
+      _showDataLoading(_el);
+      const _t0 = performance.now();
+      // 더블 rAF로 흐림 프레임이 실제로 한 번 그려진 뒤 렌더, 최소 250ms는 흐림 유지(렌더가 빨라도 보이게)
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        renderPerfHistory();
+        setTimeout(() => _hideDataLoading(_el), Math.max(0, 250 - (performance.now() - _t0)));
+      }));
+    } else renderPerfHistory();
   }
 }
 
