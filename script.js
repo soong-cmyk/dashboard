@@ -15787,11 +15787,11 @@ function _insAgg(rows, keyFn) {
   })).sort((a, b) => (b.dbper ?? -1) - (a.dbper ?? -1));
 }
 function _insSig(dbper, base, n) {
-  if (n != null && n < 3) return ['🔎 관찰', 'mid'];   // 표본 3회 미만은 단정 안 함
-  if (dbper == null || !base) return ['➖ 관찰', 'mid'];
+  if (n != null && n < 3) return ['🔎 표본 부족', 'mid'];   // 3회 미만 — 아직 판단 못 함
+  if (dbper == null || !base) return ['➖ 보통', 'mid'];
   if (dbper >= base * 1.25) return ['🟢 권장', 'good'];
   if (dbper <= base * 0.6) return ['🔴 중단', 'bad'];
-  return ['➖ 관찰', 'mid'];
+  return ['➖ 보통', 'mid'];                                  // 3회 이상 · 평균 근처
 }
 function _insStyle() {
   if (document.getElementById('ins-style')) return;
@@ -15827,7 +15827,7 @@ function _insStyle() {
     .ins-bar .tp{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);}
     .ins-bar .tp b{font-size:15px;font-weight:800;color:var(--text);}
     .ins-bk{height:7px;border-radius:4px;background:var(--surface2);overflow:hidden;} .ins-bk>i{display:block;height:100%;border-radius:4px;}
-    .ins-sg{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap;justify-self:end;min-width:58px;text-align:center;}
+    .ins-sg{font-size:10.5px;font-weight:700;padding:2px 4px;border-radius:6px;white-space:nowrap;justify-self:end;width:82px;text-align:center;box-sizing:border-box;}
     .ins-sg.good{background:var(--green-bg);color:var(--green);} .ins-sg.bad{background:var(--red-bg);color:var(--red);} .ins-sg.mid{background:var(--surface2);color:var(--text2);}
     .ins-dt{display:none;padding:2px 13px 11px;background:var(--surface2);border-top:1px solid var(--border);}
     .ins-item.op .ins-dt{display:block;}
