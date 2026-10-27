@@ -3838,7 +3838,6 @@ function _plItemTargetRemoveCamp(bi, ii, ci) {
 function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
   const ph = PL_SUMMARY_PH[it.logType] || '';
   const typeFieldHtml = `<select class="pl-mini" style="font-weight:700;" onchange="_plItemTypeChange(${bi},${ii},this.value)">${_plTypeSelectOptions(it.logType)}</select>`;
-  const subHtml = (it.detail || []).map((d, di) => _plRenderSubHtml(bi, ii, di, d, it.logType)).join('');
   // 새 그룹이 시작되는 항목(showMediaRow)은 "+ 항목 추가"로 이어붙인 항목과 구분되게 위쪽 경계를 다르게
   // 준다 — 첫 항목(ii===0)은 바로 위가 블록 헤더라 이미 경계가 있으니 제외.
   const isNewGroup = showMediaRow && ii > 0;
@@ -3857,11 +3856,8 @@ function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
         oninput="_plItemField(${bi},${ii},'progress',this.value)"><span class="pl-pct-suffix">%</span></div>
       <span class="pl-x" onclick="_plRemoveItem(${bi},${ii})">✕</span>
     </div>
-    ${subHtml}
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div class="pl-subadd" onclick="_plAddSub(${bi},${ii})" style="flex:1;">ㄴ 추가</div>
-      ${_plItemResolveHtml(bi, ii, it)}
-    </div>
+    ${_plDetailTextareaHtml(_plDetailToText(it.detail), `_plItemDetailInput(${bi},${ii},this.value)`)}
+    ${_plItemResolveHtml(bi, ii, it)}
     ${_plRenderItemAttachSection(bi, ii, it)}
   </div>`;
 }
@@ -3898,10 +3894,43 @@ function _plRefLogCardHtml(refLog) {
     <div class="pl-ref-text">${_escHtml(refLog.summary || '')}</div>${subHtml}
   </div>`;
 }
+// ── ㄴ 상세내용 입력: 항목당 textarea 1개, 줄바꿈 하나 = ㄴ 항목 하나 ──
+// 예전엔 ㄴ마다 textarea를 만들고 "ㄴ 추가" 버튼으로 늘렸는데, 한 textarea에 여러 줄을 쓰는 방식으로
+// 바꿨다(2026-10-27, 사용자 요청). 저장 모델(detail:[{label,text}])은 그대로라 기존 일지의 표시·
+// 라벨은 안 깨진다 — 입력 UI만 바뀜. label은 새로 입력받지 않고(거의 안 쓰여 폐지), 과거에 라벨이
+// 붙어 저장된 기록을 수정 화면에서 열면 "라벨: 내용" 형태의 텍스트로 합쳐 보여줘(데이터 유실 없이)
+// 저장 시 text로 흡수된다.
+function _plDetailToText(detail) {
+  return (detail || []).map(d => (d.label ? `${d.label}: ${d.text || ''}` : (d.text || ''))).join('\n');
+}
+function _plTextToDetail(val) {
+  // 빈 줄은 {text:''}로 남지만 저장 경로(plSaveLog/plSaveEdit)가 trim 후 빈 항목을 거른다.
+  return String(val || '').split('\n').map(line => ({ label: '', text: line }));
+}
+function _plDetailTextareaHtml(text, oninput) {
+  const rows = Math.max(1, (text || '').split('\n').length);
+  return `<div class="pl-sub" style="grid-template-columns:22px 1fr;margin-top:4px;"><span class="pl-m">ㄴ</span>
+    <textarea class="pl-mini" rows="${rows}" placeholder="상세 내용 — 줄바꿈으로 여러 줄(각 줄이 ㄴ 항목)" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;"
+      oninput="${oninput};_plAutoGrowTextarea(this)">${_escHtml(text)}</textarea>
+  </div>`;
+}
+function _plItemDetailInput(bi, ii, val) {
+  const it = _plDraft.blocks[bi]?.items[ii];
+  if (it) it.detail = _plTextToDetail(val);
+}
+function _plEditDetailInput(val) {
+  if (_plEditDraft) _plEditDraft.detail = _plTextToDetail(val);
+}
+function _plEditExtraDetailInput(ei, val) {
+  const it = _plEditDraft?.extraItems?.[ei];
+  if (it) it.detail = _plTextToDetail(val);
+}
+
 // 라벨(카테고리) 선택 UI는 작성 화면에서 제거 — 하위 기록은 그냥 자유 텍스트 메모로만 남긴다
 // (2026-09-10, 사용자 요청). 수정/대응기록 화면(_plEditSubHtml/_plEditExtraSubHtml)도 같은 이유로
 // 라벨 select를 제거했다 — d.label은 이제 어디서도 새로 입력되지 않고, 과거에 붙었던 값만 그대로
-// 남아있다(표시에는 영향 없음).
+// 남아있다(표시에는 영향 없음). ※ 아래 _plRenderSubHtml/_plAddSub 등은 textarea 통합(2026-10-27)
+// 이후 호출되지 않는 잔존 함수다.
 function _plRenderSubHtml(bi, ii, di, d, logType) {
   return `<div class="pl-sub" style="grid-template-columns:22px 1fr 24px;"><span class="pl-m">ㄴ</span>
     <textarea class="pl-mini" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;"
@@ -4957,7 +4986,6 @@ function _plEditItemHtml() {
   const d = _plEditDraft;
   const typeOpts = _plTypeSelectOptions(d.logType);
   const ph = PL_SUMMARY_PH[d.logType] || '';
-  const subHtml = (d.detail || []).map((det, di) => _plEditSubHtml(di, det)).join('');
   return `<div class="pl-item">
     ${d.refLog ? _plRefLogCardHtml(d.refLog) : ''}
     ${_plEditRefCampEligible() ? _plEditRefCampFieldHtml() : ''}
@@ -4967,8 +4995,7 @@ function _plEditItemHtml() {
       <div class="pl-pct-wrap${d.resolveChecked ? ' pl-pct-locked' : ''}"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${d.progress ?? ''}" ${d.resolveChecked ? 'disabled' : ''} oninput="_plEditField('progress',this.value)"><span class="pl-pct-suffix">%</span></div>
       <span></span>
     </div>
-    ${subHtml}
-    <div class="pl-subadd" onclick="_plEditAddSub()">ㄴ 추가</div>
+    ${_plDetailTextareaHtml(_plDetailToText(d.detail), `_plEditDetailInput(this.value)`)}
   </div>`;
 }
 function _plEditSubHtml(di, d) {
@@ -4990,7 +5017,6 @@ function _plEditExtraItemsHtml() {
 function _plEditExtraItemHtml(ei, it) {
   const typeOpts = _plTypeSelectOptions(it.logType);
   const ph = PL_SUMMARY_PH[it.logType] || '';
-  const subHtml = (it.detail || []).map((det, di) => _plEditExtraSubHtml(ei, di, det)).join('');
   return `<div class="pl-item pl-newgroup">
     <div class="pl-irow">
       <select class="pl-mini" style="font-weight:700;" onchange="_plEditExtraTypeChange(${ei},this.value)">${typeOpts}</select>
@@ -4998,8 +5024,7 @@ function _plEditExtraItemHtml(ei, it) {
       <div class="pl-pct-wrap"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${it.progress ?? ''}" oninput="_plEditExtraField(${ei},'progress',this.value)"><span class="pl-pct-suffix">%</span></div>
       <span class="pl-x" onclick="_plEditRemoveExtraItem(${ei})">✕</span>
     </div>
-    ${subHtml}
-    <div class="pl-subadd" onclick="_plEditExtraAddSub(${ei})">ㄴ 추가</div>
+    ${_plDetailTextareaHtml(_plDetailToText(it.detail), `_plEditExtraDetailInput(${ei},this.value)`)}
   </div>`;
 }
 function _plEditExtraSubHtml(ei, di, d) {
