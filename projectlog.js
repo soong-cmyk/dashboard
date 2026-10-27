@@ -1513,8 +1513,7 @@ function _plFillCampLog(root, campaignId, campaignData, isDeleted, notFound, ctx
   }
 
   const writeBtn = root.querySelector('.pl-cl-writebtn');
-  // 인라인(dcamp)은 항상 열린 작성칸이 위에 있어 목록쪽 '+ 일지 작성' 버튼은 숨긴다.
-  if (writeBtn) writeBtn.style.display = (isDeleted || ctx === 'dcamp') ? 'none' : '';
+  if (writeBtn) writeBtn.style.display = isDeleted ? 'none' : '';
 
   const noteEl = root.querySelector('.pl-cl-note');
   if (noteEl) {
@@ -1532,8 +1531,7 @@ function _plFillCampLog(root, campaignId, campaignData, isDeleted, notFound, ctx
 let _plInlineCampId = null;
 function _plCampLogInlineInnerHtml() {
   return `
-    <div class="pl-inline-compose-wrap"></div>
-    <div class="pl-cl-badges" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;"></div>
+    <div class="pl-cl-badges" style="display:none;"></div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
       <span class="table-count pl-cl-count"></span>
       <button class="btn btn-primary btn-sm pl-cl-writebtn" style="margin-left:auto;" onclick="_plWriteFromCampLog()">+ 일지 작성</button>
@@ -1562,87 +1560,10 @@ function _plRenderInlineCampLog(campaignId) {
   if (!mounts.length) return;
   _plInlineCampId = campaignId;
   const c = campaignId ? DATA.find(x => x.id === campaignId) : null;
-  // 캠페인이 바뀌면 작성칸 내용 초기화(다른 캠페인으로 넘어갔을 때 이전 타이핑이 남지 않게).
-  // 같은 캠페인이면 작성칸은 다시 그리지 않아(스냅샷 갱신 중에도) 타이핑/포커스가 유지된다.
-  const campChanged = campaignId !== _plInlineComposerCampId;
-  if (campChanged) { _plInlineDraft = _plInlineEmptyDraft(); _plInlineComposerCampId = campaignId; }
   mounts.forEach(mount => {
     if (!mount.dataset.built) { mount.innerHTML = _plCampLogInlineInnerHtml(); mount.dataset.built = '1'; }
-    const wrap = mount.querySelector('.pl-inline-compose-wrap');
-    if (wrap && (campChanged || !wrap.dataset.rendered)) _plRenderInlineComposer(mount);
     _plFillCampLog(mount, campaignId, c, false, !campaignId, 'dcamp');
   });
-}
-
-// ── 상세화면 인라인 작성칸(항상 열림) ── 유형·요약 한 줄·진척률·ㄴ textarea로 이 캠페인에 바로 일지를
-// 남긴다. 저장은 모달과 같은 문서 shape·같은 컬렉션(_plDb('projectLogs'))을 쓴다. 이미지·여러 대상 등
-// 무거운 작업은 "+ 상세 작성"으로 기존 작성 모달(_plWriteFromCampLog)에 넘긴다.
-function _plInlineEmptyDraft() { return { logType: '운영', summary: '', progress: '', detailText: '' }; }
-let _plInlineDraft = _plInlineEmptyDraft();
-let _plInlineComposerCampId = null;
-function _plRenderInlineComposer(mount) {
-  const wrap = mount.querySelector('.pl-inline-compose-wrap');
-  if (!wrap) return;
-  const d = _plInlineDraft;
-  wrap.innerHTML = `
-    <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:13px;background:var(--surface2);">
-      <div class="pl-irow">
-        <select class="pl-mini" style="font-weight:700;" onchange="_plInlineField('logType',this.value)">${_plTypeSelectOptions(d.logType)}</select>
-        <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(PL_SUMMARY_PH[d.logType] || '한 줄 요약')}" value="${_escHtml(d.summary)}" oninput="_plInlineField('summary',this.value)">
-        <div class="pl-pct-wrap"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${_escHtml(d.progress)}" oninput="_plInlineField('progress',this.value)"><span class="pl-pct-suffix">%</span></div>
-        <span></span>
-      </div>
-      ${_plDetailTextareaHtml(d.detailText, "_plInlineField('detailText',this.value)")}
-      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
-        <button class="btn btn-primary btn-sm" onclick="_plInlineSave(this)">저장</button>
-        <span class="pl-click" style="font-size:11.5px;" onclick="_plWriteFromCampLog()">+ 상세 작성 (이미지·여러 대상)</span>
-        <span class="form-hint" style="margin-left:auto;">${_escHtml(currentUser?.name || '')} · 오늘 작성</span>
-      </div>
-    </div>`;
-  wrap.dataset.rendered = '1';
-}
-// 값만 갱신(리렌더 없음) — 타이핑 중 포커스/커서 유지. 유형 변경 시 요약 placeholder는 바뀌지 않지만 사소.
-function _plInlineField(field, val) { _plInlineDraft[field] = val; }
-async function _plInlineSave(btn) {
-  const campaignId = _plInlineCampId;
-  const c = campaignId ? DATA.find(x => x.id === campaignId) : null;
-  if (!c) { toast('캠페인을 찾을 수 없습니다', 'err'); return; }
-  const d = _plInlineDraft;
-  const summary = (d.summary || '').trim();
-  if (!summary) { toast('내용(한 줄 요약)을 입력하세요', 'err'); return; }
-  if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
-  try {
-    const detail = _plTextToDetail(d.detailText).filter(x => (x.text || '').trim()).map(x => ({ label: '', text: x.text.trim() }));
-    const progress = (d.progress === '' || d.progress == null) ? null : Math.max(0, Math.min(100, parseInt(d.progress, 10) || 0));
-    const now = new Date().toISOString();
-    const doc = {
-      id: _plNextLogIdSeq()(),
-      logDate: _plTodayStr(), writer: currentUser?.name || '', writerId: currentUser?.id || '',
-      bonbu: currentUser?.bonbu || '', dept: currentUser?.dept || '',
-      scope: 'campaign', seller: c.seller || c.adv || null, content: c.content || null,
-      campaignId: c.id, media: c.media || null, product: c.product || null,
-      refCampaignIds: [], refMediaNames: [],
-      logType: d.logType || '운영', state: null,
-      summary: summary.slice(0, 60), detail, progress,
-      important: false, shared: false,
-      hasImages: false, imageCount: 0, links: [],
-      attachPath: null, attachName: null,
-      threadId: null, createdAt: now, updatedAt: now,
-      continuedFromId: null,
-    };
-    doc.searchText = _plBuildSearchText(doc);
-    await _plDb('projectLogs').doc(doc.id).set(doc);
-    await _plLogHistoryCreate(doc.id);
-    _plInlineDraft = _plInlineEmptyDraft();
-    // 스냅샷이 목록은 자동 갱신하지만, 작성칸은 같은 캠페인이면 다시 안 그려지므로 여기서 직접 비워 그린다.
-    document.querySelectorAll('.d-camplog-mount').forEach(m => { if (m.offsetParent !== null) _plRenderInlineComposer(m); });
-    toast('✓ 일지가 저장되었습니다', 'ok');
-  } catch (e) {
-    console.error('[projectlog] 인라인 일지 저장 실패', e);
-    toast('저장 중 오류가 발생했습니다', 'err');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '저장'; }
-  }
 }
 function _plScrollToInlineCampLog() {
   const m = [...document.querySelectorAll('.d-camplog-mount')].find(x => x.offsetParent !== null);
@@ -3938,7 +3859,7 @@ function _plRenderItemHtml(block, bi, ii, it, showMediaRow) {
         oninput="_plItemField(${bi},${ii},'progress',this.value)"><span class="pl-pct-suffix">%</span></div>
       <span class="pl-x" onclick="_plRemoveItem(${bi},${ii})">✕</span>
     </div>
-    ${_plDetailTextareaHtml(_plDetailToText(it.detail), `_plItemDetailInput(${bi},${ii},this.value)`)}
+    ${_plDetailRowsHtml(it.detail, 'w', bi, ii)}
     ${_plItemResolveHtml(bi, ii, it)}
     ${_plRenderItemAttachSection(bi, ii, it)}
   </div>`;
@@ -3989,23 +3910,66 @@ function _plTextToDetail(val) {
   // 빈 줄은 {text:''}로 남지만 저장 경로(plSaveLog/plSaveEdit)가 trim 후 빈 항목을 거른다.
   return String(val || '').split('\n').map(line => ({ label: '', text: line }));
 }
-function _plDetailTextareaHtml(text, oninput) {
-  const rows = Math.max(1, (text || '').split('\n').length);
-  return `<div class="pl-sub" style="grid-template-columns:22px 1fr;margin-top:4px;"><span class="pl-m">ㄴ</span>
-    <textarea class="pl-mini" rows="${rows}" placeholder="상세 내용 — 줄바꿈으로 여러 줄(각 줄이 ㄴ 항목)" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;"
-      oninput="${oninput};_plAutoGrowTextarea(this)">${_escHtml(text)}</textarea>
-  </div>`;
+// ㄴ 상세내용: 한 줄 = ㄴ 항목 1개. Enter로 다음 ㄴ 줄 추가, 빈 줄에서 Backspace로 삭제.
+// 작성 모달(ctx='w', a=bi,b=ii) / 수정 모달 본문(ctx='e') / 수정 모달 추가항목(ctx='x', a=ei)이 공유한다.
+// 저장 모델(detail:[{label,text}])은 그대로. 과거 라벨은 "라벨: 내용" 텍스트로 합쳐 보여 유실 없이 흡수.
+function _plDetailCtxArr(ctxKey, a, b) {
+  let it = null;
+  if (ctxKey === 'w') it = _plDraft.blocks[a]?.items[b];
+  else if (ctxKey === 'e') it = _plEditDraft;
+  else if (ctxKey === 'x') it = _plEditDraft?.extraItems?.[a];
+  if (!it) return null;
+  if (!it.detail) it.detail = [];
+  return it.detail;
 }
-function _plItemDetailInput(bi, ii, val) {
-  const it = _plDraft.blocks[bi]?.items[ii];
-  if (it) it.detail = _plTextToDetail(val);
+function _plDetailCtxRerender(ctxKey) {
+  if (ctxKey === 'w') _plRenderWriteModal();
+  else _plEditRerender();
 }
-function _plEditDetailInput(val) {
-  if (_plEditDraft) _plEditDraft.detail = _plTextToDetail(val);
+function _plDetailRowsHtml(detail, ctxKey, a, b) {
+  const rows = (detail && detail.length) ? detail : [{ label: '', text: '' }];
+  return rows.map((d, di) => {
+    const id = `pl-dt-${ctxKey}-${a}-${b}-${di}`;
+    const text = d.label ? `${d.label}: ${d.text || ''}` : (d.text || '');
+    return `<div class="pl-sub" style="grid-template-columns:22px 1fr 24px;"><span class="pl-m">ㄴ</span>
+      <input type="text" id="${id}" class="pl-mini" value="${_escHtml(text)}" placeholder="상세 내용 (Enter로 줄 추가)"
+        oninput="_plDetailRowInput('${ctxKey}',${a},${b},${di},this.value)"
+        onkeydown="_plDetailRowKey(event,'${ctxKey}',${a},${b},${di})">
+      <span class="pl-x" onclick="_plDetailRowRemove('${ctxKey}',${a},${b},${di})">✕</span>
+    </div>`;
+  }).join('');
 }
-function _plEditExtraDetailInput(ei, val) {
-  const it = _plEditDraft?.extraItems?.[ei];
-  if (it) it.detail = _plTextToDetail(val);
+function _plDetailRowFocus(ctxKey, a, b, di) {
+  setTimeout(() => {
+    const el = document.getElementById(`pl-dt-${ctxKey}-${a}-${b}-${di}`);
+    if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) {} }
+  }, 0);
+}
+function _plDetailRowInput(ctxKey, a, b, di, val) {
+  const arr = _plDetailCtxArr(ctxKey, a, b);
+  if (!arr) return;
+  arr[di] = { label: '', text: val };
+}
+function _plDetailRowKey(e, ctxKey, a, b, di) {
+  const arr = _plDetailCtxArr(ctxKey, a, b);
+  if (!arr) return;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    arr.splice(di + 1, 0, { label: '', text: '' });
+    _plDetailCtxRerender(ctxKey);
+    _plDetailRowFocus(ctxKey, a, b, di + 1);
+  } else if (e.key === 'Backspace' && !(arr[di] && arr[di].text) && arr.length > 1) {
+    e.preventDefault();
+    arr.splice(di, 1);
+    _plDetailCtxRerender(ctxKey);
+    _plDetailRowFocus(ctxKey, a, b, Math.max(0, di - 1));
+  }
+}
+function _plDetailRowRemove(ctxKey, a, b, di) {
+  const arr = _plDetailCtxArr(ctxKey, a, b);
+  if (!arr) return;
+  if (arr.length > 1) arr.splice(di, 1); else arr[0] = { label: '', text: '' };
+  _plDetailCtxRerender(ctxKey);
 }
 
 // 라벨(카테고리) 선택 UI는 작성 화면에서 제거 — 하위 기록은 그냥 자유 텍스트 메모로만 남긴다
@@ -5077,7 +5041,7 @@ function _plEditItemHtml() {
       <div class="pl-pct-wrap${d.resolveChecked ? ' pl-pct-locked' : ''}"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${d.progress ?? ''}" ${d.resolveChecked ? 'disabled' : ''} oninput="_plEditField('progress',this.value)"><span class="pl-pct-suffix">%</span></div>
       <span></span>
     </div>
-    ${_plDetailTextareaHtml(_plDetailToText(d.detail), `_plEditDetailInput(this.value)`)}
+    ${_plDetailRowsHtml(d.detail, 'e', 0, 0)}
   </div>`;
 }
 function _plEditSubHtml(di, d) {
@@ -5106,7 +5070,7 @@ function _plEditExtraItemHtml(ei, it) {
       <div class="pl-pct-wrap"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${it.progress ?? ''}" oninput="_plEditExtraField(${ei},'progress',this.value)"><span class="pl-pct-suffix">%</span></div>
       <span class="pl-x" onclick="_plEditRemoveExtraItem(${ei})">✕</span>
     </div>
-    ${_plDetailTextareaHtml(_plDetailToText(it.detail), `_plEditExtraDetailInput(${ei},this.value)`)}
+    ${_plDetailRowsHtml(it.detail, 'x', ei, 0)}
   </div>`;
 }
 function _plEditExtraSubHtml(ei, di, d) {
