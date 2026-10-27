@@ -1534,6 +1534,11 @@ function _plCampLogInlineInnerHtml() {
 }
 function _plRenderInlineCampLog(campaignId) {
   _plInjectStyles();
+  // 프로젝트일지 메뉴를 한 번도 안 열었으면 PL_LOGS가 비어 있다 — 상세화면에서도 바로 보이도록
+  // 로그·댓글 구독을 여기서 켠다(둘 다 시작 가드가 있어 중복 호출 안전). 데이터가 도착하면
+  // _plRebuildLogs 훅이 이 인라인 뷰를 다시 그린다.
+  _plWatchLogs();
+  _plWatchComments();
   const mounts = [...document.querySelectorAll('.d-camplog-mount')].filter(m => m.offsetParent !== null);
   if (!mounts.length) return;
   _plInlineCampId = campaignId;
