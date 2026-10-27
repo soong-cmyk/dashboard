@@ -2027,6 +2027,9 @@ function openDetail(idx, skipPush) {
   if (contentEl) contentEl.scrollTop = 0;
   document.getElementById('nav-campaigns').classList.add('active');
 
+  // 특기사항 자리 인라인 캠페인 일지 — 화면이 active 된 뒤라야 보이는 mount를 올바르게 판별한다
+  if (typeof _plRenderInlineCampLog === 'function') _plRenderInlineCampLog(c.id);
+
   if (!skipPush) {
     history.pushState({ screen: 'detail', id: c.id }, '', '#detail/' + c.id);
   }

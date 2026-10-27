@@ -246,6 +246,12 @@ function _plRebuildLogs() {
   if (document.getElementById('screen-projectlog')?.classList.contains('active')) {
     if (typeof plRenderActiveTab === 'function') plRenderActiveTab();
   }
+  // 캠페인 상세화면이 열려 있으면 인라인 일지도 같이 갱신 (새 일지 저장·이어쓰기 등 실시간 반영)
+  if (document.getElementById('screen-detail')?.classList.contains('active') &&
+      document.querySelector('.d-camplog-mount') &&
+      typeof currentDetailId !== 'undefined' && currentDetailId) {
+    _plRenderInlineCampLog(currentDetailId);
+  }
 }
 function _plWatchLogs() {
   if (_plWatchStarted || !window._db) return;
@@ -1162,14 +1168,14 @@ function _plBuildCampLogModalShell() {
       <div class="modal-head">
         <div>
           <div class="modal-title">✎ 캠페인 일지</div>
-          <div id="pl-cl-badges" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;"></div>
+          <div class="pl-cl-badges" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center;"></div>
         </div>
         <button class="modal-close" onclick="closeModal('pl-modal-camplog')">✕</button>
       </div>
       <div class="modal-body">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
-          <span class="table-count" id="pl-cl-count"></span>
-          <button class="btn btn-primary btn-sm" id="pl-cl-writebtn" style="margin-left:auto;" onclick="_plWriteFromCampLog()">+ 일지 작성</button>
+          <span class="table-count pl-cl-count"></span>
+          <button class="btn btn-primary btn-sm pl-cl-writebtn" style="margin-left:auto;" onclick="_plWriteFromCampLog()">+ 일지 작성</button>
         </div>
         <div class="table-card" style="box-shadow:none;margin-bottom:0;">
           <div class="table-wrap"><table class="pl-lgt pl-lgt-new" style="width:100%;">
@@ -1177,10 +1183,10 @@ function _plBuildCampLogModalShell() {
               <th style="width:22px;"></th><th style="width:74px;">작성일</th><th style="width:60px;">유형</th>
               <th>내용</th><th style="width:120px;">진척률</th><th style="width:120px;">작성자</th>
             </tr></thead>
-            <tbody id="pl-cl-tbody"></tbody>
+            <tbody class="pl-cl-tbody"></tbody>
           </table></div>
         </div>
-        <p class="form-hint" id="pl-cl-note" style="margin-top:12px;"></p>
+        <p class="form-hint pl-cl-note" style="margin-top:12px;"></p>
       </div>
       <div class="modal-foot">
         <span class="form-hint">프로젝트일지 메뉴에서도 동일하게 조회·수정 가능</span>
@@ -1380,7 +1386,8 @@ function _plBuildProgressGuideModalShell() {
 
 // isRef: 이 캠페인이 로그의 주 소속(campaignId)이 아니라 참조 태그(refCampaignIds)로만 걸린 경우 —
 // 원래 어디에 작성된 로그인지 짧은 배지로 알려준다(위계 없이 동등한 참조라는 걸 보여주되 출처는 명시).
-function _plRenderCampaignLogRow(log, isRef) {
+function _plRenderCampaignLogRow(log, isRef, ctx) {
+  ctx = ctx || 'camp';
   const isOpen = _plExpanded.has(log.id);
   const arrow = isOpen ? '▾' : '▸';
   const dateShort = (log.logDate || '').slice(2).replace(/-/g, '.');
@@ -1398,8 +1405,8 @@ function _plRenderCampaignLogRow(log, isRef) {
   const detailItems = (log.detail || []).filter(d => (d.text || '').trim());
   // align-self:flex-end — ㄴ 마커/본문은 그대로 위쪽(center) 기준을 유지하되, 아이콘만 내용이
   // 길어 줄바꿈돼도 마지막 줄 바닥에 붙게 자기 자신만 별도로 정렬한다(2026-09-16, 사용자 요청).
-  const quickAddIconHtml = `<span class="pl-lgnew-qaicon" style="align-self:flex-end;" onclick="event.stopPropagation();_plQuickAddStart('${log.id}','camp')" onmouseenter="_plShowFixedTip(this,'ㄴ 추가')" onmouseleave="_plHideFixedTip()">＋</span>`;
-  const quickAddFormHtml = _plQuickAdd === log.id ? _plQuickAddTailHtml(log.id, 'camp') : '';
+  const quickAddIconHtml = `<span class="pl-lgnew-qaicon" style="align-self:flex-end;" onclick="event.stopPropagation();_plQuickAddStart('${log.id}','${ctx}')" onmouseenter="_plShowFixedTip(this,'ㄴ 추가')" onmouseleave="_plHideFixedTip()">＋</span>`;
+  const quickAddFormHtml = _plQuickAdd === log.id ? _plQuickAddTailHtml(log.id, ctx) : '';
   const subLinesHtml = detailItems.map((d, i) =>
     `<div style="font-size:12px;color:var(--text2);padding:1px 0;display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
       <span style="flex-shrink:0;align-self:flex-start;"><span style="color:var(--text3);">ㄴ</span>${d.label ? ` <b>${_escHtml(d.label)}</b>` : ''}</span>
@@ -1407,7 +1414,7 @@ function _plRenderCampaignLogRow(log, isRef) {
       ${i === detailItems.length - 1 ? quickAddIconHtml : ''}
     </div>`
   ).join('') + quickAddFormHtml;
-  const rowHtml = `<tr class="pl-lg-head" onclick="_plToggleRowGuarded(event,'${log.id}','camp')" style="cursor:pointer;">
+  const rowHtml = `<tr class="pl-lg-head" onclick="_plToggleRowGuarded(event,'${log.id}','${ctx}')" style="cursor:pointer;">
     <td class="pl-lg-arrow">${arrow}</td>
     <td class="f-mono td-num">${dateShort}</td>
     <td><span class="badge pl-lg-${log.logType}">${_escHtml(_plTypeLabel(log.logType))}</span></td>
@@ -1437,8 +1444,17 @@ function _plRenderCampaignLogModal(campaignId, campaignData, isDeleted, notFound
   _plCampLogLastIsDeleted = !!isDeleted;
   _plCampLogLastNotFound = !!notFound;
   if (!document.getElementById('pl-modal-camplog')) _plBuildCampLogModalShell();
+  _plFillCampLog(document.getElementById('pl-modal-camplog'), campaignId, campaignData, isDeleted, notFound, 'camp');
+}
 
-  const badgeEl = document.getElementById('pl-cl-badges');
+// 캠페인 일지 목록 본문 렌더 — 모달(ctx='camp')과 캠페인 상세화면 인라인(ctx='dcamp')이 공유한다.
+// root 안의 .pl-cl-* 요소(배지/건수/표/안내문)만 채우므로, 같은 구조를 가진 어떤 컨테이너에도 그릴 수 있다.
+function _plFillCampLog(root, campaignId, campaignData, isDeleted, notFound, ctx) {
+  if (!root) return;
+  ctx = ctx || 'camp';
+  _plCampLogCurrentId = campaignId;
+
+  const badgeEl = root.querySelector('.pl-cl-badges');
   if (badgeEl) {
     if (notFound || !campaignData) {
       badgeEl.innerHTML = `<span class="tag f-mono">${_escHtml(campaignId)}</span>`;
@@ -1465,32 +1481,71 @@ function _plRenderCampaignLogModal(campaignId, campaignData, isDeleted, notFound
   const refLogs = sortLogs(PL_LOGS.filter(l => (l.refCampaignIds || []).includes(campaignId)));
   const logs = [...directLogs, ...refLogs];
   const openCnt = logs.filter(_plLogOpen).length;
-  const countEl = document.getElementById('pl-cl-count');
+  const countEl = root.querySelector('.pl-cl-count');
   if (countEl) countEl.innerHTML = `이 캠페인의 일지 <b>${logs.length}</b>건${refLogs.length ? ` (참조 ${refLogs.length})` : ''}${openCnt ? ` · <span style="color:var(--red);">진행중 ${openCnt}</span>` : ''}`;
-  const tbody = document.getElementById('pl-cl-tbody');
+  const tbody = root.querySelector('.pl-cl-tbody');
   if (tbody) {
     if (!logs.length) {
       tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3);font-size:13px;">등록된 일지가 없습니다.</td></tr>`;
     } else {
       const directHtml = directLogs.length
-        ? (refLogs.length ? _plCampLogSectionRowHtml('직접 등록된 일지', directLogs.length) : '') + directLogs.map(l => _plRenderCampaignLogRow(l)).join('')
+        ? (refLogs.length ? _plCampLogSectionRowHtml('직접 등록된 일지', directLogs.length) : '') + directLogs.map(l => _plRenderCampaignLogRow(l, false, ctx)).join('')
         : '';
       const refHtml = refLogs.length
-        ? _plCampLogSectionRowHtml('참조로 걸린 일지', refLogs.length) + refLogs.map(l => _plRenderCampaignLogRow(l, true)).join('')
+        ? _plCampLogSectionRowHtml('참조로 걸린 일지', refLogs.length) + refLogs.map(l => _plRenderCampaignLogRow(l, true, ctx)).join('')
         : '';
       tbody.innerHTML = directHtml + refHtml;
     }
   }
 
-  const writeBtn = document.getElementById('pl-cl-writebtn');
+  const writeBtn = root.querySelector('.pl-cl-writebtn');
   if (writeBtn) writeBtn.style.display = isDeleted ? 'none' : '';
 
-  const noteEl = document.getElementById('pl-cl-note');
+  const noteEl = root.querySelector('.pl-cl-note');
   if (noteEl) {
     noteEl.textContent = notFound
       ? '캠페인 정보를 찾을 수 없습니다. 일지 기록만 표시됩니다.'
       : (isDeleted ? '삭제된 캠페인입니다. 일지는 조회만 가능하며 새로 작성할 수 없습니다.' : '[+ 일지 작성] 클릭 시 블록 대상이 이 캠페인으로 이미 선택된 상태로 열립니다.');
   }
+}
+
+// ── 캠페인 상세화면 인라인 일지 (특기사항 자리) ──
+// 캠페인 일지 모달과 같은 본문(_plFillCampLog)을 상세화면 안의 .d-camplog-mount 에 그대로 그린다.
+// 상품별로 일반/CPA 는 dGridBottom 특기사항 카드, DA/IPTV 는 소재&타겟 카드에 각각 mount가 있고,
+// 지금 화면에 보이는(offsetParent!=null) mount 하나에만 렌더한다.
+let _plInlineCampId = null;
+function _plCampLogInlineInnerHtml() {
+  return `
+    <div class="pl-cl-badges" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <span class="table-count pl-cl-count"></span>
+      <button class="btn btn-primary btn-sm pl-cl-writebtn" style="margin-left:auto;" onclick="_plWriteFromCampLog()">+ 일지 작성</button>
+    </div>
+    <div class="table-card" style="box-shadow:none;margin-bottom:0;">
+      <div class="table-wrap"><table class="pl-lgt pl-lgt-new" style="width:100%;">
+        <thead><tr>
+          <th style="width:22px;"></th><th style="width:74px;">작성일</th><th style="width:60px;">유형</th>
+          <th>내용</th><th style="width:120px;">진척률</th><th style="width:120px;">작성자</th>
+        </tr></thead>
+        <tbody class="pl-cl-tbody"></tbody>
+      </table></div>
+    </div>
+    <p class="form-hint pl-cl-note" style="margin-top:10px;"></p>`;
+}
+function _plRenderInlineCampLog(campaignId) {
+  _plInjectStyles();
+  const mounts = [...document.querySelectorAll('.d-camplog-mount')].filter(m => m.offsetParent !== null);
+  if (!mounts.length) return;
+  _plInlineCampId = campaignId;
+  const c = campaignId ? DATA.find(x => x.id === campaignId) : null;
+  mounts.forEach(mount => {
+    if (!mount.dataset.built) { mount.innerHTML = _plCampLogInlineInnerHtml(); mount.dataset.built = '1'; }
+    _plFillCampLog(mount, campaignId, c, false, !campaignId, 'dcamp');
+  });
+}
+function _plScrollToInlineCampLog() {
+  const m = [...document.querySelectorAll('.d-camplog-mount')].find(x => x.offsetParent !== null);
+  if (m) m.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function _plWriteFromCampLog() {
@@ -1985,6 +2040,7 @@ function _plToggleRow(id, ctx) {
 function _plRerenderByCtx(ctx) {
   if (ctx === 'gdaily') { _plGRenderDaily(); return; }
   if (ctx === 'mediadaily') { plRenderMediaTab(); return; }
+  if (ctx === 'dcamp') { _plRenderInlineCampLog(_plInlineCampId); return; }
   if (ctx === 'camp') { _plRenderCampaignLogModal(_plCampLogCurrentId, _plCampLogLastData, _plCampLogLastIsDeleted, _plCampLogLastNotFound); return; }
   if (ctx === 'date') { _plRenderDateBody(); return; }
   if (ctx === 'mine' || ctx === 'minemention' || ctx === 'minecommented') { _plRenderMineBody(); return; }
