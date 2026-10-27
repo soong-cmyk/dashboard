@@ -102,6 +102,7 @@ let _perfMatrixSub = 'cat';
 let _perfTimeSub   = 'cat';
 let _perfSelectedKey = '';
 let _perfHistoryDbOnly = true;
+let _perfPendingTab = null; // 뒤로가기(popstate)로 성과분석 복원 시 적용할 탭
 
 let KPI_DATA       = {};
 let _kpiYear       = String(new Date().getFullYear());
@@ -8180,6 +8181,11 @@ window.addEventListener('popstate', (e) => {
   } else if (state.screen === 'media-detail') {
     if (state.idx != null) openMediaDetail(state.idx, true);
     else goScreen('media', true);
+  } else if (state.screen === 'perf') {
+    // 성과분석 하위 탭(광고주 히스토리/매체×카테고리 등) 뒤로가기 — state.perfTab 복원
+    const t = state.perfTab || 'history';
+    if (document.getElementById('screen-perf')?.classList.contains('active')) perfSwitchTab(t, true);
+    else { _perfPendingTab = t; goScreen('perf', true); }
   } else if (state.screen === 'projectlog-detail' || state.screen === 'projectlog') {
     // 프로젝트로그 광고주/매체/내부업무 상세 뒤로가기 → 진입 당시 탭(plSwitchTab이 replaceState로 기록)의 목록으로
     PL_STATE.advDetailCompany = null;
@@ -14896,8 +14902,7 @@ function initPerfScreen() {
   _perfHistoryDbOnly = true;
   _applyPerfDbToggleStyle();
 
-  // 상태 초기화 — 매체×카테고리 탭, 카테고리별 서브탭
-  _perfTab = 'matrix';
+  // 상태 초기화 — 기본 탭은 아래 _startTab(광고주 히스토리), 카테고리별 서브탭만 여기서 리셋
   _perfSelectedKey = '';
   perfMatrixSubSwitch('cat');
   perfTimeSubSwitch('cat');
@@ -14908,7 +14913,9 @@ function initPerfScreen() {
     tip.style.cssText = 'display:none;position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.15);font-size:12px;line-height:1.7;pointer-events:none;';
     document.body.appendChild(tip);
   }
-  perfSwitchTab('matrix');
+  const _startTab = _perfPendingTab || 'history';   // 기본은 광고주 히스토리(뒤로가기 복원 시 그 탭)
+  _perfPendingTab = null;
+  perfSwitchTab(_startTab, false, true);
 }
 
 // 광고주 선택 시 그 광고주의 브랜드만 브랜드 셀렉트에 채운다(2026-10-26, 광고주>브랜드 2단 필터)
@@ -14958,9 +14965,14 @@ function _applyPerfDbToggleStyle() {
   btn.style.borderColor  = _perfHistoryDbOnly ? 'var(--accent)' : '';
 }
 
-function perfSwitchTab(tab) {
+// fromPop: popstate 복원 중이면 history를 다시 밀지 않음. initial: 성과분석 첫 진입 — 기존 #perf 항목을 교체(탭 전환은 새 항목 push)
+function perfSwitchTab(tab, fromPop, initial) {
   _usageLogAction('perfTab_' + tab);
   _perfTab = tab;
+  if (!fromPop) {
+    const st = { screen: 'perf', perfTab: tab };
+    try { initial ? history.replaceState(st, '', '#perf') : history.pushState(st, '', '#perf'); } catch (e) {}
+  }
   document.getElementById('perf-tab-matrix') ?.classList.toggle('active', tab === 'matrix');
   document.getElementById('perf-tab-time')   ?.classList.toggle('active', tab === 'time');
   document.getElementById('perf-tab-month')  ?.classList.toggle('active', tab === 'month');
