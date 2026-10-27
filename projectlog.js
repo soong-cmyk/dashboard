@@ -311,6 +311,18 @@ function _plEnsureMediaLoaded(media) {
   _plDb('projectLogs').where('refMediaNames', 'array-contains', media)
     .onSnapshot(_plApplySnapshot, err => console.error('[projectlog] 매체별(참조) 구독 오류', err));
 }
+// 캠페인 상세화면 인라인 일지는 그 캠페인에 걸린 일지를 "등록일 이후 전부" 보여줘야 하므로,
+// 최근 N개월 구독(_plWatchLogs)으로는 부족하다 — 이 캠페인 범위만 전체 기간을 별도로 구독한다.
+// 직접 등록(campaignId)과 참조로 걸린 것(refCampaignIds 배열) 둘 다 끌어온다. 세션 동안 유지.
+let _plWatchedCampaigns = new Set();
+function _plEnsureCampaignLoaded(campaignId) {
+  if (!campaignId || _plFullyWatching || _plWatchedCampaigns.has(campaignId) || !window._db) return;
+  _plWatchedCampaigns.add(campaignId);
+  _plDb('projectLogs').where('campaignId', '==', campaignId)
+    .onSnapshot(_plApplySnapshot, err => console.error('[projectlog] 캠페인별 구독 오류', err));
+  _plDb('projectLogs').where('refCampaignIds', 'array-contains', campaignId)
+    .onSnapshot(_plApplySnapshot, err => console.error('[projectlog] 캠페인별(참조) 구독 오류', err));
+}
 // 자유 텍스트 검색은 광고주/매체로 범위를 좁힐 수 없어서(어느 필드에 매칭될지 모름) 이 시점엔 전체를 연다.
 function _plEnsureFullyLoaded() {
   if (_plFullyWatching || !window._db) return;
@@ -1539,6 +1551,8 @@ function _plRenderInlineCampLog(campaignId) {
   // _plRebuildLogs 훅이 이 인라인 뷰를 다시 그린다.
   _plWatchLogs();
   _plWatchComments();
+  // 이 캠페인에 걸린 일지는 등록일 이후 전부 보여야 하므로 캠페인 범위 전체 기간을 별도 구독
+  _plEnsureCampaignLoaded(campaignId);
   const mounts = [...document.querySelectorAll('.d-camplog-mount')].filter(m => m.offsetParent !== null);
   if (!mounts.length) return;
   _plInlineCampId = campaignId;
