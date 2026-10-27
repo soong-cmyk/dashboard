@@ -15143,7 +15143,7 @@ function renderPerfMatrix() {
   _perfSelectedKey = '';
   const container = document.getElementById('perf-view-matrix');
   if (!container) return;
-  const data = _perfBaseData().filter(c => c.ctr != null && c.ctr !== '');
+  const data = _perfBaseData({ includeAll: true }).filter(c => c.ctr != null && c.ctr !== '');
   if (!data.length) {
     container.innerHTML = '<div style="padding:48px;text-align:center;color:var(--text3);font-size:13px;">해당 조건의 CTR 데이터가 없습니다.</div>';
     return;
@@ -15295,7 +15295,7 @@ function perfSelectCell(td) {
   document.querySelectorAll('#perf-view-matrix td[data-med]').forEach(el => el.style.outline = '');
   td.style.outline = '2px solid var(--accent)';
 
-  const camps = _perfBaseData().filter(c => {
+  const camps = _perfBaseData({ includeAll: true }).filter(c => {
     if (c.media !== med || c.ctr == null || c.ctr === '') return false;
     return isAdv ? (c.seller || c.adv) === col : _getCat(c) === col;
   });
@@ -15540,7 +15540,7 @@ function renderPerfMonthMatrix() {
   _perfSelectedKey = '';
   const container = document.getElementById('perf-view-month');
   if (!container) return;
-  const data = _perfBaseData().filter(c => c.ctr != null && c.ctr !== '');
+  const data = _perfBaseData({ includeAll: true }).filter(c => c.ctr != null && c.ctr !== '');
   if (!data.length) {
     container.innerHTML = '<div style="padding:48px;text-align:center;color:var(--text3);font-size:13px;">CTR 데이터가 없습니다.</div>';
     return;
@@ -15643,7 +15643,7 @@ function renderPerfMonthMatrix() {
       `<span style="width:10px;height:10px;border-radius:50%;background:${COLORS[ci % COLORS.length]};flex-shrink:0;display:inline-block;"></span>${_escHtml(cat)}</span>`
     ).join('') + '</div>';
 
-  container.innerHTML = _PERF_EXC_NOTE + `<div style="display:flex;flex-direction:column;gap:16px;">
+  container.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px;">
     <div style="width:100%;">${svg}${legendHtml}</div>
     <div id="perf-month-panel" style="display:none;width:100%;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:16px;box-shadow:var(--shadow);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
@@ -15675,7 +15675,7 @@ function perfSelectMonthCell(el) {
   el.setAttribute('stroke', 'var(--accent)');
   el.setAttribute('stroke-width', '3');
 
-  const camps = _perfBaseData().filter(c =>
+  const camps = _perfBaseData({ includeAll: true }).filter(c =>
     _getCat(c) === cat &&
     (c.date || '').slice(5, 7) === month &&
     c.ctr != null && c.ctr !== ''
