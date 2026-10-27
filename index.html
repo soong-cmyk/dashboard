@@ -657,7 +657,6 @@
               <div class="card-head">
                 <span class="card-icon">🎨</span><span class="card-title">소재 & 타겟</span>
                 <button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="openEditTarget()">✏ 타겟 수정</button>
-                <button class="btn btn-outline btn-sm" style="margin-left:6px;" onclick="openEditNote()">✏ 메모 수정</button>
               </div>
               <div class="card-body" style="display:flex;flex-direction:column;gap:20px;">
                 <div>
@@ -665,11 +664,6 @@
                   <div id="dDaTarget" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px;"></div>
                   <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em;">디타겟 조건</div>
                   <div id="dDaDtarget" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
-                </div>
-                <div>
-                  <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em;">특기사항</div>
-                  <div class="memo-block" id="dDaNote" style="border-left-color:var(--yellow);min-height:40px;"></div>
-                  <div class="d-camplog-mount" style="margin-top:14px;"></div>
                 </div>
                 <div>
                   <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em;">소재 이미지</div>
@@ -797,38 +791,41 @@
 
         <div id="dGridBottom" class="detail-grid">
           <div class="card">
-            <div class="card-head"><span class="card-icon">🎯</span><span class="card-title">타겟 & 문구</span><button
+            <div class="card-head"><span class="card-icon">🎯</span><span class="card-title">타겟 조건</span><button
                 class="btn btn-outline btn-sm" id="btn-edit-target" style="margin-left:auto;"
                 onclick="openEditTarget()">✏ 수정</button></div>
             <div class="card-body">
               <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;">타겟 조건</div>
               <div id="dTarget" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px;"></div>
               <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;">디타겟 조건</div>
-              <div id="dDtarget" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;"></div>
-              <div id="dMsgSection">
-              <div style="display:flex;align-items:center;margin-bottom:8px;">
-                <div style="font-size:11px;font-weight:700;color:var(--text2);">발송 문구</div>
-                <div class="view-tabs" style="margin-left:auto;gap:0;">
-                  <button class="view-tab active" id="msg-tab-draft" onclick="msgTabSwitch('draft')"
-                    style="font-size:11.5px;padding:3px 10px;">검수전</button>
-                  <button class="view-tab" id="msg-tab-final" onclick="msgTabSwitch('final')"
-                    style="font-size:11.5px;padding:3px 10px;">검수완료</button>
-                </div>
+              <div id="dDtarget" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+            </div>
+          </div>
+          <div class="card" id="dCardMsg">
+            <div class="card-head"><span class="card-icon">💬</span><span class="card-title">발송 문구</span>
+              <div class="view-tabs" style="margin-left:auto;gap:0;">
+                <button class="view-tab active" id="msg-tab-draft" onclick="msgTabSwitch('draft')"
+                  style="font-size:11.5px;padding:3px 10px;">검수전</button>
+                <button class="view-tab" id="msg-tab-final" onclick="msgTabSwitch('final')"
+                  style="font-size:11.5px;padding:3px 10px;">검수완료</button>
               </div>
-              <div class="memo-block" id="dMsg"></div>
-              <div class="memo-block" id="dMsgFinal" style="display:none;border-left-color:var(--green);"></div>
+            </div>
+            <div class="card-body">
+              <div id="dMsgSection">
+                <div class="memo-block" id="dMsg"></div>
+                <div class="memo-block" id="dMsgFinal" style="display:none;border-left-color:var(--green);"></div>
               </div>
             </div>
           </div>
-          <div class="card">
-            <div class="card-head"><span class="card-icon">📝</span><span class="card-title">특기사항</span><button
-                class="btn btn-outline btn-sm" id="btn-edit-note" style="margin-left:auto;" onclick="openEditNote()">✏
-                수정</button></div>
-            <div class="card-body">
-              <div class="memo-block" id="dNote" style="border-left-color:var(--yellow);margin-bottom:14px;">발송 전 QA
-                필수<br>링크 클릭 트래킹 설정 확인 요망</div>
-              <div class="d-camplog-mount"></div>
-            </div>
+        </div>
+
+        <!-- 특기사항 / 프로젝트일지 — 전체폭, 상세화면 맨 아래 (모든 상품 공통) -->
+        <div class="card" id="dLogFull" style="margin-top:16px;">
+          <div class="card-head"><span class="card-icon">📝</span><span class="card-title">특기사항 / 일지</span><button
+              class="btn btn-outline btn-sm" id="btn-edit-note" style="margin-left:auto;" onclick="openEditNote()">✏ 특기사항 수정</button></div>
+          <div class="card-body">
+            <div class="memo-block" id="dNote" style="border-left-color:var(--yellow);margin-bottom:14px;"></div>
+            <div class="d-camplog-mount"></div>
           </div>
         </div>
       </div>

@@ -1730,6 +1730,9 @@ function openDetail(idx, skipPush) {
   if (dtargetEl) { const dtags = (c.dtarget||'').split('\n').map(t=>t.trim()).filter(Boolean); dtargetEl.innerHTML = dtags.length ? dtags.map(t=>`<span class="tag">${t}</span>`).join('') : '<span style="color:var(--text3);font-size:12px;">—</span>'; }
   const dMsgSection = document.getElementById('dMsgSection');
   if (dMsgSection) dMsgSection.style.display = isCPADetail ? 'none' : '';
+  // CPA는 발송문구가 없으므로 발송문구 카드를 통째로 숨긴다(타겟 카드만 남음)
+  const dCardMsg = document.getElementById('dCardMsg');
+  if (dCardMsg) dCardMsg.style.display = isCPADetail ? 'none' : '';
   document.getElementById('dMsg').innerHTML      = _linkify(c.msg || '');
   document.getElementById('dMsgFinal').innerHTML = c.msgFinal ? _linkify(c.msgFinal) : '<span style="color:var(--text3);font-size:12px;">아직 검수완료된 문구가 없습니다.</span>';
   // 탭 초기화 — 검수완료 문구가 등록돼 있으면 그걸 기본으로, 없으면 검수전으로 시작
@@ -1898,8 +1901,7 @@ function openDetail(idx, skipPush) {
       });
     }
     if (daImgNone) daImgNone.style.display = daImgs.length ? 'none' : '';
-    // 특기사항
-    document.getElementById('dDaNote').innerHTML = (c.note||'').replace(/\n/g,'<br>') || '<span style="color:var(--text3);">—</span>';
+    // 특기사항/일지는 상세화면 맨 아래 전체폭 #dLogFull 로 통합(모든 상품 공통) — DA 카드엔 더 이상 표시 안 함
   }
 
   if (isDAcamp) {
