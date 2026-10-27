@@ -40,7 +40,7 @@ const PL_LOG_TYPES = ['운영', '요청', '제안', '이슈', '대응', '결과'
 // "시스템제약"을 그대로 써서 매체 지식 자동 집계 등 기존 로직과 어긋나지 않게 한다(2026-09-10, 사용자 요청).
 // 피드백/회고/자료는 여전히 존재하는 값이지만(기존 데이터·엑셀 업로드는 그대로) 실무에서 새로
 // 고르는 용도로는 안 쓰여서 이 목록엔 안 넣는다.
-const PL_LOG_TYPES_FILTER = ['운영', '요청', '제안', '이슈', '대응', '결과', '계약', '보상', '시스템제약'];
+const PL_LOG_TYPES_FILTER = ['운영', '요청', '제안', '이슈', '대응', '결과', '계약', '보상', '시스템제약', '특기사항'];
 const PL_LOG_TYPE_DISPLAY = { 시스템제약: '매체정보' };
 function _plTypeLabel(t) { return PL_LOG_TYPE_DISPLAY[t] || t; }
 // 유형 select용 <option> 목록 — 고정 유형(PL_LOG_TYPES_FILTER)에, 지금 값이 그 목록에 없으면
@@ -67,6 +67,7 @@ const PL_TYPE_COLOR = {
   회고:   { bg: '#f3f0ff', fg: '#5f3dc4' },
   자료:   { bg: '#e6fcf5', fg: '#0ca678' },
   시스템제약: { bg: '#fff9db', fg: '#997404' },
+  특기사항: { bg: '#fff3bf', fg: '#92400e' },
 };
 
 const PL_SUMMARY_PH = {
@@ -82,6 +83,7 @@ const PL_SUMMARY_PH = {
   회고:   '예) 부킹 전 모수 확인 누락 → D-14 사전조회 원칙',
   자료:   '예) 공용드라이브 : 업무폴더 D:\\단비교육',
   시스템제약: '예) KT는 동일 광고주 주 1회 발송만 허용',
+  특기사항: '예) 발송 전 QA 필수 · 링크 트래킹 설정 확인',
 };
 
 const PL_DRAFT_KEY = 'pl_draft_' + (currentUser?.id || 'anon');
@@ -1511,13 +1513,15 @@ function _plFillCampLog(root, campaignId, campaignData, isDeleted, notFound, ctx
   }
 
   const writeBtn = root.querySelector('.pl-cl-writebtn');
-  if (writeBtn) writeBtn.style.display = isDeleted ? 'none' : '';
+  // 인라인(dcamp)은 항상 열린 작성칸이 위에 있어 목록쪽 '+ 일지 작성' 버튼은 숨긴다.
+  if (writeBtn) writeBtn.style.display = (isDeleted || ctx === 'dcamp') ? 'none' : '';
 
   const noteEl = root.querySelector('.pl-cl-note');
   if (noteEl) {
     noteEl.textContent = notFound
       ? '캠페인 정보를 찾을 수 없습니다. 일지 기록만 표시됩니다.'
-      : (isDeleted ? '삭제된 캠페인입니다. 일지는 조회만 가능하며 새로 작성할 수 없습니다.' : '[+ 일지 작성] 클릭 시 블록 대상이 이 캠페인으로 이미 선택된 상태로 열립니다.');
+      : (isDeleted ? '삭제된 캠페인입니다. 일지는 조회만 가능하며 새로 작성할 수 없습니다.'
+        : (ctx === 'dcamp' ? '' : '[+ 일지 작성] 클릭 시 블록 대상이 이 캠페인으로 이미 선택된 상태로 열립니다.'));
   }
 }
 
@@ -1528,6 +1532,7 @@ function _plFillCampLog(root, campaignId, campaignData, isDeleted, notFound, ctx
 let _plInlineCampId = null;
 function _plCampLogInlineInnerHtml() {
   return `
+    <div class="pl-inline-compose-wrap"></div>
     <div class="pl-cl-badges" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;"></div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
       <span class="table-count pl-cl-count"></span>
@@ -1557,10 +1562,87 @@ function _plRenderInlineCampLog(campaignId) {
   if (!mounts.length) return;
   _plInlineCampId = campaignId;
   const c = campaignId ? DATA.find(x => x.id === campaignId) : null;
+  // 캠페인이 바뀌면 작성칸 내용 초기화(다른 캠페인으로 넘어갔을 때 이전 타이핑이 남지 않게).
+  // 같은 캠페인이면 작성칸은 다시 그리지 않아(스냅샷 갱신 중에도) 타이핑/포커스가 유지된다.
+  const campChanged = campaignId !== _plInlineComposerCampId;
+  if (campChanged) { _plInlineDraft = _plInlineEmptyDraft(); _plInlineComposerCampId = campaignId; }
   mounts.forEach(mount => {
     if (!mount.dataset.built) { mount.innerHTML = _plCampLogInlineInnerHtml(); mount.dataset.built = '1'; }
+    const wrap = mount.querySelector('.pl-inline-compose-wrap');
+    if (wrap && (campChanged || !wrap.dataset.rendered)) _plRenderInlineComposer(mount);
     _plFillCampLog(mount, campaignId, c, false, !campaignId, 'dcamp');
   });
+}
+
+// ── 상세화면 인라인 작성칸(항상 열림) ── 유형·요약 한 줄·진척률·ㄴ textarea로 이 캠페인에 바로 일지를
+// 남긴다. 저장은 모달과 같은 문서 shape·같은 컬렉션(_plDb('projectLogs'))을 쓴다. 이미지·여러 대상 등
+// 무거운 작업은 "+ 상세 작성"으로 기존 작성 모달(_plWriteFromCampLog)에 넘긴다.
+function _plInlineEmptyDraft() { return { logType: '운영', summary: '', progress: '', detailText: '' }; }
+let _plInlineDraft = _plInlineEmptyDraft();
+let _plInlineComposerCampId = null;
+function _plRenderInlineComposer(mount) {
+  const wrap = mount.querySelector('.pl-inline-compose-wrap');
+  if (!wrap) return;
+  const d = _plInlineDraft;
+  wrap.innerHTML = `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:13px;background:var(--surface2);">
+      <div class="pl-irow">
+        <select class="pl-mini" style="font-weight:700;" onchange="_plInlineField('logType',this.value)">${_plTypeSelectOptions(d.logType)}</select>
+        <input type="text" class="pl-mini" maxlength="60" placeholder="${_escHtml(PL_SUMMARY_PH[d.logType] || '한 줄 요약')}" value="${_escHtml(d.summary)}" oninput="_plInlineField('summary',this.value)">
+        <div class="pl-pct-wrap"><input type="text" class="pl-mini pl-pct" placeholder="진척률" value="${_escHtml(d.progress)}" oninput="_plInlineField('progress',this.value)"><span class="pl-pct-suffix">%</span></div>
+        <span></span>
+      </div>
+      ${_plDetailTextareaHtml(d.detailText, "_plInlineField('detailText',this.value)")}
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+        <button class="btn btn-primary btn-sm" onclick="_plInlineSave(this)">저장</button>
+        <span class="pl-click" style="font-size:11.5px;" onclick="_plWriteFromCampLog()">+ 상세 작성 (이미지·여러 대상)</span>
+        <span class="form-hint" style="margin-left:auto;">${_escHtml(currentUser?.name || '')} · 오늘 작성</span>
+      </div>
+    </div>`;
+  wrap.dataset.rendered = '1';
+}
+// 값만 갱신(리렌더 없음) — 타이핑 중 포커스/커서 유지. 유형 변경 시 요약 placeholder는 바뀌지 않지만 사소.
+function _plInlineField(field, val) { _plInlineDraft[field] = val; }
+async function _plInlineSave(btn) {
+  const campaignId = _plInlineCampId;
+  const c = campaignId ? DATA.find(x => x.id === campaignId) : null;
+  if (!c) { toast('캠페인을 찾을 수 없습니다', 'err'); return; }
+  const d = _plInlineDraft;
+  const summary = (d.summary || '').trim();
+  if (!summary) { toast('내용(한 줄 요약)을 입력하세요', 'err'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
+  try {
+    const detail = _plTextToDetail(d.detailText).filter(x => (x.text || '').trim()).map(x => ({ label: '', text: x.text.trim() }));
+    const progress = (d.progress === '' || d.progress == null) ? null : Math.max(0, Math.min(100, parseInt(d.progress, 10) || 0));
+    const now = new Date().toISOString();
+    const doc = {
+      id: _plNextLogIdSeq()(),
+      logDate: _plTodayStr(), writer: currentUser?.name || '', writerId: currentUser?.id || '',
+      bonbu: currentUser?.bonbu || '', dept: currentUser?.dept || '',
+      scope: 'campaign', seller: c.seller || c.adv || null, content: c.content || null,
+      campaignId: c.id, media: c.media || null, product: c.product || null,
+      refCampaignIds: [], refMediaNames: [],
+      logType: d.logType || '운영', state: null,
+      summary: summary.slice(0, 60), detail, progress,
+      important: false, shared: false,
+      hasImages: false, imageCount: 0, links: [],
+      attachPath: null, attachName: null,
+      threadId: null, createdAt: now, updatedAt: now,
+      continuedFromId: null,
+    };
+    doc.searchText = _plBuildSearchText(doc);
+    await _plDb('projectLogs').doc(doc.id).set(doc);
+    await _plLogHistoryCreate(doc.id);
+    _plInlineDraft = _plInlineEmptyDraft();
+    // 스냅샷이 목록은 자동 갱신하지만, 작성칸은 같은 캠페인이면 다시 안 그려지므로 여기서 직접 비워 그린다.
+    document.querySelectorAll('.d-camplog-mount').forEach(m => { if (m.offsetParent !== null) _plRenderInlineComposer(m); });
+    toast('✓ 일지가 저장되었습니다', 'ok');
+  } catch (e) {
+    console.error('[projectlog] 인라인 일지 저장 실패', e);
+    toast('저장 중 오류가 발생했습니다', 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+  }
 }
 function _plScrollToInlineCampLog() {
   const m = [...document.querySelectorAll('.d-camplog-mount')].find(x => x.offsetParent !== null);
