@@ -15043,7 +15043,12 @@ function perfSwitchTab(tab, fromPop, initial) {
   if (tab === 'matrix')  renderPerfMatrix();
   else if (tab === 'time')  renderPerfTimeMatrix();
   else if (tab === 'month') renderPerfMonthMatrix();
-  else renderPerfHistory();
+  else {
+    // 히스토리는 브랜드 카드까지 그려 무거울 수 있어, 스피너를 먼저 띄우고 다음 프레임에 렌더(뒤로가기 지연 체감 완화)
+    const _el = document.getElementById('perf-history-list');
+    if (_el) { _showDataLoading(_el); requestAnimationFrame(() => setTimeout(() => { renderPerfHistory(); _hideDataLoading(_el); }, 0)); }
+    else renderPerfHistory();
+  }
 }
 
 function renderPerfCurrent() {
