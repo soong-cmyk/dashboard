@@ -15077,15 +15077,17 @@ function perfYearChange() {
   renderPerfCurrent();
 }
 
-function _perfBaseData() {
+// opts.includeAll: 집행시각 00:00·'실시간 발송'도 포함(광고주 히스토리 전용 — 시간대 탭은 0시 칸 쏠림 때문에 기본 제외)
+function _perfBaseData(opts) {
+  const all           = !!(opts && opts.includeAll);
   const year          = document.getElementById('perf-f-year')?.value || '';
   const checkedMonths = [...document.querySelectorAll('#perf-f-month-panel input[data-month]:checked')].map(b => b.dataset.month);
   const cat           = document.getElementById('perf-f-cat')?.value  || '';
   const media         = document.getElementById('perf-f-media')?.value || '';
   return DATA.filter(c => {
     if (c.status === '삭제') return false;
-    if ((c.date || '').endsWith('00:00')) return false;
-    if (c.product === '실시간 발송') return false;
+    if (!all && (c.date || '').endsWith('00:00')) return false;
+    if (!all && c.product === '실시간 발송') return false;
     if (year  && !(c.date || '').startsWith(year)) return false;
     if (checkedMonths.length && !checkedMonths.includes((c.date || '').slice(5, 7))) return false;
     if (cat   && _getCat(c) !== cat) return false;
@@ -15771,7 +15773,7 @@ function _insPattern(keys, regions, age) {
   return '기타';
 }
 function _insRows(camps) {
-  return camps.filter(c => c.status !== '삭제' && c.product !== '실시간 발송').map(c => {
+  return camps.filter(c => c.status !== '삭제').map(c => {
     const t = _insTag(c);
     const sent = parseFloat(c.actual) || 0, clicks = parseFloat(c.clicks) || 0, db = parseFloat(c.db) || 0;
     const ctr = (c.ctr != null && c.ctr !== '') ? parseFloat(c.ctr) : (sent && clicks ? +(clicks / sent * 100).toFixed(2) : null);
@@ -16001,7 +16003,7 @@ function renderPerfHistory() {
   const fBrand = (document.getElementById('perf-h-brand-sel')?.value || '').trim();
   const search = (document.getElementById('perf-h-search')?.value  || '').trim().toLowerCase();
 
-  let data = _perfBaseData().filter(c => {
+  let data = _perfBaseData({ includeAll: true }).filter(c => {
     const adv   = (c.seller || c.adv || '');
     const brand = (c.content || '');
     if (fAdv && adv !== fAdv) return false;
