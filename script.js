@@ -14935,6 +14935,17 @@ function perfHistorySelChange() {
   renderPerfHistory();
 }
 function perfHistoryBrandChange() { renderPerfHistory(); }
+// 표의 브랜드 클릭 → 광고주 선택 + 브랜드 선택 상태로 바로 전환(2026-10-27)
+function perfHistoryPickBrand(adv, brand) {
+  const aSel = document.getElementById('perf-h-adv-sel');
+  if (aSel) aSel.value = adv || '';
+  _perfHistoryFillBrands(adv || '');
+  const bSel = document.getElementById('perf-h-brand-sel');
+  if (bSel) bSel.value = brand || '';
+  const sInp = document.getElementById('perf-h-search'); if (sInp) sInp.value = '';
+  renderPerfHistory();
+  const contentEl = document.querySelector('.content'); if (contentEl) contentEl.scrollTop = 0;
+}
 function perfHistoryInputChange() {
   // 자유 검색은 셀렉트와 독립 — 검색어를 쓰면 광고주/브랜드 셀렉트는 비운다
   const sel = document.getElementById('perf-h-adv-sel');
@@ -16042,10 +16053,11 @@ function renderPerfHistory() {
           <th style="${thH}">매체</th>
           <th style="${thH}">상품</th>
           <th style="${thH}text-align:right;">발송건수</th>
-          <th style="${thH}text-align:right;">CTR</th>
           <th style="${thH}text-align:right;">클릭수</th>
+          <th style="${thH}text-align:right;">CTR</th>
           <th style="${thH}text-align:right;">DB등록수</th>
           <th style="${thH}text-align:right;">DB등록률</th>
+          <th style="${thH}text-align:right;">DB단가</th>
         </tr></thead>
         <tbody>${camps.map(c => {
           const date   = (c.date   || '').slice(0, 10).replace(/-/g, '/') || '—';
@@ -16054,16 +16066,22 @@ function renderPerfHistory() {
           const clicks = c.clicks  != null && c.clicks  !== '' ? Math.round(parseFloat(c.clicks)).toLocaleString()   : '—';
           const db     = c.db      != null && c.db      !== '' ? Math.round(parseFloat(c.db)).toLocaleString()       : '—';
           const dbr    = c.dbr     != null && c.dbr     !== '' ? parseFloat(c.dbr).toFixed(2)    + '%'               : '—';
+          const _tv    = _campTurnover(c), _dbn = parseFloat(c.db);
+          const dbCost = (_tv > 0 && _dbn > 0) ? Math.round(_tv / _dbn).toLocaleString() + '원' : '—';
+          const brandCell = c.content
+            ? `<a href="#" class="perf-brand-link" data-adv="${_escHtml(adv).replace(/"/g, '&quot;')}" data-brand="${_escHtml(c.content).replace(/"/g, '&quot;')}" onclick="perfHistoryPickBrand(this.dataset.adv,this.dataset.brand);return false;" style="color:var(--accent);text-decoration:none;">${_escHtml(c.content)}</a>`
+            : '—';
           return `<tr onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
             <td style="${tdS}color:var(--text2);">${date}</td>
-            <td style="${tdS}">${_escHtml(c.content || '—')}</td>
+            <td style="${tdS}">${brandCell}</td>
             <td style="${tdS}color:var(--text2);">${_escHtml(c.media || '—')}</td>
             <td style="${tdS}color:var(--text2);">${_escHtml(c.product || '—')}</td>
             <td style="${tdS}text-align:right;color:var(--text2);">${actual}</td>
-            <td style="${tdS}text-align:right;font-weight:700;">${ctr}</td>
             <td style="${tdS}text-align:right;">${clicks}</td>
+            <td style="${tdS}text-align:right;font-weight:700;">${ctr}</td>
             <td style="${tdS}text-align:right;color:var(--text2);">${db}</td>
             <td style="${tdS}text-align:right;color:var(--text2);">${dbr}</td>
+            <td style="${tdS}text-align:right;color:var(--text2);">${dbCost}</td>
           </tr>`;
         }).join('')}</tbody>
       </table>
