@@ -4687,7 +4687,20 @@ async function plDeleteLog(logId) {
   // threadId 가드로 보호받고 있었고 일반 이어쓰기 체인엔 이 보호가 아예 없었음).
   const continuedBy = PL_LOGS.filter(l => l.continuedFromId === logId);
   if (continuedBy.length) { alert(`이 기록을 이어쓴 기록이 ${continuedBy.length}건 있어 삭제할 수 없습니다.\n먼저 이어쓴 기록부터 삭제해주세요.`); return; }
-  if (!confirm('이 일지를 삭제하시겠습니까?')) return;
+  // 한 일지 문서를 여러 캠페인이 공유하는 경우(직접 등록 campaignId + 참조 refCampaignIds가 합쳐
+  // 2개 이상), 어느 캠페인의 "참조로 걸린 일지"에서 지우든 문서 자체가 사라져 연결된 모든 캠페인에서
+  // 함께 없어진다. 이 사실을 모르고 지우는 사고를 막기 위해 경고를 한 번 더 띄운다(2026-10-28, 사용자 요청).
+  const affectedCamps = [...new Set([log.campaignId, ...(log.refCampaignIds || [])].filter(Boolean))];
+  if (affectedCamps.length >= 2) {
+    const campLabel = cid => { const c = DATA.find(x => x.id === cid); return c ? `${cid} (${c.content || c.seller || ''})`.replace(/\s+\)$/, ')').trim() : cid; };
+    const listStr = affectedCamps.map(c => `· ${campLabel(c)}`).join('\n');
+    const msg = `⚠️ 이 일지는 여러 캠페인에 함께 연결되어 있습니다.\n\n${listStr}\n\n`
+      + `이 일지는 문서 하나를 여러 캠페인이 공유하는 형태라, 지금 삭제하면 참조로 걸린 다른 캠페인`
+      + `(다른 캠페인 상세에서 작성된 일지 포함)에서도 똑같이 사라집니다.\n\n그래도 삭제하시겠습니까?`;
+    if (!confirm(msg)) return;
+  } else {
+    if (!confirm('이 일지를 삭제하시겠습니까?')) return;
+  }
   try {
     const archived = Object.assign({}, log, {
       deletedAt: new Date().toISOString(),
