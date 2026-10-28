@@ -1789,6 +1789,17 @@ function openDetail(idx, skipPush) {
   document.getElementById('dCardQty').style.display    = (isDAcamp || isPCcamp || isCPScamp) ? 'none' : '';
   document.getElementById('dGridBottom').style.display = (isDAcamp || isPCcamp || isCPScamp) ? 'none' : '';
   document.getElementById('dSectionDA').style.display  = isDAcamp ? 'flex' : 'none';
+
+  // 문자광고류(DA/CPA/퍼미션콜/CPS가 아닌 일반 문자 상품)는 일지를 중간, 타겟·문구를 맨 아래로.
+  // 그 외 상품은 기본 순서(타겟·문구 → 일지 맨 아래).
+  const isTextAd = !isDAcamp && !isPCcamp && !isCPAcamp && !isCPScamp;
+  const dGridBottom = document.getElementById('dGridBottom');
+  const dLogFull = document.getElementById('dLogFull');
+  if (dGridBottom && dLogFull && dGridBottom.parentNode) {
+    if (isTextAd) dGridBottom.parentNode.insertBefore(dLogFull, dGridBottom);
+    else dGridBottom.parentNode.insertBefore(dLogFull, dGridBottom.nextSibling);
+  }
+
   const dCardPC  = document.getElementById('dCardPC');
   const dCardCPS = document.getElementById('dCardCPS');
   if (dCardPC)  dCardPC.style.display  = isPCcamp  ? 'flex' : 'none';
