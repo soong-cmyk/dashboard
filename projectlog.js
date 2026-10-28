@@ -1487,7 +1487,13 @@ function _plFillCampLog(root, campaignId, campaignData, isDeleted, notFound, ctx
     }
   }
 
-  const sortLogs = arr => arr.slice().sort((a, b) => (b.logDate || '').localeCompare(a.logDate || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+  const sortLogs = arr => arr.slice().sort((a, b) => {
+    // 특기사항(기존 c.note에서 이관된 일지)은 등록일이 보통 가장 오래돼 밑으로 가라앉으므로,
+    // 날짜와 무관하게 항상 목록 맨 위로 고정한다.
+    const pa = a.logType === '특기사항' ? 0 : 1, pb = b.logType === '특기사항' ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return (b.logDate || '').localeCompare(a.logDate || '') || (b.createdAt || '').localeCompare(a.createdAt || '');
+  });
   const directLogs = sortLogs(PL_LOGS.filter(l => l.campaignId === campaignId));
   // 참조 캠페인 — 로그 문서 자체가 다른 곳(주로 광고주/프로젝트 전반)에 등록됐지만, 이 캠페인도
   // refCampaignIds에 태그돼있는 것들. 문서는 하나뿐이라 P2/P3처럼 여러 캠페인 상세에서 같은 로그가
@@ -4620,6 +4626,79 @@ async function plSaveLog() {
   } finally {
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '저장'; }
   }
+}
+
+// ── 1회성 이관: 기존 특기사항(c.note) → logType '특기사항' 일지 ─────────────────
+// 각 캠페인의 특기사항을 캠페인 일지로 옮긴다. 콘솔에서 실행하는 관리자 1회성 작업.
+//   migrateCampaignNotes()               → 미리보기(저장 안 함)
+//   migrateCampaignNotes({ commit:true }) → 실제 저장
+// 특징:
+//  - 문서ID = note_<campaignId> 로 고정 → 재실행해도 중복 생성 없이 덮어쓴다.
+//  - 이미 이관된 캠페인(migratedFrom:'note')은 건너뛴다 → 이관 후 사람이 고친 일지를 덮지 않음.
+//  - logDate = 등록일(regDate). 목록에서는 _plFillCampLog 정렬이 '특기사항'을 맨 위로 올린다.
+//  - 작성자는 캠페인 등록자(c.regUser, =USERS.id)로 귀속.
+async function migrateCampaignNotes({ commit = false } = {}) {
+  if (!window._db) { console.error('Firestore 미초기화 — 로그인 후 실행하세요'); return; }
+  const clean = s => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/\r/g, '').replace(/^'+/, '').trim();
+
+  // 이미 이관된 캠페인(덮어쓰기 방지)
+  const snap = await _plDb('projectLogs').where('migratedFrom', '==', 'note').get();
+  const done = new Set(snap.docs.map(d => (d.data() || {}).campaignId).filter(Boolean));
+
+  const withNote = DATA.filter(c => clean(c.note));
+  const targets = withNote.filter(c => !done.has(c.id));
+  console.log(`특기사항 보유 캠페인 ${withNote.length}건 · 이미 이관 ${done.size}건 · 이번 대상 ${targets.length}건`);
+  if (!targets.length) { console.log('이관할 대상이 없습니다.'); return; }
+
+  if (!commit) {
+    console.table(targets.slice(0, 30).map(c => ({
+      id: c.id,
+      캠페인: (typeof _cName === 'function' ? _cName(c) : c.id),
+      등록일: c.regDate || '',
+      특기사항: clean(c.note).replace(/\n/g, ' / ').slice(0, 50),
+    })));
+    console.log(`위는 미리보기(최대 30건 표시, 대상은 총 ${targets.length}건).\n실제 저장: migrateCampaignNotes({ commit: true })`);
+    return;
+  }
+
+  let saved = 0, failed = 0;
+  for (let i = 0; i < targets.length; i += 400) {
+    const chunk = targets.slice(i, i + 400);
+    const batch = window._db.batch();
+    chunk.forEach(c => {
+      const note = clean(c.note);
+      const lines = note.split('\n').map(s => s.trim()).filter(Boolean);
+      const first = lines[0] || '(특기사항)';
+      // 한 줄·60자 이하면 요약만, 여러 줄이거나 길면 전체를 detail(ㄴ 항목)로 담아 내용 손실 방지
+      const detail = (lines.length > 1 || first.length > 60) ? lines.map(t => ({ label: '', text: t })) : [];
+      const u = USERS.find(x => x.id === c.regUser);
+      const logDate = (c.regDate || c.date || '').slice(0, 10) || _plTodayStr();
+      let createdAt;
+      try { createdAt = c.regDate ? new Date(c.regDate.replace(' ', 'T')).toISOString() : new Date().toISOString(); }
+      catch (e) { createdAt = new Date().toISOString(); }
+      const doc = {
+        id: `note_${c.id}`,
+        logDate, writer: u ? u.name : (c.regUser || '(이관)'), writerId: u ? u.id : '',
+        bonbu: u ? (u.bonbu || '') : '', dept: u ? (u.dept || '') : '',
+        scope: 'campaign', seller: c.seller || null, content: c.content || null,
+        campaignId: c.id, media: c.media || null, product: c.product || null,
+        refCampaignIds: [], refMediaNames: [],
+        logType: '특기사항', state: null,
+        summary: first.slice(0, 60), detail, progress: null,
+        important: false, shared: false,
+        hasImages: false, imageCount: 0, links: [],
+        attachPath: null, attachName: null,
+        threadId: null, createdAt, updatedAt: createdAt,
+        continuedFromId: null, migratedFrom: 'note',
+      };
+      doc.searchText = (typeof _plBuildSearchText === 'function') ? _plBuildSearchText(doc) : '';
+      batch.set(window._db.collection('projectLogs').doc(doc.id), doc);
+    });
+    try { await batch.commit(); saved += chunk.length; console.log(`  …${saved}/${targets.length} 저장`); }
+    catch (e) { failed += chunk.length; console.error('배치 저장 실패', e); }
+  }
+  console.log(`✓ 이관 완료 — 저장 ${saved}건, 실패 ${failed}건`);
+  console.log('캠페인 상세를 다시 열면 특기사항이 일지 맨 위에 보입니다. 입력 필드 제거는 그 다음 단계입니다.');
 }
 
 // ── 1-3. 삭제 (projectLogDeleted 로 이관 후 원본 삭제) ──
