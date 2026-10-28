@@ -14248,11 +14248,11 @@ function renderKpiGrandTable() {
     <tbody>
       <tr><td style="${tdL}">${_kpiTipLabel('실청구액 기준(대행수수료 차감 전)', '취급고', '7px 12px')}</td><td style="${tdAN}">${_fmtKpi(totTurn)}</td>${cols.map(c => actCell(c, turn)).join('')}</tr>
       <tr><td style="${tdL}">${_kpiTipLabel('취급고 − 대행수수료(실청구액 × 대행%)', '매출', '7px 12px')}</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(c => actCell(c)).join('')}</tr>
-      <tr><td style="${tdL}">매출 KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
-      <tr><td style="${tdL}">KPI 달성률</td><td style="${tdAC}">${_kpiRateHtml(totAct, totTgt)}</td>${cols.map(rateCell).join('')}</tr>
-      <tr><td style="${tdL}">광고주별 KPI 달성률(평균)</td><td style="${tdAC}font-weight:600;">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
-      <tr><td style="${tdL}">전년도 매출</td><td style="${tdAN}">${_fmtKpi(totPrev)}</td>${cols.map(prevCell).join('')}</tr>
-      <tr><td style="${tdL}">YoY</td><td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>${cols.map(c=>yoyCell(c,act,prev)).join('')}</tr>
+      <tr><td style="${tdL}">${_kpiTipLabel('매출 목표입니다 — 월별로 입력한 값의 합', '매출 KPI', '7px 12px')}</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
+      <tr><td style="${tdL}">${_kpiTipLabel('매출 ÷ 매출 KPI로 자동 계산됩니다', 'KPI 달성률', '7px 12px')}</td><td style="${tdAC}">${_kpiRateHtml(totAct, totTgt)}</td>${cols.map(rateCell).join('')}</tr>
+      <tr><td style="${tdL}">${_kpiTipLabel('각 브랜드에서 수기 입력된 광고주 월 KPI 달성률의 평균입니다 — 매출과는 무관', '광고주별 KPI 달성률(평균)', '7px 12px')}</td><td style="${tdAC}font-weight:600;">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
+      <tr><td style="${tdL}">${_kpiTipLabel('전년도 같은 기간의 매출입니다(전사 전년 실적 입력값)', '전년도 매출', '7px 12px')}</td><td style="${tdAN}">${_fmtKpi(totPrev)}</td>${cols.map(prevCell).join('')}</tr>
+      <tr><td style="${tdL}">${_kpiTipLabel('전년 대비 증감률입니다 — (매출 − 전년도 매출) ÷ 전년도 매출', 'YoY', '7px 12px')}</td><td style="${tdAC}">${_kpiYoyHtml(totAct,totPrev)}</td>${cols.map(c=>yoyCell(c,act,prev)).join('')}</tr>
     </tbody>
   </table></div>`;
 }
@@ -14548,11 +14548,11 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       };
 
       const sumRows = [
-        { label:_kpiTipLabel('실청구액 기준(대행수수료 차감 전)', '취급고'), total:`<td style="${tdSVY}">${_fmtKpi(totBTurn)}</td>`, cells: cols.map(c => sActCell(c, bTurn)).join('') },
-        { label:_kpiTipLabel('취급고 − 대행수수료(실청구액 × 대행%)', '매출'), total:`<td style="${tdSVY}">${_fmtKpi(totBAct)}</td>`,  cells: cols.map(c => sActCell(c)).join('') },
-        { label:'매출 KPI',                   total:`<td style="${tdSVY}">${_fmtKpi(totBTgt)}</td>`,               cells: cols.map(sTgtCell).join('') },
-        { label:_kpiTipLabel('매출 ÷ 매출 KPI로 자동 계산됩니다', '매출 KPI 달성률'),                 total:`<td style="${tdSCY}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
-        { label:_kpiTipLabel('각 브랜드에서 수기 입력된 광고주 월 KPI 달성률의 평균입니다 — 매출과는 무관', '광고주별 KPI 달성률(평균)'),  total:`<td style="${tdSCY}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
+        { label:_kpiTipLabel('실청구액 기준(대행수수료 차감 전)', '취급고', '7px 10px'), total:`<td style="${tdSVY}">${_fmtKpi(totBTurn)}</td>`, cells: cols.map(c => sActCell(c, bTurn)).join('') },
+        { label:_kpiTipLabel('취급고 − 대행수수료(실청구액 × 대행%)', '매출', '7px 10px'), total:`<td style="${tdSVY}">${_fmtKpi(totBAct)}</td>`,  cells: cols.map(c => sActCell(c)).join('') },
+        { label:_kpiTipLabel('매출 목표입니다 — 월별로 입력한 값의 합', '매출 KPI', '7px 10px'), total:`<td style="${tdSVY}">${_fmtKpi(totBTgt)}</td>`,               cells: cols.map(sTgtCell).join('') },
+        { label:_kpiTipLabel('매출 ÷ 매출 KPI로 자동 계산됩니다', '매출 KPI 달성률', '7px 10px'),                 total:`<td style="${tdSCY}">${_kpiRateHtml(totBAct,totBTgt)}</td>`,  cells: cols.map(sRateCell).join('') },
+        { label:_kpiTipLabel('각 브랜드에서 수기 입력된 광고주 월 KPI 달성률의 평균입니다 — 매출과는 무관', '광고주별 KPI 달성률(평균)', '7px 10px'),  total:`<td style="${tdSCY}">${_kpiRateNumHtml(totBClientRate)}</td>`, cells: cols.map(sClientRateCell).join('') },
       ];
       const collapseKey = `${targetId}::${g.bonbuName}`;
       const isCollapsed = !_kpiOrgExpandedBonbus.has(collapseKey);
@@ -14633,11 +14633,11 @@ function renderKpiOrgTable(targetId, orgFilterOverride) {
       // 전년도 매출·YoY 행은 일단 숨김 처리 — 계산 로직(totPrev/prevCell/yoyCell)은 그대로
       // 두고 렌더링에서만 뺐다(2026-08-28, 나중에 다시 보여줄 수도 있어 삭제하지 않음).
       const rows = [
-        { label:_kpiTipLabel('실청구액 기준(대행수수료 차감 전)', '취급고'), total:`<td style="${tdAN}">${_fmtKpi(totTurn)}</td>`, cells: cols.map(c => actCell(c, turns)).join('') },
-        { label:_kpiTipLabel('취급고 − 대행수수료(실청구액 × 대행%)', '매출'), total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,  cells: cols.map(c => actCell(c)).join('') },
-        { label:'매출 KPI',        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
-        { label:_kpiTipLabel('매출 ÷ 매출 KPI로 자동 계산됩니다', '매출 KPI 달성률'),          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts)).join('') },
-        { label:_kpiTipLabel('각 브랜드에서 수기 입력된 광고주 월 KPI 달성률의 평균입니다 — 매출과는 무관', '광고주별 KPI 달성률(평균)'), total:`<td style="${tdAC}">${_kpiRateNumHtml(totTClientRate)}</td>`, cells: cols.map(tClientRateCell).join('') },
+        { label:_kpiTipLabel('실청구액 기준(대행수수료 차감 전)', '취급고', '7px 10px'), total:`<td style="${tdAN}">${_fmtKpi(totTurn)}</td>`, cells: cols.map(c => actCell(c, turns)).join('') },
+        { label:_kpiTipLabel('취급고 − 대행수수료(실청구액 × 대행%)', '매출', '7px 10px'), total:`<td style="${tdAN}">${_fmtKpi(totAct)}</td>`,  cells: cols.map(c => actCell(c)).join('') },
+        { label:_kpiTipLabel('매출 목표입니다 — 월별로 입력한 값의 합', '매출 KPI', '7px 10px'),        total:`<td style="${tdAN}">${_fmtKpi(totTgt)}</td>`,          cells: cols.map(tgtCell).join('') },
+        { label:_kpiTipLabel('매출 ÷ 매출 KPI로 자동 계산됩니다', '매출 KPI 달성률', '7px 10px'),          total:`<td style="${tdAC}">${_kpiRateHtml(totAct,totTgt)}</td>`, cells: cols.map(c=>rateCell(c,acts,tgts)).join('') },
+        { label:_kpiTipLabel('각 브랜드에서 수기 입력된 광고주 월 KPI 달성률의 평균입니다 — 매출과는 무관', '광고주별 KPI 달성률(평균)', '7px 10px'), total:`<td style="${tdAC}">${_kpiRateNumHtml(totTClientRate)}</td>`, cells: cols.map(tClientRateCell).join('') },
       ];
       const TOTAL_ROWS = rows.length;
 
