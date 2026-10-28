@@ -1644,14 +1644,12 @@ function openDetail(idx, skipPush) {
   const btnCopy = document.getElementById('btn-detail-copy');
   const btnDel  = document.getElementById('btn-detail-del');
   const btnTgt  = document.getElementById('btn-edit-target');
-  const btnNote = document.getElementById('btn-edit-note');
   if (btnEdit) btnEdit.style.display = canEdit(c) ? '' : 'none';
   if (btnCopy) btnCopy.style.display = hasPerm('ops') ? '' : 'none';
   const _superDel = currentUser && ['wonjoon','sukjoo'].includes(currentUser.id);
   const showDel = (_superDel || canEdit(c)) ? '' : 'none';
   if (btnDel)  btnDel.style.display  = showDel;
   if (btnTgt)  btnTgt.style.display  = canEdit(c) ? '' : 'none';
-  if (btnNote) btnNote.style.display = canEdit(c) ? '' : 'none';
   _updateBtn2nd(c);
   document.getElementById('dId').textContent = c.id;
   document.getElementById('dName').textContent = _cName(c);
@@ -1738,9 +1736,6 @@ function openDetail(idx, skipPush) {
   // 탭 초기화 — 검수완료 문구가 등록돼 있으면 그걸 기본으로, 없으면 검수전으로 시작
   // (2026-09-19, 사용자 요청 — 검수완료된 게 있으면 그게 실제로 쓰이는 최종 문구라서)
   msgTabSwitch(c.msgFinal ? 'final' : 'draft');
-
-  // 특기사항
-  document.getElementById('dNote').innerHTML = (c.note||'').replace(/\n/g,'<br>') || '<span style="color:var(--text3);">—</span>';
 
   // step track
   const steps = ['부킹확정','성과입력대기','성과입력완료'];
@@ -3677,7 +3672,6 @@ function submitReg() {
     target:   document.getElementById('r_target').value,
     dtarget:  document.getElementById('r_dtarget').value,
     msg:      document.getElementById('r_msg').value,
-    note:     document.getElementById('r_note').value,
   });
   // CPA: 등록 화면의 DB등록수(종료된 과거 캠페인용). 입력하면 정산수량도 같이 맞추고 성과입력완료로 —
   // 예전엔 등록 후 2차 성과입력을 따로 해야 해서 누락이 많았다(2026-09-29). 비우면 기존대로 성과입력대기.
@@ -3787,7 +3781,7 @@ function resetRegForm() {
     const el = document.getElementById(id);
     if (el) { el.value = ''; delete el.dataset.manual; }
   });
-  ['r_target','r_dtarget','r_msg','r_note'].forEach(id => {
+  ['r_target','r_dtarget','r_msg'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -3891,7 +3885,6 @@ function openCopyCampaign() {
   _set('r_target',  c.target);
   _set('r_dtarget', c.dtarget);
   _set('r_msg',     c.msg);
-  _set('r_note',    c.note);
 
   // 4. 상품별 전용 필드
   if (isDA) {
@@ -4009,7 +4002,6 @@ function openEdit() {
   document.getElementById('e_target').value  = c.target  || '';
   document.getElementById('e_dtarget').value = c.dtarget || '';
   document.getElementById('e_msg').value     = c.msg     || '';
-  document.getElementById('e_note').value   = c.note   || '';
 
   // DA / 퍼미션콜 vs 일반 수정 화면 토글
   const isEditDA  = ['DA','IPTV'].includes(c.product);
@@ -4286,7 +4278,6 @@ function submitEdit() {
   c.dept     = _getDeptByName(c.ops);
   c.target   = document.getElementById('e_target').value;
   c.dtarget  = document.getElementById('e_dtarget').value;
-  c.note     = document.getElementById('e_note').value;
 
   const isEditDA  = ['DA','IPTV'].includes(c.product);
   const isEditPC  = c.product === '퍼미션콜';
@@ -4707,22 +4698,6 @@ function msgTabSwitch(tab) {
   document.getElementById('dMsgFinal').style.display = tab === 'final' ? '' : 'none';
 }
 
-function openEditNote() {
-  const c = DATA[currentDetailIdx] || {};
-  document.getElementById('en_note').value = (c.note || '').replace(/<br\s*\/?>/gi, '\n');
-  openModal('modalEditNote');
-}
-function saveEditNote() {
-  const c = DATA[currentDetailIdx];
-  if (!c) return;
-  const note = document.getElementById('en_note').value;
-  if (note !== (c.note||'')) _log(c.id, 'field', 'note', c.note||'', note);
-  c.note = note;
-  _fbSaveCampaign(c);
-  document.getElementById('dNote').innerHTML = note.replace(/\n/g, '<br>') || '<span style="color:var(--text3);">—</span>';
-  closeModal('modalEditNote');
-  toast('✓ 특기사항이 저장되었습니다', 'ok');
-}
 
 // ══════════════════════════════════════════
 // CALENDAR

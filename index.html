@@ -821,10 +821,8 @@
 
         <!-- 특기사항 / 프로젝트일지 — 전체폭, 상세화면 맨 아래 (모든 상품 공통) -->
         <div class="card" id="dLogFull" style="margin-top:16px;">
-          <div class="card-head"><span class="card-icon">📝</span><span class="card-title">특기사항 / 일지</span><button
-              class="btn btn-outline btn-sm" id="btn-edit-note" style="margin-left:auto;" onclick="openEditNote()">✏ 특기사항 수정</button></div>
+          <div class="card-head"><span class="card-icon">📝</span><span class="card-title">프로젝트 일지</span></div>
           <div class="card-body">
-            <div class="memo-block" id="dNote" style="border-left-color:var(--yellow);margin-bottom:14px;"></div>
             <div class="d-camplog-mount"></div>
           </div>
         </div>
@@ -1364,15 +1362,6 @@
             </div>
           </div>
 
-          <!-- 특기사항 -->
-          <div class="card">
-            <div class="card-head"><span class="card-icon">📝</span><span class="card-title">특기사항</span></div>
-            <div class="card-body">
-              <div class="fg"><label class="form-label">특기사항</label>
-                <textarea class="form-ta" id="e_note" placeholder="특기사항을 입력하세요" style="min-height:160px;"></textarea>
-              </div>
-            </div>
-          </div>
 
         </div>
 
@@ -3204,8 +3193,6 @@
                 onchange="daFilesSelected(this.files)">
               <div id="r_da_preview_grid" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;"></div>
             </div>
-            <div class="fg full"><label class="form-label">특기사항</label><textarea class="form-ta" id="r_note"
-                placeholder="특기사항을 입력하세요"></textarea></div>
           </div>
         </div>
 
@@ -3558,23 +3545,6 @@
     </div>
   </div>
 
-  <!-- 특기사항 수정 -->
-  <div class="modal-overlay" id="modalEditNote" onclick="if(event.target===this)closeModal('modalEditNote')">
-    <div class="modal modal-sm">
-      <div class="modal-head"><span class="modal-title">📝 특기사항 수정</span><button class="modal-close"
-          onclick="closeModal('modalEditNote')">✕</button></div>
-      <div class="modal-body">
-        <div class="fg">
-          <label class="form-label">특기사항</label>
-          <textarea class="form-ta" id="en_note" placeholder="특기사항을 입력하세요" style="min-height:120px;"></textarea>
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn btn-outline" onclick="closeModal('modalEditNote')">취소</button>
-        <button class="btn btn-primary" onclick="saveEditNote()">저장</button>
-      </div>
-    </div>
-  </div>
 
   <!-- 사용자 관리 -->
   <!-- modalUsers → screen-users 페이지로 이전됨 -->
