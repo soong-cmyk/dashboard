@@ -6088,8 +6088,9 @@ function _plGBrandMonths(company, brandKey, year) {
     const ym = `${year}-${String(m).padStart(2, '0')}`;
     const mcamps = yearCamps.filter(c => (c.date || '').startsWith(ym));
     const adcost = mcamps.reduce((s, c) => s + _campTurnover(c), 0);
+    const net = mcamps.reduce((s, c) => s + _campNetSales(c), 0); // 매출 = 취급고 − 대행수수료
     const g = _plGetMonthlyGoal(company, brandKey, ym);
-    months.push({ ym, adcost, target: g?.value || 0, monthKpi: g?.monthKpi || '', advKpiRate: g?.advKpiRate });
+    months.push({ ym, adcost, net, target: g?.value || 0, monthKpi: g?.monthKpi || '', advKpiRate: g?.advKpiRate });
   }
   return months;
 }
@@ -6109,6 +6110,7 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
   const months = _plGBrandMonths(company, brandKey, year);
   const nd = '<span style="color:var(--text3)">—</span>';
   const totalAdcost = months.reduce((s, m) => s + m.adcost, 0);
+  const totalNet = months.reduce((s, m) => s + m.net, 0);
   const totalTarget = months.reduce((s, m) => s + m.target, 0);
   // brandOnly: KPI "본부별 매출 현황" 2단 리스트에서, 광고주 단위로 묶어 광고주명은 광고주
   // 헤더 줄에 한 번만 보여주고 그 아래 브랜드별로 표를 쌓을 때 쓴다 — 그래서 정보열 1행에
@@ -6142,7 +6144,7 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
   // 정보열·라벨열 8칸에 hover 설명을 단다(2026-09-11, 사용자와 [행,열]로 문구까지 합의 후 반영).
   const _tip = (text) => `onmouseenter="_plShowFixedTip(this,'${_escHtml(text).replace(/'/g, "&#39;")}')" onmouseleave="_plHideFixedTip()"`;
 
-  let infoCells = ['', '', '', '', ''];
+  let infoCells = ['', '', '', '', '', ''];
   let infoHead = '';
   let lblHeadContent = editBtn;
   if (brandOnly) {
@@ -6163,6 +6165,7 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
     // 기존 그대로(담당자 / 계약시작일 / "광고주 KPI" / "광고주 KPI 수기입력").
     const opsLabel = `담당자: ${opsNames || '—'}`;
     infoCells = [
+      `<td style="${tdInfo}"></td>`,
       `<td style="${tdInfo}"></td>`,
       `<td style="${tdInfo}" onmouseenter="_plShowFixedTip(this,'해당 브랜드를 담당하는 담당자가 모두 나열됩니다(복수 가능)')" onmousemove="showMemoBubbleAtMouse(event,'${_escHtml(opsLabel)}')" onmouseleave="_plHideFixedTip();hideMemoBubble()">${opsNames ? `담당자: ${_escHtml(opsNames)}` : `담당자: ${nd}`}</td>`,
       `<td style="${tdInfo}" ${_tip('매출처관리 화면에서 입력할 수 있습니다')}>계약 시작: ${contractDisp}</td>`,
@@ -6198,24 +6201,30 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
         </tr>
         <tr>
           ${infoCells[1]}
+          <td style="${tdLbl}" ${_tip('취급고 − 대행수수료(실청구액 × 대행%)입니다')}>매출</td>
+          <td style="${tdYr}">${_fmtKpi(totalNet)}</td>
+          ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.net)}</td>`).join('')}
+        </tr>
+        <tr>
+          ${infoCells[2]}
           <td style="${tdLbl}" ${_tip('이 브랜드의 취급고 목표(월별 입력값의 합)입니다')}>취급고 KPI</td>
           <td style="${tdYr}">${_fmtKpi(totalTarget)}</td>
           ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.target)}</td>`).join('')}
         </tr>
         <tr>
-          ${infoCells[2]}
+          ${infoCells[3]}
           <td style="${tdLbl}" ${_tip('취급고 ÷ 취급고 KPI로 자동 계산됩니다')}>취급고 KPI 달성률</td>
           <td style="${tdYr}text-align:center;">${_kpiRateHtml(totalAdcost, totalTarget)}</td>
           ${months.map(m => `<td style="${tdVal}text-align:center;">${_kpiRateHtml(m.adcost, m.target)}</td>`).join('')}
         </tr>
         <tr>
-          ${infoCells[3]}
+          ${infoCells[4]}
           <td style="${tdLbl}" ${_tip('월별로 따로 입력하는 메모입니다 — 왼쪽의 광고주 연간 KPI와는 별개 항목')}>광고주 월 KPI</td>
           <td style="${tdYr}text-align:center;">${nd}</td>
           ${months.map(m => `<td style="${tdTxt}" title="${_escHtml(m.monthKpi)}">${m.monthKpi ? _escHtml(m.monthKpi) : nd}</td>`).join('')}
         </tr>
         <tr>
-          ${infoCells[4]}
+          ${infoCells[5]}
           <td style="${tdLbl}" ${_tip('수기로 입력하는 값입니다 — 취급고 KPI 달성률처럼 자동 계산되지 않고, 매달 직접 입력합니다')}>광고주 월 KPI 달성률</td>
           <td style="${tdYr}text-align:center;">${nd}</td>
           ${months.map(m => `<td style="${tdVal}text-align:center;">${m.advKpiRate != null ? m.advKpiRate + '%' : nd}</td>`).join('')}
