@@ -3775,8 +3775,10 @@ function _plItemTargetField(block, bi, ii, it) {
     const label = sub ? `${sub} (${cid})` : cid;
     return `<span class="tag pl-ref">🔗 ${_escHtml(label)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plItemTargetRemoveCamp(${bi},${ii},${ci})">✕</span></span>`;
   }).join('');
-  // 캠페인을 이미 하나 골랐고 이 블록에선 더 추가할 수 없으면(!multiEligible) 검색창 자체를 접는다.
-  if (camps.length && !multiEligible) {
+  // 캠페인을 이미 하나 골랐고 더 추가할 수 없는 블록은 검색창을 접는다. 단 campaign scope(캠페인
+  // 상세 진입)는 "하나 더 추가 → 참조로 전환"을 허용하려고 검색창을 계속 열어둔다(_plItemTargetPick에서
+  // 2개째를 고르는 순간 블록을 브랜드 단계로 강등하고 둘 다 참조로 바꾼다, 2026-10-28).
+  if (camps.length && !multiEligible && block.scope !== 'campaign') {
     return `<div class="pl-reftags combo-wrap">${chipsHtml}</div>`;
   }
   const ph = camps.length ? '🔍 관련 캠페인 추가 검색' : '🔍 관련 매체 또는 캠페인 검색';
@@ -4089,8 +4091,17 @@ function _plItemTargetPick(bi, ii, i) {
     it.campaignId = null; it.refCampaigns = [];
   } else if (_plItemMultiCampEligible(block)) {
     _plItemSetCamps(it, [..._plItemCampsList(it), r.campaignId]);
+  } else if (block.scope === 'campaign' && _plItemCampsList(it).length >= 1) {
+    // 캠페인 상세 진입(campaign scope)에서 이미 캠페인이 있는데 '하나 더' 고른 경우:
+    // 2개 이상이 되는 순간 블록을 브랜드(광고주/프로젝트) 단계로 강등하고, 캠페인들을 모두 참조로
+    // 전환한다 — 이러면 block.campaignId 폴백 충돌(원래 캠페인이 campaignId와 refCampaignIds에
+    // 동시에 박혀 중복 표시)이 안 생긴다. 하나로 다시 줄이면(_plItemSetCamps) 자동으로 직접등록으로
+    // 돌아간다(2026-10-28, 사용자 요청: "1개=해당 캠페인 일지, 2개 이상=참조").
+    block.campaignId = null; block.media = null; block.product = null;
+    block.scope = block.content ? 'project' : 'advertiser';
+    _plItemSetCamps(it, [..._plItemCampsList(it), r.campaignId]);
   } else {
-    // 참조 다중선택이 안 되는 블록(scope==='campaign' 등)에서는 새로 고른 캠페인 하나로 그대로 교체.
+    // 참조 다중선택이 안 되는 블록(media 등)에서는 새로 고른 캠페인 하나로 그대로 교체.
     // 매체는 채워두지 않는다 — 저장 시점에 캠페인 것으로 자동판단되고, 채워두면 이 캠페인을 나중에
     // 지웠을 때 매체 칩만 남는 문제가 생긴다(2026-09-17, 사용자 리포트).
     it.campaignId = r.campaignId; it.refCampaigns = [];
