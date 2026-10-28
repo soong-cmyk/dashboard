@@ -3636,23 +3636,12 @@ function _plBlockSecondaryControl(block, bi) {
       <div class="combo-list" id="pl-brand-list-${bi}" style="display:none;"></div>
     </div>`;
 
-    // 캠페인 select는 이 블록이 "이미 캠페인 하나로 좁혀진 상태"(캠페인 상세의 "+일지작성"으로 들어온
-    // 경우 등)일 때만 보여준다 — 광고주/프로젝트 단계에서 이걸 노출하면 눌러서 블록 전체가 그 캠페인
-    // 하나로 잠겨버려(scope가 campaign으로 바뀜), 항목별 "+ 매체·캠페인 추가"(여러 캠페인을 섞어 쓰는
-    // 새 기능)가 안 보이게 되는 충돌이 있었다. 캠페인 연결은 이제 그 항목별 검색으로만 한다.
-    if (block.scope !== 'campaign') return brandSelect;
-
-    const camps = DATA.filter(c => (c.seller || c.adv) === block.seller && c.status !== '삭제'
-      && (!block.content || (c.content || null) === (block.content || null)))
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    const campOpts = [`<option value="">캠페인 선택 (선택)</option>`, ...camps.map(c => {
-      const dateShort = (c.date || '').slice(5, 10).replace('-', '.');
-      const label = `${c.id} · ${dateShort} ${c.media || ''} ${c.product || ''}`;
-      return `<option value="${_escHtml(c.id)}" ${c.id === block.campaignId ? 'selected' : ''}>${_escHtml(label)}</option>`;
-    })].join('');
-    const campSelect = `<select class="f-sel" style="font-weight:700;min-width:190px;" onchange="_plBlockSetCampaign(${bi}, this.value)">${campOpts}</select>`;
-
-    return brandSelect + campSelect;
+    // 캠페인 연결은 항목별 칩(pl-media-row)으로 일원화 — 헤더 캠페인 select는 제거했다(방향 B,
+    // 2026-10-28). 캠페인 상세 "+일지작성"으로 프리필된 캠페인은 첫 항목의 🔗 칩으로 보이고,
+    // 바꾸려면 칩을 지우고 항목 검색에서 다시 고른다. 블록 헤더에선 광고주>브랜드까지만 좁힌다.
+    // (이전엔 캠페인 scope일 때 헤더에 캠페인 select를 같이 띄워 같은 캠페인이 헤더·항목 두 곳에
+    //  중복 노출되는 문제가 있었다.)
+    return brandSelect;
   }
   if (block.scope === 'internal') {
     return `<div class="combo-wrap" style="position:relative;">
@@ -3664,32 +3653,6 @@ function _plBlockSecondaryControl(block, bi) {
   }
   return '';
 }
-function _plBlockSetCampaign(bi, campaignId) {
-  const block = _plDraft.blocks[bi];
-  if (!block) return;
-  if (!campaignId) {
-    // 캠페인 선택 해제 — 프로젝트/광고주 단계로 되돌림
-    block.campaignId = null; block.media = null; block.product = null;
-    block.scope = block.content ? 'project' : 'advertiser';
-    _plRenderWriteModal();
-    return;
-  }
-  const c = DATA.find(x => x.id === campaignId);
-  if (!c) return;
-  const oldCampaignId = block.campaignId;
-  block.campaignId = c.id;
-  block.content = c.content || block.content || null; // 브랜드 자동 입력 (기존 검색 흐름과 동일)
-  block.media = c.media || null;
-  block.product = c.product || null;
-  block.scope = 'campaign';
-  // 바꾸기 전 캠페인을 암묵적으로 따르던 항목만 새 캠페인으로 갈아탄다 — "+ 매체·캠페인 추가"로
-  // 이미 다른 캠페인/매체를 명시적으로 골라둔 항목은 그대로 둔다.
-  block.items.forEach(it => {
-    if (it.campaignId == null || it.campaignId === oldCampaignId) { it.campaignId = c.id; it.media = null; it.refMedia = []; }
-  });
-  _plRenderWriteModal();
-}
-
 function _plRenderBlockHtml(block, bi) {
   const targetLabel = _plBlockTargetLabel(block);
   const subLabel = _plBlockSubLabel(block);
@@ -4064,17 +4027,26 @@ function _plItemTargetSearchResults(block, it, query) {
   const medias = _plItemMediaList(it);
   const alreadyCamp = new Set(camps);
   const alreadyMedia = new Set(medias);
-  const mediaResults = camps.length ? [] : _plMediaNames()
+  // 매체는 캠페인을 아직 안 고른 항목에서만(상호배타), 그리고 뭔가 입력했을 때만 섞어 보여준다 —
+  // 빈 포커스의 기본 목록은 캠페인만 깔끔하게 보여준다.
+  const mediaResults = (camps.length || !q) ? [] : _plMediaNames()
     .filter(m => !alreadyMedia.has(m))
-    .filter(m => !q || _plTokenMatch(m, q))
+    .filter(m => _plTokenMatch(m, q))
     .map(m => ({ type: 'media', label: m, sub: '매체', media: m }));
-  const campResults = medias.length ? [] : DATA.filter(c => (c.seller || c.adv) === block.seller
-      && (c.content || null) === (block.content || null) && c.status !== '삭제' && !alreadyCamp.has(c.id))
-    .filter(c => !q || _plTokenMatch(`${c.id} ${c.media || ''} ${c.product || ''} ${(c.date || '').slice(0, 10)}`, q))
+  // 캠페인 범위: 빈 포커스 → 이 블록의 광고주·브랜드 캠페인(기본 목록). 입력하면 → 전체 캠페인에서 검색
+  // (관련 캠페인은 이 브랜드가 아닐 수 있으므로, 2026-10-28). 전체검색 결과는 라벨에 광고주·브랜드도 붙여 구분한다.
+  const pool = q
+    ? DATA
+    : DATA.filter(c => (c.seller || c.adv) === block.seller && (c.content || null) === (block.content || null));
+  const campResults = medias.length ? [] : pool
+    .filter(c => c.status !== '삭제' && !alreadyCamp.has(c.id))
+    .filter(c => !q || _plTokenMatch(`${c.id} ${c.seller || c.adv || ''} ${c.content || ''} ${c.media || ''} ${c.product || ''} ${(c.date || '').slice(0, 10)}`, q))
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
     .map(c => {
       const sub = `${(c.date || '').slice(5, 10).replace('-', '.')} ${c.media || ''} ${c.product || ''}`.replace(/\s+/g, ' ').trim();
-      return { type: 'campaign', label: sub ? `${sub} (${c.id})` : c.id, sub: '캠페인', campaignId: c.id };
+      // 전체검색일 때만 출처(광고주·브랜드)를 앞에 붙여 다른 브랜드 캠페인을 구분할 수 있게 한다.
+      const owner = q ? `${c.seller || c.adv || ''}·${c.content || ''} `.replace(/\s+/g, ' ') : '';
+      return { type: 'campaign', label: `${owner}${sub}${sub ? ' ' : ''}(${c.id})`.trim(), sub: '캠페인', campaignId: c.id };
     });
   return [...mediaResults, ...campResults].slice(0, 30);
 }
@@ -4084,9 +4056,8 @@ function _plItemTargetSearchInput(bi, ii, inputEl) {
   const listId = `pl-med-list-${bi}-${ii}`;
   const list = document.getElementById(listId);
   if (!block || !it || !list) return;
-  // 매체+캠페인을 합치면 결과가 많아 30개로 잘리는데, 빈 입력(포커스만 한 상태)에서 그 잘린 목록을
-  // "전체"인 것처럼 보여주면 오해의 소지가 있어 — 뭐라도 입력해야 결과를 보여준다.
-  if (!inputEl.value.trim()) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  // 빈 입력(포커스만)에서도 기본 목록(이 브랜드 캠페인)을 보여준다 — 예전엔 아무것도 안 떠서
+  // 검색창이 죽은 것처럼 보였다(2026-10-28). 입력하면 전체 캠페인/매체로 넓혀 검색된다.
   const results = _plItemTargetSearchResults(block, it, inputEl.value);
   _plItemTargetSearchCache[`${bi}-${ii}`] = results;
   _plComboNavIndex[listId] = -1;
