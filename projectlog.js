@@ -3359,6 +3359,7 @@ function _plRenderWriteModal() {
   if (hintEl) hintEl.textContent = `항목 ${totalItems}건이 개별 기록으로 저장됩니다 · 저장 없이 닫으면 내용이 사라집니다`;
   // 항목별 대상(매체/캠페인) 검색창(#pl-med-${bi}-${ii})은 인라인 oninput/onfocus로 직접 바인딩돼있어
   // (_plItemTargetSearchInput/_plItemTargetPick) 여기서 별도로 다시 걸어줄 게 없다.
+  _plGrowDetailTextareas();
 }
 
 // ── 블록 대상 표시/검색 ──
@@ -3885,13 +3886,6 @@ function _plRefLogCardHtml(refLog) {
 // 라벨은 안 깨진다 — 입력 UI만 바뀜. label은 새로 입력받지 않고(거의 안 쓰여 폐지), 과거에 라벨이
 // 붙어 저장된 기록을 수정 화면에서 열면 "라벨: 내용" 형태의 텍스트로 합쳐 보여줘(데이터 유실 없이)
 // 저장 시 text로 흡수된다.
-function _plDetailToText(detail) {
-  return (detail || []).map(d => (d.label ? `${d.label}: ${d.text || ''}` : (d.text || ''))).join('\n');
-}
-function _plTextToDetail(val) {
-  // 빈 줄은 {text:''}로 남지만 저장 경로(plSaveLog/plSaveEdit)가 trim 후 빈 항목을 거른다.
-  return String(val || '').split('\n').map(line => ({ label: '', text: line }));
-}
 // ㄴ 상세내용: 한 줄 = ㄴ 항목 1개. Enter로 다음 ㄴ 줄 추가, 빈 줄에서 Backspace로 삭제.
 // 작성 모달(ctx='w', a=bi,b=ii) / 수정 모달 본문(ctx='e') / 수정 모달 추가항목(ctx='x', a=ei)이 공유한다.
 // 저장 모델(detail:[{label,text}])은 그대로. 과거 라벨은 "라벨: 내용" 텍스트로 합쳐 보여 유실 없이 흡수.
@@ -3914,7 +3908,7 @@ function _plDetailRowsHtml(detail, ctxKey, a, b) {
     const id = `pl-dt-${ctxKey}-${a}-${b}-${di}`;
     const text = d.label ? `${d.label}: ${d.text || ''}` : (d.text || '');
     return `<div class="pl-sub" style="grid-template-columns:22px 1fr 24px;align-items:start;"><span class="pl-m" style="margin-top:7px;">ㄴ</span>
-      <textarea id="${id}" class="pl-mini" rows="${Math.max(1, String(text).split('\n').length)}" placeholder="상세 내용 (Enter=항목 추가, Shift+Enter=줄바꿈)"
+      <textarea id="${id}" class="pl-mini pl-dt-ta" rows="${Math.max(1, String(text).split('\n').length)}" placeholder="상세 내용 (Enter=항목 추가, Shift+Enter=줄바꿈)"
         style="resize:none;font-family:inherit;line-height:1.4;overflow:hidden;"
         oninput="_plDetailRowInput('${ctxKey}',${a},${b},${di},this.value);_plAutoGrowTextarea(this)"
         onkeydown="_plDetailRowKey(event,'${ctxKey}',${a},${b},${di})">${_escHtml(text)}</textarea>
@@ -3956,29 +3950,16 @@ function _plDetailRowRemove(ctxKey, a, b, di) {
   _plDetailCtxRerender(ctxKey);
 }
 
-// 라벨(카테고리) 선택 UI는 작성 화면에서 제거 — 하위 기록은 그냥 자유 텍스트 메모로만 남긴다
-// (2026-09-10, 사용자 요청). 수정/대응기록 화면(_plEditSubHtml/_plEditExtraSubHtml)도 같은 이유로
-// 라벨 select를 제거했다 — d.label은 이제 어디서도 새로 입력되지 않고, 과거에 붙었던 값만 그대로
-// 남아있다(표시에는 영향 없음). ※ 아래 _plRenderSubHtml/_plAddSub 등은 textarea 통합(2026-10-27)
-// 이후 호출되지 않는 잔존 함수다.
-function _plRenderSubHtml(bi, ii, di, d, logType) {
-  return `<div class="pl-sub" style="grid-template-columns:22px 1fr 24px;"><span class="pl-m">ㄴ</span>
-    <textarea class="pl-mini" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;"
-      oninput="_plSubField(${bi},${ii},${di},'text',this.value);_plAutoGrowTextarea(this)">${_escHtml(d.text || '')}</textarea>
-    <span class="pl-x" onclick="_plRemoveSub(${bi},${ii},${di})">✕</span>
-  </div>`;
-}
+// d.label(하위기록 카테고리)은 더 이상 새로 입력되지 않는다(라벨 선택 UI 폐지, 2026-09-10). 과거에
+// 라벨이 붙어 저장된 기록만 값이 남아있고, 수정 화면에서 열면 _plDetailRowsHtml이 "라벨: 내용"으로
+// 합쳐 보여준 뒤 저장 시 text로 흡수한다(데이터 유실 없음). 구 입력 함수들(_plRenderSubHtml/
+// _plEditSubHtml/_plSubField/_plAddSub 등)은 textarea 통합(2026-10-27) 후 삭제됨(2026-10-28).
 
 // ── 필드 갱신 (구조 변경 없음 → 리렌더 없이 값만 갱신) ──
 function _plItemField(bi, ii, field, val) {
   const it = _plDraft.blocks[bi]?.items[ii];
   if (!it) return;
   it[field] = val;
-}
-function _plSubField(bi, ii, di, field, val) {
-  const d = _plDraft.blocks[bi]?.items[ii]?.detail[di];
-  if (!d) return;
-  d[field] = val;
 }
 
 // ── 구조 변경 (항목/ㄴ/블록 추가·삭제 → 리렌더) ──
@@ -4116,19 +4097,6 @@ function _plRemoveItem(bi, ii) {
   if (!block) return;
   block.items.splice(ii, 1);
   if (!block.items.length) block.items.push(_plEmptyItem());
-  _plRenderWriteModal();
-}
-function _plAddSub(bi, ii) {
-  const it = _plDraft.blocks[bi]?.items[ii];
-  if (!it) return;
-  if (!it.detail) it.detail = [];
-  it.detail.push({ label: '', text: '' });
-  _plRenderWriteModal();
-}
-function _plRemoveSub(bi, ii, di) {
-  const it = _plDraft.blocks[bi]?.items[ii];
-  if (!it) return;
-  it.detail.splice(di, 1);
   _plRenderWriteModal();
 }
 function _plAddBlock() {
@@ -4292,6 +4260,13 @@ function _plLinkField(bi, ii, li, val) {
 function _plAutoGrowTextarea(el) {
   el.style.height = 'auto';
   el.style.height = el.scrollHeight + 'px';
+}
+// 렌더 직후 ㄴ 상세 textarea들을 내용 높이에 맞춰 한 번 펼친다 — rows로 초기값을 대략 잡지만, 줄바꿈
+// 없이 길게 wrap되는 줄은 rows만으로는 아랫부분이 잘리므로 실제 scrollHeight로 맞춘다. rAF로 레이아웃 후 실행.
+function _plGrowDetailTextareas() {
+  requestAnimationFrame(() => {
+    document.querySelectorAll('textarea.pl-dt-ta').forEach(_plAutoGrowTextarea);
+  });
 }
 
 // ── 이름 검색 콤보 공용 유틸 ──
@@ -5118,16 +5093,6 @@ function _plEditItemHtml() {
     ${_plDetailRowsHtml(d.detail, 'e', 0, 0)}
   </div>`;
 }
-function _plEditSubHtml(di, d) {
-  // 라벨(카테고리) 선택 UI는 작성 화면(_plRenderSubHtml)에 이어 수정/대응기록 화면에서도 제거 —
-  // 하위 기록은 그냥 자유 텍스트 메모로만 남긴다(2026-09-10, 사용자 요청). 이미 라벨이 붙어 저장된
-  // 과거 기록은 d.label 값 자체는 안 건드리고 그대로 유지되므로(더 이상 입력 UI만 없앰), 기존 데이터
-  // 표시(목록/타임라인)에는 영향 없다.
-  return `<div class="pl-sub" style="grid-template-columns:22px 1fr 24px;"><span class="pl-m">ㄴ</span>
-    <textarea class="pl-mini" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;" oninput="_plEditSubField(${di},'text',this.value);_plAutoGrowTextarea(this)">${_escHtml(d.text || '')}</textarea>
-    <span class="pl-x" onclick="_plEditRemoveSub(${di})">✕</span>
-  </div>`;
-}
 // ── "+ 항목 추가" — 수정 중인 로그와 같은 대상(광고주/프로젝트/캠페인/매체)으로, 별도의 새 로그가 될
 // 항목을 여기서 같이 입력할 수 있게 한다. 기본줄+하위기록만(첨부는 없음) — 저장 시 원본 수정과 별개로
 // 새 로그 문서로 생성된다(plSaveEdit).
@@ -5147,29 +5112,13 @@ function _plEditExtraItemHtml(ei, it) {
     ${_plDetailRowsHtml(it.detail, 'x', ei, 0)}
   </div>`;
 }
-function _plEditExtraSubHtml(ei, di, d) {
-  // _plEditSubHtml과 동일하게 라벨 선택 UI 제거 — 자유 텍스트 메모만.
-  return `<div class="pl-sub" style="grid-template-columns:22px 1fr 24px;"><span class="pl-m">ㄴ</span>
-    <textarea class="pl-mini" rows="${Math.max(1, (d.text || '').split('\n').length)}" placeholder="내용을 입력하세요" style="resize:vertical;font-family:inherit;line-height:1.4;overflow:hidden;" oninput="_plEditExtraSubField(${ei},${di},'text',this.value);_plAutoGrowTextarea(this)">${_escHtml(d.text || '')}</textarea>
-    <span class="pl-x" onclick="_plEditExtraRemoveSub(${ei},${di})">✕</span>
-  </div>`;
-}
 function _plEditExtraField(ei, field, val) { const it = _plEditDraft?.extraItems[ei]; if (it) it[field] = val; }
-function _plEditExtraSubField(ei, di, field, val) { const d = _plEditDraft?.extraItems[ei]?.detail[di]; if (d) d[field] = val; }
 function _plEditExtraTypeChange(ei, val) {
   const it = _plEditDraft?.extraItems[ei];
   if (!it) return;
   it.logType = val;
   _plEditRerender();
 }
-function _plEditExtraAddSub(ei) {
-  const it = _plEditDraft?.extraItems[ei];
-  if (!it) return;
-  if (!it.detail) it.detail = [];
-  it.detail.push({ label: '', text: '' });
-  _plEditRerender();
-}
-function _plEditExtraRemoveSub(ei, di) { _plEditDraft.extraItems[ei].detail.splice(di, 1); _plEditRerender(); }
 function _plEditAddExtraItem() {
   if (!_plEditDraft.extraItems) _plEditDraft.extraItems = [];
   _plEditDraft.extraItems.push(_plEmptyItem());
@@ -5178,17 +5127,10 @@ function _plEditAddExtraItem() {
 function _plEditRemoveExtraItem(ei) { _plEditDraft.extraItems.splice(ei, 1); _plEditRerender(); }
 
 function _plEditField(field, val) { if (_plEditDraft) _plEditDraft[field] = val; }
-function _plEditSubField(di, field, val) { const d = _plEditDraft?.detail[di]; if (d) d[field] = val; }
 function _plEditTypeChange(val) {
   _plEditDraft.logType = val;
   _plEditRerender();
 }
-function _plEditAddSub() {
-  if (!_plEditDraft.detail) _plEditDraft.detail = [];
-  _plEditDraft.detail.push({ label: '', text: '' });
-  _plEditRerender();
-}
-function _plEditRemoveSub(di) { _plEditDraft.detail.splice(di, 1); _plEditRerender(); }
 
 function _plEditToggleFlag(field) {
   _plEditDraft[field] = !_plEditDraft[field];
@@ -5297,7 +5239,7 @@ function _plEditOpenLightbox(idx) {
 // 필드 조작(토글/추가/삭제 등) 후 다시 그릴 때 이걸 거쳐야, 일자별 뷰 인라인 수정 중이면 모달이 아니라
 // 그 자리(카드)를 다시 그린다 — _plEditDraft.__inline이 인라인 수정 여부의 유일한 판단 기준.
 function _plEditRerender() {
-  if (_plEditDraft?.__inline) _plRenderDateBody();
+  if (_plEditDraft?.__inline) { _plRenderDateBody(); _plGrowDetailTextareas(); }
   else _plRenderEditModal();
 }
 
@@ -5368,6 +5310,7 @@ function _plRenderEditModal() {
     blockEl.style.pointerEvents = '';
     blockEl.classList.remove('pl-readonly');
   }
+  _plGrowDetailTextareas();
 }
 
 async function plDeleteLogFromEdit() {
