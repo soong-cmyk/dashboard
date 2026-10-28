@@ -3798,11 +3798,22 @@ function _plItemTargetRemoveMedia(bi, ii, mi) {
   _plRenderWriteModal();
 }
 function _plItemTargetRemoveCamp(bi, ii, ci) {
-  const it = _plDraft.blocks[bi]?.items[ii];
+  const block = _plDraft.blocks[bi];
+  const it = block?.items[ii];
   if (!it) return;
   const camps = _plItemCampsList(it);
   camps.splice(ci, 1);
   _plItemSetCamps(it, camps);
+  // 캠페인 상세 "+일지작성"으로 들어온(scope==='campaign') 블록에서 그 원래 캠페인을 블록 어디서도
+  // 더 안 쓰게 되면, 블록을 브랜드(광고주/프로젝트) 단계로 강등한다 — 그래야 "브랜드 단계 작성"과
+  // 완전히 같아져서 (1) 캠페인 복수 참조(multiEligible)가 가능해지고 (2) 숨은 block.campaignId
+  // 폴백으로 원래 캠페인에 다시 붙는 일이 없어진다(2026-10-28). 예전 헤더 캠페인 select의
+  // "선택 해제"가 하던 강등을, select 제거(방향 B) 후 칩 삭제 경로로 옮긴 것.
+  if (block && block.scope === 'campaign' && block.campaignId
+      && !block.items.some(x => _plItemCampsList(x).includes(block.campaignId))) {
+    block.campaignId = null; block.media = null; block.product = null;
+    block.scope = block.content ? 'project' : 'advertiser';
+  }
   _plRenderWriteModal();
 }
 
