@@ -4696,7 +4696,7 @@ async function plDeleteLog(logId) {
     const listStr = affectedCamps.map(c => `· ${campLabel(c)}`).join('\n');
     const msg = `⚠️ 이 일지는 여러 캠페인에 함께 연결되어 있습니다.\n\n${listStr}\n\n`
       + `이 일지는 문서 하나를 여러 캠페인이 공유하는 형태라, 지금 삭제하면 참조로 걸린 다른 캠페인`
-      + `(다른 캠페인 상세에서 작성된 일지 포함)에서도 똑같이 사라집니다.\n\n그래도 삭제하시겠습니까?`;
+      + `(다른 캠페인 상세에서 작성된 일지 포함)에서도 똑같이 사라집니다.\n\n그래도 삭제하시려면 '확인' 버튼을 눌러주세요.`;
     if (!confirm(msg)) return;
   } else {
     if (!confirm('이 일지를 삭제하시겠습니까?')) return;
