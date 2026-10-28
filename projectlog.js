@@ -3937,11 +3937,12 @@ function _plDetailRowsHtml(detail, ctxKey, a, b) {
   return rows.map((d, di) => {
     const id = `pl-dt-${ctxKey}-${a}-${b}-${di}`;
     const text = d.label ? `${d.label}: ${d.text || ''}` : (d.text || '');
-    return `<div class="pl-sub" style="grid-template-columns:22px 1fr 24px;"><span class="pl-m">ㄴ</span>
-      <input type="text" id="${id}" class="pl-mini" value="${_escHtml(text)}" placeholder="상세 내용 (Enter로 줄 추가)"
-        oninput="_plDetailRowInput('${ctxKey}',${a},${b},${di},this.value)"
-        onkeydown="_plDetailRowKey(event,'${ctxKey}',${a},${b},${di})">
-      <span class="pl-x" onclick="_plDetailRowRemove('${ctxKey}',${a},${b},${di})">✕</span>
+    return `<div class="pl-sub" style="grid-template-columns:22px 1fr 24px;align-items:start;"><span class="pl-m" style="margin-top:7px;">ㄴ</span>
+      <textarea id="${id}" class="pl-mini" rows="${Math.max(1, String(text).split('\n').length)}" placeholder="상세 내용 (Enter=항목 추가, Shift+Enter=줄바꿈)"
+        style="resize:none;font-family:inherit;line-height:1.4;overflow:hidden;"
+        oninput="_plDetailRowInput('${ctxKey}',${a},${b},${di},this.value);_plAutoGrowTextarea(this)"
+        onkeydown="_plDetailRowKey(event,'${ctxKey}',${a},${b},${di})">${_escHtml(text)}</textarea>
+      <span class="pl-x" style="margin-top:7px;" onclick="_plDetailRowRemove('${ctxKey}',${a},${b},${di})">✕</span>
     </div>`;
   }).join('');
 }
@@ -3959,7 +3960,8 @@ function _plDetailRowInput(ctxKey, a, b, di, val) {
 function _plDetailRowKey(e, ctxKey, a, b, di) {
   const arr = _plDetailCtxArr(ctxKey, a, b);
   if (!arr) return;
-  if (e.key === 'Enter') {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    // Enter → 새 ㄴ 항목 추가 (Shift+Enter는 기본동작 유지 = textarea 내부 줄바꿈)
     e.preventDefault();
     arr.splice(di + 1, 0, { label: '', text: '' });
     _plDetailCtxRerender(ctxKey);
