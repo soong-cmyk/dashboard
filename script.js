@@ -14246,8 +14246,8 @@ function renderKpiGrandTable() {
       ${cols.map(colHdr).join('')}
     </tr></thead>
     <tbody>
-      <tr><td style="${tdL}">${_kpiTipLabel('실청구액 기준(대행수수료 차감 전)', '취급고')}</td><td style="${tdAN}">${_fmtKpi(totTurn)}</td>${cols.map(c => actCell(c, turn)).join('')}</tr>
-      <tr><td style="${tdL}">${_kpiTipLabel('취급고 − 대행수수료(실청구액 × 대행%)', '매출')}</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(c => actCell(c)).join('')}</tr>
+      <tr><td style="${tdL}">${_kpiTipLabel('실청구액 기준(대행수수료 차감 전)', '취급고', '7px 12px')}</td><td style="${tdAN}">${_fmtKpi(totTurn)}</td>${cols.map(c => actCell(c, turn)).join('')}</tr>
+      <tr><td style="${tdL}">${_kpiTipLabel('취급고 − 대행수수료(실청구액 × 대행%)', '매출', '7px 12px')}</td><td style="${tdAN}">${_fmtKpi(totAct)}</td>${cols.map(c => actCell(c)).join('')}</tr>
       <tr><td style="${tdL}">매출 KPI</td><td style="${tdAN}">${_fmtKpi(totTgt)}</td>${cols.map(tgtCell).join('')}</tr>
       <tr><td style="${tdL}">KPI 달성률</td><td style="${tdAC}">${_kpiRateHtml(totAct, totTgt)}</td>${cols.map(rateCell).join('')}</tr>
       <tr><td style="${tdL}">광고주별 KPI 달성률(평균)</td><td style="${tdAC}font-weight:600;">${totalAdvAvg == null ? nd : totalAdvAvg + '%'}</td>${cols.map(advRateCell).join('')}</tr>
@@ -14407,8 +14407,13 @@ function renderKpiClientListTable() {
 // "KPI 달성률"(매출÷매출KPI 자동 계산)과 "광고주별 KPI 달성률(평균)"(프로젝트일지에서 수기
 // 입력한 값의 평균)이 바로 붙어있어 같은 방식으로 계산되는 것처럼 보인다는 지적으로, 라벨에
 // hover 설명을 단다(2026-09-11). projectlog.js의 _plShowFixedTip을 그대로 재사용.
-function _kpiTipLabel(text, label) {
-  return `<span onmouseenter="_plShowFixedTip(this,'${_escHtml(text).replace(/'/g, "&#39;")}')" onmouseleave="_plHideFixedTip()">${label}</span>`;
+function _kpiTipLabel(text, label, fillPad) {
+  // fillPad(예: '7px 12px' = 셀 tdL 패딩)를 주면 라벨 span을 그만큼 음수마진으로 넓혀 셀 전체가
+  // hover(툴팁) 영역이 되게 한다. 안 주면 기존대로 글자 부분만 hover. _plShowFixedTip은 올라간
+  // 요소(this) 기준으로 말풍선 위치를 잡으므로 span을 넓혀도 동작은 그대로다.
+  const tip = _escHtml(text).replace(/'/g, "&#39;");
+  const fill = fillPad ? `display:block;margin:${fillPad.split(/\s+/).map(v => '-' + v).join(' ')};padding:${fillPad};` : '';
+  return `<span${fill ? ` style="${fill}"` : ''} onmouseenter="_plShowFixedTip(this,'${tip}')" onmouseleave="_plHideFixedTip()">${label}</span>`;
 }
 function renderKpiOrgTable(targetId, orgFilterOverride) {
   targetId = targetId || 'kpi-org-table';
