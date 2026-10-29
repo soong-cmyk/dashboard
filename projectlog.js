@@ -632,6 +632,9 @@ let _plMineSubTab = 'written'; // 'written' | 'involved' | 'commented'
 let _plMineCommentedOnly = false;
 // "내가 작성한 일지" 탭 전용 필터 — 진짜 미완료(=진행중, _plLogOpen)인 것만 보이게/안 보이게.
 let _plMineOpenOnly = false;
+// "내가 작성한 일지" 탭 — 내가 공동작업자로 걸린 일지도 함께 보일지(기본 ON). 공동작업자는 멘션과 달리
+// '내 일'이라 작성 탭에 합치되, 토글로 끌 수 있게 한다(2026-10-29, 사용자 요청).
+let _plMineInclCollab = true;
 function _plBuildMineTabSkeleton(content) {
   content.innerHTML = `
     <div class="filter-bar" style="margin-bottom:14px;">
@@ -652,6 +655,7 @@ function _plBuildMineTabSkeleton(content) {
         <input type="text" class="f-search" id="pl-mine-f-media" placeholder="🔍 매체" style="width:100px;">
         <div class="combo-list" id="pl-mine-f-media-list" style="display:none;"></div>
       </div>
+      <button class="btn btn-outline btn-sm${_plMineInclCollab ? ' pl-toggle-on' : ''}" id="pl-mine-collab-toggle" onclick="_plMineToggleInclCollab()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};" onmouseenter="_plShowFixedTip(this,'내가 작성한 일지에 더해, 내가 공동작업자로 지정된 일지도 함께 보여줍니다')" onmouseleave="_plHideFixedTip()">👥 공동작업자 포함</button>
       <button class="btn btn-outline btn-sm${_plMineCommentedOnly ? ' pl-toggle-on' : ''}" id="pl-mine-commented-toggle" onclick="_plMineToggleCommentedOnly()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};">💬 댓글 있는 것만</button>
       <div class="combo-wrap" style="width:160px;">
         <input type="text" class="f-search" id="pl-mine-search" placeholder="검색어" style="width:160px;padding-right:22px;" oninput="_plRenderMineBody()">
@@ -677,8 +681,15 @@ function _plMineSwitchSubTab(tab) {
   document.getElementById('pl-mine-vt-commented')?.classList.toggle('active', tab === 'commented');
   const commentedToggle = document.getElementById('pl-mine-commented-toggle');
   if (commentedToggle) commentedToggle.style.display = tab === 'written' ? '' : 'none';
+  const collabToggle = document.getElementById('pl-mine-collab-toggle');
+  if (collabToggle) collabToggle.style.display = tab === 'written' ? '' : 'none';
   const progressToggle = document.getElementById('pl-mine-progress-toggle');
   if (progressToggle) progressToggle.style.display = tab === 'written' ? '' : 'none';
+  _plRenderMineBody();
+}
+function _plMineToggleInclCollab() {
+  _plMineInclCollab = !_plMineInclCollab;
+  document.getElementById('pl-mine-collab-toggle')?.classList.toggle('pl-toggle-on', _plMineInclCollab);
   _plRenderMineBody();
 }
 function _plMineToggleCommentedOnly() {
@@ -753,7 +764,9 @@ function _plRenderMineBody() {
   // "내가 작성한 것"(책임 소재)과 "남이 나를 끌어들인 것"(댓글 멘션 — 참고로 챙길 것)을
   // 서로 겹치지 않게 나눈다. 내가 쓴 일지에 남이 나를 멘션했더라도 작성 쪽에만 표시.
   const othersCommentedIds = new Set(PL_COMMENTS.filter(c => c.writerId !== myId).map(c => c.logId));
-  let writtenLogs = PL_LOGS.filter(l => l.writerId === myId && matchesQ(l));
+  // 내가 작성한 것 + (토글 ON이면) 내가 공동작업자로 걸린 것. 공동작업자는 멘션과 달리 '내 일'이라 이 탭에 포함.
+  let writtenLogs = PL_LOGS.filter(l => (l.writerId === myId
+    || (_plMineInclCollab && (l.collaborators || []).some(c => c.id === myId))) && matchesQ(l));
   if (_plMineCommentedOnly) writtenLogs = writtenLogs.filter(l => othersCommentedIds.has(l.id));
   if (_plMineOpenOnly) writtenLogs = writtenLogs.filter(l => _plLogOpen(l));
   // 일지 탭의 "🔴 진행중 N건"과 같은 방식 — 다른 필터와 무관하게 내가 쓴 전체 기준으로 보여준다.
@@ -2250,7 +2263,10 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   const attachPathHtml = attachParts
     ? `<span class="tag">📁 ${attachParts}${log.attachPath ? ` <span class="pl-x" style="display:inline;margin-left:2px;" onclick="event.stopPropagation();_plCopyAttachPath('${log.id}')">경로복사</span>` : ''}</span>`
     : '';
-  const hasAttach = links || imgNote || refCampHtml || attachPathHtml;
+  // 공동작업자 — 작성자 외 공동 담당자. 펼친 상세에서도 누가 함께인지 바로 보이게 첨부 트레이 줄에 같이 표시.
+  const collabHtml = (log.collaborators || []).length
+    ? `<span class="tag">👥 ${(log.collaborators || []).map(c => _escHtml(c.name)).join(', ')}</span>` : '';
+  const hasAttach = links || imgNote || refCampHtml || attachPathHtml || collabHtml;
   const color = (PL_TYPE_COLOR[log.logType] || {}).fg || 'var(--border)';
   // 목록의 삭제 버튼은 없애고 수정 모달 안의 삭제 버튼으로 통일 — 수정/삭제 모달 하나로 합쳐서 진입점을 단순화
   // compact(일자별 뷰)는 모달을 열지 않고 그 자리에서 바로 수정 폼으로 바뀌는 인라인 수정을 쓴다.
@@ -2262,7 +2278,7 @@ function _plDetailBoxHtml(log, q, compact, readOnly) {
   const willOpenResponse = !!_plContinueOpenIssue(log);
   const continueBtnHtml = `<button class="btn btn-outline btn-sm pl-detfoot-btn" onclick="event.stopPropagation();plOpenContinueFromLog('${log.id}')">${willOpenResponse ? '💬 대응 작성하기' : '↩ 이어쓰기'}</button>`;
   const detfootHtml = `<div class="pl-detfoot">
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${refCampHtml}${attachPathHtml}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${imgNote}${links}${refCampHtml}${attachPathHtml}${collabHtml}${!hasAttach ? '<span class="form-hint">첨부 없음</span>' : ''}</div>
       <div style="display:flex;gap:6px;">${continueBtnHtml}${editBtnHtml}</div>
     </div>`;
   const commentsHtml = `<div data-pl-comments-for="${log.id}" onclick="event.stopPropagation();">${_plCommentsHtml(log.id)}</div>`;
@@ -2852,6 +2868,9 @@ function _plRenderLogRowNew(log, q, ctx, extra) {
   const isOpen = _plExpanded.has(log.id);
   const arrow = isOpen ? '▾' : '▸';
   const dateShort = (log.logDate || '').slice(2).replace(/-/g, '.');
+  // '나의 일지'에서, 내가 쓴 건 아니지만 공동작업자로 걸려 이 목록에 들어온 행을 👥로 구분 표시.
+  const collabBadge = (ctx === 'mine' && log.writerId !== currentUser?.id && (log.collaborators || []).some(c => c.id === currentUser?.id))
+    ? `<span title="공동작업자로 참여 중인 일지" style="margin-right:3px;">👥</span>` : '';
 
   const { sellerCell: _sellerCellBase, projCell, campCell: _campCellBase, mediaCell } = _plLogCellParts(log);
   // 내부업무는 "이름 + 내부 태그배지" 대신 "(내부)이름" 평문 한 줄로 — 라벨 텍스트를 없애고
@@ -2948,7 +2967,7 @@ function _plRenderLogRowNew(log, q, ctx, extra) {
       ${subLinesHtml}
     </td>
     <td class="td-c" style="vertical-align:top;">${progHtml}</td>
-    <td style="vertical-align:top;"><span class="pl-lgnew-mi" style="font-size:11.5px;">${_escHtml(log.writer || '—')}</span></td>
+    <td style="vertical-align:top;"><span class="pl-lgnew-mi" style="font-size:11.5px;">${collabBadge}${_escHtml(log.writer || '—')}</span></td>
   </tr>`;
 
   return rowHtml + (isOpen ? _plRenderDetailRow(log, 6, q) : '');
@@ -3252,7 +3271,7 @@ let _plSearchCache = {};
 // 매체·이미지·링크는 항목(item) 단위로 붙는다 — 항목 하나가 저장되면 각자 독립된 로그 문서가 되므로,
 // 블록에 걸어두면 한 블록 안의 서로 다른 항목들이 매체·링크를 강제로 공유하게 되어 실제 저장 결과와 안 맞았음
 function _plEmptyItem() {
-  return { logType: '운영', summary: '', progress: '', detail: [], media: null, campaignId: null, refCampaigns: [], links: [], images: [], optOpen: false, continuedFromId: null, attachPath: '', attachName: '' };
+  return { logType: '운영', summary: '', progress: '', detail: [], media: null, campaignId: null, refCampaigns: [], links: [], images: [], collaborators: [], optOpen: false, continuedFromId: null, attachPath: '', attachName: '' };
 }
 function _plEmptyBlock(extra) {
   const block = Object.assign({
@@ -4192,6 +4211,8 @@ function _plContinueFromLog(logId) {
   // 원본이 참조 캠페인 여러 개에 걸려있었으면 그것도 그대로 이어받는다 — 안 그러면 이어쓰기할 때마다
   // 조용히 빠져서, 원본이 참조로 걸려있던 캠페인 상세에는 최신 진행상황이 안 보이게 된다.
   block.items[0].refCampaigns = [...(log.refCampaignIds || [])];
+  // 공동작업자도 이어받는다 — "건(이어쓰기 체인)" 단위로 따라다니게. 이어쓰는 사람이 추가·제외 가능.
+  block.items[0].collaborators = (log.collaborators || []).map(c => ({ id: c.id, name: c.name }));
   // 이 항목이 어느 로그를 이어쓴 것인지 표시 — plSaveLog에서 저장 문서의 continuedFromId로 반영되고,
   // "나의 미완료 일지"가 원본을 후보에서 빼는 기준이자, 상세 펼침의 "이전/이어서 쓴 기록" 링크의 근거가 된다.
   block.items[0].continuedFromId = log.id;
@@ -4402,9 +4423,65 @@ function _plRenderItemAttachSection(bi, ii, it) {
         <span class="form-hint" style="width:36px;">파일명</span>
         <input type="text" class="pl-mini" style="flex:1;min-width:160px;max-width:320px;" placeholder="파일명" value="${_escHtml(it.attachName || '')}" oninput="_plItemField(${bi},${ii},'attachName',this.value)">
       </div>
+      ${_plCollabRowHtml(bi, ii, it)}
     </div>`;
   }
-  return `<div class="pl-opt" onclick="_plItemToggleCollapse(${bi},${ii})"><span>${arrow}</span><b>이미지 · 링크 · 첨부경로</b><span>— ${it.optOpen ? '펼침' : '접힘 · 필요할 때만'}</span></div>${inner}`;
+  // 접힌 영역 요약에 공동작업자 인원수도 같이 보여줘, 접힌 상태에서도 걸려있는지 바로 알 수 있게.
+  const collabCnt = (it.collaborators || []).length;
+  const collabHint = collabCnt ? ` · 👥 공동작업자 ${collabCnt}` : '';
+  return `<div class="pl-opt" onclick="_plItemToggleCollapse(${bi},${ii})"><span>${arrow}</span><b>이미지 · 링크 · 첨부경로 · 공동작업자</b><span>— ${it.optOpen ? '펼침' : '접힘 · 필요할 때만'}${collabHint}</span></div>${inner}`;
+}
+// 공동작업자(collaborators) 선택 UI — 작성 모달의 각 항목(bi/ii) 접힘영역에 들어간다. 작성자 본인·
+// 퇴사자·이미 고른 사람은 검색에서 뺀다. 수정 모달은 라벨 스타일이 달라 별도 인라인 마크업을 쓴다.
+// 공동작업자는 "작성자 외에 이 건을 함께 담당하는 사람" — 멘션(수동적 참조)과 달리 '나의 일지'에 포함된다.
+function _plCollabRowHtml(bi, ii, it) {
+  const listId = `pl-collab-list-${bi}-${ii}`;
+  const chips = (it.collaborators || []).map((c, ci) =>
+    `<span class="tag">👤 ${_escHtml(c.name)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plCollabRemove(${bi},${ii},${ci})">✕</span></span>`
+  ).join(' ');
+  return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span class="form-hint" style="width:36px;line-height:1.15;">공동<br>작업자</span>${chips}
+    <span class="combo-wrap" style="width:150px;">
+      <input type="text" class="pl-mini" style="width:150px;" placeholder="＋ 이름으로 검색" autocomplete="off"
+        oninput="_plCollabSearchInput(${bi},${ii},this)"
+        onkeydown="if(event.key==='Escape'){this.value='';const l=document.getElementById('${listId}');if(l)l.style.display='none';}"
+        onblur="setTimeout(()=>{const l=document.getElementById('${listId}');if(l)l.style.display='none';},150)">
+      <div class="combo-list" id="${listId}" style="display:none;"></div>
+    </span>
+  </div>`;
+}
+function _plCollabMatches(q, chosenIds) {
+  const chosen = new Set(chosenIds || []);
+  return USERS.filter(u => u.name && u.isActive !== false && u.id !== currentUser?.id
+    && !chosen.has(u.id) && u.name.toLowerCase().includes(q)).sort(_plCompareUsersOrg).slice(0, 20);
+}
+function _plCollabItemHtml(onmousedown, u) {
+  return `<div class="combo-item" onmousedown="event.preventDefault();${onmousedown}">${_escHtml(u.name)}<span class="form-hint" style="margin-left:6px;">${_escHtml([u.bonbu, u.dept].filter(Boolean).join(' '))}</span></div>`;
+}
+function _plCollabSearchInput(bi, ii, inputEl) {
+  const it = _plDraft.blocks[bi]?.items[ii];
+  const list = document.getElementById(`pl-collab-list-${bi}-${ii}`);
+  if (!it || !list) return;
+  const q = (inputEl.value || '').trim().toLowerCase();
+  if (!q) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  const matched = _plCollabMatches(q, (it.collaborators || []).map(c => c.id));
+  if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  list.innerHTML = matched.map(u => _plCollabItemHtml(`_plCollabPick(${bi},${ii},'${u.id}')`, u)).join('');
+  list.style.display = 'block';
+}
+function _plCollabPick(bi, ii, userId) {
+  const it = _plDraft.blocks[bi]?.items[ii];
+  const u = USERS.find(x => x.id === userId);
+  if (!it || !u) return;
+  if (!it.collaborators) it.collaborators = [];
+  if (!it.collaborators.some(c => c.id === u.id)) it.collaborators.push({ id: u.id, name: u.name });
+  _plRenderWriteModal();
+}
+function _plCollabRemove(bi, ii, ci) {
+  const it = _plDraft.blocks[bi]?.items[ii];
+  if (!it || !it.collaborators) return;
+  it.collaborators.splice(ci, 1);
+  _plRenderWriteModal();
 }
 
 // ── 유효성 검사 · 저장 ──
@@ -4549,6 +4626,8 @@ async function plSaveLog() {
           important: false, shared: false,
           hasImages: images.length > 0, imageCount: images.length, links: (it.links || []).filter(l => (l.label || l.url || '').trim()),
           attachPath: (it.attachPath || '').trim() || null, attachName: (it.attachName || '').trim() || null,
+          // 공동작업자 — 작성자 외에 이 건을 함께 담당하는 사람. '나의 일지'에 포함되고 처음 걸릴 때 1회 알림.
+          collaborators: (it.collaborators || []).filter(c => c && c.id).map(c => ({ id: c.id, name: c.name })),
           threadId: null, createdAt: now, updatedAt: now,
           // "이어쓰기"로 만들어진 항목이면 원본 로그 id — _plContinueCandidates가 원본을 미완료
           // 후보에서 빼는 기준이자, 상세 펼침의 "이전/이어서 쓴 기록" 링크의 근거가 된다.
@@ -4583,6 +4662,15 @@ async function plSaveLog() {
       } else {
         _fbSaveNotification(root.writerId, 'pl_response', `${currentUser?.name || ''}님이 "${subject}" 일지에 이어서 기록했습니다: ${doc.summary}`, { logId: root.id, actorName: currentUser?.name });
       }
+    });
+
+    // 공동작업자 알림 — 새로 작성한 일지라 걸린 공동작업자는 모두 "처음 걸린" 상태(본인 제외). 1회 발송.
+    savedDocs.forEach(({ doc }) => {
+      const subject = _plNotifySubject(doc);
+      (doc.collaborators || []).forEach(c => {
+        if (!c.id || c.id === currentUser?.id) return;
+        _fbSaveNotification(c.id, 'pl_collab', `${currentUser?.name || ''}님이 "${subject}" 일지의 공동작업자로 회원님을 지정했습니다.`, { logId: doc.id, actorName: currentUser?.name });
+      });
     });
 
     localStorage.removeItem(PL_DRAFT_KEY); // 이전 버전에서 남아있을 수 있는 임시저장 정리
@@ -4802,6 +4890,7 @@ function _plBuildEditDraft(log) {
     links: (log.links || []).map(l => Object.assign({}, l)),
     refCampaigns: [...(log.refCampaignIds || [])],
     refMedia: [...(log.refMediaNames || [])],
+    collaborators: (log.collaborators || []).map(c => ({ id: c.id, name: c.name })),
     attachPath: log.attachPath || '', attachName: log.attachName || '',
     images: [],
     important: !!log.important, shared: !!log.shared,
@@ -5270,7 +5359,42 @@ function _plEditAttachHtml() {
       <label class="form-label" style="width:70px;">파일명</label>
       <input type="text" class="pl-mini" style="flex:1;min-width:160px;max-width:320px;" placeholder="파일명" value="${_escHtml(d.attachName || '')}" oninput="_plEditField('attachName',this.value)">
     </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <label class="form-label" style="width:70px;">공동작업자</label>
+      ${(d.collaborators || []).map((c, ci) => `<span class="tag">👤 ${_escHtml(c.name)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plEditCollabRemove(${ci})">✕</span></span>`).join(' ')}
+      <span class="combo-wrap" style="width:150px;">
+        <input type="text" class="pl-mini" style="width:150px;" placeholder="＋ 이름으로 검색" autocomplete="off"
+          oninput="_plEditCollabSearchInput(this)"
+          onkeydown="if(event.key==='Escape'){this.value='';const l=document.getElementById('pl-ecollab-list');if(l)l.style.display='none';}"
+          onblur="setTimeout(()=>{const l=document.getElementById('pl-ecollab-list');if(l)l.style.display='none';},150)">
+        <div class="combo-list" id="pl-ecollab-list" style="display:none;"></div>
+      </span>
+    </div>
   </div>`;
+}
+function _plEditCollabSearchInput(inputEl) {
+  const d = _plEditDraft;
+  const list = document.getElementById('pl-ecollab-list');
+  if (!d || !list) return;
+  const q = (inputEl.value || '').trim().toLowerCase();
+  if (!q) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  const matched = _plCollabMatches(q, (d.collaborators || []).map(c => c.id));
+  if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  list.innerHTML = matched.map(u => _plCollabItemHtml(`_plEditCollabPick('${u.id}')`, u)).join('');
+  list.style.display = 'block';
+}
+function _plEditCollabPick(userId) {
+  const d = _plEditDraft;
+  const u = USERS.find(x => x.id === userId);
+  if (!d || !u) return;
+  if (!d.collaborators) d.collaborators = [];
+  if (!d.collaborators.some(c => c.id === u.id)) d.collaborators.push({ id: u.id, name: u.name });
+  _plEditRerender();
+}
+function _plEditCollabRemove(ci) {
+  if (!_plEditDraft || !_plEditDraft.collaborators) return;
+  _plEditDraft.collaborators.splice(ci, 1);
+  _plEditRerender();
 }
 function _plEditAddLink() { if (!_plEditDraft.links) _plEditDraft.links = []; _plEditDraft.links.push({ label: '', url: '' }); _plEditRerender(); }
 function _plEditRemoveLink(li) { _plEditDraft.links.splice(li, 1); _plEditRerender(); }
@@ -5413,6 +5537,9 @@ function _plDiffFields(orig, updated) {
   if (bDetail !== aDetail) changes.push({ field: 'detail', label: '하위 기록', before: bDetail, after: aDetail });
   if (!!orig.important !== !!updated.important) changes.push({ field: 'important', label: '중요', before: orig.important ? '예' : '아니오', after: updated.important ? '예' : '아니오' });
   if (!!orig.shared !== !!updated.shared) changes.push({ field: 'shared', label: '공유', before: orig.shared ? '예' : '아니오', after: updated.shared ? '예' : '아니오' });
+  const bCollab = (orig.collaborators || []).map(c => c.name).join(', ');
+  const aCollab = (updated.collaborators || []).map(c => c.name).join(', ');
+  if (bCollab !== aCollab) changes.push({ field: 'collaborators', label: '공동작업자', before: bCollab, after: aCollab });
   return changes;
 }
 
@@ -5507,6 +5634,7 @@ async function plSaveEdit() {
       // 대상을 캠페인/매체/내부로 바꿨는데 참조 태그가 남아있으면(필드 자체는 이미 숨겨짐) 저장 시점에 정리
       refCampaignIds: (d.scope === 'advertiser' || d.scope === 'project') ? (d.refCampaigns || []).filter(Boolean) : [],
       refMediaNames: (d.scope === 'advertiser' || d.scope === 'project') ? (d.refMedia || []).filter(Boolean) : [],
+      collaborators: (d.collaborators || []).filter(c => c && c.id).map(c => ({ id: c.id, name: c.name })),
       hasImages: images.length > 0, imageCount: images.length,
       updatedAt: new Date().toISOString(),
     });
@@ -5530,6 +5658,15 @@ async function plSaveEdit() {
         _fbSaveNotification(orig.writerId, 'pl_edit', `${currentUser?.name || ''}님이 "${subject}" 일지를 수정했습니다.`, { logId: d.id, actorName: currentUser?.name });
       }
     }
+    // 공동작업자 알림 — 이번 수정으로 "새로 추가된" 사람에게만 1회(기존에 이미 걸려있던 사람·본인·원작성자 제외).
+    {
+      const origIds = new Set((orig.collaborators || []).map(c => c.id));
+      const subject = _plNotifySubject(updated);
+      (updated.collaborators || []).forEach(c => {
+        if (!c.id || origIds.has(c.id) || c.id === currentUser?.id || c.id === orig.writerId) return;
+        _fbSaveNotification(c.id, 'pl_collab', `${currentUser?.name || ''}님이 "${subject}" 일지의 공동작업자로 회원님을 지정했습니다.`, { logId: d.id, actorName: currentUser?.name });
+      });
+    }
     // "+ 항목 추가"로 만든 것들 — 수정한 로그와 같은 대상(scope/seller/content/campaignId/media/product)으로
     // 별도의 새 로그 문서를 만든다(일지 작성 저장과 동일한 방식).
     if (validExtras.length) {
@@ -5552,6 +5689,7 @@ async function plSaveEdit() {
           summary: it.summary.trim().slice(0, 60), detail: exDetail, progress: exProgress,
           important: false, shared: false,
           hasImages: false, imageCount: 0, links: [],
+          collaborators: (updated.collaborators || []).map(c => ({ id: c.id, name: c.name })),
           threadId: null, createdAt: now, updatedAt: now,
         };
         newDoc.searchText = _plBuildSearchText(newDoc);
@@ -5635,7 +5773,8 @@ function _plBuildSearchText(log) {
     log.seller, log.content, log.media, log.product, log.writer, log.attachName,
     log.campaignId,
     ...(log.refCampaignIds || []),
-    ...(log.refMediaNames || [])
+    ...(log.refMediaNames || []),
+    ...(log.collaborators || []).map(c => c.name)
   ].filter(Boolean).join(' ')
    .toLowerCase()
    .replace(/[\s\-_.,·/()[\]{}]/g, '');
