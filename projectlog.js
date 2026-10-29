@@ -5979,6 +5979,13 @@ function _plGRenderAnnual() {
     <td style="border-top:1px solid var(--border2);border-bottom:2px solid var(--border2);padding:12px 14px;"></td>
     <td style="border-top:1px solid var(--border2);border-bottom:2px solid var(--border2);padding:12px 14px;"></td>
   </tr>` : '';
+  // 합계 행 바로 아래에, 브랜드별 펼침표와 같은 형식으로 광고주 전체의 월별 추이표를 붙인다.
+  const totalMonthlyRow = rows.length ? `<tr class="pl-g-brand-detail">
+    <td></td>
+    <td colspan="${COLS - 1}" style="background:var(--surface);border-bottom:2px solid var(--border2);padding:10px 14px;">
+      ${_plGCompanyMonthlyHtml(_plGCompany, year)}
+    </td>
+  </tr>` : '';
   // 브랜드가 많아 스크롤이 길어져도 컬럼명을 다시 확인할 수 있도록, 브랜드 그룹이 시작될 때마다 미니 헤더 행을 끼워넣는다.
   // <thead>는 테이블당 하나만 허용되고 소스 위치와 무관하게 항상 맨 위에 그려지므로(위 합계행 이동 때와 동일한 이유),
   // 진짜 <thead>가 아니라 헤더처럼 보이는 <tr>을 <tbody> 안에 반복해서 넣는 방식으로 구현.
@@ -6032,7 +6039,7 @@ function _plGRenderAnnual() {
       </div>
       <div class="table-wrap"><table style="width:100%;">
         <thead><tr><th>프로젝트</th><th>집행월</th><th>광고상품</th><th class="td-r">취급고</th><th class="td-r">요청수량</th><th class="td-r">발송수량</th><th>수익율</th><th>담당자</th><th class="td-r">기록</th></tr></thead>
-        <tbody>${totalRow}${bodyRows || `<tr><td colspan="${COLS}" style="text-align:center;padding:24px;color:var(--text3);">${_escHtml(year)}년 캠페인이 없습니다.</td></tr>`}</tbody>
+        <tbody>${totalRow}${totalMonthlyRow}${bodyRows || `<tr><td colspan="${COLS}" style="text-align:center;padding:24px;color:var(--text3);">${_escHtml(year)}년 캠페인이 없습니다.</td></tr>`}</tbody>
       </table></div>
     </div>`;
 }
@@ -6297,6 +6304,78 @@ function _plGBrandMonthlyHtml(company, brandKey, brandLabel, year, opts) {
   // 카드 배경·"월별 목표" 라벨 없이 표만 두고, 표 사이/아래 간격만 margin-bottom으로 유지
   // ("✎ 수정"은 위에서 "구분" 헤더 칸 안으로 옮겨 별도 라벨줄이 필요 없다).
   return `<div style="margin-bottom:14px;">${tableHtml}</div>`;
+}
+// 광고주 전체(모든 브랜드 합산)의 12개월치 — ①연간요약 "합계(광고주 전체)" 행 아래 펼침 영역에 표시.
+// 브랜드별 _plGBrandMonths와 같은 기준으로 집계하되, 월별 목표는 그 광고주의 모든 브랜드 월별 목표의 합.
+function _plGCompanyMonths(company, year) {
+  const seller = SELLER_DATA.find(s => s.company === company);
+  const yearCamps = DATA.filter(c => (c.seller || c.adv) === company && c.status !== '삭제'
+    && (c.date || '').startsWith(year));
+  // 월별 목표는 브랜드 단위로 저장되므로, 연간요약 행과 동일한 브랜드 집합(매출처 등록 브랜드 ∪ 캠페인 브랜드)으로 합산.
+  const brandNames = (seller?.brands || []).map(b => b.name);
+  const campBrands = [...new Set(yearCamps.map(c => c.content || ''))];
+  const allKeys = [...new Set([...brandNames, ...campBrands])];
+  const months = [];
+  for (let m = 1; m <= 12; m++) {
+    const ym = `${year}-${String(m).padStart(2, '0')}`;
+    const mcamps = yearCamps.filter(c => (c.date || '').startsWith(ym));
+    const adcost = mcamps.reduce((s, c) => s + _campTurnover(c), 0);
+    const net = mcamps.reduce((s, c) => s + _campNetSales(c), 0); // 매출 = 취급고 − 대행수수료
+    const target = allKeys.reduce((s, b) => s + (_plGetMonthlyGoal(company, b, ym)?.value || 0), 0);
+    months.push({ ym, adcost, net, target });
+  }
+  return months;
+}
+// 광고주 전체 월별표 — 브랜드별 표(_plGBrandMonthlyHtml)와 같은 모양이되, 숫자 4행만(취급고/매출/
+// 취급고 KPI/취급고 KPI 달성률). 광고주 월 KPI·달성률은 브랜드별 수기값이라 합산 의미가 없어 제외.
+function _plGCompanyMonthlyHtml(company, year) {
+  const months = _plGCompanyMonths(company, year);
+  const nd = '<span style="color:var(--text3)">—</span>';
+  const totalAdcost = months.reduce((s, m) => s + m.adcost, 0);
+  const totalNet = months.reduce((s, m) => s + m.net, 0);
+  const totalTarget = months.reduce((s, m) => s + m.target, 0);
+  const LBL_W = 120, YR_W = 90, MO_W = 76;
+  const thStyle = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:10px;color:var(--text2);text-align:center;white-space:nowrap;overflow:hidden;';
+  const tdLbl   = 'padding:6px 10px;border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+  const tdVal   = 'padding:6px 8px;border:1px solid var(--border);background:var(--surface);text-align:right;font-size:11.5px;white-space:nowrap;overflow:hidden;';
+  const tdYr    = 'padding:6px 8px;border:1px solid var(--border);background:#fff9e6;text-align:right;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;';
+  const heads = months.map(m => `<th style="${thStyle}width:${MO_W}px;">${parseInt(m.ym.slice(5, 7), 10)}월</th>`).join('');
+  const _tip = (text) => `onmouseenter="_plShowFixedTip(this,'${_escHtml(text).replace(/'/g, "&#39;")}')" onmouseleave="_plHideFixedTip()"`;
+  const tableHtml = `<div style="overflow-x:auto;">
+    <table class="kpi-tbl" style="width:100%;table-layout:fixed;">
+      <thead><tr>
+        <th style="${thStyle}text-align:left;width:${LBL_W}px;"></th>
+        <th style="${thStyle}background:#fff9e6;width:${YR_W}px;">연간합계</th>
+        ${heads}
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td style="${tdLbl}" ${_tip('모든 브랜드의 월별 취급고(실청구액, 대행수수료 차감 전) 합계입니다')}>취급고</td>
+          <td style="${tdYr}">${_fmtKpi(totalAdcost)}</td>
+          ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.adcost)}</td>`).join('')}
+        </tr>
+        <tr>
+          <td style="${tdLbl}" ${_tip('모든 브랜드의 월별 매출(취급고 − 대행수수료) 합계입니다')}>매출</td>
+          <td style="${tdYr}">${_fmtKpi(totalNet)}</td>
+          ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.net)}</td>`).join('')}
+        </tr>
+        <tr>
+          <td style="${tdLbl}" ${_tip('이 광고주의 모든 브랜드 취급고 목표(월별 입력값)의 합입니다')}>취급고 KPI</td>
+          <td style="${tdYr}">${_fmtKpi(totalTarget)}</td>
+          ${months.map(m => `<td style="${tdVal}">${_fmtKpi(m.target)}</td>`).join('')}
+        </tr>
+        <tr>
+          <td style="${tdLbl}" ${_tip('취급고 ÷ 취급고 KPI로 자동 계산됩니다')}>취급고 KPI 달성률</td>
+          <td style="${tdYr}text-align:center;">${_kpiRateHtml(totalAdcost, totalTarget)}</td>
+          ${months.map(m => `<td style="${tdVal}text-align:center;">${_kpiRateHtml(m.adcost, m.target)}</td>`).join('')}
+        </tr>
+      </tbody>
+    </table>
+    </div>`;
+  return `<div style="margin-bottom:4px;">
+    <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">📊 ${_escHtml(company)} 전체 · 월별 추이</div>
+    ${tableHtml}
+  </div>`;
 }
 // "본부별 매출 현황" 탭 표의 ✎에서, 표에 있는 광고주로 _plGCompany를 맞춰준 뒤 그 광고주의
 // "🎯 목표 설정" 모달을 연다 — 광고주 상세 화면 밖에서도 같은 모달 재사용.
