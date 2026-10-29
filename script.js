@@ -370,12 +370,21 @@ function _checkDeployVersionThrottled() {
   _lastDeployCheckAt = now;
   _checkDeployVersion('goScreen');
 }
+let _loginBusy = false;
 async function login() {
+  if (_loginBusy) return; // Cloud Function 콜드스타트로 수 초 걸릴 수 있어 Enter 연타·버튼 재클릭 중복 차단
   const id = document.getElementById('login-id').value.trim();
   const pw = document.getElementById('login-pw').value;
   const errEl = document.getElementById('login-err');
   const showLoginErr = (msg) => { if (errEl) { errEl.textContent = msg; errEl.style.display = ''; } };
   let user = null;
+
+  // 버튼을 잠그고 스피너로 바꿔 "로그인 중"임을 바로 보여준다. 성공하면 화면이 넘어가고,
+  // 실패·폴백이면 finally에서 원상복구된다(서버 응답 지연 동안 반응 없어 보이던 문제, 2026-10-29).
+  const _loginBtn = document.getElementById('login-btn');
+  _loginBusy = true;
+  if (_loginBtn) { _loginBtn.disabled = true; _loginBtn.innerHTML = '<span class="btn-spin"></span>로그인 중…'; }
+  try {
 
   // 1순위: 서버(Cloud Function)에서 검증 — 비밀번호 비교가 서버에서만 일어나고, 비번 뺀 프로필만 돌려받는다.
   // 인증 오류(아이디/비번 틀림·퇴사·잠금)는 그대로 표시하고, 네트워크/서버 장애일 때만 아래 구방식으로 폴백한다
@@ -457,6 +466,10 @@ async function login() {
     }
   }
   goScreen('dashboard');
+  } finally {
+    _loginBusy = false;
+    if (_loginBtn) { _loginBtn.disabled = false; _loginBtn.innerHTML = '로그인'; }
+  }
 }
 function logout() {
   if (_notifUnsub) { _notifUnsub(); _notifUnsub = null; }
