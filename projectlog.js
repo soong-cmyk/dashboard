@@ -4639,8 +4639,8 @@ async function migrateCampaignNotes({ commit = false } = {}) {
       const note = clean(c.note);
       const lines = note.split('\n').map(s => s.trim()).filter(Boolean);
       const first = lines[0] || '(특기사항)';
-      // 한 줄·60자 이하면 요약만, 여러 줄이거나 길면 전체를 detail(ㄴ 항목)로 담아 내용 손실 방지
-      const detail = (lines.length > 1 || first.length > 60) ? lines.map(t => ({ label: '', text: t })) : [];
+      // 첫 줄 = 제목(summary), 나머지 줄 = ㄴ 하위항목(detail). 첫 줄을 detail에 또 넣지 않아 중복을 막는다.
+      const detail = lines.slice(1).map(t => ({ label: '', text: t }));
       const u = USERS.find(x => x.id === c.regUser);
       const logDate = (c.regDate || c.date || '').slice(0, 10) || _plTodayStr();
       let createdAt;
@@ -4677,9 +4677,13 @@ async function migrateCampaignNotes({ commit = false } = {}) {
 // summary/detail 인코딩도 이관 도구와 동일하게 맞춰 _plNoteDocToText로 되읽기가 일관되게 한다.
 function _plNoteDocToText(d) {
   if (!d) return '';
-  // 여러 줄/60자 초과였던 건 detail에 전체 줄이 들어있고, 짧은 한 줄이면 summary만 있다.
-  if (d.detail && d.detail.length) return d.detail.map(x => (x.label ? `${x.label}: ${x.text || ''}` : (x.text || ''))).join('\n');
-  return d.summary || '';
+  const det = (d.detail || []).map(x => (x.label ? `${x.label}: ${x.text || ''}` : (x.text || '')));
+  // 구형(이관·초기 폼): detail에 첫 줄(=summary)까지 들어있어 중복 → detail만으로 복원해 중복 제거.
+  if (det.length && d.summary && det[0] === d.summary) return det.join('\n');
+  // 신형: 제목(summary) + ㄴ 하위항목(detail)
+  const out = d.summary ? [d.summary] : [];
+  out.push(...det);
+  return out.join('\n');
 }
 // 캠페인의 현재 특기사항 텍스트를 Firestore에서 직접 읽어온다(수정폼 프리필용). Promise<string>.
 async function _plGetCampaignNoteText(campaignId) {
@@ -4703,7 +4707,8 @@ async function _plUpsertCampaignNote(campaignId, rawText, camp) {
   const c = camp || DATA.find(x => x.id === campaignId) || {};
   const lines = clean.split('\n').map(s => s.trim()).filter(Boolean);
   const first = lines[0] || '(특기사항)';
-  const detail = (lines.length > 1 || first.length > 60) ? lines.map(t => ({ label: '', text: t })) : [];
+  // 첫 줄 = 제목(summary), 나머지 줄 = ㄴ 하위항목(detail) — 첫 줄 중복 방지(2026-10-29)
+  const detail = lines.slice(1).map(t => ({ label: '', text: t }));
   const nowIso = new Date().toISOString();
   const u = currentUser;
   const doc = {
