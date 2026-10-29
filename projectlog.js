@@ -655,15 +655,13 @@ function _plBuildMineTabSkeleton(content) {
         <input type="text" class="f-search" id="pl-mine-f-media" placeholder="🔍 매체" style="width:100px;">
         <div class="combo-list" id="pl-mine-f-media-list" style="display:none;"></div>
       </div>
-      <button class="btn btn-outline btn-sm${_plMineInclCollab ? ' pl-toggle-on' : ''}" id="pl-mine-collab-toggle" onclick="_plMineToggleInclCollab()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};" onmouseenter="_plShowFixedTip(this,'내가 작성한 일지에 더해, 내가 공동작업자로 지정된 일지도 함께 보여줍니다')" onmouseleave="_plHideFixedTip()">👥 공동작업자 포함</button>
-      <button class="btn btn-outline btn-sm${_plMineCommentedOnly ? ' pl-toggle-on' : ''}" id="pl-mine-commented-toggle" onclick="_plMineToggleCommentedOnly()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};">💬 댓글 있는 것만</button>
       <div class="combo-wrap" style="width:160px;">
         <input type="text" class="f-search" id="pl-mine-search" placeholder="검색어" style="width:160px;padding-right:22px;" oninput="_plRenderMineBody()">
         <span class="combo-clear" onmousedown="event.preventDefault();_clearSearchInput('pl-mine-search', _plRenderMineBody)">✕</span>
       </div>
     </div>
     <div class="table-card">
-      <div class="table-header"><span class="card-title" id="pl-mine-title">내가 작성한 일지</span><span class="table-count" id="pl-mine-count"></span><button class="btn btn-outline btn-sm pl-progress-btn${_plMineOpenOnly ? ' pl-toggle-on' : ''}" id="pl-mine-progress-toggle" onclick="_plMineToggleOpenOnly()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};" onmouseenter="_plShowFixedTip(this,'이어쓰기로 이미 이어진 옛 기록은 제외하고, 진짜 미완료(=진행중)인 것만 보여줍니다')" onmouseleave="_plHideFixedTip()">🔴 진행중 <b id="pl-mine-open-cnt">—</b>건</button></div>
+      <div class="table-header"><span class="card-title" id="pl-mine-title">내가 작성한 일지</span><span class="table-count" id="pl-mine-count"></span><button class="btn btn-outline btn-sm pl-progress-btn${_plMineOpenOnly ? ' pl-toggle-on' : ''}" id="pl-mine-progress-toggle" onclick="_plMineToggleOpenOnly()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};" onmouseenter="_plShowFixedTip(this,'이어쓰기로 이미 이어진 옛 기록은 제외하고, 진짜 미완료(=진행중)인 것만 보여줍니다')" onmouseleave="_plHideFixedTip()">🔴 진행중 <b id="pl-mine-open-cnt">—</b>건</button><button class="btn btn-outline btn-sm${_plMineInclCollab ? ' pl-toggle-on' : ''}" id="pl-mine-collab-toggle" onclick="_plMineToggleInclCollab()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};" onmouseenter="_plShowFixedTip(this,'내가 작성한 일지에 더해, 내가 공동작업자로 지정된 일지도 함께 보여줍니다')" onmouseleave="_plHideFixedTip()">👥 공동작업자 포함</button><button class="btn btn-outline btn-sm${_plMineCommentedOnly ? ' pl-toggle-on' : ''}" id="pl-mine-commented-toggle" onclick="_plMineToggleCommentedOnly()" style="display:${_plMineSubTab === 'written' ? '' : 'none'};">💬 댓글 있는 것만</button></div>
       <div class="table-wrap"><table class="pl-lgt pl-lgt-new" style="width:100%;">
         <thead>${_PL_MINE_THEAD}</thead>
         <tbody id="pl-mine-tbody"></tbody>
@@ -4443,8 +4441,9 @@ function _plCollabRowHtml(bi, ii, it) {
     <span class="form-hint" style="width:36px;line-height:1.15;">공동<br>작업자</span>${chips}
     <span class="combo-wrap" style="width:150px;">
       <input type="text" class="pl-mini" style="width:150px;" placeholder="＋ 이름으로 검색" autocomplete="off"
+        onfocus="_plCollabSearchInput(${bi},${ii},this)"
         oninput="_plCollabSearchInput(${bi},${ii},this)"
-        onkeydown="if(event.key==='Escape'){this.value='';const l=document.getElementById('${listId}');if(l)l.style.display='none';}"
+        onkeydown="if(_plComboKeyNav(event,'${listId}'))return;"
         onblur="setTimeout(()=>{const l=document.getElementById('${listId}');if(l)l.style.display='none';},150)">
       <div class="combo-list" id="${listId}" style="display:none;"></div>
     </span>
@@ -4460,14 +4459,19 @@ function _plCollabItemHtml(onmousedown, u) {
 }
 function _plCollabSearchInput(bi, ii, inputEl) {
   const it = _plDraft.blocks[bi]?.items[ii];
-  const list = document.getElementById(`pl-collab-list-${bi}-${ii}`);
+  const listId = `pl-collab-list-${bi}-${ii}`;
+  const list = document.getElementById(listId);
   if (!it || !list) return;
+  // 검색어가 비어도(포커스 직후) 고를 수 있는 사람 전체를 보여준다 — q=''면 _plCollabMatches가 전원 반환.
   const q = (inputEl.value || '').trim().toLowerCase();
-  if (!q) { list.style.display = 'none'; list.innerHTML = ''; return; }
   const matched = _plCollabMatches(q, (it.collaborators || []).map(c => c.id));
+  _plComboNavIndex[listId] = -1;
   if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
   list.innerHTML = matched.map(u => _plCollabItemHtml(`_plCollabPick(${bi},${ii},'${u.id}')`, u)).join('');
   list.style.display = 'block';
+  // 접힘영역·모달 본문의 overflow에 잘리지 않게 position:fixed로 띄우고(멘션 콤보와 동일) 모달보다 위로 올린다.
+  _plFloatCombo(inputEl, list);
+  list.style.zIndex = '10050';
 }
 function _plCollabPick(bi, ii, userId) {
   const it = _plDraft.blocks[bi]?.items[ii];
@@ -4757,6 +4761,49 @@ async function migrateCampaignNotes({ commit = false } = {}) {
   }
   console.log(`✓ 이관 완료 — 저장 ${saved}건, 실패 ${failed}건`);
   console.log('캠페인 상세를 다시 열면 특기사항이 일지 맨 위에 보입니다. 입력 필드 제거는 그 다음 단계입니다.');
+}
+
+// ── 1회성 정리: 내용이 '-' 한 글자뿐인 특기사항 일지 삭제 ─────────────────────
+// 캠페인 특기사항(note_<id>, logType '특기사항') 중 알맹이 없이 '-'만 적힌 건을 지운다. 콘솔 관리자 작업.
+//   cleanupDashNotes()                     → 미리보기(삭제 안 함)
+//   cleanupDashNotes({ commit:true })      → 실제 삭제
+//   cleanupDashNotes({ loose:true })       → '-'·'—'·'·' 등 대시류/공백만인 것(알맹이 없음)까지 대상
+// 판정은 저장 인코딩과 무관하게 _plNoteDocToText로 되읽은 '보이는 텍스트' 기준.
+async function cleanupDashNotes({ commit = false, loose = false } = {}) {
+  if (!window._db) { console.error('Firestore 미초기화 — 로그인 후 실행하세요'); return; }
+  const snap = await _plDb('projectLogs').where('logType', '==', '특기사항').get();
+  const isTarget = (txt) => {
+    const t = (txt || '').trim();
+    if (loose) return t === '' || /^[-—–ㅡ·\s]+$/.test(t); // 대시류/가운뎃점/공백만 (알맹이 없음)
+    return t === '-'; // 기본: 정확히 '-' 한 글자
+  };
+  const targets = snap.docs
+    .map(d => ({ id: d.id, data: d.data() }))
+    .filter(x => isTarget(_plNoteDocToText(x.data)));
+  console.log(`특기사항 일지 ${snap.size}건 중 삭제 대상 ${targets.length}건 (기준: ${loose ? "대시류/공백만" : "정확히 '-'"})`);
+  if (!targets.length) { console.log('삭제할 대상이 없습니다.'); return; }
+
+  if (!commit) {
+    console.table(targets.slice(0, 50).map(x => ({
+      문서: x.id,
+      campaignId: x.data.campaignId || '',
+      캠페인: (typeof _cName === 'function' && DATA.find(c => c.id === x.data.campaignId))
+        ? _cName(DATA.find(c => c.id === x.data.campaignId)) : (x.data.content || x.data.seller || ''),
+      내용: JSON.stringify(_plNoteDocToText(x.data)),
+    })));
+    console.log(`위는 미리보기(최대 50건 표시, 대상 총 ${targets.length}건).\n실제 삭제: cleanupDashNotes({ commit: true })`);
+    return;
+  }
+
+  let deleted = 0, failed = 0;
+  for (let i = 0; i < targets.length; i += 400) {
+    const chunk = targets.slice(i, i + 400);
+    const batch = window._db.batch();
+    chunk.forEach(x => batch.delete(window._db.collection('projectLogs').doc(x.id)));
+    try { await batch.commit(); deleted += chunk.length; console.log(`  …${deleted}/${targets.length} 삭제`); }
+    catch (e) { failed += chunk.length; console.error('배치 삭제 실패', e); }
+  }
+  console.log(`✓ 정리 완료 — 삭제 ${deleted}건, 실패 ${failed}건`);
 }
 
 // ── 캠페인 등록/수정 폼의 '특기사항' ↔ 캠페인당 1건 '특기사항' 일지(note_<campaignId>) ──
@@ -5364,8 +5411,9 @@ function _plEditAttachHtml() {
       ${(d.collaborators || []).map((c, ci) => `<span class="tag">👤 ${_escHtml(c.name)}<span class="pl-x" style="display:inline;margin-left:2px;" onclick="_plEditCollabRemove(${ci})">✕</span></span>`).join(' ')}
       <span class="combo-wrap" style="width:150px;">
         <input type="text" class="pl-mini" style="width:150px;" placeholder="＋ 이름으로 검색" autocomplete="off"
+          onfocus="_plEditCollabSearchInput(this)"
           oninput="_plEditCollabSearchInput(this)"
-          onkeydown="if(event.key==='Escape'){this.value='';const l=document.getElementById('pl-ecollab-list');if(l)l.style.display='none';}"
+          onkeydown="if(_plComboKeyNav(event,'pl-ecollab-list'))return;"
           onblur="setTimeout(()=>{const l=document.getElementById('pl-ecollab-list');if(l)l.style.display='none';},150)">
         <div class="combo-list" id="pl-ecollab-list" style="display:none;"></div>
       </span>
@@ -5377,11 +5425,13 @@ function _plEditCollabSearchInput(inputEl) {
   const list = document.getElementById('pl-ecollab-list');
   if (!d || !list) return;
   const q = (inputEl.value || '').trim().toLowerCase();
-  if (!q) { list.style.display = 'none'; list.innerHTML = ''; return; }
   const matched = _plCollabMatches(q, (d.collaborators || []).map(c => c.id));
+  _plComboNavIndex['pl-ecollab-list'] = -1;
   if (!matched.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
   list.innerHTML = matched.map(u => _plCollabItemHtml(`_plEditCollabPick('${u.id}')`, u)).join('');
   list.style.display = 'block';
+  _plFloatCombo(inputEl, list);
+  list.style.zIndex = '10050';
 }
 function _plEditCollabPick(userId) {
   const d = _plEditDraft;
