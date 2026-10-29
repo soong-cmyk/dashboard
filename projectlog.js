@@ -4671,6 +4671,62 @@ async function migrateCampaignNotes({ commit = false } = {}) {
   console.log('캠페인 상세를 다시 열면 특기사항이 일지 맨 위에 보입니다. 입력 필드 제거는 그 다음 단계입니다.');
 }
 
+// ── 캠페인 등록/수정 폼의 '특기사항' ↔ 캠페인당 1건 '특기사항' 일지(note_<campaignId>) ──
+// 폼에 쓴 특기사항을 c.note가 아니라 logType '특기사항' 일지로 자동 등록/갱신한다(2026-10-28, 사용자 요청).
+// 문서 id를 note_<campaignId>로 고정 → 캠페인당 1건, 재저장은 갱신(이관 도구 migrateCampaignNotes와 같은 규칙).
+// summary/detail 인코딩도 이관 도구와 동일하게 맞춰 _plNoteDocToText로 되읽기가 일관되게 한다.
+function _plNoteDocToText(d) {
+  if (!d) return '';
+  // 여러 줄/60자 초과였던 건 detail에 전체 줄이 들어있고, 짧은 한 줄이면 summary만 있다.
+  if (d.detail && d.detail.length) return d.detail.map(x => (x.label ? `${x.label}: ${x.text || ''}` : (x.text || ''))).join('\n');
+  return d.summary || '';
+}
+// 캠페인의 현재 특기사항 텍스트를 Firestore에서 직접 읽어온다(수정폼 프리필용). Promise<string>.
+async function _plGetCampaignNoteText(campaignId) {
+  if (!window._db || !campaignId) return '';
+  try {
+    const snap = await _plDb('projectLogs').doc(`note_${campaignId}`).get();
+    return snap.exists ? _plNoteDocToText(snap.data()) : '';
+  } catch (e) { console.error('[projectlog] 특기사항 조회 실패', e); return ''; }
+}
+// 특기사항 저장: 비어있으면 기존 일지 삭제, 내용이 있으면 생성/갱신(작성자·작성일은 기존 값 보존).
+async function _plUpsertCampaignNote(campaignId, rawText, camp) {
+  if (!window._db || !campaignId) return;
+  const clean = String(rawText || '').replace(/\r/g, '').trim();
+  const ref = _plDb('projectLogs').doc(`note_${campaignId}`);
+  let existing = null;
+  try { const snap = await ref.get(); if (snap.exists) existing = snap.data(); } catch (e) {}
+  if (!clean) { // 비우면 특기사항 일지 삭제(있을 때만)
+    if (existing) { try { await ref.delete(); } catch (e) { console.error('[projectlog] 특기사항 삭제 실패', e); } }
+    return;
+  }
+  const c = camp || DATA.find(x => x.id === campaignId) || {};
+  const lines = clean.split('\n').map(s => s.trim()).filter(Boolean);
+  const first = lines[0] || '(특기사항)';
+  const detail = (lines.length > 1 || first.length > 60) ? lines.map(t => ({ label: '', text: t })) : [];
+  const nowIso = new Date().toISOString();
+  const u = currentUser;
+  const doc = {
+    id: `note_${campaignId}`,
+    logDate: existing?.logDate || (c.regDate || c.date || '').slice(0, 10) || _plTodayStr(),
+    writer: existing?.writer || u?.name || '', writerId: existing?.writerId || u?.id || '',
+    bonbu: existing?.bonbu || u?.bonbu || '', dept: existing?.dept || u?.dept || '',
+    scope: 'campaign', seller: c.seller || null, content: c.content || null,
+    campaignId, media: c.media || null, product: c.product || null,
+    refCampaignIds: [], refMediaNames: [],
+    logType: '특기사항', state: null,
+    summary: first.slice(0, 60), detail, progress: null,
+    important: false, shared: false,
+    hasImages: false, imageCount: 0, links: [],
+    attachPath: null, attachName: null,
+    threadId: null,
+    createdAt: existing?.createdAt || nowIso, updatedAt: nowIso,
+    continuedFromId: null, migratedFrom: existing?.migratedFrom || 'note',
+  };
+  doc.searchText = (typeof _plBuildSearchText === 'function') ? _plBuildSearchText(doc) : '';
+  try { await ref.set(doc); } catch (e) { console.error('[projectlog] 특기사항 저장 실패', e); }
+}
+
 // ── 1-3. 삭제 (projectLogDeleted 로 이관 후 원본 삭제) ──
 async function plDeleteLog(logId) {
   const log = PL_LOGS.find(l => l.id === logId);

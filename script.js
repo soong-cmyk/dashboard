@@ -3684,6 +3684,8 @@ function submitReg() {
   if (!_confirmCampWarnings(DATA[0])) { DATA.shift(); _nextCampaignNum--; return; }
   _log(newId, 'register', null, null, null); // 이력: 캠페인 등록
   _fbSaveCampaign(DATA[0]);
+  // 특기사항은 c.note가 아니라 이 캠페인의 '특기사항' 일지(note_<id>)로 자동 등록(2026-10-28)
+  if (typeof _plUpsertCampaignNote === 'function') _plUpsertCampaignNote(newId, document.getElementById('r_note')?.value, DATA[0]);
 
   // 파이프라인 전환 후처리
   if (_pendingPipelineConvertId) {
@@ -3781,7 +3783,7 @@ function resetRegForm() {
     const el = document.getElementById(id);
     if (el) { el.value = ''; delete el.dataset.manual; }
   });
-  ['r_target','r_dtarget','r_msg'].forEach(id => {
+  ['r_target','r_dtarget','r_msg','r_note'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -4002,6 +4004,12 @@ function openEdit() {
   document.getElementById('e_target').value  = c.target  || '';
   document.getElementById('e_dtarget').value = c.dtarget || '';
   document.getElementById('e_msg').value     = c.msg     || '';
+  // 특기사항 = 이 캠페인의 '특기사항' 일지에서 불러오기(비동기 — 폼이 먼저 뜨고 값이 채워진다)
+  const _eNoteEl = document.getElementById('e_note');
+  if (_eNoteEl) {
+    _eNoteEl.value = '';
+    if (typeof _plGetCampaignNoteText === 'function') _plGetCampaignNoteText(c.id).then(t => { if (_eNoteEl) _eNoteEl.value = t || ''; });
+  }
 
   // DA / 퍼미션콜 vs 일반 수정 화면 토글
   const isEditDA  = ['DA','IPTV'].includes(c.product);
@@ -4433,6 +4441,8 @@ function submitEdit() {
   });
 
   _fbSaveCampaign(DATA[currentDetailIdx]);
+  // 특기사항 → 이 캠페인의 '특기사항' 일지(note_<id>) 생성/갱신(비우면 삭제). onSnapshot으로 상세 일지에 반영됨
+  if (typeof _plUpsertCampaignNote === 'function') _plUpsertCampaignNote(DATA[currentDetailIdx].id, document.getElementById('e_note')?.value, DATA[currentDetailIdx]);
   const _savedCampId = DATA[currentDetailIdx].id;
   history.replaceState({ screen: 'detail', id: _savedCampId }, '', '#detail/' + _savedCampId);
   openDetail(currentDetailIdx, true);
