@@ -3186,9 +3186,13 @@
                 class="form-ta" id="r_target" placeholder="타겟 조건을 입력하세요" style="height:200px;"></textarea></div>
             <div class="fg"><label class="form-label">디타겟 조건</label><textarea
                 class="form-ta" id="r_dtarget" placeholder="디타겟 조건을 입력하세요" style="height:200px;"></textarea></div>
-            <div class="fg full" id="r_msg_section"><label class="form-label">발송문구<span
+            <div class="fg" id="r_msg_section"><label class="form-label">발송문구<span
                   class="req">*</span></label><textarea class="form-ta" id="r_msg"
                 placeholder="발송 문구를 입력하세요" style="height:200px;"></textarea></div>
+            <div class="fg"><label class="form-label">특기사항</label>
+              <textarea class="form-ta" id="r_note" placeholder="예) 발송 전 QA 필수 · 링크 트래킹 설정 확인" style="height:200px;"></textarea>
+              <div class="form-hint" style="margin-top:4px;">저장하면 이 캠페인의 프로젝트 일지(특기사항)로 자동 등록됩니다.</div>
+            </div>
             <div class="fg full" id="r_da_img_section" style="display:none;">
               <label class="form-label">소재 이미지</label>
               <div id="r_da_dropzone"
@@ -3203,10 +3207,6 @@
               <input type="file" id="r_da_file" accept="image/*" multiple style="display:none;"
                 onchange="daFilesSelected(this.files)">
               <div id="r_da_preview_grid" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;"></div>
-            </div>
-            <div class="fg full"><label class="form-label">특기사항</label>
-              <textarea class="form-ta" id="r_note" placeholder="예) 발송 전 QA 필수 · 링크 트래킹 설정 확인"></textarea>
-              <div class="form-hint" style="margin-top:4px;">저장하면 이 캠페인의 프로젝트 일지(특기사항)로 자동 등록됩니다.</div>
             </div>
           </div>
         </div>
