@@ -6504,7 +6504,8 @@ async function downloadSettlementExcel() {
     { header: '매출단가',      width: 12, numFmt: '#,##0' },
     { header: '발송수량',      width: 11, numFmt: '#,##0' },
     { header: '정산수량',      width: 11, numFmt: '#,##0' },
-    { header: '매출액',        width: 14, numFmt: '#,##0' },
+    { header: '광고비',        width: 14, numFmt: '#,##0' },
+    { header: '실청구액',      width: 14, numFmt: '#,##0' },
     { header: 'VAT포함(매출)', width: 15, numFmt: '#,##0' },
     { header: '정산율(%)',     width: 10, numFmt: '0.0' },
     { header: '매체사',        width: 16 },
@@ -6526,7 +6527,8 @@ async function downloadSettlementExcel() {
   ws.columns = colDefs.map(d => ({ width: d.width }));
 
   // 구분선 열 (오른쪽 border 두껍게): 매출 정산율%, 매입 정산율%, 매출이익율%
-  const SEP_COLS = new Set([11, 18, 22]);
+  // 광고비 컬럼 추가로 매출액 이후 열이 1칸씩 밀려 기존 {11,18,22} → {12,19,23}
+  const SEP_COLS = new Set([12, 19, 23]);
 
   // 헤더 행
   const headerRow = ws.addRow(colDefs.map(d => d.header));
@@ -6561,7 +6563,7 @@ async function downloadSettlementExcel() {
       c.date ? c.date.slice(0, 10) : '',
       c.product, _getCat(c), _cCompany(c), _cName(c),
       r(c.sellUnit), r(c.qty), r(a.actual),
-      r(a.amt ?? a.adc), r((a.amt ?? a.adc) + a.adcVat), r(+a.stlRate.toFixed(1)),
+      r(_campAdcost(c)), r(a.amt ?? a.adc), r((a.amt ?? a.adc) + a.adcVat), r(+a.stlRate.toFixed(1)),
       c.media, MEDIA_DATA.find(x => x.company === c.media)?.invoiceTo || '',
       rb(c.buyUnit), rb(buyQty), rb(a.buyAmt), rb(a.buyAmt + a.buyVat), rb(+a.stlRate.toFixed(1)),
       r(c.comm), r(a.agFee), r(a.prf), r(+a.prfRate.toFixed(1)),
@@ -9079,12 +9081,14 @@ function renderSettlement() {
   const settled  = _stlGetFiltered();
 
   // 합산 — 표에 실제로 표시되는 값 기준
-  let totalAdc = 0, totalBuy = 0, totalPrf = 0, totalSellQty = 0, totalBuyQty = 0;
+  // totalAdc = 광고비(_campAdcost) 합 → '총 광고비' 카드. totalAmt = 실청구액(amt) 합 → 매출이익율 분모(표의 행별 이익율과 일치).
+  let totalAdc = 0, totalAmt = 0, totalBuy = 0, totalPrf = 0, totalSellQty = 0, totalBuyQty = 0;
   settled.forEach(c => {
     const a      = _stlAmt(c);
     const has    = _stlHas(c);
     const hasBuy = has && (!!c.buyUnit || !!c.buyAmtFixed || (['DA','IPTV'].includes(c.product) && !!c.comm) || (c.product === 'CPS' && !!c.cpsMediaComm));
-    if (has)    totalAdc += (a.amt ?? a.adc);
+    if (has)    totalAdc += _campAdcost(c);
+    if (has)    totalAmt += (a.amt ?? a.adc);
     if (hasBuy) totalBuy += a.buyAmt;
     if (has)    totalPrf += a.prf;
     if (has && !['DA','IPTV'].includes(c.product)) {
@@ -9102,8 +9106,8 @@ function renderSettlement() {
   set('stl-profit',   totalPrf ? Math.round(totalPrf).toLocaleString() + '원' : '—');
   const rateEl = document.getElementById('stl-profit-rate');
   if (rateEl) {
-    if (totalAdc && totalPrf) {
-      const rate = (totalPrf / totalAdc * 100).toFixed(1);
+    if (totalAmt && totalPrf) {
+      const rate = (totalPrf / totalAmt * 100).toFixed(1);
       rateEl.textContent = rate + '%';
       rateEl.style.color = totalPrf >= 0 ? 'var(--green)' : 'var(--red)';
     } else {
@@ -9353,6 +9357,7 @@ function renderStlCampaignView(data, container) {
       <td class="td-num td-r">${has && !isDA ? fmt(c.qty) : nd}</td>
       ${isAdminView ? `<td class="td-num td-r" style="color:var(--text3);">${has && !isDA && c.svc ? fmt(c.svc) : nd}</td>` : ''}
       <td class="td-num td-r">${has && !isDA ? fmt(a.actual) : nd}</td>
+      <td class="td-num td-r" style="color:var(--text2);">${has ? fmt(_campAdcost(c)) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${has ? fmt(a.amt ?? a.adc) : nd}</td>
       <td class="td-num td-r" style="color:var(--text2);">${has ? fmt((a.amt ?? a.adc) + a.adcVat) : nd}</td>
       <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
@@ -9382,7 +9387,7 @@ function renderStlCampaignView(data, container) {
         <th rowspan="2" class="stl-s1" style="background:var(--surface2);vertical-align:middle;">카테고리</th>
         <th rowspan="2" class="stl-s2" style="background:var(--surface2);vertical-align:middle;">매출처</th>
         <th rowspan="2" class="stl-s3" style="background:var(--surface2);vertical-align:middle;">캠페인</th>
-        <th colspan="${isAdminView ? 7 : 6}" class="grp-head grp-revenue">매출</th>
+        <th colspan="${isAdminView ? 8 : 7}" class="grp-head grp-revenue">매출</th>
         <th colspan="7" class="grp-head grp-purchase">매입</th>
         <th colspan="4" class="grp-head grp-pnl">손익</th>
         <th colspan="4" class="grp-head grp-status">정산</th>
@@ -9393,6 +9398,7 @@ function renderStlCampaignView(data, container) {
         <th style="text-align:right;">발송수량</th>
         ${isAdminView ? '<th style="text-align:right;color:var(--text3);">서비스수량</th>' : ''}
         <th style="text-align:right;">정산수량</th>
+        <th style="text-align:right;">광고비</th>
         <th style="text-align:right;">실청구액</th>
         <th style="text-align:right;">VAT포함</th>
         <th style="text-align:right;">정산율</th>
@@ -9443,12 +9449,12 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
 
   const rows = groupOrder.map(gname => {
     const camps = groups[gname].slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    let tAdc = 0, tAdcVat = 0, tBuy = 0, tBuyVat = 0, tFee = 0, tPrf = 0, tQty = 0, tActual = 0, tBuyActual = 0;
+    let tGross = 0, tAdc = 0, tAdcVat = 0, tBuy = 0, tBuyVat = 0, tFee = 0, tPrf = 0, tQty = 0, tActual = 0, tBuyActual = 0;
     camps.forEach(c => {
       const a    = _stlAmt(c);
       const isDA = ['DA','IPTV'].includes(c.product);
       const has  = _stlHas(c);
-      tAdc += (a.amt ?? a.adc); tAdcVat += a.adcVat; tBuy += a.buyAmt; tBuyVat += a.buyVat; tFee += a.agFee; tPrf += a.prf;
+      tGross += (has ? _campAdcost(c) : 0); tAdc += (a.amt ?? a.adc); tAdcVat += a.adcVat; tBuy += a.buyAmt; tBuyVat += a.buyVat; tFee += a.agFee; tPrf += a.prf;
       if (has && !isDA) { tQty += a.qty; tActual += a.actual; tBuyActual += (a.buyActual ?? a.actual); }
     });
     const tPrfRate = tAdc > 0 ? pct(tPrf / tAdc * 100) : '—';
@@ -9480,6 +9486,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
         <td class="td-num td-r grp-revenue">${has && !isDA && !isCPS ? fmt(a.eu) : nd}</td>
         <td class="td-num td-r">${has && !isDA && !isCPS ? fmt(c.qty) : nd}</td>
         <td class="td-num td-r">${has && !isDA && !isCPS ? fmt(a.actual) : nd}</td>
+        <td class="td-num td-r" style="color:var(--text2);">${has ? fmt(_campAdcost(c)) : nd}</td>
         <td class="td-num td-r" style="font-weight:600;">${has ? fmt(a.amt ?? a.adc) : nd}</td>
         <td class="td-num td-r" style="color:var(--text2);">${has ? fmt((a.amt ?? a.adc) + a.adcVat) : nd}</td>
         <td class="td-num td-r" style="color:var(--text3);">${has && c.product === 'CPA' ? pct(a.stlRate) : nd}</td>
@@ -9510,6 +9517,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
       <td class="grp-revenue">${nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${tQty ? fmt(tQty) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${tActual ? fmt(tActual) : nd}</td>
+      <td class="td-num td-r" style="font-weight:700;">${tGross ? fmt(tGross) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${tAdc ? fmt(tAdc) : nd}</td>
       <td class="td-num td-r" style="font-weight:700;">${tAdc ? fmt(Math.round(tAdc * 1.1)) : nd}</td>
       <td>${nd}</td>
@@ -9534,7 +9542,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
     <thead>
       <tr>
         <th colspan="3" class="stl-sc3" style="background:var(--surface2);vertical-align:middle;">${_escHtml(groupLabel)}</th>
-        <th colspan="6" class="grp-head grp-revenue">매출</th>
+        <th colspan="7" class="grp-head grp-revenue">매출</th>
         <th colspan="7" class="grp-head grp-purchase">매입</th>
         <th colspan="4" class="grp-head grp-pnl">손익</th>
         <th colspan="4" class="grp-head grp-status">정산</th>
@@ -9545,6 +9553,7 @@ function renderStlGroupView(data, container, groupKey, groupLabel) {
         <th class="grp-revenue" style="text-align:right;">적용단가</th>
         <th style="text-align:right;">발송수량</th>
         <th style="text-align:right;">정산수량</th>
+        <th style="text-align:right;">광고비</th>
         <th style="text-align:right;">실청구액</th>
         <th style="text-align:right;">VAT포함</th>
         <th style="text-align:right;">정산율</th>
