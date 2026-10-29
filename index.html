@@ -645,7 +645,7 @@
                   <div class="a-row"><span class="a-lbl">대행수수료여부</span><span class="a-val" id="dDaFeeYn">—</span></div>
                   <div class="a-row"><span class="a-lbl">수수료율</span><span class="a-val" id="dDaComm">—</span></div>
                   <div class="a-row"><span class="a-lbl">매입단가</span><span class="a-val" id="dDaBuyUnit">—</span></div>
-                  <div class="a-row result"><span class="a-lbl">매출수익</span><span class="a-val" id="dDaRev">—</span></div>
+                  <div class="a-row result"><span class="a-lbl">매출수익</span><span class="a-val" id="dDaRevSales">—</span></div>
                   <div class="a-row op"><span class="a-lbl" id="dDaAgratelbl">– 대행료</span><span class="a-val" id="dDaAgfee">—</span></div>
                 </div>
                 <div class="profit-box" style="margin-top:10px;"><span class="profit-lbl">💰 이익</span><span class="profit-amt" id="dDaProfit">—</span></div>
@@ -1042,15 +1042,15 @@
                   <span class="form-hint">비워두면 자동계산 (광고비 × (1 − 수수료율))</span>
                 </div>
                 <div class="fg"><label class="form-label">매출수익</label>
-                  <input class="form-input auto" id="e_da_rev" readonly placeholder="자동계산">
-                  <span class="form-hint">광고비 × 수수료율</span>
+                  <input type="number" class="form-input auto" id="e_da_rev" placeholder="자동계산" oninput="this.dataset.manual='1';calcDAEdit()" onblur="if(!this.value){delete this.dataset.manual;calcDAEdit();}">
+                  <span class="form-hint">광고비 × 수수료율 (직접 입력 시 고정)</span>
                 </div>
                 <div class="fg"><label class="form-label">대행 (%)</label>
                   <input type="number" class="form-input" id="e_da_agrate" oninput="calcDAEdit()">
                 </div>
                 <div class="fg full"><label class="form-label">이익</label>
-                  <input class="form-input auto" id="e_da_profit" readonly placeholder="자동계산">
-                  <span class="form-hint">매출수익 − 대행료</span>
+                  <input type="number" class="form-input auto" id="e_da_profit" placeholder="자동계산" oninput="this.dataset.manual='1';calcDAEdit()" onblur="if(!this.value){delete this.dataset.manual;calcDAEdit();}">
+                  <span class="form-hint">매출수익 − 대행료 (직접 입력 시 고정)</span>
                 </div>
               </div>
             </div>
@@ -2987,15 +2987,15 @@
                 <span class="form-hint">비워두면 자동계산 (광고비 × (1 − 수수료율))</span>
               </div>
               <div class="fg"><label class="form-label">매출수익</label>
-                <input class="form-input auto" id="r_da_rev" readonly placeholder="자동계산">
-                <span class="form-hint">광고비 × 수수료율</span>
+                <input type="number" class="form-input auto" id="r_da_rev" placeholder="자동계산" oninput="this.dataset.manual='1';calcDA()" onblur="if(!this.value){delete this.dataset.manual;calcDA();}">
+                <span class="form-hint">광고비 × 수수료율 (직접 입력 시 고정)</span>
               </div>
               <div class="fg"><label class="form-label">대행 (%)</label>
                 <input type="number" class="form-input" id="r_da_agrate" oninput="calcDA()">
               </div>
               <div class="fg full"><label class="form-label">이익</label>
-                <input class="form-input auto" id="r_da_profit" readonly placeholder="자동계산">
-                <span class="form-hint">매출수익 − 대행료</span>
+                <input type="number" class="form-input auto" id="r_da_profit" placeholder="자동계산" oninput="this.dataset.manual='1';calcDA()" onblur="if(!this.value){delete this.dataset.manual;calcDA();}">
+                <span class="form-hint">매출수익 − 대행료 (직접 입력 시 고정)</span>
               </div>
             </div>
             <!-- CPA 전용 -->

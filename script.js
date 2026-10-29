@@ -1869,9 +1869,10 @@ function openDetail(idx, skipPush) {
     const daComm   = c.comm     || 0;
     const daAgrate = c.agrate   || 0;
     const daBuyU   = c.buyUnit  || Math.round(daAdc * (1 - daComm / 100));
-    const daRev    = Math.round(daAdc * daComm / 100);
-    const daAgf    = Math.round(daAdc * daAgrate / 100);
-    const daPrf    = daRev - daAgf;
+    const _daStl   = _stlAmt(c);                 // 매출수익·이익 수기입력(revFixed/profitFixed) 반영
+    const daRev    = _daStl.rev;
+    const daAgf    = _daStl.agFee;
+    const daPrf    = _daStl.prf;
     const setText  = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     setText('dDaAdcostShow', daAdc   ? _fmtMoney(daAdc)  + '원' : '—');
     setText('dDaBillBase',   c.daBillBase || '—');
@@ -1880,7 +1881,7 @@ function openDetail(idx, skipPush) {
     setText('dDaFeeYn',      c.daFeeYn    || '—');
     setText('dDaComm',       daComm  ? daComm + '%'            : '—');
     setText('dDaBuyUnit',    daBuyU  ? _fmtMoney(daBuyU) + '원' : '—');
-    setText('dDaRev',        daRev   ? _fmtMoney(daRev)  + '원' : '—');
+    setText('dDaRevSales',   daAdc   ? _fmtMoney(daRev)  + '원' : '—');
     setText('dDaProfit',     daAdc   ? _fmtMoney(daPrf)  + '원' : '—');
     const agLbl = document.getElementById('dDaAgratelbl');
     if (agLbl) agLbl.textContent = `– 대행료 (${daAgrate}%)`;
@@ -3372,6 +3373,8 @@ function _calcDAByPrefix(p) {
   const g      = id => +document.getElementById(p + id)?.value || 0;
   const getRaw = id => { const el = document.getElementById(p + id); return el ? el.value.trim() : ''; };
   const set    = (id, v) => { const el = document.getElementById(p + id); if (el) el.value = v; };
+  const setAuto= (id, v) => { const el = document.getElementById(p + id); if (el && !el.dataset.manual) el.value = v; };
+  const isMan  = id => { const el = document.getElementById(p + id); return !!(el?.dataset.manual && getRaw(id) !== ''); };
   const adc  = g('adcost');
   const comm = g('comm');
   const ag   = g('agrate');
@@ -3386,13 +3389,15 @@ function _calcDAByPrefix(p) {
     buyUnit = adc ? Math.round(adc * (1 - comm / 100)) : 0;
     set('buyUnit', buyUnit || '');
   }
-  // 매출수익·이익은 상세보기·정산탭(_stlAmt)과 같은 식: 광고비 × 수수료율 기준, 매입단가는 안 봄.
-  // 예전엔 (광고비 − 매입단가)라 매입단가가 잘못 들어가면(예: 1원) 수정화면 이익만 혼자 튀었다(2026-10-19).
-  const rev = adc ? Math.round(adc * comm / 100) : 0;
+  // 매출수익·이익의 자동식은 상세보기·정산탭(_stlAmt)과 같음: 매출수익=광고비×수수료율, 이익=매출수익−대행료.
+  // 단 사람이 직접 입력(dataset.manual)하면 그 값을 유지한다(저장 시 revFixed/profitFixed로 저장). 예전엔
+  // readonly 자동계산만 가능했음(2026-10-29, 사용자 요청: DA 매출수익·이익 수기입력 허용).
+  const revAuto = adc ? Math.round(adc * comm / 100) : 0;
+  const rev = isMan('rev') ? g('rev') : revAuto;
+  setAuto('rev', adc ? revAuto : '');
   const agf = adc ? Math.round(adc * ag / 100) : 0;
-  const prf = rev - agf;
-  set('rev',    adc ? rev.toLocaleString() + '원' : '');
-  set('profit', adc ? prf.toLocaleString() + '원' : '');
+  const prfAuto = rev - agf;
+  setAuto('profit', adc ? prfAuto : '');
 }
 function calcDA()     { _calcDAByPrefix('r_da_'); }
 function calcDAEdit() { _calcDAByPrefix('e_da_'); }
@@ -3643,12 +3648,16 @@ function submitReg() {
       : (!isDA && !isPC && !isCPS ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_buyAmt'))) : null),
     revFixed:     isCPA
       ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_cpa_rev')))
-      : (!isDA && !isPC && !isCPS ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_rev')))    : null),
+      : isDA
+      ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_da_rev')))
+      : (!isPC && !isCPS ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_rev')))    : null),
     profitFixed:  isCPA
       ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_cpa_profit')))
       : isCPS
       ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_cps_bc_profit')))
-      : (!isDA && !isPC ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_profit'))) : null),
+      : isDA
+      ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_da_profit')))
+      : (!isPC ? ((el => (el?.dataset.manual && el.value !== '') ? +el.value : null)(document.getElementById('r_profit'))) : null),
     svcApplyAdv:   (!isDA && !isPC && !isCPA && !isCPS) ? (document.getElementById('r_svcApplyAdv')?.checked   ?? true)  : true,
     svcApplyMedia: (!isDA && !isPC && !isCPA && !isCPS) ? (document.getElementById('r_svcApplyMedia')?.checked ?? false) : false,
     // 퍼미션콜·CPS는 정산(_stlAmt)에서 대행료를 안 쓰므로 0으로 저장 — 대행사 매출처 자동입력값이 DB에 남지 않게(2026-10-19)
@@ -4067,6 +4076,11 @@ function openEdit() {
       if (c.buyUnit && c.buyUnit !== _daAutoBuy) eDaBuyEl.dataset.manual = '1';
       else delete eDaBuyEl.dataset.manual;
     }
+    // 매출수익·이익 수기입력값 복원(있으면 고정표시, 없으면 calcDAEdit가 자동계산으로 채움)
+    const eDaRevEl = document.getElementById('e_da_rev');
+    if (eDaRevEl) { if (c.revFixed != null) { eDaRevEl.value = c.revFixed; eDaRevEl.dataset.manual = '1'; } else { eDaRevEl.value = ''; delete eDaRevEl.dataset.manual; } }
+    const eDaPrfEl = document.getElementById('e_da_profit');
+    if (eDaPrfEl) { if (c.profitFixed != null) { eDaPrfEl.value = c.profitFixed; eDaPrfEl.dataset.manual = '1'; } else { eDaPrfEl.value = ''; delete eDaPrfEl.dataset.manual; } }
     calcDAEdit();
     // 구버전(string) · 신버전(array) 모두 호환
     _daEditImagesBase64 = Array.isArray(c.daImage) ? [...c.daImage] : (c.daImage ? [c.daImage] : []);
@@ -4305,6 +4319,9 @@ function submitEdit() {
     c.comm       = +document.getElementById('e_da_comm')?.value    || 0;
     c.agrate     = +document.getElementById('e_da_agrate')?.value  || 0;
     c.buyUnit    = +document.getElementById('e_da_buyUnit')?.value || Math.round(c.daAdcost * (1 - c.comm / 100));
+    // 매출수익·이익 수기입력 저장(비우면 null=자동계산). ??/0 보존 위해 || 아님
+    { const re = document.getElementById('e_da_rev');    c.revFixed    = (re?.dataset.manual && re.value !== '') ? +re.value : null; }
+    { const pe = document.getElementById('e_da_profit'); c.profitFixed = (pe?.dataset.manual && pe.value !== '') ? +pe.value : null; }
     c.billBase     = 'da';
     c.sellBillBase = '';
     c.buyBillBase  = '';
@@ -8317,11 +8334,11 @@ function _stlAmt(c) {
     const buyAmt = c.buyUnit  || Math.round(adc * (1 - (c.comm || 0) / 100));
     const adcVat = Math.round(adc * 0.1);
     const buyVat = Math.round(buyAmt * 0.1);
-    const rev    = Math.round(adc * (c.comm   || 0) / 100);
+    const rev    = c.revFixed    ?? Math.round(adc * (c.comm   || 0) / 100); // 매출수익 수기 우선(0도 유지)
     const agFee  = Math.round(adc * (c.agrate || 0) / 100);
-    const prf    = rev - agFee;
+    const prf    = c.profitFixed ?? (rev - agFee);                           // 이익 수기 우선(0도 유지)
     const prfRate = adc > 0 ? (prf / adc * 100) : 0;
-    return { actual: 0, qty: 0, eu: 0, adc, amt: adc, adcVat, buyAmt, buyVat, stlRate: 0, agFee, prf, prfRate };
+    return { actual: 0, qty: 0, eu: 0, adc, amt: adc, adcVat, buyAmt, buyVat, stlRate: 0, agFee, rev, prf, prfRate };
   }
   // 퍼미션콜
   if (c.product === '퍼미션콜') {
